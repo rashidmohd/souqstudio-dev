@@ -1,0 +1,51 @@
+/* The token file is authoritative and lives in the design skill so the
+   relative paths inside SKILL.md resolve. Do not copy it here — import it.
+   One file, one location, no drift. */
+@import '../../../.claude/skills/souqstudio-design/assets/souqstudio-tokens.css';
+
+/* ── Font binding ──────────────────────────────────────────────────────────
+   The token file declares which family plays which role. next/font generates
+   hashed family names at build time, so the tokens are re-pointed at its CSS
+   variables here. The token file stays authoritative for intent; this binds
+   intent to the actually-loaded files.
+
+   Without this block all three roles silently fall back to system-ui and the
+   entire type scale is inert — nothing errors, it just looks wrong.
+   See the fonts module in each app: lib/fonts.ts.
+   (Do not write a glob with a star-slash inside a CSS comment — it closes the
+   comment early and the rest of the line is parsed as a selector.)          */
+:root {
+  --sq-font-display: var(--font-display), system-ui, sans-serif;
+  --sq-font-ui:      var(--font-ui),      system-ui, sans-serif;
+  --sq-font-figure:  var(--font-figure),  ui-monospace, monospace;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Wordmark ──────────────────────────────────────────────────────────────
+   The monochrome cut is drawn as a mask filled with `currentColor`, so the
+   mark takes its colour from the text colour of whatever contains it — charcoal
+   in the auth flow, inverse on a dark surface — from one file.
+
+   A mask rather than an <img> because an image cannot inherit currentColor, and
+   rather than inlining 12 paths into a component. Sized here rather than with a
+   Tailwind arbitrary value, which the design system forbids. Ratio is the
+   viewBox: 654.65 × 113.84.                                                  */
+.sq-wordmark {
+  display: inline-block;
+  inline-size: 148px;
+  block-size: 26px;
+  background-color: currentColor;
+  -webkit-mask: url('/brand/logo-mono.svg') no-repeat center / contain;
+  mask: url('/brand/logo-mono.svg') no-repeat center / contain;
+}
+
+html, body {
+  background: var(--sq-ui-page);
+  color: var(--sq-ui-text-primary);
+  font-family: var(--sq-font-ui);
+  font-size: var(--sq-text-body);
+  line-height: var(--sq-leading-body);
+}

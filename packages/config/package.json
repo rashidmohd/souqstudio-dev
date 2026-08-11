@@ -1,0 +1,20 @@
+{
+  "name": "@souqstudio/config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.nextjs.json": "./tsconfig.nextjs.json",
+    "./tailwind.config": "./tailwind.config.ts",
+    "./vitest.base": "./vitest.base.ts",
+    "./eslint.design.cjs": "./eslint.design.cjs",
+    "./stylelint.config.cjs": "./stylelint.config.cjs"
+  },
+  "dependencies": {
+    "tailwindcss": "^3.4.0"
+  },
+  "devDependencies": {
+    "vitest": "^2"
+  }
+}

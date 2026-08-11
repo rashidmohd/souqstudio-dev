@@ -1,0 +1,236 @@
+/* SouqStudio design tokens — authoritative source.
+   Never write a raw hex value in component code.
+   Two namespaces: --sq-ui-* is app chrome, --sq-tpl-* is offer book content.
+   They must never cross. */
+
+:root {
+  /* ---------- Brand ---------- */
+  --sq-blue:            #143CD2;  /* 8.06:1 on white — ink-safe */
+  --sq-navy:            #052F72;  /* 12.68:1 — ink-safe */
+  --sq-charcoal:        #323232;  /* 12.82:1 — ink-safe */
+  --sq-sky:             #3F9DD1;  /* 3.02:1 — FILL ONLY */
+  --sq-gold:            #BDA25A;  /* 2.48:1 — FILL ONLY */
+  --sq-sand:            #EBE6CE;  /* 1.25:1 — FILL ONLY */
+  --sq-lime:            #CFEB6B;  /* 1.33:1 — FILL ONLY */
+
+  /* Tints — lighter fills for tinted content cards and icon chips.
+     Same rule as the parent: background only, charcoal on top. */
+  --sq-lime-tint:       #EDF7D4;
+  --sq-sky-tint:        #DCE9F5;
+  --sq-sand-tint:       #F5F2E6;
+
+  /* ---------- Stone ramp (sand-tinted neutrals) ---------- */
+  --sq-stone-0:         #FFFFFF;
+  --sq-stone-50:        #F8F7F3;
+  --sq-stone-100:       #EFEEE8;
+  --sq-stone-200:       #E2E0D8;
+  --sq-stone-300:       #CDCBC1;  /* borders only, never text */
+  --sq-stone-400:       #A9A79C;  /* borders/disabled only, never text */
+  --sq-stone-500:       #8A8880;  /* 3.31:1 on page — large text only */
+  --sq-stone-600:       #6E6C64;  /* 4.91:1 — lightest permitted body text */
+  --sq-stone-700:       #55534D;
+  --sq-stone-800:       #3E3D38;
+  --sq-stone-900:       #323232;
+
+  /* ---------- Blue tints ---------- */
+  --sq-blue-50:         #F1F4FE;
+  --sq-blue-100:        #DDE4FC;
+  --sq-blue-200:        #B8C6F8;
+  --sq-blue-600:        #1032AE;
+  --sq-blue-700:        #0C2688;
+
+  /* ---------- Semantic ---------- */
+  --sq-positive-fg:     #3F6212;  /* 7.08:1 */
+  --sq-positive-bg:     #EFFAD4;
+  --sq-critical-fg:     #B3261E;  /* 6.54:1 — deliberately cooler than tpl offer red */
+  --sq-critical-bg:     #FDECEA;
+  --sq-critical-hover:  #8E1E17;
+  --sq-caution-fg:      #92510A;  /* 6.17:1 */
+  --sq-caution-bg:      #FDF3E2;
+
+  /* ---------- Semantic UI roles ---------- */
+  --sq-ui-page:              var(--sq-stone-50);
+  --sq-ui-surface:           var(--sq-stone-0);
+  --sq-ui-surface-sunken:    var(--sq-stone-100);
+  --sq-ui-canvas-surround:   #2C2C2A;      /* editor artboard backdrop */
+  --sq-ui-input:             var(--sq-stone-0);
+
+  --sq-ui-text-primary:      var(--sq-stone-900);
+  --sq-ui-text-secondary:    var(--sq-stone-700);
+  --sq-ui-text-muted:        var(--sq-stone-600);
+  --sq-ui-text-inverse:      var(--sq-stone-0);
+  --sq-ui-text-link:         var(--sq-blue);
+
+  --sq-ui-border-subtle:     rgba(50, 50, 50, 0.14);
+  --sq-ui-border-strong:     rgba(50, 50, 50, 0.25);
+  --sq-ui-border-focus:      var(--sq-blue);
+
+  --sq-ui-action-primary-bg:     var(--sq-charcoal);
+  --sq-ui-action-primary-fg:     var(--sq-stone-0);
+  --sq-ui-action-primary-hover:  #1F1F1F;
+  --sq-ui-action-secondary-bg:   transparent;
+  --sq-ui-action-secondary-fg:   var(--sq-stone-900);
+  --sq-ui-action-danger-fg:      var(--sq-critical-fg);
+
+  --sq-ui-selected-bg:       var(--sq-blue-50);
+  --sq-ui-selected-fg:       var(--sq-blue);
+  --sq-ui-selected-ring:     var(--sq-blue);
+
+  /* ---------- Machine output (AI-generated content marker) ---------- */
+  --sq-machine-rule:    var(--sq-sky);
+  --sq-machine-fill:    #EEF6FB;
+  --sq-machine-label:   var(--sq-navy);
+
+  /* ---------- Template content — NEVER in chrome ---------- */
+  --sq-tpl-offer-red:   #E5262B;
+  --sq-tpl-save-yellow: #FFC500;
+  --sq-tpl-deep:        var(--sq-navy);
+  --sq-tpl-ink:         #111111;
+  --sq-tpl-paper:       #FFFFFF;
+
+  /* ---------- Charts ---------- */
+  --sq-chart-1: #143CD2;
+  --sq-chart-2: #3F9DD1;
+  --sq-chart-3: #BDA25A;
+  --sq-chart-4: #052F72;
+  --sq-chart-5: #8FBF4F;
+  --sq-chart-6: #8A8880;
+
+  /* ---------- Type ---------- */
+  --sq-font-display: 'Host Grotesk', system-ui, sans-serif;
+  --sq-font-ui:      'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --sq-font-figure:  'IBM Plex Mono', ui-monospace, monospace;
+
+  --sq-text-display:   32px;  --sq-leading-display:   36px;
+  --sq-text-title:     24px;  --sq-leading-title:     30px;
+  --sq-text-heading:   20px;  --sq-leading-heading:   26px;
+  --sq-text-subhead:   16px;  --sq-leading-subhead:   22px;
+  --sq-text-body:      14px;  --sq-leading-body:      22px;
+  --sq-text-body-sm:   13px;  --sq-leading-body-sm:   20px;
+  --sq-text-label:     12px;  --sq-leading-label:     16px;
+  --sq-text-eyebrow:   11px;  --sq-leading-eyebrow:   16px;
+  --sq-text-data-lg:   28px;  --sq-leading-data-lg:   32px;
+  --sq-text-data:      14px;  --sq-leading-data:      20px;
+  --sq-text-data-sm:   12px;  --sq-leading-data-sm:   18px;
+
+  /* ---------- Space & controls ---------- */
+  --sq-space-1: 4px;  --sq-space-2: 8px;  --sq-space-3: 12px;
+  --sq-space-4: 16px; --sq-space-6: 24px; --sq-space-8: 32px; --sq-space-12: 48px;
+
+  --sq-radius-chip:     8px;   /* icon chips */
+  --sq-radius-control:  8px;   /* inputs, selects */
+  --sq-radius-card:    12px;   /* cards, dialogs, panels */
+  --sq-radius-block:   16px;   /* tinted content cards */
+  --sq-radius-pill:   999px;   /* all buttons */
+  --sq-radius-artboard: 3px;
+
+  --sq-h-control:    32px;
+  --sq-h-control-lg: 40px;
+
+  --sq-dur-fast: 120ms;
+  --sq-dur-base: 200ms;
+  --sq-ease: cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* Touch targets grow, nothing else changes. */
+@media (pointer: coarse) {
+  :root {
+    --sq-h-control:    44px;
+    --sq-h-control-lg: 48px;
+  }
+}
+
+/* Arabic sets one step larger with looser leading to clear diacritics. */
+html[lang='ar'] {
+  --sq-text-body:    16px;  --sq-leading-body:    27px;
+  --sq-text-body-sm: 15px;  --sq-leading-body-sm: 25px;
+  --sq-text-label:   13px;  --sq-leading-label:   20px;
+  --sq-text-subhead: 17px;  --sq-leading-subhead: 28px;
+}
+
+/* Plex Sans Arabic has no true italic. Emphasise with weight. */
+em, i, .italic { font-style: normal; font-weight: 500; }
+
+/* Every figure: mono, tabular, bidi-isolated so it cannot reorder in Arabic. */
+[data-figure], .sq-figure {
+  font-family: var(--sq-font-figure);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+/* Model-generated content. Use the MachineOutput component, not this class directly. */
+.sq-machine {
+  background: var(--sq-machine-fill);
+  border-inline-start: 2px solid var(--sq-machine-rule);
+  padding-inline-start: var(--sq-space-3);
+}
+
+/* ---------- shadcn/ui bridge ---------- */
+:root {
+  --background:          var(--sq-ui-page);
+  --foreground:          var(--sq-ui-text-primary);
+  --card:                var(--sq-ui-surface);
+  --card-foreground:     var(--sq-ui-text-primary);
+  --popover:             var(--sq-ui-surface);
+  --popover-foreground:  var(--sq-ui-text-primary);
+  --primary:             var(--sq-ui-action-primary-bg);
+  --primary-foreground:  var(--sq-ui-action-primary-fg);
+  --secondary:           var(--sq-stone-100);
+  --secondary-foreground: var(--sq-ui-text-primary);
+  --muted:               var(--sq-stone-100);
+  --muted-foreground:    var(--sq-ui-text-muted);
+  --accent:              var(--sq-blue-50);
+  --accent-foreground:   var(--sq-blue);
+  --destructive:         var(--sq-critical-fg);
+  --destructive-foreground: var(--sq-stone-0);
+  --border:              var(--sq-ui-border-subtle);
+  --input:               var(--sq-ui-border-strong);
+  --ring:                var(--sq-ui-border-focus);
+  --radius:              var(--sq-radius-card);
+}
+
+/* ---------- Dark surfaces ----------
+   Surfaces and text only. Every other role — status, machine fill, selection
+   tint, charts, the fill-only tier — is UNVERIFIED at dark contrast. Do not
+   ship a dark screen using them without review. See Known gaps in SKILL.md. */
+
+[data-mode='dark'] {
+  --sq-ui-page:            #1E1E1C;
+  --sq-ui-surface:         #262622;
+  --sq-ui-surface-sunken:  #191917;
+  --sq-ui-input:           #2E2E29;
+
+  --sq-ui-text-primary:    #EFEEE8;
+  --sq-ui-text-secondary:  #BFBDB3;
+  --sq-ui-text-muted:      #96948B;
+  --sq-ui-text-inverse:    #1E1E1C;
+
+  --sq-ui-border-subtle:   rgba(239, 238, 232, 0.12);
+  --sq-ui-border-strong:   rgba(239, 238, 232, 0.24);
+
+  --sq-ui-action-primary-bg:    #EFEEE8;
+  --sq-ui-action-primary-fg:    #1E1E1C;
+  --sq-ui-action-primary-hover: #FFFFFF;
+
+  --sq-ui-text-link:       #8AA1F1;  /* sq-blue is unreadable on a dark ground */
+  --sq-ui-border-focus:    #8AA1F1;
+  --sq-ui-selected-bg:     #232838;
+  --sq-ui-selected-fg:     #8AA1F1;
+}
+
+/* Illustrations keep their light palette in both themes and sit on this panel.
+   Inverted variants are only safe for artwork with no people in it. */
+:root          { --sq-illus-panel: #F5F2E6; }
+[data-mode='dark'] { --sq-illus-panel: #F5F2E6; }
+
+/* Motion honours the OS setting. Not optional. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

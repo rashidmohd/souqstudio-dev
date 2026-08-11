@@ -1,0 +1,977 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Billing entity ───────────────────────────────────────────────────────────
+model Organization {
+  id                   String  @id @default(cuid())
+  name                 String
+  email                String
+  vatNumber            String?
+  country              String  @default("AE")
+  timezone             String  @default("Asia/Dubai")
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+  planId               String?
+  billingStatus        String  @default("active") // active | past_due | suspended | cancelled
+
+  /// E1-03: the owner can require two-factor authentication for everyone in the
+  /// organization. Enforced as a redirect to enrollment, never as a refusal to
+  /// sign in — the worst case must be "everyone has to enroll", not "nobody can
+  /// get in". See apps/web/lib/two-factor.ts.
+  requireTwoFactor      Boolean   @default(false)
+  /// When the policy was last turned on. Carried so the UI can say "required
+  /// since 3 March", and so a grace period can be added later without a second
+  /// schema change. Null whenever requireTwoFactor is false.
+  requireTwoFactorSince DateTime?
+
+  /// E2-01. The organization's logo, and the default every shop inherits
+  /// unless its brandOverride says otherwise. Stored at `{orgId}/org/logo.png`
+  /// in R2 — see orgAssetKey() in apps/web/lib/r2.ts.
+  logoUrl  String?
+  /// E2-05. Organization-level brand defaults — the kit every shop inherits
+  /// from. Same shape as shops.brandKit:
+  /// { primaryColor, secondaryColor, accentColor, gridId, templateId, fontDisplay, fontPrice, fontBody }
+  /// A shop resolves its effective kit from this plus its own, according to
+  /// shops.brandOverride. See apps/web/lib/brand-inheritance.ts.
+  brandKit Json?
+
+  /// E3-01. Everything below is a *cache of Stripe*, written only by the webhook
+  /// handler in app/api/v1/webhooks/stripe. Stripe stays authoritative — these
+  /// exist so the billing screen can render the next billing date without a
+  /// round trip on every page load, and so a webhook outage is visible as stale
+  /// data rather than as a wrong charge. Never compute money from them.
+  currentPeriodEnd  DateTime?
+  /// True between "cancel" and the end of the paid period. Access continues.
+  cancelAtPeriodEnd Boolean   @default(false)
+  /// E3-01 downgrade. Set when a lower plan is scheduled for the period end;
+  /// cleared when it applies. An upgrade is immediate and never lands here.
+  pendingPlanId     String?
+  /// E3-04 failed payments. When the subscription first went past_due — the
+  /// clock the seven-day grace period is measured from. Cleared on recovery.
+  pastDueSince      DateTime?
+  /// E3-01 cancellation. Ninety days after the paid period ended, at which
+  /// point the data is purged. Carried so the warning can name the date.
+  dataPurgeAt       DateTime?
+  /// E3-03. `pooled` — every shop draws on the organization balance.
+  /// `allocated` — each shop is capped by its ShopCreditAllocation row.
+  /// Business plan and above; the plan check lives in lib/plans.ts.
+  creditPooling     String    @default("pooled") // pooled | allocated
+
+  plan                  Plan?                  @relation("OrganizationPlan", fields: [planId], references: [id])
+  pendingPlan           Plan?                  @relation("OrganizationPendingPlan", fields: [pendingPlanId], references: [id])
+  shops                 Shop[]
+  users                 User[]
+  userShopAccess        UserShopAccess[]
+  invites               Invite[]
+  usageEvents           UsageEvent[]
+  aiJobs                AiJob[]
+  creditBalance         CreditBalance?
+  creditTopups          CreditTopup[]
+  shopCreditAllocations ShopCreditAllocation[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@map("organizations")
+}
+
+// ─── Operational unit ─────────────────────────────────────────────────────────
+model Shop {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  location       String?
+  phone          String?
+  logoUrl        String?
+  /// { primaryColor, secondaryColor, accentColor, gridId, templateId, fontDisplay, fontPrice, fontBody }
+  brandKit       Json?
+  brandOverride  String  @default("inherit") // inherit | logo | colors | full
+  isActive       Boolean @default(true)
+
+  /// E2-02. Null while active. A deactivated shop keeps all of its data and
+  /// stops generating content. Paired with isActive rather than replacing it:
+  /// the boolean is what every query filters on, the timestamp is what the
+  /// screen and the billing seam need.
+  deactivatedAt            DateTime?
+  /// E2-02 "remove shop". Soft, always. Offer books and analytics are retained
+  /// and archived — a published book references this shop and must not break.
+  /// There is no code path that deletes a shop row.
+  archivedAt               DateTime?
+  /// E3 owns this column and is its only writer. Each shop above the base plan
+  /// is a Stripe subscription item. Carried here so that adding a shop does not
+  /// need a second migration once billing lands.
+  stripeSubscriptionItemId String?   @unique
+
+  organization     Organization          @relation(fields: [organizationId], references: [id])
+  userAccess       UserShopAccess[]
+  offerBooks       OfferBook[]
+  characters       Character[]
+  socialConns      SocialConnection[]
+  creditAllocation ShopCreditAllocation?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, archivedAt])
+  @@map("shops")
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+model User {
+  id             String  @id @default(cuid())
+  organizationId String
+  email          String  @unique
+  passwordHash   String?
+  name           String?
+  role           String // owner | manager | editor | viewer
+
+  // Email verification. Null means unverified — E1 gates the editor on this,
+  // so it is a timestamp rather than a boolean: "when" is needed for support.
+  emailVerifiedAt DateTime?
+
+  // Failed-login lockout. E1-02: five attempts, fifteen minute cooldown.
+  // The counter resets to zero on any successful login.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+
+  // Bumped to invalidate every outstanding session for this user at once —
+  // password change, 2FA reset, or an owner revoking access. Cheaper than
+  // deleting session rows and it cannot miss one.
+  tokenVersion Int @default(0)
+
+  twoFactorEnabled      Boolean   @default(false)
+  /// TOTP shared secret, sealed by apps/web/lib/two-factor-secret.ts. Read and
+  /// written only through that module — the stored form carries a version tag
+  /// ("v0:…"), so it is not a bare base32 secret and must not be handed to
+  /// otplib directly. Currently v0 = plaintext; encrypting it is the open
+  /// question in souqstudio-technical → references/auth.md, tied to the E10
+  /// key-management decision.
+  twoFactorSecret       String?
+  /// When two-factor was last switched on, for the account-security screen.
+  twoFactorEnabledAt    DateTime?
+  /// RFC 6238 time step of the last accepted code. A code stays valid for up to
+  /// 90 seconds across the drift window, so without this a code observed over a
+  /// shoulder or through a phishing proxy can be replayed into a *fresh*
+  /// challenge — which the single-use challenge row does not prevent, because
+  /// the attacker starts their own. Advanced by compare-and-set, never blindly.
+  twoFactorLastTimeStep Int?
+
+  /// E1-05: when this person dismissed the getting-started checklist.
+  ///
+  /// Per-user rather than per-shop, even though the items it tracks are shop
+  /// and org progress. Dismissal is a statement about what one person wants on
+  /// their screen; a manager hiding it should not hide it from the owner.
+  checklistDismissedAt DateTime?
+
+  /// E2-03. Set when an owner removes someone from the organization. The row
+  /// is kept rather than deleted: sessions, offer books and any future audit
+  /// trail reference it, and a hard delete would have to cascade through five
+  /// tables to succeed. getSession() treats a removed user as no session.
+  removedAt DateTime?
+
+  organization         Organization             @relation(fields: [organizationId], references: [id])
+  shopAccess           UserShopAccess[]
+  grantsGiven          UserShopAccess[]         @relation("GrantedBy")
+  invitesSent          Invite[]                 @relation("InvitesSent")
+  notifications        Notification[]
+  notifPrefs           NotificationPreference[]
+  sessions             Session[]
+  backupCodes          TwoFactorBackupCode[]
+  twoFactorChallenges  TwoFactorChallenge[]
+  twoFactorEnrollments TwoFactorEnrollment[]
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, removedAt])
+  @@map("users")
+}
+
+/// E2-04. Which shops a person can act on, and with what role.
+///
+/// The owner is deliberately absent from this table: E2-04 says the owner sees
+/// every shop automatically, so an owner needs no grant row and one is never
+/// written. Everyone else reaches exactly the shops listed here — an org-level
+/// role with no grant row reaches nothing.
+model UserShopAccess {
+  userId         String
+  shopId         String
+  /// Denormalized from the shop. Required by the RLS policy — a tenant table
+  /// with no organizationId has nothing for the policy to compare against —
+  /// and it turns "every grant in this organization" into one indexed read
+  /// rather than a join through shops.
+  organizationId String
+  role           String? // overrides the org-level role for this shop if set
+  /// Who granted it. Access changes are the one thing in this epic somebody
+  /// will later want explained, and there is no org-facing audit log yet.
+  grantedById    String?
+
+  user         User         @relation(fields: [userId], references: [id])
+  shop         Shop         @relation(fields: [shopId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  grantedBy    User?        @relation("GrantedBy", fields: [grantedById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@id([userId, shopId])
+  @@index([shopId])
+  @@index([organizationId])
+  @@map("user_shop_access")
+}
+
+/// E2-03. A pending team member.
+///
+/// A dedicated table rather than a third VerificationToken type. That model is
+/// a deliberate two-secret design — a six-digit code in the inbox plus a
+/// 32-byte token in an httpOnly cookie — which is right for proving control of
+/// an address from the browser that asked for it, and wrong for a link that
+/// gets forwarded and opened on a phone that has never seen this product. An
+/// invite carries one secret: the token in the URL. It also carries state
+/// VerificationToken has nowhere to put — the role, the shop grants, and who
+/// sent it.
+///
+/// Accepting an invite sets emailVerifiedAt: following the link *is* proof of
+/// address control, so asking for a second code afterwards would be theatre.
+model Invite {
+  id             String @id @default(cuid())
+  organizationId String
+  email          String
+  /// manager | editor | viewer. Never owner — there is exactly one path to
+  /// owner and it is signup.
+  role           String
+  /// sha256 of the token. The raw token exists only in the emailed link.
+  tokenHash      String @unique
+
+  invitedById String
+  /// Shops granted on acceptance, with an optional per-shop role override:
+  /// [{ shopId: string, role?: 'manager' | 'editor' | 'viewer' }]
+  /// E2-04 allows the same person a different role in each shop, so this
+  /// cannot collapse to a list of ids.
+  shopGrants  Json?
+
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  /// Drives the escalating resend cooldown, the same shape as the one in
+  /// apps/web/lib/verification.ts.
+  resendCount Int       @default(0)
+  lastSentAt  DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  invitedBy    User         @relation("InvitesSent", fields: [invitedById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  /// One live invite per address per organization. Re-inviting rotates the
+  /// token and resets the clock on the existing row — which is exactly what
+  /// "resend expired invite" means, so both are one code path.
+  @@unique([organizationId, email])
+  @@index([organizationId, acceptedAt])
+  @@index([expiresAt])
+  @@map("invites")
+}
+
+/// Database-backed sessions, so they can be revoked server-side. E1 requires
+/// revocability, which a stateless JWT cannot give.
+///
+/// The raw session token is never stored. Only a SHA-256 hash of it lands here,
+/// so a leaked dump of this table cannot be replayed as a login. Look rows up by
+/// hashing the incoming cookie and matching `tokenHash`.
+///
+/// Not RLS-gated on organizationId: this table is read *before* the org context
+/// exists — reading it is how the org is discovered. Isolation comes from the
+/// token being unguessable, not from a row policy.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique // SHA-256 of the session token. Never the token itself.
+  expiresAt DateTime
+
+  // Rotation family. Every refresh issues a new row carrying the same familyId
+  // and points the old row at it via replacedById. If a token that was already
+  // replaced is presented again, it was stolen — revoke the whole family.
+  familyId     String
+  replacedById String?   @unique
+  revokedAt    DateTime?
+
+  // Audit trail for the account-security screen: "last used, from where".
+  // The IP is hashed — it is a personal identifier under GDPR and the UAE PDPL,
+  // and comparing sessions never needs the original value.
+  lastUsedAt DateTime?
+  ipHash     String?
+  userAgent  String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt]) // supports the expired-session sweep
+  @@map("sessions")
+}
+
+/// Email verification and password reset. E1-01 and E1-02.
+///
+/// One table for both, discriminated by `type`, because the lifecycle is
+/// identical: issue, email a code, consume once, expire.
+///
+/// **Two secrets, and both are required.** The OTP is the six digits in the
+/// email. The token is a 32-byte handle held in an httpOnly cookie, naming which
+/// verification attempt is in progress. Presenting one without the other proves
+/// nothing:
+///
+///   tokenHash = sha256(token)              — the lookup key
+///   otpHash   = sha256(token + ':' + otp)  — binds the code to that token
+///
+/// So a code emailed to one person cannot be redeemed from a browser that never
+/// requested it, and a database dump yields neither secret — the raw token is
+/// never stored, so `otpHash` cannot be ground down against six digits.
+///
+/// That is also why the OTP is not bcrypted. A 10^6 space falls to any KDF
+/// eventually; the real defense is the attacker needing a 32-byte token they do
+/// not have, plus `attempts` and a short expiry.
+model VerificationToken {
+  id         String @id @default(cuid())
+  identifier String // email address the code was issued to
+  tokenHash  String @unique // sha256(token)
+  otpHash    String // sha256(token + ':' + otp) — useless without the token
+  type       String // email_verification | password_reset
+
+  /// Wrong codes so far. At the cap the row is consumed and a fresh code must be
+  /// requested; without it six digits is a few hundred thousand guesses.
+  attempts Int @default(0)
+
+  /// How many times a code has been re-sent to this address in this run,
+  /// carried forward each reissue. Drives the escalating cooldown — 1, 3, 10
+  /// then 60 minutes — so a resend button cannot be used to mail-bomb someone.
+  /// Resets naturally when a run completes, because the next run starts at zero.
+  resendCount Int       @default(0)
+  expiresAt   DateTime
+  consumedAt  DateTime? // single-use: set on redemption and on attempt burnout
+  createdAt   DateTime  @default(now())
+
+  @@index([identifier, type])
+  @@index([expiresAt])
+  @@map("verification_tokens")
+}
+
+/// Delivery log for every email the worker sends. Required by
+/// apps/worker/CLAUDE.md → Email worker rules.
+///
+/// Operational, not tenant data: the questions it answers are "did the
+/// verification code actually go out" and "is Resend rejecting us", asked by
+/// support and by whoever is on call. Not RLS-gated for that reason.
+///
+/// **Never log `props`.** They carry one-time codes and reset links; a delivery
+/// log is the wrong place for a live credential.
+model NotificationLog {
+  id         String    @id @default(cuid())
+  template   String // matches EmailTemplate in @souqstudio/types
+  recipient  String
+  status     String // queued | sent | failed
+  providerId String? // Resend message id, for correlating with their dashboard
+  error      String? // provider message on failure — never a stack trace
+  attempts   Int       @default(1)
+  sentAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([recipient])
+  @@index([status, createdAt])
+  @@map("notification_log")
+}
+
+/// The half-authenticated state between a correct password and a correct second
+/// factor. E1-03.
+///
+/// Deliberately **not** a flag on `sessions`. A row in that table means "this
+/// request is authenticated", and giving it a second meaning fails open: every
+/// future reader — revokeAllSessions, the device list, E13 impersonation — would
+/// have to remember the flag, and one that forgets is an authentication bypass.
+/// A pending row would also sail past middleware's cookie-presence check and
+/// then be rejected by requireSession(), losing the `next` param that middleware
+/// exists to preserve.
+///
+/// Carries the login intent captured at the password step — rememberMe, ipHash,
+/// userAgent — so issueSession() receives exactly what it would have received
+/// had there been no second factor.
+///
+/// Not RLS-gated, for the same reason `sessions` is not: read during login,
+/// before any org context exists. Isolation comes from the token being
+/// unguessable.
+model TwoFactorChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique // sha256 of the sq_2fa cookie value. Never the token.
+  expiresAt DateTime
+
+  /// Wrong codes so far. At the cap the row is consumed and a fresh password
+  /// login is required. The per-challenge cap alone is not the real bound —
+  /// wrong codes also count toward users.failedLoginAttempts, or an attacker
+  /// holding the password could mint unlimited challenges at five guesses each.
+  attempts   Int       @default(0)
+  consumedAt DateTime? // single-use: claimed by compare-and-set, never re-read
+
+  // Login intent, carried forward from the password step.
+  rememberMe Boolean @default(false)
+  ipHash     String?
+  userAgent  String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("two_factor_challenges")
+}
+
+/// A TOTP secret that has been shown to someone but not yet proven. E1-03.
+///
+/// Kept off `users` so an abandoned enrollment leaves nothing behind. Were the
+/// unconfirmed secret written to users.twoFactorSecret, the `twoFactorEnabled`
+/// boolean would be the only thing standing between a half-finished setup and a
+/// live credential, and any later code that reads the secret without checking
+/// the boolean would be a silent bug.
+///
+/// A separate table from TwoFactorChallenge rather than one table with a `type`
+/// discriminator, even though VerificationToken sets that precedent. There the
+/// two types are the same machine differing only in what the caller does after.
+/// Here they are not, and type confusion between them is an authentication
+/// bypass: an enrollment row consumed as a login challenge issues a session.
+model TwoFactorEnrollment {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique // sha256 of the sq_2fa_enroll cookie value
+  /// Sealed by apps/web/lib/two-factor-secret.ts, same as users.twoFactorSecret.
+  secret    String
+  expiresAt DateTime
+
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("two_factor_enrollments")
+}
+
+/// Single-use recovery codes for TOTP 2FA. E1-03: generated at setup, shown
+/// once, downloadable.
+///
+/// Hashed, because they are password-equivalent — each one is a complete
+/// bypass of the second factor.
+///
+/// The hash is sha256 peppered with the userId, not bcrypt, and `codeHash`
+/// being `@unique` is why. bcrypt salts per hash, so a submitted code could not
+/// be looked up — verification would mean loading every unused row and running
+/// a comparison against each, which is ~2.5 seconds on the login path and a 10x
+/// CPU amplifier on an endpoint reachable with the password alone. These are
+/// 60-bit CSPRNG strings used once, so there is no dictionary for a slow KDF to
+/// defend against; the same argument lib/tokens.ts makes for session tokens.
+/// The userId pepper is what stops a stolen dump being attacked in bulk.
+model TwoFactorBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  usedAt    DateTime? // single-use; a used code is kept as an audit record
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("two_factor_backup_codes")
+}
+
+// ─── Plans ────────────────────────────────────────────────────────────────────
+/// Global reference data, seeded and RLS-exempt. Ids are hand-written
+/// (`plan_starter`, not a cuid) so the seed is idempotent and so code can name a
+/// tier without a lookup — same reasoning as the grids and templates.
+model Plan {
+  id             String  @id
+  name           String // Starter | Pro | Business | Enterprise
+  maxShops       Int? // null = unlimited
+  maxUsers       Int?
+  aiCreditsMonth Int
+  basePrice      Decimal
+  pricePerShop   Decimal @default(0)
+
+  /// Sort order, and the only definition of "up" and "down". A plan change is
+  /// an upgrade when the target tier is higher — that is what decides whether
+  /// it applies now with proration or at the end of the period (E3-01).
+  tier              Int
+  /// E3-03. Whether unused monthly credits survive the reset. Starter does not
+  /// roll over; Pro and above carry up to CREDIT_ROLLOVER_MULTIPLE of the
+  /// monthly allocation. See apps/web/lib/credits.ts.
+  creditsRollover   Boolean @default(false)
+  /// Stripe Price for the base subscription. Null on a plan that is not
+  /// self-serve — Enterprise is a conversation, not a checkout button.
+  stripePriceId     String? @unique
+  /// Stripe Price for one shop above the included count, billed as a second
+  /// subscription item with a quantity (E3-02). Null when the plan has no
+  /// per-shop overage.
+  stripeShopPriceId String? @unique
+  /// Whether the plan appears in the comparison table. An Enterprise or legacy
+  /// plan stays assignable while being unlisted.
+  isPublic          Boolean @default(true)
+
+  /// Feature flags JSON. Shape: { allocatedCredits, prioritySupport,
+  /// customTemplates, apiAccess, whiteLabel } — all booleans, all optional.
+  /// Read through lib/plans.ts, never indexed into directly.
+  features             Json
+  organizations        Organization[] @relation("OrganizationPlan")
+  pendingOrganizations Organization[] @relation("OrganizationPendingPlan")
+
+  @@map("plans")
+}
+
+// ─── Credits — E3-03 ──────────────────────────────────────────────────────────
+/// The organization's AI credit balance. One row per organization.
+///
+/// This is the one part of billing that is *not* a cache of Stripe. Stripe
+/// meters what was consumed; it does not hold an entitlement balance with
+/// rollover rules and non-expiring top-ups on top. That arithmetic is ours, so
+/// the balance is ours, and it is a row rather than a derived sum because every
+/// AI action reads it on a latency budget.
+model CreditBalance {
+  organizationId String @id
+
+  /// Credits from the monthly allocation, plus whatever rolled over. Reset on
+  /// the billing cycle date. Spent before topupRemaining, so the credits that
+  /// expire are used first.
+  monthlyRemaining Int @default(0)
+  /// Purchased credits (E3-03 top-up). Never expire, never reset.
+  topupRemaining   Int @default(0)
+
+  /// The allocation period, copied from the Stripe billing cycle. `periodEnd`
+  /// in the past means the reset is due — it happens lazily on the next read
+  /// as well as on the invoice.paid webhook, so a missed webhook delays credits
+  /// rather than losing them.
+  periodStart DateTime
+  periodEnd   DateTime
+
+  /// When the low-balance email last went out, so it goes out once per period
+  /// rather than on every generation that crosses the threshold.
+  lowBalanceNotifiedAt DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("credit_balances")
+}
+
+/// A credit purchase (E3-03). Written pending before the charge, moved to
+/// succeeded by the `invoice.paid` webhook — which is also what grants the
+/// credits, so a duplicate delivery cannot grant twice.
+model CreditTopup {
+  id             String  @id @default(cuid())
+  organizationId String
+  credits        Int
+  /// What was charged, in `currency`. Kept for the history list; the invoice in
+  /// Stripe remains the authority.
+  amount         Decimal
+  currency       String  @default("usd")
+  status         String  @default("pending") // pending | succeeded | failed
+
+  /// The Stripe invoice raised for this purchase. Unique, and the idempotency
+  /// key the webhook matches on.
+  stripeInvoiceId String? @unique
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdAt    DateTime     @default(now())
+  grantedAt    DateTime?
+
+  @@index([organizationId, createdAt])
+  @@map("credit_topups")
+}
+
+/// E3-03 allocated pooling, Business plan and above. A per-shop ceiling on the
+/// organization balance — not a separate wallet. A shop with an allocation of
+/// 200 may spend 200 credits this period *if the organization still has them*.
+model ShopCreditAllocation {
+  id             String @id @default(cuid())
+  organizationId String
+  shopId         String @unique
+  /// Credits this shop may spend per period. Zero means the shop cannot
+  /// generate; there is deliberately no null-means-unlimited case, because a
+  /// missing row is already how "not capped" is expressed.
+  allocated      Int
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  shop         Shop         @relation(fields: [shopId], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("shop_credit_allocations")
+}
+
+/// Every Stripe event we have seen, by Stripe's own id. Stripe retries and
+/// duplicate delivery is normal, so the handler claims the row first and does
+/// the work second. RLS-exempt: the webhook has no session and no org context
+/// until it has parsed the event.
+model StripeEvent {
+  id          String    @id
+  type        String
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  /// Set when the handler threw. The row stays so a retry is recognised as a
+  /// retry, and `processedAt` stays null so the retry actually reprocesses.
+  error       String?
+
+  @@index([type, receivedAt])
+  @@map("stripe_events")
+}
+
+// ─── Product catalog ──────────────────────────────────────────────────────────
+model CatalogProduct {
+  id            String                @id @default(cuid())
+  canonicalName String
+  category      String?
+  subcategory   String?
+  brand         String?
+  imageUrl      String?
+  thumbnailUrl  String?
+  unit          String?
+  barcode       String?               @unique
+  tags          String[]
+  /// Extra attributes (nutritional data, dimensions, etc.)
+  metadata      Json?
+  source        String? // open_food_facts | gtin | user_contribution | manual
+  enrichedAt    DateTime?
+  synonyms      ProductSynonym[]
+  contributions ProductContribution[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  // search_vector tsvector is managed via raw SQL migration
+  // See docs/technical.md for the trigger definition
+
+  @@map("catalog_products")
+}
+
+model ProductSynonym {
+  id        String         @id @default(cuid())
+  catalogId String
+  synonym   String
+  language  String         @default("en") // en | ar | hi | ur
+  region    String?
+  product   CatalogProduct @relation(fields: [catalogId], references: [id])
+
+  @@map("product_synonyms")
+}
+
+model CatalogCategory {
+  id           String  @id @default(cuid())
+  name         String
+  parentId     String?
+  iconUrl      String?
+  displayOrder Int     @default(0)
+
+  @@map("catalog_categories")
+}
+
+model ProductContribution {
+  id              String          @id @default(cuid())
+  shopId          String
+  catalogId       String?
+  imageUrl        String
+  name            String
+  brand           String?
+  category        String?
+  status          String          @default("pending") // pending | approved | rejected
+  rejectionReason String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  product         CatalogProduct? @relation(fields: [catalogId], references: [id])
+  createdAt       DateTime        @default(now())
+
+  @@map("product_contributions")
+}
+
+// ─── Offer books ──────────────────────────────────────────────────────────────
+model OfferBook {
+  id            String             @id @default(cuid())
+  shopId        String
+  title         String
+  format        String // instagram_post | story | whatsapp | leaflet | catalog | a3 | print
+  status        String             @default("draft") // draft | published | archived
+  /// Serialised Fabric.js JSON — one entry per page
+  canvasState   Json?
+  shortCode     String             @unique
+  shareableLink String?
+  expiresAt     DateTime?
+  passwordHash  String?
+  linkActive    Boolean            @default(true)
+  shop          Shop               @relation(fields: [shopId], references: [id])
+  products      OfferBookProduct[]
+  pageViews     PageView[]
+  productClicks ProductClick[]
+  exportJobs    ExportJob[]
+  socialPosts   SocialPost[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@map("offer_books")
+}
+
+model OfferBookProduct {
+  id             String    @id @default(cuid())
+  offerBookId    String
+  catalogId      String
+  originalPrice  Decimal
+  offerPrice     Decimal
+  discountPct    Decimal
+  discountAbs    Decimal
+  position       Int
+  pageNumber     Int       @default(1)
+  isHighlighted  Boolean   @default(false)
+  badgeOverride  String?
+  customImageUrl String?
+  fontSizeName   String? // small | medium | large
+  fontSizePrice  String? // small | medium | large | xlarge
+  offerBook      OfferBook @relation(fields: [offerBookId], references: [id])
+
+  @@map("offer_book_products")
+}
+
+// ─── Templates & Grids ───────────────────────────────────────────────────────
+model Template {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  /// Full template config JSON (background, typography, badge styles, etc.)
+  config      Json
+  status      String            @default("draft") // draft | published | archived
+  planTier    String            @default("starter") // starter | pro | business | enterprise
+  isSeasonal  Boolean           @default(false)
+  activeFrom  DateTime?
+  activeTo    DateTime?
+  versions    TemplateVersion[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("templates")
+}
+
+model TemplateVersion {
+  id         String   @id @default(cuid())
+  templateId String
+  config     Json
+  template   Template @relation(fields: [templateId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@map("template_versions")
+}
+
+model Grid {
+  id                String   @id @default(cuid())
+  name              String
+  /// Grid config JSON (columns, rows, cell ratios, hero positions, etc.)
+  config            Json
+  compatibleFormats String[]
+  minProducts       Int      @default(1)
+  maxProducts       Int      @default(12)
+  status            String   @default("draft") // draft | published
+
+  @@map("grids")
+}
+
+// ─── AI & Characters ─────────────────────────────────────────────────────────
+model Character {
+  id                 String          @id @default(cuid())
+  shopId             String
+  baseImageUrl       String
+  style              String // cartoon | semi-realistic | flat | mascot
+  nationality        String
+  gender             String
+  /// Extracted uniform details (color, type, logo position)
+  uniformDescription Json?
+  shop               Shop            @relation(fields: [shopId], references: [id])
+  poses              CharacterPose[]
+  createdAt          DateTime        @default(now())
+
+  @@map("characters")
+}
+
+model CharacterPose {
+  id          String    @id @default(cuid())
+  characterId String
+  poseType    String // waving | holding | announcing | thumbs-up | celebrating | speech | running | custom
+  imageUrl    String
+  customLabel String?
+  character   Character @relation(fields: [characterId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@map("character_poses")
+}
+
+model AiJob {
+  id             String       @id @default(cuid())
+  organizationId String
+  shopId         String?
+  type           String // character_gen | pose_gen | cover_gen | background_removal | prompt_gen
+  status         String       @default("queued") // queued | processing | complete | failed
+  /// Result payload (image URLs, etc.)
+  result         Json?
+  errorMessage   String?
+  creditsCost    Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  completedAt    DateTime?
+
+  @@map("ai_jobs")
+}
+
+model UsageEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  shopId         String?
+  eventType      String // character_gen | pose_gen | cover_gen | background_removal | prompt_gen
+  creditsUsed    Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  /// Both indexes are period queries: the billing screen sums the organization
+  /// over the current cycle, and allocated pooling (E3-03) sums one shop over
+  /// the same window on the path of every AI action.
+  @@index([organizationId, createdAt])
+  @@index([shopId, createdAt])
+  @@map("usage_events")
+}
+
+// ─── Export jobs ──────────────────────────────────────────────────────────────
+model ExportJob {
+  id           String    @id @default(cuid())
+  offerBookId  String
+  format       String
+  status       String    @default("queued") // queued | processing | complete | failed
+  fileUrl      String?
+  printReady   Boolean   @default(false)
+  errorMessage String?
+  offerBook    OfferBook @relation(fields: [offerBookId], references: [id])
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@map("export_jobs")
+}
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+model PageView {
+  id          String    @id @default(cuid())
+  offerBookId String
+  sessionId   String
+  pageNumber  Int       @default(1)
+  source      String? // whatsapp | instagram | direct | other
+  device      String? // mobile | tablet | desktop
+  durationSec Int?
+  offerBook   OfferBook @relation(fields: [offerBookId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@map("page_views")
+}
+
+model ProductClick {
+  id          String    @id @default(cuid())
+  offerBookId String
+  catalogId   String
+  sessionId   String
+  pageNumber  Int       @default(1)
+  offerBook   OfferBook @relation(fields: [offerBookId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@map("product_clicks")
+}
+
+// ─── Social publishing ───────────────────────────────────────────────────────
+model SocialConnection {
+  id          String    @id @default(cuid())
+  shopId      String
+  platform    String // instagram | facebook
+  /// AES-256 encrypted access token
+  accessToken String
+  pageId      String?
+  accountName String?
+  shop        Shop      @relation(fields: [shopId], references: [id])
+  connectedAt DateTime  @default(now())
+  expiresAt   DateTime?
+
+  @@map("social_connections")
+}
+
+model SocialPost {
+  id             String    @id @default(cuid())
+  offerBookId    String
+  shopId         String
+  platform       String // instagram | facebook
+  status         String    @default("draft") // draft | scheduled | published | failed
+  scheduledAt    DateTime?
+  publishedAt    DateTime?
+  externalPostId String?
+  caption        String?
+  errorMessage   String?
+  offerBook      OfferBook @relation(fields: [offerBookId], references: [id])
+  createdAt      DateTime  @default(now())
+
+  @@map("social_posts")
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id])
+  createdAt DateTime  @default(now())
+
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id               String  @id @default(cuid())
+  userId           String
+  channel          String // email | whatsapp | in_app
+  notificationType String
+  enabled          Boolean @default(true)
+  user             User    @relation(fields: [userId], references: [id])
+
+  @@unique([userId, channel, notificationType])
+  @@map("notification_preferences")
+}
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+model AdminUser {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  passwordHash String
+  role         String // super_admin | catalog_manager | support_agent
+  lastLoginAt  DateTime?
+  auditLogs    AdminAuditLog[]
+  createdAt    DateTime        @default(now())
+
+  @@map("admin_users")
+}
+
+model AdminAuditLog {
+  id          String    @id @default(cuid())
+  adminUserId String
+  action      String
+  entityType  String
+  entityId    String
+  before      Json?
+  after       Json?
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@map("admin_audit_logs")
+}

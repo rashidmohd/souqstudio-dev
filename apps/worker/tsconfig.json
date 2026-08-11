@@ -1,0 +1,15 @@
+{
+  "extends": "@souqstudio/config/tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    // The worker renders React Email templates, so it type-checks the .tsx
+    // sources in packages/email. Matches that package's own setting.
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "@souqstudio/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"],
+    // Emitted to JS so consumers import compiled output rather than .tsx
+    // sources. The worker runs as plain Node — it cannot transform JSX at
+    // runtime, and `node dist/index.js` on Railway cannot require a .tsx file.
+    "outDir": "dist",
+    "rootDir": "src",
+    "module": "CommonJS",
+    "moduleResolution": "Node"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

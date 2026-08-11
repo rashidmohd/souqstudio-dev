@@ -1,0 +1,13 @@
+{
+  "name": "SouqStudio",
+  "short_name": "SouqStudio",
+  "description": "Create branded offer books in minutes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F7F3",
+  "theme_color": "#143CD2",
+  "icons": [
+    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

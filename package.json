@@ -1,0 +1,30 @@
+{
+  "name": "souqstudio",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "db:generate": "turbo db:generate",
+    "db:push": "pnpm --filter @souqstudio/db db:push",
+    "db:migrate": "pnpm --filter @souqstudio/db db:migrate",
+    "db:migrate:dev": "pnpm --filter @souqstudio/db db:migrate:dev",
+    "db:studio": "pnpm --filter @souqstudio/db db:studio",
+    "stylelint": "turbo stylelint",
+    "check": "turbo typecheck lint stylelint",
+    "db:seed": "pnpm --filter @souqstudio/db db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.0.0",
+    "prettier": "^3.0.0",
+    "stylelint": "^16.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

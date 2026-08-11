@@ -1,0 +1,31 @@
+/* Same authoritative token file as apps/web. Never duplicate the values. */
+@import '../../../.claude/skills/souqstudio-design/assets/souqstudio-tokens.css';
+
+/* ── Font binding ──────────────────────────────────────────────────────────
+   The token file declares which family plays which role. next/font generates
+   hashed family names at build time, so the tokens are re-pointed at its CSS
+   variables here. The token file stays authoritative for intent; this binds
+   intent to the actually-loaded files.
+
+   Without this block all three roles silently fall back to system-ui and the
+   entire type scale is inert — nothing errors, it just looks wrong.
+   See the fonts module in each app: lib/fonts.ts.
+   (Do not write a glob with a star-slash inside a CSS comment — it closes the
+   comment early and the rest of the line is parsed as a selector.)          */
+:root {
+  --sq-font-display: var(--font-display), system-ui, sans-serif;
+  --sq-font-ui:      var(--font-ui),      system-ui, sans-serif;
+  --sq-font-figure:  var(--font-figure),  ui-monospace, monospace;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background: var(--sq-ui-page);
+  color: var(--sq-ui-text-primary);
+  font-family: var(--sq-font-ui);
+  font-size: var(--sq-text-body);
+  line-height: var(--sq-leading-body);
+}
