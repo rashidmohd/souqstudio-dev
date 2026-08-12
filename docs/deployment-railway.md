@@ -105,6 +105,15 @@ What differentiates the services is the config file:
 Each file carries that service's build command, start command, healthcheck path and watch
 patterns. `watchPatterns` is why a change under `apps/web/` does not rebuild the worker.
 
+Each build command goes through Turborepo — `pnpm exec turbo build --filter=@souqstudio/web`
+rather than `pnpm --filter @souqstudio/web build`. The difference matters on a fresh clone:
+`packages/email` publishes `main: ./dist/index.js` and its `dist/` is gitignored, so it does
+not exist until something builds it. `pnpm --filter` runs one package's own script and stops;
+turbo honours `dependsOn: ["^build"]` and builds the workspace dependencies first. Without
+it the worker installs and builds cleanly, then dies on boot with `Cannot find module
+'.../@souqstudio/email/dist/index.js'` — a failure that cannot reproduce locally, because a
+developer's `dist/` was built weeks ago and never removed.
+
 Set the config path and nothing else. Anything you type into the Build Command or Start
 Command boxes in the UI **overrides the file** and then lives only in Railway's database,
 where it is invisible to code review and lost on service recreation. If a build command
