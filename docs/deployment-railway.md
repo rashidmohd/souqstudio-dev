@@ -63,17 +63,36 @@ All three build from the **repository root**, not from `apps/*`. Leave **Root Di
 empty on every service. This is the one setting a monorepo makes you want to get wrong,
 and setting it to `apps/web` breaks two things at once:
 
-- pnpm workspaces resolve `workspace:*` only from the root, where `pnpm-lock.yaml` and
-  `pnpm-workspace.yaml` live. With no lockfile beside it, the builder falls back to npm,
-  which does not understand the `workspace:` protocol at all. The signature is
-  `npm error EUNSUPPORTEDPROTOCOL` / `Unsupported URL Type "workspace:"`.
-- The config-as-code path resolves *relative to Root Directory*, so `railway/web.json`
-  gets looked for at `apps/web/railway/web.json`, is not found, and the service silently
-  falls back to platform defaults — no custom build command, no healthcheck, no
-  pre-deploy migration.
+Railway's own words for what the field does: *"Setting this means that Railway will only
+pull down files from that directory when creating new deployments."* Set it to `apps/web`
+and the build never sees `pnpm-lock.yaml`, `pnpm-workspace.yaml` or `.nvmrc`, because all
+three live at the root. The builder then finds an app `package.json` with no lockfile
+beside it, falls back to npm, and npm does not understand the `workspace:` protocol at
+all. The signature is:
 
-Both symptoms come from that one field, so check it first when a deploy behaves as though
-none of this file exists.
+```
+copy package.json                       ← one file, no lockfile
+npm install
+npm error code EUNSUPPORTEDPROTOCOL
+npm error Unsupported URL Type "workspace:": workspace:*
+```
+
+A second tell in the same log is the Node version: it will show Railpack's LTS default
+rather than the 20 in `.nvmrc`, for the same reason — the file is out of scope.
+
+Railway's monorepo guide splits these into two cases. An *isolated* monorepo — unrelated
+apps that each install independently — uses Root Directory. A *shared* monorepo, which is
+what a pnpm workspace is, does not: everything installs once from the root and the
+services are distinguished by their build and start commands instead. That is exactly what
+`railway/*.json` does, and it is why the field must stay empty here.
+
+**The config-as-code path is the exception and does not follow Root Directory.** Railway's
+docs are explicit: *"The Railway Config File does not follow the Root Directory path. You
+have to specify the absolute path."* So `railway/web.json` will load and its build and
+start commands will appear in the deploy log even while Root Directory is still wrong —
+seeing your own commands in the log is **not** evidence that this field is fixed. The
+install step is the one to read, because Railpack chooses it from the build context and no
+config file can override it.
 
 What differentiates the services is the config file:
 
