@@ -59,9 +59,23 @@ repository, which is the whole point of the watch patterns below.
 Rename each service after creating it (**Settings → Service Name**); all three arrive
 named after the repo otherwise.
 
-All three build from the **repository root**, not from `apps/*`. pnpm workspaces need the
-root `pnpm-lock.yaml` and `pnpm-workspace.yaml` to resolve `workspace:*` dependencies, so
-leave **Root Directory** empty. What differentiates the services is the config file:
+All three build from the **repository root**, not from `apps/*`. Leave **Root Directory**
+empty on every service. This is the one setting a monorepo makes you want to get wrong,
+and setting it to `apps/web` breaks two things at once:
+
+- pnpm workspaces resolve `workspace:*` only from the root, where `pnpm-lock.yaml` and
+  `pnpm-workspace.yaml` live. With no lockfile beside it, the builder falls back to npm,
+  which does not understand the `workspace:` protocol at all. The signature is
+  `npm error EUNSUPPORTEDPROTOCOL` / `Unsupported URL Type "workspace:"`.
+- The config-as-code path resolves *relative to Root Directory*, so `railway/web.json`
+  gets looked for at `apps/web/railway/web.json`, is not found, and the service silently
+  falls back to platform defaults — no custom build command, no healthcheck, no
+  pre-deploy migration.
+
+Both symptoms come from that one field, so check it first when a deploy behaves as though
+none of this file exists.
+
+What differentiates the services is the config file:
 
 | Service | Settings → Config-as-code → Path |
 | --- | --- |
@@ -183,10 +197,19 @@ interactive shell.
 
 ---
 
-## 5. Node version
+## 5. Builder, Node and pnpm
 
-`.nvmrc` pins Node 20. If Nixpacks picks something else, set `NIXPACKS_NODE_VERSION=20` as
-a service variable. pnpm comes from the `packageManager` field in the root `package.json`.
+All three configs set `"builder": "RAILPACK"` — Railway's current default builder, which
+installs its toolchain through mise. `NIXPACKS` is still accepted and would also work, but
+it is the legacy path; there is no reason to pin a new project to it.
+
+`.nvmrc` pins Node 20, which Railpack reads. If it picks something else, set
+`RAILPACK_NODE_VERSION=20` as a service variable — note the prefix follows the builder, so
+the `NIXPACKS_`-prefixed variables do nothing here.
+
+pnpm comes from the `packageManager` field in the root `package.json`. Do not add a
+`package-lock.json` or `yarn.lock` anywhere in the repo; a second lockfile is the other
+common way a builder ends up choosing the wrong package manager.
 
 ---
 
@@ -245,7 +268,7 @@ root `CLAUDE.md` under Known gaps:
   and a health endpoint. The config file is here and correct, but creating the service now
   buys an always-on container that serves nothing. Create it when admin has screens.
 - **When the PDF handler lands, the worker needs a different builder.** Playwright browsers
-  do not install under Nixpacks' default Node image. That service moves to a Dockerfile
+  do not install under the builder's default Node image. That service moves to a Dockerfile
   based on `mcr.microsoft.com/playwright`, and the `builder` field in
   `railway/worker.json` changes to `DOCKERFILE`.
 
