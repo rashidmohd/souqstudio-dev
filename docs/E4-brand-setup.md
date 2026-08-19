@@ -97,9 +97,36 @@ Template previewed with real sample products and the user's brand colors. Select
 
 ## Build status
 
-E4-01 to E4-04 are built, reached through the E1-04 setup wizard. **E4-05 brand
-kit management is not** — there is no screen yet for viewing or editing the kit
-after setup, no shop-level override, and no reset to org defaults.
+**Built.** E4-01 to E4-04 are reached through the E1-04 setup wizard; E4-05 is
+the brand kit screen at `/brand`.
+
+Three notes on what E4-05 actually shipped:
+
+- **The shop-level override was already built, by E2-05** — `shops.brandOverride`,
+  the resolution rule in `lib/brand-inheritance.ts`, and the owner-only control
+  in `components/shop/BrandOverrideField.tsx` on shop settings. An earlier
+  version of this section claimed otherwise. `/brand` shows where each facet
+  resolved from and links across to that control; it deliberately does not offer
+  a second one.
+- **"Reset to organization defaults" is destructive**, and is the half E2
+  deliberately left here. Switching a shop back to `inherit` on shop settings is
+  the reversible version — the shop's own kit stays and stops being read.
+  `POST /api/v1/brand/reset` deletes it. The two writes cannot be split: because
+  `resolveBrandKit` is facet-level with no per-field fallback, a cleared kit on a
+  shop still set to `full` resolves to *no brand at all*, so the reset sets
+  `brandOverride` back to `inherit` in the same statement.
+- **The dashboard card is the top of `/brand`**, not a card on home. Home is the
+  offer books list, deliberately — there is no dashboard to put it on.
+
+Not built, and out of scope for E4-05:
+
+- **Fonts.** `BrandKit` carries `fontDisplay`, `fontPrice` and `fontBody`, and in
+  `lib/brand-inheritance.ts` they sit in the `layout` facet, but nothing reads or
+  writes them and there is no picker. A real one needs the curated OFL families
+  mirrored and subsetted into R2 first — see `souqstudio-design →
+  references/brand-kit-fonts.md`. There is no placeholder section on `/brand`.
+- **Character library.** E8, unbuilt, so it is absent from the kit card rather
+  than shown empty.
 
 ## Frontend Notes
 

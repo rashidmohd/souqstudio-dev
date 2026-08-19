@@ -83,8 +83,20 @@ describe('brand setup', () => {
     expect(idOf(await read({ brandKit: partial }), 'brand')?.done).toBe(false)
   })
 
-  it('always has somewhere to go — onboarding exists', async () => {
+  it('sends an unfinished kit to the wizard', async () => {
     expect(idOf(await read(), 'brand')?.href).toBe('/onboarding')
+  })
+
+  it('sends a finished kit to the brand kit screen, not back through the wizard', async () => {
+    // `/onboarding` redirects home the moment the kit is complete, so pointing
+    // a done item there is a link to a bounce. E4-05 built the destination.
+    expect(idOf(await read({ brandKit: COMPLETE_KIT }), 'brand')?.href).toBe('/brand')
+  })
+
+  it('always has somewhere to go', async () => {
+    for (const kit of [{}, COMPLETE_KIT]) {
+      expect(idOf(await read({ brandKit: kit }), 'brand')?.href).not.toBeNull()
+    }
   })
 })
 

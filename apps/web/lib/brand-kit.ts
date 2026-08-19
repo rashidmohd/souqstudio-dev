@@ -3,6 +3,7 @@ import 'server-only'
 import { prisma, Prisma } from '@souqstudio/db'
 import type { BrandKit } from '@souqstudio/types'
 import {
+  keepOnReset,
   levelFor,
   resolveBrandKit,
   routePatch,
@@ -149,6 +150,44 @@ export async function patchBrandAtLevel(
   }
 
   return readEffectiveBrand(target)
+}
+
+/**
+ * Reset a shop to its organization's brand, destructively. E4-05.
+ *
+ * **Not `patchBrandKit`.** That merges, so it can set a key and never remove
+ * one; a reset is exactly the removal. This writes the kit whole, which is safe
+ * here and nowhere else: the wizard's read-modify-write exists because a
+ * background-removal job may be writing `logoStatus` underneath it, and this
+ * deliberately discards `logoStatus` along with the logo it described.
+ *
+ * **The three writes are one act and must stay together.** `resolveBrandKit`
+ * has no per-field fallback, so clearing the kit while leaving `brandOverride`
+ * at `full` leaves the shop resolving to *nothing* — an empty kit, a false
+ * `isBrandSetupComplete`, and a closed editor gate. Setting `inherit` is what
+ * makes the organization's kit the answer. Prisma applies a single `UPDATE`, so
+ * there is no window where one has landed and another has not.
+ *
+ * The R2 objects are left where they are. `lib/r2.ts` has no delete and the keys
+ * are deterministic, so a later upload overwrites at the same path; nulling
+ * `logoUrl` is what stops the old mark being used. Deleting the bytes is an
+ * object-lifecycle question, not this one.
+ */
+export async function resetShopBrandToOrg(shopId: string): Promise<BrandKit> {
+  const existing = await readBrandKit(shopId)
+  const kept = keepOnReset(existing)
+
+  const shop = await prisma.shop.update({
+    where: { id: shopId },
+    data: {
+      brandKit: kept as Prisma.InputJsonObject,
+      logoUrl: null,
+      brandOverride: 'inherit',
+    },
+    select: { brandKit: true },
+  })
+
+  return (shop.brandKit ?? {}) as BrandKit
 }
 
 /** The brand a shop actually renders with, org and shop resolved together. */

@@ -3,7 +3,13 @@ import 'server-only'
 import { prisma } from '@souqstudio/db'
 import type { BrandKit } from '@souqstudio/types'
 import { isBrandSetupComplete } from '@/lib/brand-kit'
-import { EDITOR_BUILT, SHARING_BUILT, TEAM_BUILT, INSTAGRAM_BUILT } from '@/lib/features'
+import {
+  BRAND_KIT_BUILT,
+  EDITOR_BUILT,
+  SHARING_BUILT,
+  TEAM_BUILT,
+  INSTAGRAM_BUILT,
+} from '@/lib/features'
 
 /**
  * The getting-started checklist. E1-05.
@@ -86,11 +92,16 @@ export async function readChecklist(input: {
 
   const items: ChecklistItem[] = [
     {
+      // Once the kit is complete, `/onboarding` redirects straight back to
+      // home — it refuses to reopen choices the editor is already using. So a
+      // done item has to point at the brand kit screen instead, or it is a
+      // link to a bounce. E4-05 is what made that destination exist.
       id: 'brand',
       label: 'Set up your brand',
       done: isBrandSetupComplete(input.brandKit),
       optional: false,
-      href: '/onboarding',
+      href:
+        isBrandSetupComplete(input.brandKit) && BRAND_KIT_BUILT ? '/brand' : '/onboarding',
     },
     {
       id: 'first_book',

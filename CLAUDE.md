@@ -144,6 +144,13 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   `.claude/skills/souqstudio-design/references/illustration-manifest.md`.
 - **Worker handlers** — `email` and `bg` are implemented. `pdf`, `ai` and `enrich`
   are still stubs that throw.
+- **Brand kit fonts are typed and unimplemented.** `BrandKit` carries
+  `fontDisplay`, `fontPrice` and `fontBody`, and `lib/brand-inheritance.ts` puts
+  them in the `layout` facet, but nothing reads or writes them and E4-05's
+  `/brand` screen has no picker. Building one means first mirroring the curated
+  OFL families into R2 and subsetting them —
+  `souqstudio-design → references/brand-kit-fonts.md`. Until then the editor has
+  no shop-chosen typeface to load, which E6 will notice.
 - **tsvector migration** — the search column, index and trigger are not written. Blocks E5.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be
   uploaded to `https://assets.souqstudio.com/email/logo-dark.png` before any email is

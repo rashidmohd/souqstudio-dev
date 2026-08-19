@@ -191,6 +191,51 @@ correctly on a light, dark or brand-coloured ground. The header label is centre
 anchored on purpose: SVG resolves `text-anchor: start` against inherited
 direction, which would move it under an Arabic ancestor.
 
+### LogoField · ColorFields · ChoiceGrid
+
+| | |
+| --- | --- |
+| File | `components/brand/{LogoField,ColorFields,ChoiceGrid}.tsx` |
+| Status | `built` — apps/web only |
+| Governs | E4-01 / E4-02 / E4-03 / E4-04, in both the wizard and the brand kit screen |
+
+```tsx
+type LogoFieldProps = {
+  variant?: 'primary' | 'secondary'   // treatment of the upload button
+  children?: React.ReactNode          // rendered beside it
+}
+
+// ColorFields takes no props — it reads and writes the brand store.
+// Its validation is exported separately and is pure:
+function firstInvalidColorSlot(kit: BrandKit): { key: ColorSlot; label: string } | null
+
+type ChoiceGridProps = {
+  label: string                       // names the radiogroup; the heading is the caller's
+  options: Choice[]
+  selectedId: string | undefined
+  onSelect: (id: string) => void
+  previewFor: (id: string) => { grid: GridConfig; template: TemplateConfig }
+  colors: { primary: string; secondary: string; accent: string }
+  shopName: string
+}
+```
+
+**The three brand choices, without any navigation around them.** Each was
+extracted from the wizard step of the same name when E4-05 needed the same
+control on a settings screen. The steps — `LogoStep`, `ColorsStep`, `ChoiceStep`
+— keep their signatures and are now a heading, one of these, and their own
+Continue/Back footer.
+
+The alternative was a `footer` slot or a `mode: 'wizard' | 'settings'` prop on
+each step, which is a second API for one component and is what this file exists
+to prevent. Validation left with the body as a pure function precisely so that
+the wizard's Continue and the settings screen's Save cannot drift apart on what
+counts as a colour.
+
+`LogoField` has no save: `POST /api/v1/brand/logo` has already written the logo
+through by the time the upload resolves. `ColorFields` and `ChoiceGrid` write
+only to the store; persisting is the caller's.
+
 ### Card
 
 | | |

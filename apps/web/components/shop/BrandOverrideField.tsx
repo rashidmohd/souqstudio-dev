@@ -171,15 +171,22 @@ export function BrandOverrideField({
         </div>
       ) : null}
 
-      {/* "Reset to organization defaults" is E4-05's, and switching back to
-          `inherit` already achieves it: the shop's own kit is left in place but
-          stops being read, so nothing is destroyed and the choice is
-          reversible. A destructive reset that wipes the shop's kit is a
-          different act and belongs with the brand editor. */}
+      {/* Two different acts, and the difference is worth a sentence. This one
+          is reversible: the shop's own kit stays in place and stops being read.
+          E4-05's "reset to organization defaults", on the brand kit screen,
+          deletes it. Naming the other one here is what stops an owner reaching
+          for the destructive control when they wanted this one.
+
+          No link across: the brand kit screen is scoped to the *active* shop,
+          and this page can be showing any shop in the organization. A link
+          would take them somewhere that edits a different brand. The rail's
+          shop switcher — still unbuilt, E2-pending §2 — is what makes that
+          link safe to add. */}
       {value !== 'inherit' ? (
         <p className="font-ui text-body-sm text-muted">
           Switching back to your organization’s brand keeps this shop’s own settings —
-          they stop being used, and come back if you change your mind.
+          they stop being used, and come back if you change your mind. To delete
+          them for good, reset the brand kit from this shop’s brand kit screen.
         </p>
       ) : null}
     </div>

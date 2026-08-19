@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { BrandKit } from '@souqstudio/types'
 import {
   facetOf,
+  keepOnReset,
   levelFor,
   resolveBrandKit,
   routePatch,
@@ -198,5 +199,79 @@ describe('routePatch', () => {
   it('drops undefined values rather than writing them', () => {
     const { org } = routePatch({ primaryColor: undefined }, 'inherit')
     expect(org).toEqual({})
+  })
+})
+
+describe('keepOnReset', () => {
+  it('keeps the progress facet', () => {
+    // Setup progress belongs to the shop, not to the brand. A reset that lost
+    // it would tell the owner their setup was unfinished and send them back
+    // through the wizard for a brand they just chose to inherit.
+    const kept = keepOnReset({
+      ...SHOP.brandKit,
+      onboardingCompletedAt: '2026-08-01T00:00:00.000Z',
+    })
+    expect(kept.onboardingStep).toBe(2)
+    expect(kept.onboardingCompletedAt).toBe('2026-08-01T00:00:00.000Z')
+  })
+
+  it('drops every logo, colors and layout key', () => {
+    // Asserted by walking the kit rather than by naming fields, so a field
+    // added to BrandKit cannot survive a reset by being forgotten in the test
+    // as well as in the filter.
+    const kept = keepOnReset({
+      ...SHOP.brandKit,
+      logoStatus: 'ready',
+      logoOriginalUrl: 'https://cdn/shop-original.png',
+      suggestedColors: ['#aaaaaa'],
+      fontPrice: 'Shop Price',
+      fontBody: 'Shop Body',
+    })
+    for (const key of Object.keys(kept) as Array<keyof BrandKit>) {
+      expect(facetOf(key)).toBe('progress')
+    }
+  })
+
+  it('invents nothing from an empty kit', () => {
+    expect(keepOnReset({})).toEqual({})
+  })
+
+  it('drops a key it does not recognise', () => {
+    // Not something this shop chose through any screen we ship, and a reset is
+    // the right moment to be rid of it.
+    const kept = keepOnReset({ legacyColor: '#ff0000' } as unknown as BrandKit)
+    expect(kept).toEqual({})
+  })
+
+  it('lands the shop back on the organization’s brand, facet for facet', () => {
+    // The round trip the endpoint actually promises: kit stripped *and*
+    // override set to inherit resolves to exactly what the organization has.
+    // Both halves are required — resolveBrandKit has no per-field fallback, so
+    // stripping alone would leave a `full` shop resolving to nothing at all.
+    const after = resolveBrandKit({
+      org: ORG,
+      shop: { logoUrl: null, brandKit: keepOnReset(SHOP.brandKit) },
+      override: 'inherit',
+    })
+
+    expect(after.logoUrl).toBe(ORG.logoUrl)
+    expect(after.brandKit.primaryColor).toBe('#111111')
+    expect(after.brandKit.gridId).toBe('org-grid')
+    expect(after.brandKit.templateId).toBe('org-template')
+    expect(after.brandKit.fontDisplay).toBe('Org Display')
+    // Progress stayed the shop's own throughout.
+    expect(after.brandKit.onboardingStep).toBe(2)
+  })
+
+  it('leaves a stripped kit resolving to nothing while the override still says full', () => {
+    // The regression the endpoint exists to prevent, asserted directly: this is
+    // what a reset that forgot to write `brandOverride` would ship.
+    const stranded = resolveBrandKit({
+      org: ORG,
+      shop: { logoUrl: null, brandKit: keepOnReset(SHOP.brandKit) },
+      override: 'full',
+    })
+    expect(stranded.brandKit.primaryColor).toBeUndefined()
+    expect(stranded.brandKit.templateId).toBeUndefined()
   })
 })

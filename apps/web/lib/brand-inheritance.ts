@@ -79,6 +79,42 @@ export function levelFor(override: BrandOverride, facet: BrandFacet): BrandLevel
   return LEVELS[override][facet]
 }
 
+/**
+ * What survives "reset to organization defaults". E4-05.
+ *
+ * Everything in the `logo`, `colors` and `layout` facets goes; the `progress`
+ * facet stays. `onboardingStep` and `onboardingCompletedAt` are shop-level for
+ * a reason — dropping them would tell the owner their setup was never finished
+ * and send them back through the wizard for a brand they just chose to inherit.
+ *
+ * Derived from `FACET_OF` rather than listing the fields, so a field added to
+ * `BrandKit` cannot quietly survive a reset by being forgotten here. A key that
+ * is not in `FACET_OF` at all is dropped: an unrecognised key is not something
+ * this shop chose, and a reset is the right moment to be rid of it.
+ *
+ * **This is only half of a reset.** `resolveBrandKit` is facet-level and has no
+ * per-field fallback, so a shop left on `full` with the kit cleared resolves to
+ * an empty kit rather than to its organization's — `isBrandSetupComplete` goes
+ * false and the editor gate closes. The caller must write `brandOverride` back
+ * to `inherit` in the same breath. `resetShopBrandToOrg` in lib/brand-kit.ts is
+ * the only intended caller and does exactly that.
+ */
+export function keepOnReset(kit: BrandKit): BrandKit {
+  const kept: BrandKit = {}
+  // Same widening as resolveBrandKit, and for the same reason: the loop erases
+  // the per-key value types and TypeScript cannot re-derive them from a dynamic
+  // key. The read and the write are the same key on the same interface.
+  const sink = kept as Record<string, unknown>
+
+  for (const [key, value] of Object.entries(kit)) {
+    if (value === undefined) continue
+    if (FACET_OF[key as keyof BrandKit] !== 'progress') continue
+    sink[key] = value
+  }
+
+  return kept
+}
+
 export type BrandSide = { logoUrl: string | null; brandKit: BrandKit }
 
 export type EffectiveBrand = {

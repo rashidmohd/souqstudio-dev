@@ -21,8 +21,8 @@ export const EDITOR_BUILT = false
 /** E5 — the product catalog browser at /catalog. */
 export const CATALOG_BUILT = false
 
-/** E4-05 — brand kit management at /brand. */
-export const BRAND_KIT_BUILT = false
+/** E4-05 — brand kit management at /brand. Built. */
+export const BRAND_KIT_BUILT = true
 
 /** E2-03 — team management and invites at /settings/team. */
 export const TEAM_BUILT = true
