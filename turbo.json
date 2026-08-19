@@ -9,6 +9,38 @@
         ".next/**",
         "!.next/cache/**",
         "dist/**"
+      ],
+      // Turborepo 2 runs tasks in strict env mode: a task sees only the
+      // variables named here, whatever the surrounding shell holds. Railway
+      // puts every service variable into the build environment and turbo then
+      // drops all of them, which is how a build came to report sixteen missing
+      // variables that were in fact set. Framework inference passes NEXT_PUBLIC_*
+      // through on its own — that is why the publishable key was the one name
+      // absent from that list.
+      // Anything read during a build belongs here. None of them are *required*
+      // to build; see lib/env.ts.
+      "env": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "NEXTAUTH_SECRET",
+        "NEXTAUTH_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET_NAME",
+        "R2_PUBLIC_URL",
+        "R2_ENDPOINT",
+        "REDIS_URL",
+        "RESEND_API_KEY",
+        "EMAIL_FROM",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "REMBG_SERVICE_URL",
+        "ADMIN_SESSION_SECRET",
+        "ADMIN_IP_ALLOWLIST"
       ]
     },
     "dev": {

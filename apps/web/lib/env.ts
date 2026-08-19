@@ -36,5 +36,39 @@ const schema = z.object({
   REMBG_SERVICE_URL:                  z.string().url(),
 })
 
-export const env = schema.parse(process.env)
 export type Env = z.infer<typeof schema>
+
+/**
+ * `next build` imports every route module to collect page data, so this file
+ * runs at build time as well as at runtime — and a build machine is not a
+ * deploy machine. Railway injects the service variables into the container that
+ * *runs* the app; a build that demands a Stripe key it will never call is a
+ * build that fails for the wrong reason.
+ *
+ * So a missing variable is only fatal when the process is actually serving.
+ * `SKIP_ENV_VALIDATION=1` is set in the build script and nowhere else, which
+ * means nothing is relaxed at runtime: `pnpm start` runs without the flag, and
+ * a missing variable still stops the server before it takes a request.
+ *
+ * The thrown message lists the offending names. A raw ZodError prints sixteen
+ * nested objects and buries them.
+ */
+function load(): Env {
+  const parsed = schema.safeParse(process.env)
+  if (parsed.success) return parsed.data
+
+  if (process.env.SKIP_ENV_VALIDATION === '1') {
+    // Asserted, not parsed: the whole point of the flag is that these values
+    // are absent during a build. Anything reading them here reads undefined,
+    // which is why nothing may construct a client at module scope — see the
+    // note in lib/stripe.ts.
+    return process.env as unknown as Env
+  }
+
+  const problems = parsed.error.issues
+    .map((issue) => `  ${issue.path.join('.')}: ${issue.message}`)
+    .join('\n')
+  throw new Error(`Invalid environment variables:\n${problems}`)
+}
+
+export const env = load()
