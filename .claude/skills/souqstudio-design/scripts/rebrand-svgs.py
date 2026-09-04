@@ -17,13 +17,20 @@ Illustrations are a charcoal line drawing over a sand ground with ONE accent.
     ground light       #F5F2E6   sand tint
     ground base        #EBE6CE   sq-sand
     ground deep        #DCD5B4   sand shade
-    accent             #CFEB6B   sq-lime      (or #3F9DD1 sq-sky via --accent)
+    accent             #143CD2   sq-blue      (or #3F9DD1 sq-sky via --accent)
 
 The skill's "two fills maximum" rule means two HUES, not two values. The three
 sand steps are one hue and exist to keep form readable; the accent is the second.
 
-Never emitted: sq-gold (#BDA25A) and the brand blue (#143CD2). Gold does not
-appear in the application, and a blue fill reads as an interactive element.
+Never emitted: sq-gold (#BDA25A) and sq-lime (#CFEB6B). Gold does not appear in
+the application, and lime is not in the brand palette at all — see SKILL.md.
+
+The brand blue IS the default accent here, and the shipped artwork uses it.
+SKILL.md's illustration rules say so directly: illustrations are interface
+furniture and are where brand expression belongs. The one restriction is that no
+blue shape may be at control scale AND control shape, or it reads as a tappable
+pill. An earlier version of this docstring said blue was never emitted, which
+contradicted both the rules and every asset already on the CDN.
 
 Why this script audits
 ----------------------
@@ -58,7 +65,6 @@ LIGHT = {
     'g_deep':  '#DCD5B4',   # strongest ground shape
     'paper':   '#FFFFFF',   # cards, paper, highlights
     'blue':    '#143CD2',   # sq-blue
-    'lime':    '#CFEB6B',   # sq-lime
     'sky':     '#3F9DD1',   # sq-sky
 }
 
@@ -76,7 +82,6 @@ DARK = {
     'g_deep':  '#45453F',
     'paper':   '#55554E',
     'blue':    '#8AA1F1',   # sq-blue is too dark to read on a dark ground
-    'lime':    '#CFEB6B',   # already works on dark
     'sky':     '#7EC0E4',
 }
 
@@ -421,8 +426,9 @@ def parse_args():
     p.add_argument('--output', '-o',
                    default='/mnt/user-data/outputs/souqstudio-illustrations',
                    help='light/ and dark/ are created inside')
-    p.add_argument('--accent', choices=['blue', 'lime', 'sky'], default='blue',
-                   help='single accent hue (default: blue, the brand colour)')
+    p.add_argument('--accent', choices=['blue', 'sky'], default='blue',
+                   help='single accent hue (default: blue, the brand colour). '
+                        'lime was removed — it is not in the brand palette.')
     p.add_argument('--skin', choices=list(SKIN_PRESETS), default='preserve')
     p.add_argument('--report', action='store_true',
                    help='scan only: aggregate every unmapped colour with a '

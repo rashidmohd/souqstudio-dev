@@ -39,7 +39,7 @@ map to a stated rule in this skill:
 | `p-[13px]` | The spacing scale is 4/8/12/16/24/32/48 |
 | `rounded-md` `rounded-lg` | shadcn defaults contradict the radius scale |
 | `shadow-sm` `shadow` | There is no elevation in this system |
-| `text-sand` `border-lime` `text-stone-300` | Fill-only tier used as ink |
+| `text-sand` `border-sky` `text-stone-300` | Fill-only tier used as ink |
 | `italic` | Plex Sans Arabic has no true italic |
 | `bg-blue` | Blue is never a button or panel fill |
 | `--sq-tpl-*` in a chrome component | Template tokens are offer book content only |
@@ -57,7 +57,7 @@ Raise it instead.
 
 ## Manual — the machine cannot check these
 
-Twelve questions. If any answer is no, the work is not done.
+Thirteen questions. If any answer is no, the work is not done.
 
 ### Structure
 
@@ -81,22 +81,27 @@ Twelve questions. If any answer is no, the work is not done.
    no Arabic and cannot carry interface text.
 7. **Is all UI text sentence case?** Buttons, tabs, table headers, menu items, empty
    states. Title Case only for proper names.
+8. **Is there any text sitting on `--sq-sky`?** There must not be, at any size.
+   Charcoal on sky is 4.25:1, under the AA floor. An *icon* on sky is fine — non-text
+   contrast is judged at 3:1. Lint cannot tell the two apart, which is why this is a
+   manual check: the sanctioned icon-chip pattern and the defect look identical in a
+   class list.
 
 ### Bilingual
 
-8. **Have you rendered this screen in Arabic?** Not translated strings in an LTR layout —
+9. **Have you rendered this screen in Arabic?** Not translated strings in an LTR layout —
    actually `dir="rtl"` with real Arabic strings at real lengths. Arabic labels routinely
    run longer than English and clip.
-9. **Do directional icons mirror and non-directional ones not?** Back, forward, next,
+10. **Do directional icons mirror and non-directional ones not?** Back, forward, next,
    undo, redo, trend arrows mirror. Search, close, download, settings do not.
-10. **On canvas work: are Fabric coordinates still LTR?** UI direction must never touch
+11. **On canvas work: are Fabric coordinates still LTR?** UI direction must never touch
     canvas maths. And the artboard follows the document's language, not the interface's.
 
 ### Content and state
 
-11. **Does every state exist?** Empty, loading, error, and the populated one. An empty
+12. **Does every state exist?** Empty, loading, error, and the populated one. An empty
     state is an invitation with a verb CTA, never "Nothing here yet."
-12. **Is machine-generated content visibly marked?** Generated characters, covers,
+13. **Is machine-generated content visibly marked?** Generated characters, covers,
     suggested groupings and auto-written copy get the `MachineOutput` treatment. The
     owner must always be able to tell what a model authored. This is a functional
     requirement, not decoration.

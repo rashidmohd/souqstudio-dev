@@ -65,7 +65,11 @@ apps/worker/
 - Playwright browser pool: min 2, max 10 warm instances. Managed by `generic-pool`.
 - Never launch a browser per request. Always acquire from the pool.
 - PDF flow:
-  1. Fetch canvas SVG(s) from `offer_books.canvas_state`
+  1. Compose each page with the layout engine — offers plus the book's template, with
+     `offer_book_pages.slotOverrides` applied — then serialise to SVG. `canvas_state` is
+     gone: E6 v2 made the engine the source of a page, not a stored Fabric dump. **The
+     engine is the same implementation the editor runs**, shared from `packages/`; two
+     would drift and drift here means the PDF does not match the screen.
   2. Wrap each SVG in a minimal HTML shell: `<html><body style="margin:0">{svg}</body></html>`
   3. `page.setContent(html)`
   4. `page.pdf({ width, height, printBackground: true })`

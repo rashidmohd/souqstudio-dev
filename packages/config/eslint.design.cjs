@@ -31,7 +31,7 @@ const SHADOW = '(^|\\s)shadow(-|$)'
 // Fill-only tier used as ink. Never text, never a border.
 const FILL_ONLY_AS_INK =
   '(^|\\s)(text|border|fill|stroke|placeholder|decoration|ring|divide|outline|caret)-' +
-  '(sand|lime|sky|sand-tint|lime-tint|sky-tint|stone-300|stone-400)(\\s|$)'
+  '(sand|sky|sand-tint|sky-tint|stone-300|stone-400)(\\s|$)'
 
 // Plex Sans Arabic has no true italic. Emphasis is weight.
 const ITALIC = '(^|\\s)italic(\\s|$)'
@@ -66,7 +66,7 @@ const DESIGN_RULES = [
    'There is no elevation in this system. Separation is hairline borders (border-hairline border-border-subtle) and surface tone. Strip shadcn shadows.'],
 
   [FILL_ONLY_AS_INK,
-   'Fill-only colour used as ink. sand/lime/sky and stone-300/400 fail contrast as text or borders — they are backgrounds with charcoal on top. See the two tiers in the design skill.'],
+   'Fill-only colour used as ink. sand/sky and stone-300/400 fail contrast as text or borders — they are backgrounds with charcoal on top. See the two tiers in the design skill.'],
 
   [ITALIC,
    'No italics. IBM Plex Sans Arabic has no true italic and mixed-script screens must not emphasise differently by language. Use font-medium.'],

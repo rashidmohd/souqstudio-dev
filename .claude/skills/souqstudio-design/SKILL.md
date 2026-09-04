@@ -20,7 +20,7 @@ Deeper detail lives alongside this file:
 | --- | --- |
 | `references/component-inventory.md` | **Before building any component.** File paths, prop signatures and build status for all 18. Prevents two sessions producing two APIs for the same component. |
 | `references/layout-map.md` | **Before adding any route.** Which file implements which layout family, and which routes must override the shell rather than inherit it. |
-| `references/consistency-checklist.md` | **Before calling any UI work done.** The automated checks, the twelve manual ones, and what to do when prose and tokens disagree. |
+| `references/consistency-checklist.md` | **Before calling any UI work done.** The automated checks, the thirteen manual ones, and what to do when prose and tokens disagree. |
 | `references/brand-assets.md` | Referencing any SouqStudio mark — logo, icon, favicon, email or OG image |
 | `references/brand-kit-fonts.md` | Touching the brand kit, the font picker, or any Fabric text object |
 | `references/illustration-selection.md` | Placing any illustration |
@@ -58,7 +58,7 @@ A template designer editing default price colours must never be able to repaint 
 
 ### The two tiers
 
-This is the constraint broken most often. Four of the brand colours cannot carry text at any size.
+This is the constraint broken most often. Three of the seven brand colours cannot carry text at any size, and one of those three cannot carry text *on* it either.
 
 **Ink-safe** — may be text, icons, borders, fills, anything:
 
@@ -70,12 +70,17 @@ This is the constraint broken most often. Four of the brand colours cannot carry
 
 **Fill-only** — always a background with `--sq-charcoal` on top. Never text, never an icon, never a 1px border:
 
-| Token | Value | On white | Charcoal on it |
-| --- | --- | --- | --- |
-| `--sq-sky` | `#3F9DD1` | 3.02:1 | 4.25:1 |
-| `--sq-gold` | `#BDA25A` | 2.48:1 | 5.18:1 |
-| `--sq-sand` | `#EBE6CE` | 1.25:1 | 10.22:1 |
-| `--sq-lime` | `#CFEB6B` | 1.33:1 | 9.62:1 |
+| Token | Value | On white | Charcoal on it | Carries text? |
+| --- | --- | --- | --- | --- |
+| `--sq-sand` | `#EBE6CE` | 1.25:1 | 10.22:1 | yes |
+| `--sq-gold` | `#BDA25A` | 2.48:1 | 5.18:1 | yes |
+| `--sq-sky` | `#3F9DD1` | 3.02:1 | 4.25:1 | **no — see below** |
+
+**Sky carries no text, at any size.** Charcoal on sky is 4.25:1, under the 4.5:1 AA
+floor for body copy. It is a decoration colour only: icon chips, illustration fills,
+chart series. An *icon* on sky is fine — non-text contrast is judged at 3:1 (WCAG
+1.4.11) and sky clears it — which is why a lint rule cannot make this call for you
+and it appears in the consistency checklist instead.
 
 `--sq-stone-300` and `--sq-stone-400` are **borders only, never text**. The lightest value permitted for body copy is `--sq-stone-600` (4.91:1 on the page).
 
@@ -85,11 +90,19 @@ This is the constraint broken most often. Four of the brand colours cannot carry
 
 Never: blue as a page background, a card fill, a large tinted panel, or a chart series adjacent to a status colour.
 
-### Gold and lime
+### Gold, and the colour that is not in the brand
 
-Gold does not appear in the application. It lives in print, marketing, and plan badges. Inside the product, `--sq-lime` takes its role.
+Gold does not appear in the application. It lives in print, marketing, and plan badges.
 
-Blue, charcoal, sand and lime is the full working set. Adding gold makes five accents and starts looking like a swatch book.
+**There is no lime.** `--sq-lime` and `--sq-lime-tint` were in the token file and in
+these rules for a time, but lime is not one of the seven colours in the brand palette —
+it was never ours to spend. Both tokens are gone, along with their Tailwind classes.
+If you find `bg-lime` or `lime-tint` in a branch, it is stale and will not resolve.
+
+**Blue, charcoal and sand is the full working set, with sky as the second tint.**
+Sand dominates; sky appears where a second tint genuinely distinguishes two things
+side by side. Two tints on a screen is the ceiling — the tinted-card rule says so
+independently, and with only two in the set it is now hard to break.
 
 ### Sand is load-bearing
 
@@ -185,11 +198,19 @@ Single-shop accounts see the same structure with the switcher collapsed to a sta
 
 ### 2. Editor
 
-Escapes the shell entirely. Own route, no left rail, full bleed. Three panes: catalog (start), artboard (centre), properties (end).
+Escapes the shell entirely. Own route, no left rail, full bleed. Three panes: offer tray (start), artboard (centre), properties (end).
 
 The artboard sits on `--sq-ui-canvas-surround` so the offer book pops off the screen the way paper does on a desk. This is the only dark surface in the product.
 
 Below 1024px, side panels **overlay** the canvas rather than compressing it. A squeezed artboard makes the whole product feel cramped.
+
+**The artboard is engine output, not a drawing surface.** A layout engine composes the page from the shop's offers and its template; the owner picks offers, orders them, and nudges within a slot. They do not place cards, draw slots, or free-position anything. Every adjustment is a bounded delta the engine preserves when it re-runs — which is what makes next week's book an edit rather than a rebuild. See `docs/E6-offer-book-editor.md` §1.
+
+Three consequences for anything built here:
+
+- **The start pane is an offer tray, not a placement palette.** Search the catalog, add a product, and it becomes an offer — or a second item on an existing one, joined by *or*. Drag reorders; it does not position.
+- **Price is not an owner-styled element.** One control, the promo tier. No font-size dropdown, no badge-text field. `PriceMark` owns the rest.
+- **Density, language and shop variant are toolbar switches that re-run the engine live.** The language toggle renders the sibling edition inline — never make an owner publish to find out that the Arabic layout broke.
 
 ### 3. Onboarding and brand setup
 
@@ -265,11 +286,17 @@ Every recurring element is specified here. Do not invent a variant — if a scre
 
 ### Tinted content cards
 
-A soft full-bleed tint block with charcoal text and a secondary button inside. `--sq-radius-block`, no border. Backgrounds: `--sq-sand`, `--sq-lime-tint`, `--sq-sky-tint`.
+A soft full-bleed tint block with charcoal text and a secondary button inside. `--sq-radius-block`, no border. Backgrounds: `--sq-sand`, `--sq-sand-tint`, `--sq-sky-tint`. Sky-tint takes charcoal safely; full-strength `--sq-sky` does not and is not a tinted-card ground.
 
 **These are for prompts, not content** — onboarding next-steps, feature introductions, upgrade nudges. General content lives on white cards. Use more than two on a screen and the page turns into a quilt; the restraint is what makes them read as prompts at all.
 
 Never put a primary charcoal button inside one. The tint already carries the emphasis, and a solid dark button on a tint block fights it.
+
+**`--sq-ui-text-muted` is not available on a tint.** Its 4.91:1 rating is measured
+against `--sq-ui-page`; on sand it drops to 4.19:1 and on sky-tint to 4.26:1, both
+under the AA floor. Inside a tinted card the lightest permitted ink is
+`--sq-ui-text-secondary` (6.13:1 on sand). The same caution applies anywhere a tint
+becomes the ground — icon chips are exempt only because they carry no text.
 
 ### Icon chips
 
@@ -500,7 +527,7 @@ What makes a collected set look commissioned is constraint, not craft:
 
 - **One line colour: `--sq-charcoal`.** No exceptions, no lighter greys for secondary strokes.
 - **One stroke weight**, consistent at the size it ships. Do not scale artwork and inherit a different apparent weight.
-- **Maximum two fills per illustration**, both drawn from the fill-only tier: `--sq-sand`, `--sq-lime`, `--sq-sky`. Sand should dominate.
+- **Maximum two hues per illustration: the sand ramp, plus one accent.** Sand dominates and carries form — its three steps (`--sq-sand-tint`, `--sq-sand`, and the deeper `#DCD5B4`) are one hue, not three fills. The accent is `--sq-blue` by default, `--sq-sky` where blue would fight something nearby. Skin tones on figures are preserved and do not count against this.
 - **No gradients, no shadows, no textures.** Any inherited piece carrying these needs flattening before it can sit alongside the rest.
 - **Never `--sq-gold`** — it does not appear in the application.
 - **Brand blue is the default accent.** Illustrations are interface furniture — welcome screens, empty states, onboarding — and are where brand expression belongs. The one restriction: no blue shape at control scale *and* control shape, so an illustration never contains something that reads as a tappable pill.
@@ -546,7 +573,15 @@ Raise these rather than inventing values:
   6px — it maps to `--sq-radius-card`, **12px**. The Controls table is correct. Fix the
   prose; do not move the tokens.
 
-- **The brand blue is now reconciled.** The source `logo.svg` and `icon.svg` carried `#153CD0`; everything committed under `apps/web/public/brand/` has been corrected to `#143CD2` to match the token file. Check the blue on any future export from design tooling.
+- **The brand blue is settled, and the token file is right.** The printed brand palette
+  gives `#143CD2`, matching the token file and everything committed under
+  `apps/web/public/brand/`. Exports from the design tool keep emitting `#153CD0` — a
+  hair off, imperceptible, and still wrong. **Correct the export, never the token.**
+  Check the blue on every new export; this has now come back twice.
+
+  The palette was verified against the token file colour by colour: blue, navy,
+  charcoal, sand, sky, gold and the `#F8F7F3` page ground all match exactly. The
+  token file is not a paraphrase of the brand — it is the brand.
 - **Wordmark casing.** The mark reads *Souqstudio*, lowercase `s` in `studio`. Every string in the codebase writes *SouqStudio*. Unchanged so far — a logo's treatment does not automatically dictate prose casing — but reconcile before launch copy or a trademark filing. The mark carries a ®; confirm the registration territories.
 - **Illustration inventory** is not yet complete. See `references/illustration-manifest.md`.
 - **Chart typography** — use `label` for axis and legend, `data-sm` for value annotations, and flag it as open rather than inventing a scale.

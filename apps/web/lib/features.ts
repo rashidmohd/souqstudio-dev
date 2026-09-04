@@ -21,6 +21,9 @@ export const EDITOR_BUILT = false
 /** E5 — the product catalog browser at /catalog. */
 export const CATALOG_BUILT = false
 
+/** E11 — the analytics dashboard at /analytics. */
+export const ANALYTICS_BUILT = false
+
 /** E4-05 — brand kit management at /brand. Built. */
 export const BRAND_KIT_BUILT = true
 

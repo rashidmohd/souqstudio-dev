@@ -69,11 +69,11 @@ const config: Config = {
       'machine-label': 'var(--sq-machine-label)',
 
       // Fill-only tier. Background ONLY — never text, never a border.
-      // The eslint rule text-sand / text-lime / text-sky exists to catch misuse.
+      // The eslint rule text-sand / text-sky exists to catch misuse.
+      // Sky additionally carries no text *on* it — charcoal on sky is
+      // 4.25:1, under the AA floor. See the token file.
       sand: 'var(--sq-sand)',
-      lime: 'var(--sq-lime)',
       sky: 'var(--sq-sky)',
-      'lime-tint': 'var(--sq-lime-tint)',
       'sky-tint': 'var(--sq-sky-tint)',
       'sand-tint': 'var(--sq-sand-tint)',
       'illus-panel': 'var(--sq-illus-panel)',
@@ -159,6 +159,7 @@ const config: Config = {
       height: {
         control: 'var(--sq-h-control)',
         'control-lg': 'var(--sq-h-control-lg)',
+        chip: 'var(--sq-size-chip)',
       },
       minHeight: {
         control: 'var(--sq-h-control)',
@@ -168,6 +169,9 @@ const config: Config = {
       minWidth: {
         control: 'var(--sq-h-control)',
         'control-lg': 'var(--sq-h-control-lg)',
+      },
+      width: {
+        chip: 'var(--sq-size-chip)',
       },
       borderWidth: {
         hairline: '0.5px',

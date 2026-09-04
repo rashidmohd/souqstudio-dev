@@ -204,7 +204,7 @@ These are the safe values to use in templates:
 | Error text | `#B3261E` |
 
 Never use `--sq-tpl-*` values in email templates.
-Never use `--sq-sky`, `--sq-gold`, `--sq-lime` as text colours (fill-only tier).
+Never use `--sq-sky`, `--sq-gold`, `--sq-sand` as text colours (fill-only tier). There is no `--sq-lime`.
 
 ---
 

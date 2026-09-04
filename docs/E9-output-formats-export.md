@@ -109,8 +109,12 @@ Server-side PDF generation infrastructure.
 
 **Flow**
 ```
-1. Client calls POST /export/pdf with { offer_book_id, format, print_ready }
-2. Backend fetches canvas SVG(s) from offer book record
+1. Client calls POST /export/pdf with { offer_book_id, shop_id?, language, format, print_ready }
+2. Worker composes each page with the layout engine — offers plus template plus
+   per-page slotOverrides, resolved for that shop and language — and serialises to SVG.
+   There is no stored canvas to fetch: E6 v2 dropped `canvas_state`. The engine is the
+   same implementation the editor runs, shared from `packages/`, or the PDF will not
+   match the screen.
 3. SVG(s) wrapped in HTML shell:
    <html><body style="margin:0">{svg}</body></html>
 4. Playwright (warm browser pool) renders HTML
@@ -138,10 +142,15 @@ Server-side PDF generation infrastructure.
 
 In the editor header, a format selector allows switching formats:
 
-- Switching format: canvas reflows to new dimensions
-- Product layout re-adapts to new grid constraints
-- Warning shown if current grid is incompatible with selected format
+- Switching format: the engine re-runs against the template's page types for that format
+- `SlotOverride`s are preserved by `slotId` and orphans discarded — the same rule as every
+  other reflow trigger (E6 §4). Moved cards are reported rather than silently rearranged.
+- Warning shown if the template has no page type compatible with the selected format
 - Last used format per shop remembered
+
+**Each rendered edition stamps a variant code** — `{bookCode}-{shopCode}-{lang}` — into
+the artboard margin, from a template slot so themes can place it. A chain reprints from a
+scan of a printed page and needs to know which edition it is holding. See E5 §6.
 
 ---
 

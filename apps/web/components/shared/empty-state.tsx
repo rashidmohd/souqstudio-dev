@@ -1,7 +1,9 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
+import { illustrationSrc, type IllustrationKey } from '@/lib/illustrations'
 import { cn } from '@/lib/utils'
 
 /**
@@ -47,7 +49,7 @@ type EmptyStateBase = {
  */
 type EmptyStateProps = EmptyStateBase &
   (
-    | { kind: 'empty'; illustration?: string | undefined }
+    | { kind: 'empty'; illustration?: IllustrationKey | undefined }
     | { kind: 'zero-results' | 'error'; illustration?: never }
   )
 
@@ -60,12 +62,6 @@ export function EmptyState({
   retryPreservesInput,
   className,
 }: EmptyStateProps) {
-  // `illustration` is accepted but nothing renders it yet: all twelve slots in
-  // illustration-manifest.md are `todo`, and shipping a placeholder box where
-  // artwork belongs is explicitly barred. The prop exists so callers can be
-  // written correctly now and light up when the artwork lands.
-  void illustration
-
   return (
     <div
       className={cn(
@@ -73,6 +69,23 @@ export function EmptyState({
         className
       )}
     >
+      {illustration ? (
+        // Decoration: the title and body carry the meaning, so it is hidden
+        // from assistive tech rather than given invented alt text.
+        // `unoptimized` because the optimizer does nothing useful for a local
+        // SVG, and `priority` is deliberately absent — an empty state is never
+        // the largest contentful paint on a screen that matters.
+        <Image
+          src={illustrationSrc(illustration)}
+          alt=""
+          aria-hidden="true"
+          width={280}
+          height={180}
+          unoptimized
+          className="h-auto w-full max-w-xs"
+        />
+      ) : null}
+
       <div className="flex max-w-sm flex-col gap-1">
         <h2 className="font-display text-heading text-primary">{title}</h2>
         <p className="font-ui text-body text-secondary">{body}</p>

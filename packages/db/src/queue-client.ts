@@ -51,6 +51,20 @@ export interface BgRemovePayload {
    * Exactly one of the two is set, decided by `levelFor(override, 'logo')`.
    */
   organizationId?: string
+  /**
+   * E5 §3. Set when this is a catalog cutout rather than a logo: the worker
+   * writes an `image_assets` row of kind CUTOUT against this product, derived
+   * from `sourceAssetId`, carrying `bboxTight` and a matting `quality` score.
+   *
+   * `bboxTight` is not decoration — the layout engine scales cards to optical
+   * weight, so a cutout with 30% transparent padding renders visibly smaller
+   * than its neighbours without it. A low `quality` lands the asset in review
+   * rather than on a printed page.
+   *
+   * Set with `sourceAssetId` and neither `shopId` nor `organizationId`.
+   */
+  catalogProductId?: string
+  sourceAssetId?: string
   jobId?: string
 }
 

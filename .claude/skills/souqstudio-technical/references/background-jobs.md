@@ -19,9 +19,20 @@ execution limits make multi-minute AI jobs impossible.
 | `ai` | `ai.character` | `{ shopId, jobId, uniformImageUrl, nationality, gender, style }` | 2 |
 | `ai` | `ai.pose` | `{ shopId, jobId, characterId, poseType }` | 2 |
 | `ai` | `ai.cover` | `{ shopId, jobId, offerBookId, campaignType }` | 2 |
-| `bg` | `bg.remove` | `{ imageUrl, targetPath, jobId? }` | 5 |
+| `bg` | `bg.remove` | `{ imageUrl, targetPath, shopId? \| organizationId? \| catalogProductId?, sourceAssetId?, jobId? }` | 5 |
 | `email` | `email.send` | `{ template, to, props }` | 5 |
 | `enrich` | `catalog.enrich` | `{ catalogProductId }` | 2 |
+
+`bg.remove` serves two callers and the payload says which. A **logo** carries `shopId`
+or `organizationId`, and the worker writes the outcome onto that brand kit. A **catalog
+cutout** carries `catalogProductId` and `sourceAssetId`, and the worker writes an
+`image_assets` row of kind `CUTOUT` derived from the source, with `bboxTight` and a matting
+`quality` score.
+
+`bboxTight` is the trimmed content box, and the layout engine needs it: cards are scaled to
+optical weight, so a cutout with 30% transparent padding renders visibly smaller than its
+neighbours without it. A `quality` below the review threshold leaves `reviewState` at
+`PENDING` and keeps the cutout off a printed page. **Only the logo branch is implemented.**
 
 AI concurrency is deliberately low. These call external image models with their own rate
 limits, and each job holds memory for the duration.

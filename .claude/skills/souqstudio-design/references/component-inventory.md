@@ -257,34 +257,45 @@ A card inside a card means the hierarchy is wrong. Not enforceable in types — 
 | | |
 | --- | --- |
 | File | `components/ui/tinted-card.tsx` |
-| Status | `spec` |
+| Status | `built` — apps/web only |
 | Governs | SKILL.md → Components → Tinted content cards |
 
 ```tsx
 type TintedCardProps = {
-  tint: 'sand' | 'lime' | 'sky'
+  tint: 'sand' | 'sand-tint' | 'sky-tint'
 } & React.HTMLAttributes<HTMLDivElement>
 ```
 
 For prompts, not content. Never a primary button inside. Max two per screen.
+
+**`text-muted` is unavailable inside one.** It is rated against the page ground and
+falls to 4.19:1 on sand, under the AA floor. `text-secondary` is the lightest ink a
+tint may carry. First use: the getting-started checklist on home.
 
 ### IconChip
 
 | | |
 | --- | --- |
 | File | `components/ui/icon-chip.tsx` |
-| Status | `spec` |
+| Status | `built` — apps/web only |
 | Governs | SKILL.md → Components → Icon chips |
 
 ```tsx
 type IconChipProps = {
   icon: LucideIcon                  // the component, not a string name
-  tint?: 'sand' | 'lime' | 'sky'
+  tint?: 'sand' | 'sand-tint' | 'sky-tint'
 }
 ```
 
 **Decorative only — never the tap target.** No `onClick`. If it needs to be pressable it
 is a `Button` with `iconOnly`, which is circular. The absent `onClick` is the enforcement.
+
+Sized by `--sq-size-chip` (28px, 32px on coarse pointers). That token was added when this
+was built — the skill specified the size and nothing carried it, so a chip could not be
+built without a raw value. `aria-hidden` is set internally; the adjacent text is the label.
+
+Sky is safe here despite carrying no text: an icon is judged at the 3:1 non-text floor
+(WCAG 1.4.11), which sky clears.
 
 ### StatCard
 
@@ -657,6 +668,77 @@ type SaveIndicatorProps = {
 ```
 
 Quiet and persistent. Never a toast per save. There is no Save button.
+
+### PriceMark
+
+| | |
+| --- | --- |
+| File | `components/editor/price-mark.tsx` |
+| Status | `spec` |
+| Governs | `docs/E6-offer-book-editor.md` §3 |
+
+```tsx
+type PriceMarkProps = {
+  mark: PriceMark                   // from @souqstudio/types
+  /** Artboard scale. The mark never re-derives its own sizing from the DOM. */
+  scale?: number
+}
+```
+
+**Artboard content, not chrome.** It is the one component that legitimately uses
+`--sq-tpl-*` tokens, because it renders inside the offer book rather than around it. The
+colour comes from the offer's `PromoTier.tokenRef`; the component never takes a colour prop
+and never a hex.
+
+The single element that decides whether output reads as a real offer book. Everything is
+derived — from the offer and the template — and **exactly one authoring control exists
+anywhere in the product: the tier.** If a screen offers a font size or a badge-text field
+for a price, that screen is wrong.
+
+Rules the component owns, not its callers:
+
+- Minor digits raise to the major's cap height. Never baseline-aligned.
+- The tier label is an attached tab. Tab and mark never separate, at any scale.
+- KWD, OMR and BHD are three-decimal and take a distinct minor treatment.
+  `THREE_DECIMAL_CURRENCIES` is exported from `@souqstudio/types`.
+- **Always LTR with Western numerals, including in AR editions.** The rest of the card
+  mirrors; this does not.
+- Never shrinks below the template floor. A too-small price mark defeats the artefact.
+
+### OfferCard
+
+| | |
+| --- | --- |
+| File | `components/editor/offer-card.tsx` |
+| Status | `spec` |
+| Governs | `docs/E6-offer-book-editor.md` §4, §5, §7 |
+
+```tsx
+type OfferCardProps = {
+  offer: OfferForRender             // offer + items + chips, resolved for one shop
+  variant: CardVariant
+  density: DensityProfile['id']
+  language: 'en' | 'ar'
+  flags?: QualityFlag[]
+  selected?: boolean
+}
+```
+
+One card, N products, one price. Item 0 supplies the brand lockup and the primary image;
+later items render name and spec prefixed by the localised connector.
+
+**Design it at `DENSE` and bilingual first** — the worst case. Built the other way round it
+works at showcase density and collapses the first time a chain loads a full week.
+
+Layer order is fixed, bottom to top: group surface → card surface → image cutout → text
+block → price mark → chips. Chips may overhang the card by up to half their own width, so
+the card **renders unclipped**; the engine reserves that bleed in the slot gap.
+
+The fit ladder is the card's, not the engine's: tighten leading, drop one type step,
+truncate spec, then escalate to a `QualityFlag`. Name and price never shrink below the
+template floor and spec is the only thing that truncates.
+
+Cutout images never flip in RTL. Mirrored packaging text is an instant tell.
 
 ---
 

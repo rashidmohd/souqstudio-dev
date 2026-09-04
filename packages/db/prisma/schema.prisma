@@ -74,6 +74,10 @@ model Organization {
   creditBalance         CreditBalance?
   creditTopups          CreditTopup[]
   shopCreditAllocations ShopCreditAllocation[]
+  catalogProducts       CatalogProduct[]
+  catalogImports        CatalogImport[]
+  captureSessions       CaptureSession[]
+  promoTiers            PromoTier[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -113,6 +117,8 @@ model Shop {
   characters       Character[]
   socialConns      SocialConnection[]
   creditAllocation ShopCreditAllocation?
+  offerOverrides   OfferShopOverride[]
+  captureSessions  CaptureSession[]
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -630,29 +636,94 @@ model StripeEvent {
 }
 
 // ─── Product catalog ──────────────────────────────────────────────────────────
+//
+// One table, two collections. `organizationId` null is the universal SouqStudio
+// catalog; set, it is that organization's own upload. Two tables was the obvious
+// alternative and is worse: one tsvector index covers both, precedence is an
+// `ORDER BY` rather than a merge in application code, and `OfferItem` keeps a
+// single foreign key instead of a polymorphic reference.
+//
+// Enums start here. Nothing above this line uses one — the rest of the schema
+// spells closed sets as `String // a | b | c` — and that is deliberate rather
+// than forgotten. The layout engine branches on every value below, and a bad
+// string reaching it renders a card wrong on a printed page instead of throwing.
+// Do not convert the older columns to match; a half-converted schema is worse
+// than either convention held consistently.
+
+enum PackUnit {
+  G
+  KG
+  ML
+  L
+  PIECE
+}
+
 model CatalogProduct {
-  id            String                @id @default(cuid())
-  canonicalName String
-  category      String?
-  subcategory   String?
-  brand         String?
-  imageUrl      String?
-  thumbnailUrl  String?
-  unit          String?
-  barcode       String?               @unique
-  tags          String[]
+  id             String  @id @default(cuid())
+  /// Null = universal catalog, visible to every organization. Set = private to
+  /// that organization, and the only rows a shop owner can edit. Precedence at
+  /// search time is org rows first, universal as fallback.
+  organizationId String?
+
+  /// EN and AR are both v1 surfaces, so they are paired columns rather than a
+  /// translation side table. `nameAr` is nullable at ingest and **required
+  /// before an offer using this product publishes to an AR edition** — a
+  /// completeness warning in the catalog, never a hard block at import, or
+  /// import throughput dies.
+  nameEn   String
+  nameAr   String?
+  brandEn  String?
+  brandAr  String?
+  /// The variant line under the name: "versch. Sorten, je 200-g-Becher".
+  specEn   String?
+  specAr   String?
+  /// Rendered as a prefix line above the name, not folded into spec — except
+  /// at DENSE density, where E6 §5 folds it in.
+  originEn String?
+  originAr String?
+
+  category    String?
+  subcategory String?
+
+  /// Pack maths for the derived unit price (E5 §5). `packSize` is in `packUnit`;
+  /// `packCount` is the multiplier on a multipack — 8 × 25 g is size 25, unit G,
+  /// count 8. All three null means no unit price can be derived, and the offer
+  /// falls back to `unitPriceMode = HIDDEN`.
+  packSize  Decimal?  @db.Decimal(10, 3)
+  packUnit  PackUnit?
+  packCount Int?
+
+  /// Not globally unique any more. An organization may hold its own row for a
+  /// barcode the universal catalog also has — that is the whole point of the
+  /// private collection. Uniqueness is per collection: the compound index
+  /// below for org rows, and a partial unique index in the migration for the
+  /// universal ones, because Postgres treats NULLs as distinct.
+  barcode    String?
+  tags       String[]
   /// Extra attributes (nutritional data, dimensions, etc.)
-  metadata      Json?
-  source        String? // open_food_facts | gtin | user_contribution | manual
-  enrichedAt    DateTime?
+  metadata   Json?
+  source     String? // open_food_facts | gtin | user_contribution | manual | import
+  /// Set when the enrich worker last generated synonyms and translations.
+  enrichedAt DateTime?
+  /// Catalog products are archived, never deleted — a published offer book
+  /// references this row and must not break. See references/database.md.
+  archivedAt DateTime?
+
+  organization  Organization?         @relation(fields: [organizationId], references: [id])
+  images        ImageAsset[]
   synonyms      ProductSynonym[]
   contributions ProductContribution[]
+  offerItems    OfferItem[]
+  importRows    CatalogImportRow[]
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
-  // search_vector tsvector is managed via raw SQL migration
-  // See docs/technical.md for the trigger definition
+  // search_vector tsvector is managed via raw SQL migration — it spans nameEn,
+  // nameAr, brand, category and tags. See references/database.md.
 
+  @@unique([organizationId, barcode])
+  @@index([organizationId])
+  @@index([organizationId, archivedAt])
   @@map("catalog_products")
 }
 
@@ -664,12 +735,14 @@ model ProductSynonym {
   region    String?
   product   CatalogProduct @relation(fields: [catalogId], references: [id])
 
+  @@index([catalogId])
   @@map("product_synonyms")
 }
 
 model CatalogCategory {
   id           String  @id @default(cuid())
   name         String
+  nameAr       String?
   parentId     String?
   iconUrl      String?
   displayOrder Int     @default(0)
@@ -677,8 +750,62 @@ model CatalogCategory {
   @@map("catalog_categories")
 }
 
+// ─── Image assets ─────────────────────────────────────────────────────────────
+//
+// The grammar that separates a real offer book from a slide deck is a
+// background-removed product cutout floating on a tinted panel. Open Food Facts
+// and brand-portal packshots arrive on white or with a shadowed studio
+// background, so removal is an ingest stage, not a shop owner's chore.
+//
+// Pipeline: ORIGINAL → `bg.remove` worker → CUTOUT + bboxTight. Cards always
+// request CUTOUT and fall back to ORIGINAL only with a visible quality flag in
+// the editor.
+
+enum ImageKind {
+  ORIGINAL
+  CUTOUT
+  THUMB
+}
+
+enum ReviewState {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ImageAsset {
+  id          String         @id @default(cuid())
+  productId   String
+  kind        ImageKind
+  /// The ImageAsset this was derived from. Set on CUTOUT and THUMB, null on
+  /// ORIGINAL. Keeping the original is what makes a bad matte recoverable.
+  derivedFrom String?
+  r2Key       String
+  width       Int
+  height      Int
+  /// The trimmed content box within the canvas, `{ x, y, w, h }` in pixels.
+  /// The layout engine scales cards to optical weight, not to raw file
+  /// dimensions — without this a cutout carrying 30% transparent padding
+  /// renders visibly smaller than its neighbours on the same row.
+  bboxTight   Json?
+  /// Matting confidence, 0..1. Low scores route to review rather than shipping
+  /// a haloed cutout onto a printed page.
+  quality     Float?
+  reviewState ReviewState    @default(PENDING)
+  product     CatalogProduct @relation(fields: [productId], references: [id])
+  createdAt   DateTime       @default(now())
+
+  @@index([productId, kind])
+  @@index([reviewState])
+  @@map("image_assets")
+}
+
 model ProductContribution {
   id              String          @id @default(cuid())
+  /// E5-04. Shop-submitted products awaiting review for the universal catalog.
+  /// The product itself is already usable in the submitting organization's own
+  /// collection from the moment it is created — review decides promotion, not
+  /// availability.
   shopId          String
   catalogId       String?
   imageUrl        String
@@ -695,50 +822,351 @@ model ProductContribution {
   @@map("product_contributions")
 }
 
+// ─── Catalog import and capture ───────────────────────────────────────────────
+//
+// The owner's own list arrives as a spreadsheet, not as search queries. Import
+// resolves each row against the organization's collection first, falls back to
+// the universal catalog for images and details, and reports what it could not
+// match. Matching by name and not only by barcode is why the tsvector migration
+// blocks import as well as search.
+
+enum ImportStatus {
+  UPLOADED
+  MATCHING
+  REVIEW
+  COMMITTED
+  FAILED
+}
+
+enum ImportRowStatus {
+  MATCHED
+  AMBIGUOUS
+  UNMATCHED
+  CREATED
+  SKIPPED
+}
+
+model CatalogImport {
+  id             String             @id @default(cuid())
+  organizationId String
+  shopId         String?
+  /// R2 key of the uploaded CSV or XLSX. Kept so a disputed import can be
+  /// re-read rather than re-uploaded.
+  sourceKey      String
+  filename       String
+  status         ImportStatus       @default(UPLOADED)
+  /// Header name → canonical field, as the owner confirmed it on the mapping
+  /// screen: `{ "Item": "nameEn", "Rate": "price" }`.
+  columnMap      Json?
+  rowCount       Int                @default(0)
+  matchedCount   Int                @default(0)
+  unmatchedCount Int                @default(0)
+  /// Set when the owner commits the reviewed import into an offer book.
+  committedAt    DateTime?
+  error          String?
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  rows           CatalogImportRow[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@map("catalog_imports")
+}
+
+model CatalogImportRow {
+  id               String          @id @default(cuid())
+  importId         String
+  rowIndex         Int
+  /// The row exactly as it was read, before any interpretation. What the
+  /// "we could not match this" screen shows the owner.
+  raw              Json
+  status           ImportRowStatus
+  /// The product this row resolved to. Null while UNMATCHED.
+  catalogProductId String?
+  /// Runner-up matches for an AMBIGUOUS row, ranked:
+  /// `[{ catalogProductId, score }]`. The owner picks one.
+  candidates       Json?
+  price            Decimal?        @db.Decimal(10, 2)
+  import           CatalogImport   @relation(fields: [importId], references: [id], onDelete: Cascade)
+  product          CatalogProduct? @relation(fields: [catalogProductId], references: [id])
+
+  @@unique([importId, rowIndex])
+  @@index([importId, status])
+  @@map("catalog_import_rows")
+}
+
+model CaptureSession {
+  id             String       @id @default(cuid())
+  organizationId String
+  shopId         String
+  /// Which import or book the photographed products flow back into. Null for a
+  /// standalone capture run.
+  importId       String?
+  /// The short code encoded into the QR the desktop shows. The phone opens
+  /// `/capture/{code}` — a token-scoped surface, never the shop-owner session.
+  code           String       @unique
+  /// Hashed, never stored raw. Same rule as sessions.
+  tokenHash      String
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  capturedCount  Int          @default(0)
+  createdBy      String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  shop           Shop         @relation(fields: [shopId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, expiresAt])
+  @@map("capture_sessions")
+}
+
 // ─── Offer books ──────────────────────────────────────────────────────────────
+//
+// An offer is **N products at one price**, not one product with a price. Real
+// flyers routinely put two SKUs behind one mark — "Pesto Rosso *or* Pasta Sauce
+// Basilico — 1.99" — and a one-to-one product/price row cannot express it.
+// Retrofitting the join after the editor exists is expensive, so it is here now.
+//
+// The page is composed by the layout engine from these rows plus a template.
+// Fabric holds bounded per-slot adjustments, not the page. See docs/E6.
+
+enum PriceMode {
+  FIXED
+  FROM
+  PER_UNIT
+}
+
+enum UnitPriceMode {
+  AUTO
+  MANUAL
+  HIDDEN
+}
+
+enum Connector {
+  OR
+  AND
+}
+
+enum ChipKind {
+  COUNTER
+  ORIGIN
+  CERT
+  SCALE
+  LOYALTY
+  CUSTOM
+}
+
+enum ChipAnchor {
+  TOP_START
+  TOP_END
+  INLINE
+}
+
+enum FootnoteScope {
+  PAGE
+  BOOK
+}
+
 model OfferBook {
-  id            String             @id @default(cuid())
-  shopId        String
-  title         String
-  format        String // instagram_post | story | whatsapp | leaflet | catalog | a3 | print
-  status        String             @default("draft") // draft | published | archived
-  /// Serialised Fabric.js JSON — one entry per page
-  canvasState   Json?
-  shortCode     String             @unique
+  id             String  @id @default(cuid())
+  shopId         String
+  title          String
+  format         String // instagram_post | story | whatsapp | leaflet | catalog | a3 | print
+  status         String  @default("draft") // draft | published | archived
+  /// The template whose grammar the engine places into. Null only on a book
+  /// created before a template was chosen; publish requires it.
+  templateId     String?
+  /// SHOWCASE | STANDARD | DENSE — E6 §5. Book-level default; a page may
+  /// override it. Eight offers a page and thirty offers a page are the same
+  /// template at different densities, not two templates.
+  densityProfile String  @default("STANDARD")
+  /// The edition language this book was authored in. The sibling edition
+  /// renders from the same rows; it is a render target, not a copy.
+  language       String  @default("en") // en | ar
+
+  shortCode     String          @unique
   shareableLink String?
   expiresAt     DateTime?
   passwordHash  String?
-  linkActive    Boolean            @default(true)
-  shop          Shop               @relation(fields: [shopId], references: [id])
-  products      OfferBookProduct[]
+  linkActive    Boolean         @default(true)
+  shop          Shop            @relation(fields: [shopId], references: [id])
+  template      Template?       @relation(fields: [templateId], references: [id])
+  pages         OfferBookPage[]
+  offers        Offer[]
   pageViews     PageView[]
   productClicks ProductClick[]
   exportJobs    ExportJob[]
   socialPosts   SocialPost[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
+  @@index([shopId, status])
   @@map("offer_books")
 }
 
-model OfferBookProduct {
+model OfferBookPage {
   id             String    @id @default(cuid())
-  offerBookId    String
-  catalogId      String
-  originalPrice  Decimal
-  offerPrice     Decimal
-  discountPct    Decimal
-  discountAbs    Decimal
-  position       Int
-  pageNumber     Int       @default(1)
-  isHighlighted  Boolean   @default(false)
-  badgeOverride  String?
-  customImageUrl String?
-  fontSizeName   String? // small | medium | large
-  fontSizePrice  String? // small | medium | large | xlarge
-  offerBook      OfferBook @relation(fields: [offerBookId], references: [id])
+  bookId         String
+  /// Zero-based render order.
+  index          Int
+  /// Which `PageType` in the template this page instantiates —
+  /// OFFER_GRID | CAMPAIGN | CROSS_SELL | COVER.
+  pageType       String
+  /// Overrides the book's density for this page only. Null inherits.
+  densityProfile String?
+  /// `SlotOverride[]`, keyed by slotId — see @souqstudio/types. Every entry is
+  /// a bounded delta against the engine's output: offset clamped to ±8% of slot
+  /// width, image scale 0.8..1.25, a pinned image, text overrides. Re-running
+  /// the engine preserves entries by slotId and discards orphans, which is what
+  /// makes a weekly reissue cheap.
+  ///
+  /// This replaces the book-level `canvasState` Fabric dump. Fabric is no
+  /// longer the source of truth for a page; the engine plus these deltas are.
+  slotOverrides  Json?
+  book           OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
-  @@map("offer_book_products")
+  @@unique([bookId, index])
+  @@map("offer_book_pages")
+}
+
+model Offer {
+  id       String @id @default(cuid())
+  bookId   String
+  /// Reading order within the book. The engine paginates from this; the owner
+  /// changes it by dragging in the offer tray.
+  position Int
+
+  price        Decimal   @db.Decimal(10, 2)
+  priceMode    PriceMode @default(FIXED)
+  /// Strikethrough was-price. Null when there is nothing to compare against.
+  comparePrice Decimal?  @db.Decimal(10, 2)
+  currency     String    @default("AED") // AED | SAR | QAR | KWD | OMR | BHD
+  promoTierId  String
+
+  /// AUTO derives `(1 kg = 1.76)` from pack maths, MANUAL takes `unitPriceValue`,
+  /// HIDDEN suppresses the line. Not legally required in the GCC, but it costs
+  /// nothing and reads as credible, so it defaults on.
+  unitPriceMode  UnitPriceMode @default(AUTO)
+  /// Frozen at publish so a reprint of an old book reproduces exactly, rather
+  /// than recomputing against pack data that has since been corrected.
+  unitPriceValue Decimal?      @db.Decimal(10, 3)
+  unitPriceUnit  PackUnit?
+
+  /// Deposit lines, service fees — rendered under the card, not as footnotes.
+  legalLines String[]
+
+  book      OfferBook           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  promoTier PromoTier           @relation(fields: [promoTierId], references: [id])
+  items     OfferItem[]
+  chips     OfferChip[]
+  footnotes OfferFootnote[]
+  overrides OfferShopOverride[]
+  clicks    ProductClick[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@unique([bookId, position])
+  @@index([bookId])
+  @@map("offers")
+}
+
+model OfferItem {
+  id               String     @id @default(cuid())
+  offerId          String
+  catalogProductId String
+  /// Render and read order within the offer. Item 0 supplies the brand lockup
+  /// and the primary image; later items render their name/spec block prefixed
+  /// by the localised connector.
+  position         Int
+  /// Rendered between this item and the one before it. Null on item 0.
+  connector        Connector?
+
+  /// Per-book corrections that must not write back to the catalog. A shop
+  /// renaming a product for one flyer is not a catalog edit.
+  nameOverrideEn String?
+  nameOverrideAr String?
+  specOverrideEn String?
+  specOverrideAr String?
+  /// A pinned image variant. Null uses the product's default CUTOUT.
+  imageAssetId   String?
+
+  offer   Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  product CatalogProduct @relation(fields: [catalogProductId], references: [id])
+
+  @@unique([offerId, position])
+  @@index([catalogProductId])
+  @@map("offer_items")
+}
+
+model PromoTier {
+  id             String  @id @default(cuid())
+  organizationId String
+  labelEn        String // "Deal", "Super Saver"
+  labelAr        String?
+  /// A design-system colour token name, never a raw hex. Same enforcement rule
+  /// as the rest of the system — see CLAUDE.md.
+  tokenRef       String
+  /// 1..3. Drives badge scale in the layout engine, and which offers bid first
+  /// for spanning slots.
+  emphasis       Int     @default(1)
+  isDefault      Boolean @default(false)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  offers       Offer[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("promo_tiers")
+}
+
+model OfferChip {
+  id      String     @id @default(cuid())
+  offerId String
+  kind    ChipKind
+  labelEn String
+  labelAr String?
+  /// Kind-specific payload: `{ "scale": 3, "of": 5 }` for SCALE,
+  /// `{ "amount": 0.20 }` for LOYALTY.
+  value   Json?
+  /// Logical, not physical — TOP_START lands on the correct corner in an AR
+  /// edition without a second rule. Anchored chips may overhang the card by up
+  /// to half their own width, which is why card groups render unclipped.
+  anchor  ChipAnchor @default(TOP_START)
+  offer   Offer      @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([offerId])
+  @@map("offer_chips")
+}
+
+model OfferFootnote {
+  id      String        @id @default(cuid())
+  offerId String
+  textEn  String
+  textAr  String?
+  scope   FootnoteScope @default(PAGE)
+  /// No marker number here on purpose. Numbering is assigned at render time in
+  /// reading order, so an AR edition numbers right-to-left correctly from the
+  /// same rows. Storing it would give two answers that can disagree.
+  offer   Offer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([offerId])
+  @@map("offer_footnotes")
+}
+
+model OfferShopOverride {
+  offerId     String
+  shopId      String
+  /// Null keeps the offer's own price. Resolution is override → offer default.
+  price       Decimal? @db.Decimal(10, 2)
+  /// False removes the offer from that shop's edition entirely. The layout
+  /// engine reflows the page rather than leaving a hole.
+  isAvailable Boolean  @default(true)
+  offer       Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@id([offerId, shopId])
+  @@index([shopId])
+  @@map("offer_shop_overrides")
 }
 
 // ─── Templates & Grids ───────────────────────────────────────────────────────
@@ -754,6 +1182,7 @@ model Template {
   activeFrom  DateTime?
   activeTo    DateTime?
   versions    TemplateVersion[]
+  offerBooks  OfferBook[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
@@ -880,12 +1309,18 @@ model PageView {
 model ProductClick {
   id          String    @id @default(cuid())
   offerBookId String
-  catalogId   String
+  /// The card that was clicked. An offer may carry several products behind one
+  /// price, so the click belongs to the offer; `catalogId` records which item
+  /// within it, when the viewer surface can tell.
+  offerId     String?
+  catalogId   String?
   sessionId   String
   pageNumber  Int       @default(1)
   offerBook   OfferBook @relation(fields: [offerBookId], references: [id])
+  offer       Offer?    @relation(fields: [offerId], references: [id])
   createdAt   DateTime  @default(now())
 
+  @@index([offerBookId, createdAt])
   @@map("product_clicks")
 }
 

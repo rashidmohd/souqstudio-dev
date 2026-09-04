@@ -69,6 +69,21 @@ down 500s every page under the shell. The rail imports its own icons and reads
 `usePathname()` for the active state. Anything else the layout renders is subject
 to the same rule.
 
+**Every destination above is gated on `lib/features.ts`, and an unbuilt one is
+omitted.** The diagram is the rail at completion, not the rail today: Catalog
+waits on E5 and Analytics on E11, so neither is rendered yet. Both previously
+shipped as ordinary enabled items pointing at routes that did not exist — the rail
+404'd twice, in the one component every signed-in screen renders, against the
+explicit rule in `apps/web/CLAUDE.md` that a link to a 404 is worse than no link.
+
+Omitted rather than disabled-with-a-reason. Both are sanctioned, but the rail
+collapses to 64px of icons below 1024px where a reason cannot be shown, and a
+reason living only in a tooltip is barred — the product ships on tablets.
+
+So this diagram and the code disagree on purpose, and the earlier instruction that
+adding a destination means editing both still holds: add the entry here, add it
+there, and flip its flag in the change that adds the route.
+
 **A gate in this layout must never redirect to a route inside this group.** The
 layout guards its own children, so such a redirect is an infinite loop. E1-03's
 forced two-factor enrollment lives at `/two-factor-setup` in family 4 for exactly

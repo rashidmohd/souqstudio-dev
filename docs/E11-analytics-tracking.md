@@ -174,8 +174,14 @@ page_views
   source, device, duration_seconds, created_at
 
 product_clicks
-  id, offer_book_id, catalog_id, session_id, page_number, created_at
+  id, offer_book_id, offer_id, catalog_id, session_id, page_number, created_at
 ```
+
+**A click belongs to an offer, not to a product.** E5 v2 made an offer N products at one
+price, so the card a viewer taps may carry two SKUs. `offer_id` is the card; `catalog_id`
+is which item within it, and is nullable because the public viewer cannot always tell.
+Both were single non-null `catalog_id` before that change — any query written against the
+old shape counts multi-product cards wrong.
 
 ---
 

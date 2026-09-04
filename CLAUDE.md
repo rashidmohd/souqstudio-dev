@@ -38,7 +38,7 @@ path and prop signature for each one, so two sessions cannot produce two APIs fo
 component. Before adding a route, read `references/layout-map.md`.
 
 Run `pnpm lint` and work through `references/consistency-checklist.md` before calling any
-UI work done. It carries the twelve checks a linter cannot make — Arabic rendering at
+UI work done. It carries the thirteen checks a linter cannot make — Arabic rendering at
 real string lengths, one primary action per region, every state present, machine output
 marked.
 
@@ -137,13 +137,16 @@ Run `pnpm typecheck` after each meaningful change. Fix before continuing.
 
 Tracked, not forgotten. Raise rather than inventing an answer.
 
-- **Illustrations** — all 12 slots are `todo`. Three of them relate to E1 onboarding,
-  which shipped without them: the manifest forbids placeholder boxes, and
-  `illustration-selection.md` treats onboarding as a place illustration is *earned*,
-  not required. Adding them is a visual upgrade, not a blocker. See
+- **Illustrations** — four are `ready` and in use; the rest wait on their epic. The
+  artwork on `assets.souqstudio.com` is already recoloured, and
+  `assets/illustration-catalog.json` carries `souqUse` assignments on 35 of its 385
+  entries, so selection is largely done — read it before choosing anything new. One slot
+  was struck as unfillable: `empty-catalog-search` is a *zero-results* state, and the
+  system permits an illustration only on `empty`. See
   `.claude/skills/souqstudio-design/references/illustration-manifest.md`.
 - **Worker handlers** — `email` and `bg` are implemented. `pdf`, `ai` and `enrich`
-  are still stubs that throw.
+  are still stubs that throw. `bg` handles logos only; the catalog cutout branch that
+  E5 §3 makes an ingest stage is unwritten, though `BgRemovePayload` carries its fields.
 - **Brand kit fonts are typed and unimplemented.** `BrandKit` carries
   `fontDisplay`, `fontPrice` and `fontBody`, and `lib/brand-inheritance.ts` puts
   them in the `layout` facet, but nothing reads or writes them and E4-05's
@@ -151,7 +154,17 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   OFL families into R2 and subsetting them —
   `souqstudio-design → references/brand-kit-fonts.md`. Until then the editor has
   no shop-chosen typeface to load, which E6 will notice.
-- **tsvector migration** — the search column, index and trigger are not written. Blocks E5.
+- **The E5 migration is written and unapplied.** `20260904000000_e5_offer_model_and_catalog_search`
+  carries the offer model, the bilingual catalog, `image_assets`, spreadsheet import and
+  the tsvector work. Its header lists four hand-edits to what `prisma migrate diff`
+  generated. The dev database is still at the E3 migration.
+- **Promo tiers are not seeded on organization creation.** `offers.promoTierId` is NOT
+  NULL and the migration only seeds the organizations that already existed. The signup
+  path must seed `Deal` and `Offer` for every new org or its first offer fails. See
+  `docs/E5-product-catalog.md` §9.
+- **The layout engine does not exist.** E6 v2 composes pages with one; it is shared
+  between web and worker, so it belongs in `packages/`, not `apps/web/lib`. Two
+  implementations would drift, and drift means the PDF does not match the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be
   uploaded to `https://assets.souqstudio.com/email/logo-dark.png` before any email is
   sent, or every message renders with a broken image at the top.
@@ -161,7 +174,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
 - **OG cards are provisional** — logo centred on the brand ground. Fine as a default,
   not a designed card.
 - **Dark mode** — surfaces and text only. Status, machine fill, selection, charts and the
-  fill-only tier are unverified at dark contrast.
+  fill-only tier are unverified at dark contrast. The light-mode pass in September found
+  three failures nobody had noticed, so assume the dark set has its own.
+- **`global-error.tsx` does not exist.** `app/error.tsx` and `app/not-found.tsx` now do,
+  but an exception thrown by the root layout itself escapes both — that needs a boundary
+  shipping its own `<html>` and `<body>`.
 - **Card designer** — a fifth layout family in the design system with no epic covering
   it. See the addendum in `docs/E7-template-grid-management.md`.
 - **Rate limiting** — unspecified, including on public tracking endpoints. `POST

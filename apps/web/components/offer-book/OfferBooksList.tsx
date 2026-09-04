@@ -41,9 +41,7 @@ export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
           disabledReason: EDITOR_BUILT ? undefined : NOT_YET,
           onClick: EDITOR_BUILT ? () => router.push('/editor/new') : undefined,
         }}
-        // No illustration. `empty-offer-books` is still `todo` in the manifest,
-        // and shipping a placeholder box where artwork belongs is explicitly
-        // barred — see illustration-manifest.md.
+        illustration="empty-offer-books"
       />
     )
   }

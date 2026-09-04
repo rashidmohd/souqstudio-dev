@@ -173,6 +173,37 @@ seasonal_assets
 
 ---
 
+## Addendum — The template grammar moved to E6
+
+E6 v2 replaced free canvas composition with a layout engine, and the engine places into a
+**template grammar** that is now specified as `OfferTemplate` in `@souqstudio/types`:
+page types, a grid of spanning slots, slot groups with tinted surfaces, and density
+profiles. Read `docs/E6-offer-book-editor.md` §2 and §5 before touching E7-01 or E7-02.
+
+What that changes here:
+
+- **E7-01 and E7-02 merge in substance.** A grid is no longer a separate row that a
+  template is paired with — it is `PageType.grid` inside the template. The `grids` table
+  and the five seeded presets survive because E4's setup wizard offers them, but the admin
+  builder should target `OfferTemplate` and not grow new capability on the old shape.
+- **The price mark is not a template field any more.** E7-01 lists "price tag style" and
+  "discount badge style" as template config. Those are now the `PriceMark` component plus
+  org-scoped `promo_tiers` — one authoring control, `tierId`, and everything else derived.
+  See E6 §3. Template config sets shape and rotation bounds; it does not compose a price.
+- **Colour zones become tokens.** `surfaceToken`, `borderToken` and `tokenRef` are
+  design-system token names. The builder must never write a hex into template config.
+- **A new page type per campaign shape.** Priceless campaign pages, cross-sell pages and
+  covers are page *types* in the grammar, not styling flags on an offer grid.
+- **Migration is E7's.** `templates.config` still holds the E4 `TemplateConfig` shape.
+  Moving the seeded presets onto `OfferTemplate` is this epic's work, and `offer_books`
+  already carries `templateId` pointing at the same table, so the seam is the config
+  column alone.
+
+E7-03 (seasonal) and E7-04 (format mapping) are unaffected in substance. Format mapping
+now lives on the template's page types rather than on a separate `grids` row.
+
+---
+
 ## Addendum — Card designer surface
 
 The design system defines a **card designer** as its own layout family, distinct from

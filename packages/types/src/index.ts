@@ -180,3 +180,234 @@ export interface ApiError {
 }
 
 export type ApiResult<T> = ApiResponse<T> | ApiError
+
+// ─── Template grammar — E6 §2 ─────────────────────────────────────────────────
+//
+// A template is data, not code. Themes ship as JSON validated against this
+// shape, which is why none of it is a class and none of it carries behaviour.
+//
+// `GridConfig` and `TemplateConfig` above are the E4 brand-kit presets — five
+// seeded grids and five seeded templates that the setup wizard offers. They are
+// not this. They stay until E7 migrates the seeded presets onto this grammar;
+// do not extend them.
+
+/** Which card layout a slot renders. The engine picks nothing here — the
+ *  template does, per slot, so a page reads the same way every week. */
+export type CardVariant =
+  | 'STANDARD'
+  | 'HERO'
+  | 'COMPACT'
+  | 'STACKED'
+  | 'TEXT_ONLY'
+
+export type PageTypeKind = 'OFFER_GRID' | 'CAMPAIGN' | 'CROSS_SELL' | 'COVER'
+
+export interface Slot {
+  id: string
+  col: number
+  row: number
+  colSpan: number
+  rowSpan: number
+  variant: CardVariant
+  /** Reserve this slot for a promo tier of at least this emphasis. Offers
+   *  carrying the requirement bid for spanning slots first; ties break on
+   *  offer position. */
+  minEmphasis?: 1 | 2 | 3 | undefined
+}
+
+/**
+ * A bordered, tinted container wrapping several cells, with its own header —
+ * a loyalty section, an own-brand block. A flat grid cannot express it, and a
+ * real flyer uses one on most pages.
+ */
+export interface SlotGroup {
+  id: string
+  slotIds: string[]
+  /** Design-system token name for the panel behind the group. Never a hex. */
+  surfaceToken: string
+  borderToken?: string | undefined
+  labelEn?: string | undefined
+  labelAr?: string | undefined
+}
+
+export interface TemplateGrid {
+  cols: number
+  rows: number
+  gap: number
+  slots: Slot[]
+  groups?: SlotGroup[] | undefined
+}
+
+export interface HeroBand {
+  /** Slot the hero image or masthead fills. */
+  slotId: string
+  imageAssetId?: string | undefined
+  headlineEn?: string | undefined
+  headlineAr?: string | undefined
+  /** Hero photography that a model produced carries the disclosure chip. E6 §9. */
+  aiGenerated?: boolean | undefined
+}
+
+export interface FooterBand {
+  /** Where per-page footnotes collect, and where the variant code is stamped. */
+  slotId: string
+  showVariantCode: boolean
+}
+
+export type PageType =
+  | { kind: 'OFFER_GRID'; hero?: HeroBand | undefined; grid: TemplateGrid; footer?: FooterBand | undefined }
+  /** Campaign pages carry loyalty values and a "prices in store" footer and no
+   *  price marks at all. A page type, not a styling flag — a page with prices
+   *  suppressed still reserves the space for them. */
+  | { kind: 'CAMPAIGN'; hero: HeroBand; slots: Slot[]; priceless: true }
+  | { kind: 'CROSS_SELL'; hero: HeroBand; cta: Slot; grid?: TemplateGrid | undefined }
+  | { kind: 'COVER'; hero: HeroBand; grid?: TemplateGrid | undefined; masthead: Slot }
+
+/**
+ * How many offers a page carries and what gives way to fit them.
+ *
+ * The reference flyer runs about eight offers a page — a premium European
+ * density. GCC books commonly run 20–30 SKUs. The same template must survive
+ * both, which is why the card is designed at DENSE and bilingual, the worst
+ * case, and then allowed to breathe. The other direction produces a card that
+ * only works at showcase density and collapses the first time a chain loads a
+ * full week.
+ */
+export interface DensityProfile {
+  id: 'SHOWCASE' | 'STANDARD' | 'DENSE'
+  /** Inclusive range of cards per page. */
+  cardsPerPage: [number, number]
+  /** Index into the design system's type scale. Never an arbitrary size. */
+  typeScaleStep: number
+  /** Image share of card height, 0..1. */
+  imageRatio: number
+  showUnitPrice: boolean
+  showOrigin: boolean
+  maxSpecLines: number
+}
+
+export interface OfferTemplate {
+  id: string
+  pageTypes: PageType[]
+  densityProfiles: DensityProfile[]
+  /** Design-system token set reference. */
+  tokens: string
+}
+
+// ─── Price mark — E6 §3 ───────────────────────────────────────────────────────
+//
+// The single element that decides whether output reads as a real offer book. It
+// is a component, never assembled from text layers: owners given text boxes
+// produce hundreds of inconsistent variants inside a month.
+//
+// Exactly one authoring control is exposed — tier. Everything else derives from
+// the offer and the template.
+
+export const CURRENCIES = ['AED', 'SAR', 'QAR', 'KWD', 'OMR', 'BHD'] as const
+export type Currency = (typeof CURRENCIES)[number]
+
+/** KWD, OMR and BHD are three-decimal. The minor treatment differs and the
+ *  branch is one line now and a forgotten bug later. */
+export const THREE_DECIMAL_CURRENCIES: readonly Currency[] = ['KWD', 'OMR', 'BHD']
+
+export interface PriceMark {
+  /** PromoTier id — supplies label, colour token and emphasis. */
+  tierId: string
+  /** Integer part, oversized. */
+  major: string
+  /** Raised minor digits. Raised to the major's cap height, never baseline
+   *  aligned. Three digits on a three-decimal currency. */
+  minor?: string | undefined
+  currency: Currency
+  currencyPlacement: 'PREFIX' | 'SUFFIX' | 'SUPERSCRIPT'
+  prefixLabel?: 'FROM' | 'EACH' | 'PER_KG' | undefined
+  /** Strikethrough was-price, already formatted. */
+  comparePrice?: string | undefined
+  /** Template-set, ±6°. Not an owner control. */
+  rotation?: number | undefined
+  shape: 'TAG' | 'BURST' | 'RECT'
+}
+
+// ─── Editor overrides — E6 §1 ─────────────────────────────────────────────────
+
+/**
+ * A bounded delta against the engine's output for one slot. Stored as an array
+ * on `offer_book_pages.slotOverrides`.
+ *
+ * Every field is clamped, and that is the point: re-running the engine — an
+ * offer added, a shop variant switched, a language toggled — preserves entries
+ * by `slotId` and discards orphans. Unbounded free positioning cannot survive a
+ * re-run, which is what makes a weekly reissue cheap rather than a rebuild.
+ */
+export interface SlotOverride {
+  slotId: string
+  /** Clamped to ±8% of slot width. */
+  offsetX?: number | undefined
+  offsetY?: number | undefined
+  /** Clamped to 0.8..1.25. */
+  imageScale?: number | undefined
+  imageAssetId?: string | undefined
+  textOverrides?: Record<string, string> | undefined
+}
+
+export const SLOT_OVERRIDE_LIMITS = {
+  /** Fraction of slot width and height. */
+  offset: 0.08,
+  imageScaleMin: 0.8,
+  imageScaleMax: 1.25,
+} as const
+
+/**
+ * Why a card is flagged in the editor. Every one of these is visible before
+ * publish, because discovering them after a customer has seen the flyer is the
+ * failure this exists to prevent.
+ *
+ * `missing-name-ar` blocks publish on an AR edition only. The rest warn.
+ */
+export type QualityFlag =
+  | 'fallback-image'
+  | 'low-matte-confidence'
+  | 'missing-name-ar'
+  | 'fit-escalated'
+
+// ─── Catalog — E5 ─────────────────────────────────────────────────────────────
+
+export type PackUnit = 'G' | 'KG' | 'ML' | 'L' | 'PIECE'
+export type PriceMode = 'FIXED' | 'FROM' | 'PER_UNIT'
+export type UnitPriceMode = 'AUTO' | 'MANUAL' | 'HIDDEN'
+export type Connector = 'OR' | 'AND'
+export type ChipKind = 'COUNTER' | 'ORIGIN' | 'CERT' | 'SCALE' | 'LOYALTY' | 'CUSTOM'
+export type ChipAnchor = 'TOP_START' | 'TOP_END' | 'INLINE'
+export type FootnoteScope = 'PAGE' | 'BOOK'
+export type ImageKind = 'ORIGINAL' | 'CUTOUT' | 'THUMB'
+export type ImportRowStatus =
+  | 'MATCHED'
+  | 'AMBIGUOUS'
+  | 'UNMATCHED'
+  | 'CREATED'
+  | 'SKIPPED'
+
+/** Which collection a catalog row belongs to. Derived from `organizationId`,
+ *  never stored — two columns that can disagree is one too many. */
+export type CatalogCollection = 'universal' | 'organization'
+
+/** A catalog row as the search panel and the import review screen need it. */
+export interface CatalogProductSummary {
+  id: string
+  collection: CatalogCollection
+  nameEn: string
+  nameAr: string | null
+  brandEn: string | null
+  brandAr: string | null
+  specEn: string | null
+  specAr: string | null
+  category: string | null
+  packSize: string | null
+  packUnit: PackUnit | null
+  packCount: number | null
+  barcode: string | null
+  /** The CUTOUT if one exists, else the ORIGINAL. `imageIsFallback` says which,
+   *  because a fallback renders with a quality flag in the editor. */
+  imageUrl: string | null
+  imageIsFallback: boolean
+}

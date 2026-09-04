@@ -33,6 +33,11 @@ packages/db/
 - JSONB fields: use `Json` type in Prisma. Document the shape in a comment above the field.
 - `search_vector` on `catalog_products` is a raw PostgreSQL `tsvector` — managed via SQL migration,
   not Prisma field. Add as `Unsupported("tsvector")` or manage via raw SQL migration.
+- Postgres enums appear **only** in the offer and catalog model added by E5. Everything
+  older spells closed sets as `String // a | b | c` and stays that way. The reasoning is
+  in the comment above `enum PackUnit` in the schema; do not convert the older columns.
+- `catalog_products` is the one tenant table whose RLS predicate is not a flat equality:
+  a null `organizationId` is the universal catalog and must be readable by everyone.
 
 ---
 
@@ -113,10 +118,17 @@ Model map and conventions: `souqstudio-technical` skill, `references/database.md
 | `User` | Individual login. Role: owner/manager/editor/viewer. |
 | `UserShopAccess` | Maps users to specific shops with optional role override. |
 | `Plan` | Subscription tier config. |
-| `CatalogProduct` | Master product catalog. tsvector search. |
+| `CatalogProduct` | Both collections. `organizationId` null = universal. Bilingual. tsvector search. |
+| `ImageAsset` | ORIGINAL / CUTOUT / THUMB per product, with tight bbox and matte confidence. |
 | `ProductSynonym` | Multilingual synonyms per product. |
-| `OfferBook` | Created campaign. Canvas state JSON. Shareable link. |
-| `OfferBookProduct` | Products in an offer book with prices and layout. |
+| `CatalogImport` / `CatalogImportRow` | Spreadsheet upload and its per-row match result. |
+| `CaptureSession` | QR phone-capture handoff. Token-scoped and expiring. |
+| `OfferBook` | Created campaign. Template, density, language, shareable link. |
+| `OfferBookPage` | One page: page type and its bounded `slotOverrides`. |
+| `Offer` | N products at one price — what the layout engine places. |
+| `OfferItem` | One product within an offer, with per-book name and spec overrides. |
+| `PromoTier` | Org-scoped badge tier. Colour token, never a hex. |
+| `OfferChip` / `OfferFootnote` / `OfferShopOverride` | Card metadata, notes, per-shop price and availability. |
 | `PageView` | Analytics — viewer opened a shareable link. |
 | `ProductClick` | Analytics — viewer clicked a product. |
 | `UsageEvent` | AI credit consumption tracking. |

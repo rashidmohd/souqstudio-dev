@@ -13,6 +13,12 @@ import {
   UserCog,
 } from 'lucide-react'
 import { NavItem } from '@/components/shared/nav-item'
+import {
+  ANALYTICS_BUILT,
+  BRAND_KIT_BUILT,
+  CATALOG_BUILT,
+  TEAM_BUILT,
+} from '@/lib/features'
 
 /**
  * The left rail. Governed by the design skill → references/layout-map.md.
@@ -28,12 +34,26 @@ import { NavItem } from '@/components/shared/nav-item'
  *
  * Three scope zones: shop, org, then the user pinned to the foot.
  */
+/**
+ * **Destinations are gated on lib/features.ts, and an unbuilt one is omitted.**
+ * Catalog and Analytics shipped as ordinary enabled items pointing at routes
+ * that did not exist, so the rail 404'd twice — the exact failure the "never
+ * link to a screen that does not exist yet" rule exists to prevent, in the one
+ * component every signed-in screen renders.
+ *
+ * Omitted rather than disabled-with-a-reason. Both are sanctioned by that rule,
+ * but the rail collapses to 64px of icons below 1024px, where there is nowhere
+ * to put a reason — and the design system bars a reason that exists only in a
+ * tooltip, because the product ships on tablets where hover does not happen.
+ *
+ * Flip the flag in the change that adds the route and the item comes back.
+ */
 const SHOP_SCOPE = [
-  { icon: BookOpen, label: 'Offer books', href: '/' },
-  { icon: LayoutGrid, label: 'Catalog', href: '/catalog' },
-  { icon: Palette, label: 'Brand kit', href: '/brand' },
-  { icon: BarChart3, label: 'Analytics', href: '/analytics' },
-]
+  { icon: BookOpen, label: 'Offer books', href: '/', built: true },
+  { icon: LayoutGrid, label: 'Catalog', href: '/catalog', built: CATALOG_BUILT },
+  { icon: Palette, label: 'Brand kit', href: '/brand', built: BRAND_KIT_BUILT },
+  { icon: BarChart3, label: 'Analytics', href: '/analytics', built: ANALYTICS_BUILT },
+].filter((item) => item.built)
 
 /**
  * `Organization` is a fourth item here, added by E2-01. layout-map.md's rail
@@ -47,11 +67,11 @@ const SHOP_SCOPE = [
  * having each screen turn people away at the door.
  */
 const ORG_SCOPE = [
-  { icon: Building2, label: 'Organization', href: '/settings/organization' },
-  { icon: Store, label: 'Shops', href: '/settings/shops' },
-  { icon: Users, label: 'Team', href: '/settings/team' },
-  { icon: CreditCard, label: 'Billing', href: '/settings/billing' },
-]
+  { icon: Building2, label: 'Organization', href: '/settings/organization', built: true },
+  { icon: Store, label: 'Shops', href: '/settings/shops', built: true },
+  { icon: Users, label: 'Team', href: '/settings/team', built: TEAM_BUILT },
+  { icon: CreditCard, label: 'Billing', href: '/settings/billing', built: true },
+].filter((item) => item.built)
 
 const USER_SCOPE = [{ icon: UserCog, label: 'Account', href: '/settings/account' }]
 

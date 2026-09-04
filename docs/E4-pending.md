@@ -1,11 +1,16 @@
 # E4 — what is still pending
 
-Working note against `docs/E4-brand-setup.md`. Last updated 13 August 2026, after
-E4-05 shipped.
+Working note against `docs/E4-brand-setup.md`. Last updated 4 September 2026.
 
 **Status: E4-01 through E4-05 are built and reachable.** `pnpm lint`, `pnpm typecheck`,
-`pnpm build` and 190 tests pass. What follows is what is *not* done, why, and where to
-pick it up.
+`pnpm build` and 190 tests pass.
+
+Since then the design system was reconciled against the printed brand palette, which
+touched `/brand` indirectly: `BrandKitSummary`'s no-logo plate is one of the few places
+sand was already used, and it was checked and passes (`text-secondary` on sand, 6.13:1 —
+`text-muted` would have failed at 4.19:1). See `docs/STATUS.md` §1.
+
+What follows is what is *not* done, why, and where to pick it up.
 
 ---
 

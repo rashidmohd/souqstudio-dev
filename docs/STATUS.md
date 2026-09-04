@@ -3,7 +3,8 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 13 August 2026, after E4-05 shipped.
+Last updated 4 September 2026, after the E5/E6 delta pass — the offer model, the
+bilingual catalog and the layout-engine architecture.
 
 Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pending.md`,
 `docs/E4-pending.md`.
@@ -25,8 +26,45 @@ Everything else is unstarted: **E5, E6, E7, E8, E9, E10, E11, E12, E13**. Their 
 directories exist and are empty.
 
 `apps/web/lib/features.ts` is the machine-readable version of this table. A control whose
-destination is not built renders disabled with the reason visible. **Flip the flag in the
-change that adds the route** — that is the whole point of the file.
+destination is not built renders disabled with the reason visible, or is omitted. **Flip
+the flag in the change that adds the route** — that is the whole point of the file. The
+left rail now reads those flags, so an unbuilt destination is not rendered at all;
+`/catalog` and `/analytics` had been shipping as live nav items pointing at 404s.
+
+### The design system, reconciled against the brand palette
+
+Not an epic, but it moved in September and the notes are worth carrying.
+
+The printed brand palette was checked colour by colour against
+`souqstudio-tokens.css`: **blue, navy, charcoal, sand, sky, gold and the `#F8F7F3` page
+ground all match exactly.** The token file is not a paraphrase of the brand; it is the
+brand. Three things came out of that pass:
+
+- **There is no lime.** `--sq-lime` and `--sq-lime-tint` were in the tokens, the Tailwind
+  config, the lint rule and four documents, and lime is not one of the seven brand
+  colours. All of it is gone. The working set is blue, charcoal and sand, with sky as the
+  second tint.
+- **Three accessibility defects, none of which had bitten yet.** Charcoal on sky is
+  4.25:1, so sky now carries no text at any size. `--sq-machine-rule` — the border that
+  marks AI-generated content, which the system calls a functional requirement — was sky
+  at 2.76:1 against its own fill, under the 3:1 non-text floor; it is navy at 11.60:1.
+  And `--sq-ui-text-muted` is rated against the page ground, so it fails on any tint
+  (4.19:1 on sand); tinted surfaces stop at `text-secondary`.
+- **The brand blue is settled.** The palette gives `#143CD2`, which is what the tokens
+  and the committed marks carry. Exports from the design tool keep emitting `#153CD0`.
+  **Correct the export, never the token.**
+
+Two components were built to their inventory signatures — `IconChip` and `TintedCard` —
+and have no call sites yet, deliberately: existing screens were left alone. Seven remain
+`spec`, of which `StatusPill` and `Toast` are blocked on decisions rather than effort.
+
+**Illustrations moved from nothing to four.** The artwork on `assets.souqstudio.com` is
+already recoloured — that CDN is `rebrand-svgs.py`'s output, not its input — and
+`assets/illustration-catalog.json` already carries `souqUse` assignments on 35 of its 385
+entries, so most of the selection work was done. `EmptyState` now renders the prop it had
+been discarding, and `app/not-found.tsx` and `app/error.tsx` exist for the first time. See
+`illustration-manifest.md` for what is `ready`, what is blocked, and the one slot that was
+struck as unfillable.
 
 ---
 
@@ -46,13 +84,25 @@ Pick up at `E2-pending.md` §1, which has the three steps in order. The hazard t
 rows* rather than an error — it fails closed, and a mistake looks like an empty screen in
 production rather than a stack trace.
 
-### The tsvector migration is not written — blocks E5
+### The tsvector migration is written but unapplied
 
-`catalog_products.search_vector`, its GIN index, the update trigger and the `pg_trgm`
-extension are raw SQL that Prisma does not manage, and none of it exists. E5-01 full-text
-search cannot start without it. The SQL is written out in
-`souqstudio-technical → references/database.md`; use the `simple` dictionary, not
-`english`, because the catalog is multilingual.
+`catalog_products.search_vector`, its GIN index, the update trigger and `pg_trgm` are raw
+SQL in `20260904000000_e5_offer_model_and_catalog_search`. It landed there rather than in
+its own migration because the bilingual columns changed what the vector is built from, and
+writing it twice would have meant writing it wrong once. The vector now spans `nameEn` and
+`nameAr` at weight A, brand and category at B, spec and tags at C — `simple` dictionary,
+never `english`, because the catalog is multilingual.
+
+**It has not been applied.** The dev database is at
+`20260811120000_e3_billing_subscription`; the E5 migration is the only one pending. It was
+generated with `prisma migrate diff` and then hand-edited — the header lists four
+departures — so read it before running `pnpm db:migrate`, and run it against a scratch
+database first. `catalog_products`, `offer_books` and `offer_book_products` are all empty
+today, so the destructive half of it costs nothing at the moment.
+
+`prisma/migrations/migration_lock.toml` was missing and is now written. Without it
+`prisma migrate diff --from-migrations` refuses to run at all, which is the tool anyone
+would reach for to check this migration against the history.
 
 ### Three worker handlers throw — blocks E6, E8, E9
 
@@ -63,6 +113,10 @@ search cannot start without it. The SQL is written out in
 - `ai` blocks E8 entirely, and is where credits are actually spent — `consumeCredits()`
   in `packages/db/src/credits.ts` is written and called by nothing.
 - `enrich` blocks E5's multilingual synonym pipeline.
+
+`bg` is implemented for logos only. E5 §3 makes background removal an ingest stage for
+catalog images too — the payload fields are on `BgRemovePayload`, the handler branch that
+writes `image_assets` CUTOUT rows is not.
 
 Guidance is in `souqstudio-technical → references/background-jobs.md` and
 `apps/worker/CLAUDE.md`. The rule that matters: **credits are deducted on completion,
@@ -107,21 +161,43 @@ before it starts.
 
 ### E5 — Product catalog (MVP)
 
-**Needs first:** the tsvector migration. **Then:** the `enrich` worker, for synonyms.
+**The shape is settled and the schema is written.** `docs/E5-product-catalog.md` is v2:
+one table with a nullable `organizationId` (null = universal, set = the organization's own
+collection), bilingual name/brand/spec/origin columns, `image_assets` with a CUTOUT
+variant, pack maths for the derived unit price, spreadsheet import with a review screen,
+and a QR phone-capture handoff. All of it is in the schema and in the E5 migration.
 
-The catalog is what the editor searches, so E6 is thin without it. E5-06 catalog admin
-overlaps E13; build the shop-facing half first. `CatalogProduct`, `ProductSynonym` and
-`ProductContribution` models already exist.
+**Needs first:** nothing structural. The work is routes and screens.
+
+Three things the migration does not carry, listed at E5 §9: promo-tier seeding on
+organization creation (the signup path — `offers.promoTierId` is NOT NULL, so the first
+offer a new org creates would violate it), the `enrich` worker for synonyms, and the
+cutout branch of the `bg` worker.
+
+The catalog is what the editor searches, so E6 is thin without it. E5-08 catalog admin
+overlaps E13; build the shop-facing half first.
 
 ### E6 — Offer book editor (MVP)
 
-**Needs first:** E5, for the product search panel. **Needs the `pdf` worker** for export,
-but not to start — the editor can be built and autosaved before anything exports.
+**The architecture changed.** `docs/E6-offer-book-editor.md` is v2: a layout engine
+composes pages from offers plus a template, and Fabric is the adjustment layer holding
+bounded per-slot deltas. `offer_books.canvasState` is gone; `offer_book_pages.slotOverrides`
+replaces it. Free canvas composition is now out of scope permanently, not until V3.
 
-The largest epic in the product. `OfferBook` and `OfferBookProduct` exist; nothing else
-does. Read the canvas rules in `apps/web/CLAUDE.md` before the first line — Fabric holds
-visual state, Zustand holds logical state, and `document.fonts.load()` runs before any
-Fabric text object is created or every bounding box is wrong.
+**Needs first:** E5, for the catalog the offer tray searches. **Needs the `pdf` worker**
+for export, but not to start.
+
+The build order in E6 §10 is not advisory. Price mark first, then engine placement, then
+the fit ladder — steps 1–3 are the whole risk. If the engine's output looks like a real
+flyer with no manual adjustment the product works, and it is much better to learn that at
+step 3 than at E13.
+
+The engine is shared between web and worker — one implementation, in `packages/`, not in
+`apps/web/lib`. Two would drift, and drift here means the PDF does not match the screen.
+
+Read the canvas rules in `apps/web/CLAUDE.md` before the first line — Fabric holds visual
+state, Zustand holds logical state, and `document.fonts.load()` runs before any Fabric
+text object is created or every bounding box is wrong.
 
 `stores/editor-store.ts` does not exist yet. `brand-store.ts` is the pattern to follow.
 
@@ -163,7 +239,21 @@ track.
 
 ---
 
-## 4. Before writing any code
+## 4. Open decisions
+
+These are waiting on a human, not on effort. Each one changes what gets built.
+
+| Decision | Blocks | Where |
+| --- | --- | --- |
+| **`Brand` entity** — one org, several licences | E6 | `E4-pending.md` §1 |
+| **Typefaces and Arabic coverage** | the design calibration pass | the type scale splits Host Grotesk from Plex Sans Arabic purely on coverage |
+| **`font-display text-heading`** used for section headings in 21 places across 10 files | nothing | contradicts the type scale and consistency check #6; every settings screen already does it, so it is a sweep and a decision, not a bug fix |
+| **Forcing an incomplete owner into the wizard** from anywhere in the dashboard | nothing | `E4-pending.md` §2 |
+| **`StatusPill` enum** — no value for active/paused/pending/expired | the pill, and three screens using plain text instead | `E2-pending.md` §6 Q1 |
+
+---
+
+## 5. Before writing any code
 
 1. Read the epic in `docs/`.
 2. Read the `CLAUDE.md` of the app you are working in.

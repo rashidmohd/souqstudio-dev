@@ -87,23 +87,37 @@ CREATE INDEX idx_catalog_fts ON catalog_products USING GIN(search_vector);
 
 ### The trigger
 
-Weighted so the product name outranks the category, which outranks tags:
+Weighted so the name outranks brand and category, which outrank spec and tags. **Both
+name columns feed weight A** — an Arabic query has to hit the same row an English one
+does.
+
+Written and shipped in `20260904000000_e5_offer_model_and_catalog_search`. This is the
+version in the migration:
 
 ```sql
 CREATE FUNCTION update_search_vector() RETURNS trigger AS $$
 BEGIN
-  NEW.search_vector :=
-    setweight(to_tsvector('simple', COALESCE(NEW.canonical_name, '')), 'A') ||
-    setweight(to_tsvector('simple', COALESCE(NEW.category, '')), 'B') ||
-    setweight(to_tsvector('simple', COALESCE(array_to_string(NEW.tags, ' '), '')), 'C');
+  NEW."search_vector" :=
+    setweight(to_tsvector('simple', COALESCE(NEW."nameEn", '')), 'A') ||
+    setweight(to_tsvector('simple', COALESCE(NEW."nameAr", '')), 'A') ||
+    setweight(to_tsvector('simple', COALESCE(NEW."brandEn", '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(NEW."brandAr", '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(NEW."category", '')), 'B') ||
+    setweight(to_tsvector('simple', COALESCE(NEW."specEn", '')), 'C') ||
+    setweight(to_tsvector('simple', COALESCE(NEW."specAr", '')), 'C') ||
+    setweight(to_tsvector('simple', COALESCE(array_to_string(NEW."tags", ' '), '')), 'C');
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER catalog_search_vector_update
-  BEFORE INSERT OR UPDATE ON catalog_products
+  BEFORE INSERT OR UPDATE ON "catalog_products"
   FOR EACH ROW EXECUTE FUNCTION update_search_vector();
 ```
+
+The Arabic string is indexed exactly as stored. **Nothing normalises or strips diacritics**
+— the import resolver has to round-trip it unchanged, and an index built on a normalised
+form would quietly disagree with the column.
 
 **Use the `simple` dictionary, not `english`.** The catalog is multilingual — English
 stemming applied to Arabic, Hindi and Urdu transliterations produces wrong matches.
@@ -115,28 +129,43 @@ Language-specific handling happens through the synonym table instead.
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX idx_catalog_trgm ON catalog_products USING GIN (canonical_name gin_trgm_ops);
+CREATE INDEX idx_catalog_trgm_en ON "catalog_products" USING GIN ("nameEn" gin_trgm_ops);
+CREATE INDEX idx_catalog_trgm_ar ON "catalog_products" USING GIN ("nameAr" gin_trgm_ops);
 ```
+
+Spreadsheet import resolves rows by name as well as by barcode, so this is on the **import**
+path too, not only on search.
 
 ### Query shape
 
 Full-text match, unioned with synonym hits, ranked:
 
 ```sql
-SELECT cp.*, ts_rank(cp.search_vector, q) AS rank
+SELECT cp.*, ts_rank(cp."search_vector", q) AS rank
 FROM catalog_products cp,
      plainto_tsquery('simple', $1) q
-WHERE cp.search_vector @@ q
-   OR EXISTS (
-     SELECT 1 FROM product_synonyms ps
-     WHERE ps.catalog_id = cp.id AND ps.synonym ILIKE $2
-   )
-ORDER BY rank DESC
+WHERE (cp."organizationId" = $3 OR cp."organizationId" IS NULL)
+  AND cp."archivedAt" IS NULL
+  AND (
+    cp."search_vector" @@ q
+    OR EXISTS (
+      SELECT 1 FROM product_synonyms ps
+      WHERE ps."catalogId" = cp.id AND ps.synonym ILIKE $2
+    )
+  )
+ORDER BY (cp."organizationId" IS NOT NULL) DESC, rank DESC
 LIMIT 10;
 ```
 
-**Status: not yet written.** The migration containing the column, index, trigger and
-extensions does not exist. This is a blocking dependency for E5.
+Two clauses carry the two-collection rule. The `WHERE` admits the organization's own rows
+and the universal ones; the leading `ORDER BY` term puts the organization's first at equal
+rank. **That ordering is the precedence, not a nicety** — a chain that has corrected a bad
+public record needs its own row to win, and it wins here rather than in a merge written
+twice in application code.
+
+**Status: written, not applied.** The column, index, trigger and extensions are in
+`20260904000000_e5_offer_model_and_catalog_search`, along with the rest of the E5 delta.
+The dev database is still at the E3 migration.
 
 ---
 
@@ -155,12 +184,22 @@ Full definitions in `packages/db/prisma/schema.prisma`.
 | `VerificationToken` | Email verification and password reset. Hashed, single-use. | no — read before login |
 | `TwoFactorBackupCode` | Single-use TOTP recovery codes. Hashed. | no — read during login |
 | `Plan` | Subscription tier limits and feature flags. | no |
-| `CatalogProduct` | Master catalog. tsvector search. | no |
+| `CatalogProduct` | Both collections. `organizationId` null = universal, set = private to that org. tsvector search. | partly — see below |
+| `ImageAsset` | ORIGINAL / CUTOUT / THUMB per product, with `bboxTight` and matte confidence. | via product |
 | `ProductSynonym` | Multilingual synonyms. | no |
-| `CatalogCategory` | Category tree. | no |
-| `ProductContribution` | Shop-submitted products awaiting review. | yes |
-| `OfferBook` | A campaign. Canvas state, share link. | yes |
-| `OfferBookProduct` | Products in a book with prices and layout. | yes |
+| `CatalogCategory` | Category tree. Bilingual labels. | no |
+| `ProductContribution` | Shop-submitted products awaiting promotion to the universal catalog. | yes |
+| `CatalogImport` | A spreadsheet upload and its match run. | yes |
+| `CatalogImportRow` | One row of that sheet, its raw form and what it resolved to. | via import |
+| `CaptureSession` | QR phone-capture handoff. Token-scoped, hashed, expiring. | yes |
+| `OfferBook` | A campaign. Template, density, language, share link. | yes |
+| `OfferBookPage` | One page: its page type and its `slotOverrides`. | via book |
+| `Offer` | N products at one price. The unit the layout engine places. | via book |
+| `OfferItem` | One product within an offer, with per-book name and spec overrides. | via offer |
+| `PromoTier` | Org-scoped badge tier. Label, colour token, emphasis. | yes |
+| `OfferChip` | Non-price metadata on a card. May overhang the card boundary. | via offer |
+| `OfferFootnote` | Page- or book-scoped note. Carries no marker number. | via offer |
+| `OfferShopOverride` | Per-shop price and availability. The per-shop billing mechanic. | yes |
 | `Template` | Offer book visual template config. | no |
 | `TemplateVersion` | Version history per template. | no |
 | `Grid` | Grid layout config. | no |
@@ -178,6 +217,13 @@ Full definitions in `packages/db/prisma/schema.prisma`.
 | `AdminUser` | Internal staff. Separate from `User`. | no |
 | `AdminAuditLog` | Every admin action, before and after. | no |
 
+**`CatalogProduct` is the one table RLS cannot filter flat.** A universal row has a null
+`organizationId` and must be visible to everyone; a private row must be visible to one org
+only. The policy is therefore `organizationId IS NULL OR organizationId = current_org`,
+not the usual equality. Writes are the opposite — an org may only write rows carrying its
+own id, and clearing `organizationId` (promotion to universal) is an admin action, never a
+tenant one.
+
 ---
 
 ## Schema conventions
@@ -187,11 +233,19 @@ Full definitions in `packages/db/prisma/schema.prisma`.
 - **`createdAt` / `updatedAt` on every model** that represents a real entity.
 - **`@@map` to snake_case table names.** Prisma models are PascalCase, tables are
   snake_case, and the mapping is explicit.
-- **JSONB fields carry a `///` comment** documenting their shape. `canvasState`,
-  `brandKit`, `config`, `features`, `metadata`, `result` are all JSONB.
+- **JSONB fields carry a `///` comment** documenting their shape. `slotOverrides`,
+  `brandKit`, `config`, `features`, `metadata`, `result`, `bboxTight`, `columnMap`, `raw`
+  and `candidates` are all JSONB. (`canvasState` was one until E6 v2 dropped it.)
 - **Money is `Decimal`**, never `Float`. Prices, discounts, plan pricing.
-- **Never delete catalog products** — archive them. Published offer books reference
-  them and must not break.
+- **Never delete catalog products** — archive them (`archivedAt`). Published offer books
+  reference them and must not break.
+- **Enums exist only in the offer model.** Everything written before E5 spells closed sets
+  as `String // a | b | c`, and that stands. The offer and catalog enums — `PackUnit`,
+  `PriceMode`, `Connector`, `ChipKind`, `ChipAnchor`, `FootnoteScope`, `ImageKind`,
+  `ReviewState`, `UnitPriceMode`, `ImportStatus`, `ImportRowStatus` — are a deliberate,
+  scoped departure: the layout engine branches on every value, and a bad string renders a
+  card wrong on a printed page rather than throwing. **Do not convert the older columns to
+  match.** A half-converted schema is worse than either convention held consistently.
 
 ---
 

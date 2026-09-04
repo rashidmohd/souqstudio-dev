@@ -8,14 +8,16 @@
   --sq-blue:            #143CD2;  /* 8.06:1 on white — ink-safe */
   --sq-navy:            #052F72;  /* 12.68:1 — ink-safe */
   --sq-charcoal:        #323232;  /* 12.82:1 — ink-safe */
-  --sq-sky:             #3F9DD1;  /* 3.02:1 — FILL ONLY */
+  /* Charcoal on sky is 4.25:1 — under the 4.5:1 AA floor for body text.
+     Sky therefore carries NO text at any size: icon chips, illustration
+     fills, chart series and decoration only. Every other fill below takes
+     charcoal safely (sand 10.22:1, gold 5.18:1). */
+  --sq-sky:             #3F9DD1;  /* 3.02:1 — FILL ONLY, NO TEXT */
   --sq-gold:            #BDA25A;  /* 2.48:1 — FILL ONLY */
   --sq-sand:            #EBE6CE;  /* 1.25:1 — FILL ONLY */
-  --sq-lime:            #CFEB6B;  /* 1.33:1 — FILL ONLY */
 
   /* Tints — lighter fills for tinted content cards and icon chips.
      Same rule as the parent: background only, charcoal on top. */
-  --sq-lime-tint:       #EDF7D4;
   --sq-sky-tint:        #DCE9F5;
   --sq-sand-tint:       #F5F2E6;
 
@@ -77,7 +79,12 @@
   --sq-ui-selected-ring:     var(--sq-blue);
 
   /* ---------- Machine output (AI-generated content marker) ---------- */
-  --sq-machine-rule:    var(--sq-sky);
+  /* The rule was --sq-sky, which is 2.76:1 on the fill — under the 3:1 non-text
+     floor (WCAG 1.4.11). Marking machine output is a functional requirement, so
+     its one visual carrier cannot be a border a low-vision owner may not see.
+     Navy is 11.60:1 on the fill and is already the label colour, so the block
+     reads as one object. */
+  --sq-machine-rule:    var(--sq-navy);
   --sq-machine-fill:    #EEF6FB;
   --sq-machine-label:   var(--sq-navy);
 
@@ -127,6 +134,11 @@
   --sq-h-control:    32px;
   --sq-h-control-lg: 40px;
 
+  /* Icon chip. 28px is off the spacing scale on purpose — the skill specifies
+     this size and it had no token, so a chip was unbuildable without a raw
+     value. Grows with the other touch targets below. */
+  --sq-size-chip:    28px;
+
   --sq-dur-fast: 120ms;
   --sq-dur-base: 200ms;
   --sq-ease: cubic-bezier(0.2, 0, 0.2, 1);
@@ -137,6 +149,7 @@
   :root {
     --sq-h-control:    44px;
     --sq-h-control-lg: 48px;
+    --sq-size-chip:    32px;
   }
 }
 

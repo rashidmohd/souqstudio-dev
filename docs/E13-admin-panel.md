@@ -51,15 +51,27 @@ The primary tool for building and maintaining the master product catalog.
 - Filter by: category, brand, has image, enrichment status, source, date added
 
 **Add Product**
-- Manual add: name, brand, category, unit, barcode, image upload
-- Background removal runs on image upload
+- Manual add: name EN and AR, brand EN and AR, spec, origin, category, pack size / unit /
+  count, barcode, image upload
+- Background removal runs on image upload and produces the `CUTOUT` variant with its tight
+  bounding box and matte confidence
 - Assign synonyms on add
 
 **Edit Product**
 - All fields editable
-- Replace or remove image
-- Recrop thumbnail
+- Replace an image, re-run the cutout, approve or reject a matte
 - Edit synonyms
+- **Archive, never delete.** Published offer books reference the row.
+
+**Two collections.** The list spans both — the universal catalog (`organizationId` null)
+and organizations' private rows. Filter by collection, and show which one a row belongs to
+in the list. Promoting a private row to universal is an admin action that clears
+`organizationId`; a tenant can never do it. See E5 §1.
+
+**Matte review queue.** `image_assets` rows with `reviewState = PENDING` are cutouts the
+worker was not confident about. Approving one lets it render; rejecting it falls the card
+back to the `ORIGINAL` with a quality flag in the editor. This is a different queue from
+E13-03 — that one reviews *products*, this one reviews *images*.
 
 **Bulk Import**
 - CSV upload: columns map to product fields
@@ -93,7 +105,9 @@ Products submitted by shop owners (E5-04) that need review before entering the m
 - Submitted by: org name, shop name, date submitted
 
 **Review Actions**
-- Approve → product added to master catalog
+- Approve → clears `organizationId`, promoting the row into the universal catalog. The
+  product was already usable in the submitting organization's own collection from the
+  moment it was created — **review decides promotion, not availability.**
 - Reject → notify shop owner with reason (poor image quality / duplicate / inappropriate)
 - Request better image → notification sent to shop owner
 - Merge → combine with existing product record
