@@ -86,8 +86,10 @@ apps/web/
 
 - `(auth)` layout: no navigation, centred single column, one decision per screen.
   This flow is the entire sales team — no nav visible means no early exits.
-- `(dashboard)` layout: persistent left rail, collapses to icons below 1024px.
-  Left rail has two scope zones: shop scope above divider, org scope below.
+- `(dashboard)` layout: persistent left rail, collapses to icons below 1024px, and
+  collapsible by the owner above it — a toggle in the rail head, remembered in the
+  `sq_rail` cookie and read by the layout on the server so it never flashes the
+  wrong width. Left rail has two scope zones: shop scope above divider, org below.
 - Editor route `editor/[id]`: escapes the shell entirely. Full bleed, no rail.
   Three panes: catalog (start), artboard (centre), properties (end).
   On mobile (<1024px): side panels overlay the canvas, never compress it.

@@ -28,6 +28,13 @@ errors. It just looks wrong, and the artboard gets compressed.
 
 Left rail, persistent, collapses to icons below 1024px.
 
+**At and above 1024px the owner collapses it too**, from a toggle in the rail's own
+head. The choice is written to `sq_rail` by the client and read by the layout on the
+server, so the rail renders at its remembered width instead of correcting itself after
+hydration. The toggle is hidden below 1024px, where the breakpoint has already decided
+and an expand control would promise something it cannot deliver. Neither state animates
+its width — the design system permits opacity and transform only.
+
 The rail has **two scope zones separated by a hard divider**, because every screen belongs
 to either the org or one shop and users get badly confused when those mix:
 

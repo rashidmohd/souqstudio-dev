@@ -189,7 +189,7 @@ These are distinct. Conflating any two causes trouble later.
 
 ### 1. App shell
 
-Left rail, persistent, collapses to icons below 1024px. Desktop and tablet.
+Left rail, persistent, collapses to icons below 1024px, and collapsible by the owner above it — see `references/layout-map.md`. Desktop and tablet.
 
 The rail carries **two scope zones separated by a hard divider**, because every screen belongs to either the org or one shop and users get badly confused when those mix:
 

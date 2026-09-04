@@ -18,10 +18,14 @@ type NavItemProps = {
   href: string
   active?: boolean | undefined
   /**
-   * Force icon-only at every width. The rail already collapses on its own below
-   * 1024px through CSS — a breakpoint cannot be expressed as a boolean without
-   * measuring the viewport in JavaScript, which would flash the wrong state on
-   * first paint. Use this only where something is deliberately narrow.
+   * Icon-only at every width. This is the *owner's* collapse, carried down from
+   * the rail's toggle and remembered in `sq_rail`.
+   *
+   * It is not how the responsive collapse works, and it never can be: a
+   * breakpoint cannot be expressed as a boolean without measuring the viewport
+   * in JavaScript, which would flash the wrong state on first paint. Below
+   * 1024px the label is hidden by `hidden lg:inline` instead, so the two
+   * mechanisms compose — collapsed by choice, collapsed by width, or both.
    */
   collapsed?: boolean | undefined
 }

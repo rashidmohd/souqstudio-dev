@@ -522,18 +522,19 @@ type NavItemProps = {
   label: string
   href: string
   active?: boolean
-  collapsed?: boolean               // icon only, below 1024px
+  collapsed?: boolean               // icon only — the owner's collapse
 }
 ```
 
-The only place blue appears as a background in the shell. The label becomes the
-`aria-label` — it does not disappear.
+The active background is the pale `--sq-blue-50`, never the solid blue the primary
+button carries. The label becomes the `aria-label` — it does not disappear.
 
-**`collapsed` forces icon-only at every width; it is not how the responsive
-collapse works.** A breakpoint cannot be a boolean without measuring the viewport
-in JavaScript, which flashes the wrong state on first paint, so the rail collapses
-below 1024px through CSS and the label is hidden with `hidden lg:inline`.
-`aria-label` and `title` are set at every width, collapsed or not.
+**`collapsed` is the owner's choice, not the breakpoint's.** The rail's toggle
+sets it and `sq_rail` remembers it. A breakpoint cannot be a boolean without
+measuring the viewport in JavaScript, which flashes the wrong state on first
+paint, so the sub-1024px collapse stays in CSS and hides the label with
+`hidden lg:inline`. The two compose. `aria-label` and `title` are set at every
+width, collapsed or not.
 
 ---
 
