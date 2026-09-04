@@ -25,9 +25,8 @@ const ORG: { logoUrl: string | null; brandKit: BrandKit } = {
     primaryColor: '#111111',
     secondaryColor: '#222222',
     accentColor: '#333333',
-    gridId: 'org-grid',
-    templateId: 'org-template',
     fontDisplay: 'Org Display',
+    fontBody: 'Org Body',
     onboardingStep: 5,
   },
 }
@@ -38,9 +37,8 @@ const SHOP: { logoUrl: string | null; brandKit: BrandKit } = {
     primaryColor: '#aaaaaa',
     secondaryColor: '#bbbbbb',
     accentColor: '#cccccc',
-    gridId: 'shop-grid',
-    templateId: 'shop-template',
     fontDisplay: 'Shop Display',
+    fontBody: 'Shop Body',
     onboardingStep: 2,
   },
 }
@@ -68,10 +66,10 @@ describe('toBrandOverride', () => {
 
 describe('levelFor', () => {
   const expected: Record<BrandOverride, Record<string, string>> = {
-    inherit: { logo: 'org', colors: 'org', layout: 'org', progress: 'shop' },
-    logo: { logo: 'shop', colors: 'org', layout: 'org', progress: 'shop' },
-    colors: { logo: 'org', colors: 'shop', layout: 'org', progress: 'shop' },
-    full: { logo: 'shop', colors: 'shop', layout: 'shop', progress: 'shop' },
+    inherit: { logo: 'org', colors: 'org', typography: 'org', progress: 'shop' },
+    logo: { logo: 'shop', colors: 'org', typography: 'org', progress: 'shop' },
+    colors: { logo: 'org', colors: 'shop', typography: 'org', progress: 'shop' },
+    full: { logo: 'shop', colors: 'shop', typography: 'shop', progress: 'shop' },
   }
 
   it('matches the specified matrix', () => {
@@ -91,12 +89,11 @@ describe('levelFor', () => {
 })
 
 describe('facetOf', () => {
-  it('groups grid, template and fonts together as layout', () => {
-    expect(facetOf('gridId')).toBe('layout')
-    expect(facetOf('templateId')).toBe('layout')
-    expect(facetOf('fontDisplay')).toBe('layout')
-    expect(facetOf('fontPrice')).toBe('layout')
-    expect(facetOf('fontBody')).toBe('layout')
+  it('groups the fonts and the type scale together as typography', () => {
+    expect(facetOf('typeScale')).toBe('typography')
+    expect(facetOf('fontDisplay')).toBe('typography')
+    expect(facetOf('fontPrice')).toBe('typography')
+    expect(facetOf('fontBody')).toBe('typography')
   })
 })
 
@@ -105,14 +102,14 @@ describe('resolveBrandKit', () => {
     const r = resolve('inherit')
     expect(r.logoUrl).toBe(ORG.logoUrl)
     expect(r.brandKit.primaryColor).toBe('#111111')
-    expect(r.brandKit.templateId).toBe('org-template')
+    expect(r.brandKit.fontDisplay).toBe('Org Display')
   })
 
   it('logo swaps only the logo', () => {
     const r = resolve('logo')
     expect(r.logoUrl).toBe(SHOP.logoUrl)
     expect(r.brandKit.primaryColor).toBe('#111111')
-    expect(r.brandKit.templateId).toBe('org-template')
+    expect(r.brandKit.fontDisplay).toBe('Org Display')
   })
 
   it('colors swaps only the three brand colours', () => {
@@ -123,7 +120,7 @@ describe('resolveBrandKit', () => {
     expect(r.brandKit.accentColor).toBe('#cccccc')
     // Layout is org-owned at every level below full — the spec names no
     // override for grid, template or fonts.
-    expect(r.brandKit.templateId).toBe('org-template')
+    expect(r.brandKit.fontDisplay).toBe('Org Display')
     expect(r.brandKit.fontDisplay).toBe('Org Display')
   })
 
@@ -131,14 +128,14 @@ describe('resolveBrandKit', () => {
     const r = resolve('full')
     expect(r.logoUrl).toBe(SHOP.logoUrl)
     expect(r.brandKit.primaryColor).toBe('#aaaaaa')
-    expect(r.brandKit.templateId).toBe('shop-template')
+    expect(r.brandKit.fontDisplay).toBe('Shop Display')
   })
 
   it('reports where each facet came from', () => {
     expect(resolve('colors').source).toEqual({
       logo: 'org',
       colors: 'shop',
-      layout: 'org',
+      typography: 'org',
       progress: 'shop',
     })
   })
@@ -158,7 +155,7 @@ describe('resolveBrandKit', () => {
       override: 'full',
     })
     expect(r.brandKit.primaryColor).toBeUndefined()
-    expect(r.brandKit.templateId).toBeUndefined()
+    expect(r.brandKit.fontDisplay).toBeUndefined()
     expect(r.logoUrl).toBeNull()
   })
 
@@ -189,10 +186,10 @@ describe('routePatch', () => {
 
   it('splits a mixed patch across both levels', () => {
     const { org, shop } = routePatch(
-      { primaryColor: '#ff0000', templateId: 't1', onboardingStep: 3 },
+      { primaryColor: '#ff0000', fontDisplay: 't1', onboardingStep: 3 },
       'colors'
     )
-    expect(org).toEqual({ templateId: 't1' })
+    expect(org).toEqual({ fontDisplay: 't1' })
     expect(shop).toEqual({ primaryColor: '#ff0000', onboardingStep: 3 })
   })
 
@@ -215,7 +212,7 @@ describe('keepOnReset', () => {
     expect(kept.onboardingCompletedAt).toBe('2026-08-01T00:00:00.000Z')
   })
 
-  it('drops every logo, colors and layout key', () => {
+  it('drops every logo, colors and typography key', () => {
     // Asserted by walking the kit rather than by naming fields, so a field
     // added to BrandKit cannot survive a reset by being forgotten in the test
     // as well as in the filter.
@@ -256,8 +253,8 @@ describe('keepOnReset', () => {
 
     expect(after.logoUrl).toBe(ORG.logoUrl)
     expect(after.brandKit.primaryColor).toBe('#111111')
-    expect(after.brandKit.gridId).toBe('org-grid')
-    expect(after.brandKit.templateId).toBe('org-template')
+    expect(after.brandKit.fontBody).toBe('Org Body')
+    expect(after.brandKit.fontDisplay).toBe('Org Display')
     expect(after.brandKit.fontDisplay).toBe('Org Display')
     // Progress stayed the shop's own throughout.
     expect(after.brandKit.onboardingStep).toBe(2)
@@ -272,6 +269,6 @@ describe('keepOnReset', () => {
       override: 'full',
     })
     expect(stranded.brandKit.primaryColor).toBeUndefined()
-    expect(stranded.brandKit.templateId).toBeUndefined()
+    expect(stranded.brandKit.fontDisplay).toBeUndefined()
   })
 })

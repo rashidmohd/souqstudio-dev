@@ -23,8 +23,6 @@ const COMPLETE_KIT: BrandKit = {
   primaryColor: '#111111',
   secondaryColor: '#222222',
   accentColor: '#333333',
-  gridId: 'grid_2x2',
-  templateId: 'tpl_clean',
 }
 
 /** Nothing done, nothing published, no teammates, no Instagram. */
@@ -79,7 +77,7 @@ describe('brand setup', () => {
   })
 
   it('is not done for a half-finished kit', async () => {
-    const partial: BrandKit = { primaryColor: '#111111', gridId: 'grid_2x2' }
+    const partial: BrandKit = { primaryColor: '#111111' }
     expect(idOf(await read({ brandKit: partial }), 'brand')?.done).toBe(false)
   })
 

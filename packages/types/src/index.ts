@@ -6,6 +6,7 @@
 // the E6 §2 grammar further down this file; those stay until the E4 brand flow
 // is migrated off them.
 export * from './composition'
+import type { TypeScale } from './composition'
 
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'
 export type BillingStatus = 'active' | 'past_due' | 'suspended' | 'cancelled'
@@ -56,12 +57,18 @@ export type EmailTemplate =
 export type LogoStatus = 'none' | 'processing' | 'ready' | 'original'
 
 /**
- * The per-shop configuration that drives every offer book. Stored as JSONB on
+ * Who the shop is: logo, colours, typography. Stored as JSONB on
  * `shops.brandKit`; the logo itself lives in `shops.logoUrl`.
  *
- * Every field is optional because the setup wizard saves after each step — a
- * half-finished kit is the normal state of a shop mid-onboarding, not a defect.
- * `onboardingStep` is what lets a refresh resume where it left off.
+ * **Identity only — the kit holds no layout.** It carried `gridId` and
+ * `templateId` until the composition model landed; both are gone. A brand kit
+ * *has* many blocks, it does not contain a choice of one, and which grid a book
+ * uses is a decision about that book rather than about the shop. See
+ * `docs/composition-model.md` §2.
+ *
+ * Every field is optional because setup saves as it goes — a half-finished kit
+ * is the normal state of a shop mid-onboarding, not a defect. `onboardingStep`
+ * is what lets a refresh resume where it left off.
  */
 export interface BrandKit {
   primaryColor?: string | undefined
@@ -69,11 +76,13 @@ export interface BrandKit {
   accentColor?: string | undefined
   /** Colours pulled from the logo, offered as swatches. Not choices yet. */
   suggestedColors?: string[] | undefined
-  gridId?: string | undefined
-  templateId?: string | undefined
+  /** The three families. Superseded by `typeScale.families`; kept until a
+   *  picker exists to write the scale. See the known gap in CLAUDE.md. */
   fontDisplay?: string | undefined
   fontPrice?: string | undefined
   fontBody?: string | undefined
+  /** Families plus the ordered h1–h6 scale a block's text elements pick from. */
+  typeScale?: TypeScale | undefined
   logoStatus?: LogoStatus | undefined
   /** The logo exactly as uploaded, kept so removal can be retried or undone. */
   logoOriginalUrl?: string | undefined

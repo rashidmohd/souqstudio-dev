@@ -39,8 +39,6 @@ const schema = z
     primaryColor: hex,
     secondaryColor: hex,
     accentColor: hex,
-    gridId: z.string().min(1),
-    templateId: z.string().min(1),
     onboardingStep: z.number().int().min(1).max(ONBOARDING_STEPS),
     /** Set once, on the finish step. */
     complete: z.boolean(),

@@ -11,7 +11,7 @@ const name: BlockElement = {
   kind: 'text',
   box: { start: 0.05, top: 0.55, width: 0.9, height: 0.2 },
   source: { from: 'product', field: 'name' },
-  style: 'display',
+  level: 'h2',
   align: 'start',
 }
 

@@ -37,10 +37,19 @@ out. A brand kit is who the shop is; it is not a decision about how one book loo
 // Removed from BrandKit:
 gridId?: string
 templateId?: string
+
+// Added:
+typeScale?: TypeScale
 ```
 
-The kit keeps colours, the three font roles, the logo and its pipeline status, and the
-onboarding cursor. Nothing else.
+The kit is **logo, colours and typography**. Nothing else.
+
+**Done.** The fields are gone, the `layout` facet in `lib/brand-inheritance.ts` is now
+`typography`, `isBrandSetupComplete` tests the colours alone, and `ChoiceGrid` and
+`ChoiceStep` are deleted. Shops that finished setup under the old rule stay complete, and
+stale `gridId` / `templateId` still sitting in `shops.brandKit` JSON are inert:
+`resolveBrandKit` iterates `FACET_OF` rather than the stored object, and `keepOnReset`
+drops any key it does not recognise. No data migration.
 
 **Consequence for the E1 setup wizard.** Steps that pick a grid and a template stop being
 brand setup. They move to book creation, where they belong — the owner is choosing how
@@ -105,9 +114,32 @@ moment the catalog corrects itself.
 ### 3.2 Every colour and font is a role reference, never a hex
 
 ```ts
-type TokenRef = 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'
-type TypeRole = 'display' | 'price' | 'body' | 'caption'
+type TokenRef  = 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'
+type TypeLevel = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'body' | 'caption'
 ```
+
+**The type scale is ordered, and that buys more than a naming convention.** E6 §4's fit
+ladder says an overlong string should "drop to the next type step — bounded by the design
+system's scale, never an arbitrary size". With four semantic roles there is no next step to
+drop to. With h1…h6 there is, and rung two of the ladder becomes a defined move.
+
+A level carries a **multiplier**, never a pixel size:
+
+```ts
+interface TypeScale {
+  families: Record<'display' | 'body' | 'price', string>
+  /** Fraction of the block's sqrt(w × h). Every level multiplies it. */
+  base: number
+  levels: Record<TypeLevel, TypeStep>
+}
+```
+
+The anchor is the block's **geometric mean**, not its shorter edge. The shorter edge was
+the obvious choice and the harness disproved it inside one render: a footer band is wide
+and short, so its shorter edge is tiny and every string in it collapsed to a few pixels
+while the cards above read correctly. Area is what type should scale with.
+
+There is **no price level**. A price is not text — see §3.5.
 
 This is already the law in E6 §2, and it is the single rule that earns everything else. It
 is why one brand kit carries many blocks, why blocks from different sources can sit on the
@@ -153,6 +185,28 @@ block level:  source = offer.items   → unit = item sub-layout
 
 One implementation, used twice. E6 needed a placement engine *plus* a `CardVariant` system;
 this needs a repeater.
+
+### 3.4a Authoring a block: drop, then bind
+
+The designer is a small canvas over the block's fractional coordinate space. Dropping an
+element creates a `BlockElement` with a `Box`; a properties panel then sets what fills it.
+
+| Drop | Creates | Then bind to |
+| --- | --- | --- |
+| Image | `{ kind: 'image' }` | the product image, or a fixed asset |
+| Text | `{ kind: 'text', level }` | a product field, a shop field, or static copy |
+| Price | `{ kind: 'priceMark' }` | nothing — it reads the offer |
+| Shape | `{ kind: 'shape', surface, radius }` | nothing |
+| Logo | `{ kind: 'logo' }` | the brand kit |
+
+**`repeats` decides the binding vocabulary.** A repeating block offers product fields
+because it renders once per offer and knows which one. A static block offers shop fields
+and static copy and nothing else — there is no product in scope, so the dropdown is not
+merely empty, the option does not exist. That is the whole content of "this only works on a
+product template".
+
+Owners never type a product name onto a page. A typed-in name cannot reflow, cannot
+translate, and is wrong the moment the catalog corrects itself.
 
 ### 3.5 The price mark is not lego
 

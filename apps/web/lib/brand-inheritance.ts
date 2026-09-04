@@ -37,7 +37,7 @@ export function toBrandOverride(value: string | null | undefined): BrandOverride
  * own state always belongs to the shop, because a second branch must not
  * inherit "setup finished" from the first and skip its own setup.
  */
-export type BrandFacet = 'logo' | 'colors' | 'layout' | 'progress'
+export type BrandFacet = 'logo' | 'colors' | 'typography' | 'progress'
 export type BrandLevel = 'org' | 'shop'
 
 const FACET_OF: Record<keyof BrandKit, BrandFacet> = {
@@ -47,11 +47,10 @@ const FACET_OF: Record<keyof BrandKit, BrandFacet> = {
   secondaryColor: 'colors',
   accentColor: 'colors',
   suggestedColors: 'colors',
-  gridId: 'layout',
-  templateId: 'layout',
-  fontDisplay: 'layout',
-  fontPrice: 'layout',
-  fontBody: 'layout',
+  fontDisplay: 'typography',
+  fontPrice: 'typography',
+  fontBody: 'typography',
+  typeScale: 'typography',
   onboardingStep: 'progress',
   onboardingCompletedAt: 'progress',
 }
@@ -63,16 +62,19 @@ export function facetOf(key: keyof BrandKit): BrandFacet {
 /**
  * Which level owns each facet, per override level.
  *
- * Grid, template and fonts sit in `layout` and move only at `full`, because the
- * spec names no level for them. If a shop should be able to keep the
- * organization's colours while picking its own template, that is a fifth level
- * and a spec change, not a tweak here.
+ * Typography moves only at `full`, because the spec names no level for it. If a
+ * shop should be able to keep the organization's colours while picking its own
+ * typeface, that is a fifth level and a spec change, not a tweak here.
+ *
+ * The facet was called `layout` while the kit still carried a grid and a
+ * template. It holds typography alone now; layout is a decision about a book,
+ * not about a shop.
  */
 const LEVELS: Record<BrandOverride, Record<BrandFacet, BrandLevel>> = {
-  inherit: { logo: 'org', colors: 'org', layout: 'org', progress: 'shop' },
-  logo: { logo: 'shop', colors: 'org', layout: 'org', progress: 'shop' },
-  colors: { logo: 'org', colors: 'shop', layout: 'org', progress: 'shop' },
-  full: { logo: 'shop', colors: 'shop', layout: 'shop', progress: 'shop' },
+  inherit: { logo: 'org', colors: 'org', typography: 'org', progress: 'shop' },
+  logo: { logo: 'shop', colors: 'org', typography: 'org', progress: 'shop' },
+  colors: { logo: 'org', colors: 'shop', typography: 'org', progress: 'shop' },
+  full: { logo: 'shop', colors: 'shop', typography: 'shop', progress: 'shop' },
 }
 
 export function levelFor(override: BrandOverride, facet: BrandFacet): BrandLevel {
@@ -82,7 +84,7 @@ export function levelFor(override: BrandOverride, facet: BrandFacet): BrandLevel
 /**
  * What survives "reset to organization defaults". E4-05.
  *
- * Everything in the `logo`, `colors` and `layout` facets goes; the `progress`
+ * Everything in the `logo`, `colors` and `typography` facets goes; the `progress`
  * facet stays. `onboardingStep` and `onboardingCompletedAt` are shop-level for
  * a reason — dropping them would tell the owner their setup was never finished
  * and send them back through the wizard for a brand they just chose to inherit.

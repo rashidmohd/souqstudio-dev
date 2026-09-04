@@ -1,15 +1,11 @@
 'use client'
 
-import type { GridConfig, TemplateConfig } from '@souqstudio/types'
 import { Card } from '@/components/ui/card'
 import { Figure } from '@/components/ui/figure'
 import { LogoPlate } from '@/components/brand/LogoField'
 import { OfferPreview } from '@/components/brand/OfferPreview'
 import { useBrandStore, previewColors } from '@/stores/brand-store'
 import { COLOR_SLOTS } from '@/components/brand/ColorFields'
-
-type GridOption = { id: string; name: string; config: GridConfig }
-type TemplateOption = { id: string; name: string; config: TemplateConfig }
 
 const NOT_SET = 'Not set yet'
 
@@ -23,24 +19,18 @@ const NOT_SET = 'Not set yet'
  * **Labelled "Preview", not "Current".** It reads the store, so it shows
  * unsaved edits — which is the point, and which would make "current" a lie.
  *
+ * The preview's layout is a fixed sample — a kit holds colour, logo and type,
+ * never a grid or a template.
+ *
  * Unset choices read "Not set yet" rather than borrowing `DEFAULT_COLORS`. The
  * preview underneath still paints with the defaults, because it needs three
  * colours to draw anything at all; naming them here would tell an owner they
  * had picked a colour they have not.
  */
-export function BrandKitSummary({
-  grids,
-  templates,
-}: {
-  grids: GridOption[]
-  templates: TemplateOption[]
-}) {
+export function BrandKitSummary() {
   const { kit, logoUrl, shopName } = useBrandStore()
 
   const colors = previewColors(kit)
-  const selectedGrid = grids.find((grid) => grid.id === kit.gridId) ?? grids[0]
-  const selectedTemplate =
-    templates.find((template) => template.id === kit.templateId) ?? templates[0]
 
   return (
     <Card className="flex flex-col gap-4 sm:flex-row">
@@ -79,38 +69,14 @@ export function BrandKitSummary({
             </div>
           ))}
 
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="font-ui text-body-sm text-secondary">Grid</dt>
-            <dd className="truncate font-ui text-body-sm text-primary">
-              {kit.gridId ? (selectedGrid?.name ?? NOT_SET) : NOT_SET}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="font-ui text-body-sm text-secondary">Template</dt>
-            <dd className="truncate font-ui text-body-sm text-primary">
-              {kit.templateId ? (selectedTemplate?.name ?? NOT_SET) : NOT_SET}
-            </dd>
-          </div>
         </dl>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <span className="font-ui text-label font-medium text-secondary">Preview</span>
-        {selectedGrid && selectedTemplate ? (
-          <div className="overflow-hidden rounded-control border-hairline border-border-subtle">
-            <OfferPreview
-              grid={selectedGrid.config}
-              template={selectedTemplate.config}
-              colors={colors}
-              shopName={shopName}
-              className="block h-auto w-full"
-            />
-          </div>
-        ) : (
-          <p className="font-ui text-body-sm text-muted">
-            A preview appears once grids and templates are available.
-          </p>
-        )}
+        <div className="overflow-hidden rounded-control border-hairline border-border-subtle">
+          <OfferPreview colors={colors} shopName={shopName} className="block h-auto w-full" />
+        </div>
       </div>
     </Card>
   )

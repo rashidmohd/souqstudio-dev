@@ -29,8 +29,6 @@ type BrandState = {
   hydrate: (input: { kit: BrandKit; logoUrl: string | null; shopName: string }) => void
   setColor: (slot: 'primaryColor' | 'secondaryColor' | 'accentColor', hex: string) => void
   setColors: (colors: Pick<BrandKit, 'primaryColor' | 'secondaryColor' | 'accentColor'>) => void
-  setGrid: (gridId: string) => void
-  setTemplate: (templateId: string) => void
   setLogo: (input: { logoUrl: string; suggestedColors: string[]; logoStatus: LogoStatus }) => void
   setLogoStatus: (status: LogoStatus) => void
   setSaving: (saving: boolean) => void
@@ -71,16 +69,6 @@ export const useBrandStore = create<BrandState>()(
     setColors: (colors) =>
       set((state) => {
         Object.assign(state.kit, colors)
-      }),
-
-    setGrid: (gridId) =>
-      set((state) => {
-        state.kit.gridId = gridId
-      }),
-
-    setTemplate: (templateId) =>
-      set((state) => {
-        state.kit.templateId = templateId
       }),
 
     setLogo: ({ logoUrl, suggestedColors, logoStatus }) =>

@@ -3,31 +3,26 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import type { BrandKit, GridConfig, TemplateConfig } from '@souqstudio/types'
+import type { BrandKit } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { OfferPreview } from '@/components/brand/OfferPreview'
 import { LogoStep } from '@/components/brand/LogoStep'
 import { ColorsStep } from '@/components/brand/ColorsStep'
-import { ChoiceStep } from '@/components/brand/ChoiceStep'
 import { useBrandStore, previewColors } from '@/stores/brand-store'
-
-type GridOption = { id: string; name: string; config: GridConfig; minProducts: number }
-type TemplateOption = {
-  id: string
-  name: string
-  description: string | null
-  config: TemplateConfig
-}
 
 type Props = {
   shopName: string
   logoUrl: string | null
   brandKit: BrandKit
-  grids: GridOption[]
-  templates: TemplateOption[]
 }
 
-const TOTAL_STEPS = 5
+/**
+ * Logo, colours, done. It was five: a grid step and a template step sat between
+ * colours and the finish. A brand kit carries no layout any more — a book picks
+ * its own grid — so both are gone, and the shortest path between a new signup
+ * and their first offer book got two screens shorter.
+ */
+const TOTAL_STEPS = 3
 
 /**
  * E1-04 — guided brand setup. Five steps, cannot be skipped, resumable.
@@ -41,10 +36,10 @@ const TOTAL_STEPS = 5
  * on desktop and below them on mobile, and it reads from the Zustand store, so
  * dragging a colour picker repaints it with no network in the loop.
  */
-export function BrandSetupWizard({ shopName, logoUrl, brandKit, grids, templates }: Props) {
+export function BrandSetupWizard({ shopName, logoUrl, brandKit }: Props) {
   const router = useRouter()
   const reduceMotion = useReducedMotion()
-  const { kit, hydrate, setGrid, setTemplate, saving, setSaving, saveError, setSaveError } =
+  const { kit, hydrate, saving, setSaving, saveError, setSaveError } =
     useBrandStore()
 
   // Resume where they got to. `useState` initialiser rather than an effect: an
@@ -67,10 +62,6 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit, grids, templates
   }, [brandKit, logoUrl, shopName, hydrate])
 
   const colors = previewColors(kit)
-
-  const selectedGrid = grids.find((grid) => grid.id === kit.gridId) ?? grids[0]
-  const selectedTemplate =
-    templates.find((template) => template.id === kit.templateId) ?? templates[0]
 
   /** Persist, then move. A failed save must not silently advance. */
   async function saveAndGo(patch: Partial<BrandKit> & { complete?: boolean }, next: number) {
@@ -109,8 +100,6 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit, grids, templates
         primaryColor: kit.primaryColor,
         secondaryColor: kit.secondaryColor,
         accentColor: kit.accentColor,
-        gridId: kit.gridId,
-        templateId: kit.templateId,
         complete: true,
       },
       TOTAL_STEPS
@@ -191,44 +180,7 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit, grids, templates
                 />
               ) : null}
 
-              {step === 3 && selectedTemplate ? (
-                <ChoiceStep
-                  title="Choose a grid"
-                  description="How products are laid out on the page. You can change it per offer book later."
-                  options={grids}
-                  selectedId={kit.gridId}
-                  onSelect={setGrid}
-                  previewFor={(id) => ({
-                    grid: (grids.find((grid) => grid.id === id) ?? selectedGrid)?.config as GridConfig,
-                    template: selectedTemplate.config,
-                  })}
-                  colors={colors}
-                  shopName={shopName}
-                  onBack={goBack}
-                  onContinue={() => void saveAndGo({ gridId: kit.gridId }, 4)}
-                />
-              ) : null}
-
-              {step === 4 && selectedGrid ? (
-                <ChoiceStep
-                  title="Choose a template"
-                  description="The look of the page, in your colours. Also changeable per offer book."
-                  options={templates}
-                  selectedId={kit.templateId}
-                  onSelect={setTemplate}
-                  previewFor={(id) => ({
-                    grid: selectedGrid.config,
-                    template: (templates.find((template) => template.id === id) ?? selectedTemplate)
-                      ?.config as TemplateConfig,
-                  })}
-                  colors={colors}
-                  shopName={shopName}
-                  onBack={goBack}
-                  onContinue={() => void saveAndGo({ templateId: kit.templateId }, 5)}
-                />
-              ) : null}
-
-              {step === 5 ? (
+              {step === 3 ? (
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
                     <h2 className="font-display text-heading text-primary">Your brand is ready</h2>
@@ -260,17 +212,9 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit, grids, templates
         {/* Live preview. Below the steps on mobile, beside them from lg. */}
         <aside className="flex flex-col gap-2">
           <span className="font-ui text-label font-medium text-secondary">Preview</span>
-          {selectedGrid && selectedTemplate ? (
-            <div className="overflow-hidden rounded-card border-hairline border-border-subtle">
-              <OfferPreview
-                grid={selectedGrid.config}
-                template={selectedTemplate.config}
-                colors={colors}
-                shopName={shopName}
-                className="block h-auto w-full"
-              />
-            </div>
-          ) : null}
+          <div className="overflow-hidden rounded-card border-hairline border-border-subtle">
+            <OfferPreview colors={colors} shopName={shopName} className="block h-auto w-full" />
+          </div>
           <p className="font-ui text-body-sm text-muted">
             A sample page in your colours. Real products come next.
           </p>

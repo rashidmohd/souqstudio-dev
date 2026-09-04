@@ -20,19 +20,19 @@ import { Button } from '@/components/ui/button'
 const LEVELS: Record<BrandOverride, { label: string; description: string }> = {
   inherit: {
     label: 'Use the organization’s brand',
-    description: 'Logo, colours and layout all come from your organization. Change them once and every shop follows.',
+    description: 'Logo, colours and typography all come from your organization. Change them once and every shop follows.',
   },
   logo: {
     label: 'Its own logo',
-    description: 'This shop uses its own logo. Colours and layout still come from your organization.',
+    description: 'This shop uses its own logo. Colours and typography still come from your organization.',
   },
   colors: {
     label: 'Its own colours',
-    description: 'This shop uses its own colours. The logo and layout still come from your organization.',
+    description: 'This shop uses its own colours. The logo and typography still come from your organization.',
   },
   full: {
     label: 'Fully independent',
-    description: 'This shop sets its own logo, colours and layout. Nothing is inherited.',
+    description: 'This shop sets its own logo, colours and typography. Nothing is inherited.',
   },
 }
 
@@ -40,7 +40,7 @@ const LEVELS: Record<BrandOverride, { label: string; description: string }> = {
 const FACET_LABEL = {
   logo: 'Logo',
   colors: 'Colours',
-  layout: 'Grid, template and fonts',
+  typography: 'Typography',
   progress: 'Setup progress',
 } as const
 
@@ -51,7 +51,7 @@ export function BrandOverrideField({
 }: {
   shopId: string
   value: BrandOverride
-  source: Record<'logo' | 'colors' | 'layout' | 'progress', 'org' | 'shop'>
+  source: Record<'logo' | 'colors' | 'typography' | 'progress', 'org' | 'shop'>
 }) {
   const router = useRouter()
   const [selected, setSelected] = React.useState<BrandOverride>(value)
@@ -144,7 +144,7 @@ export function BrandOverrideField({
           Without this, "its own colours" is a claim the owner has to verify by
           opening the editor. */}
       <dl className="flex flex-col gap-1">
-        {(['logo', 'colors', 'layout'] as const).map((facet) => (
+        {(['logo', 'colors', 'typography'] as const).map((facet) => (
           <div key={facet} className="flex items-baseline justify-between gap-3">
             <dt className="font-ui text-body-sm text-secondary">{FACET_LABEL[facet]}</dt>
             <dd className="font-ui text-body-sm text-primary">

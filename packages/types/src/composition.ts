@@ -22,8 +22,69 @@
 /** A brand-kit colour role. Resolved against the shop's kit at render time. */
 export type TokenRef = 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'
 
-/** A brand-kit type role. Maps to `fontDisplay` / `fontPrice` / `fontBody`. */
-export type TypeRole = 'display' | 'price' | 'body' | 'caption'
+/** One of the three families a brand kit carries. */
+export type TypeFamily = 'display' | 'body' | 'price'
+
+/**
+ * A named step on the brand kit's type scale. What an owner picks when they drop
+ * a text element onto a block.
+ *
+ * Numbered rather than semantic, and that turns out to matter beyond naming:
+ * E6 §4's fit ladder says an overlong string should "drop to the next type step,
+ * bounded by the design system's scale, never an arbitrary size". With four
+ * semantic roles there is no next step to drop to. With an ordered scale there
+ * is, and the ladder becomes well defined — h2 falls to h3, and stops at the
+ * floor the block declares.
+ *
+ * There is no price level, deliberately. A price is not text; see `priceMark`
+ * in `BlockElement`.
+ */
+export type TypeLevel = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'body' | 'caption'
+
+export const TYPE_LEVELS: readonly TypeLevel[] = [
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'body',
+  'caption',
+]
+
+export interface TypeStep {
+  family: TypeFamily
+  /**
+   * Multiplier on the scale's `base`. **Never a pixel size** — the same block
+   * renders at 1080 square for a carousel post and at a third of an A4 column in
+   * a booklet, and a px value would be right in exactly one of them.
+   */
+  size: number
+  weight: number
+  lineHeight: number
+  letterSpacing?: number | undefined
+  /** Casing is a type decision, not content. The catalog stores the real name. */
+  transform?: 'none' | 'uppercase' | undefined
+}
+
+/**
+ * The typography half of a brand kit: three families and an ordered scale.
+ *
+ * `base` is a fraction of the block's **geometric mean** — `sqrt(w × h)` — and
+ * every level multiplies it, so the hierarchy inside a block holds at any size:
+ * h1 is larger than h2 in a carousel post and in a booklet cell alike.
+ *
+ * The shorter edge was the obvious anchor and it is wrong. A footer band is
+ * wide and short, so its shorter edge is tiny and every string in it collapsed
+ * to a few pixels while the cards above it read correctly. The geometric mean
+ * tracks the area a block actually has, which is what type should scale with.
+ */
+export interface TypeScale {
+  families: Record<TypeFamily, string>
+  /** Base size as a fraction of `sqrt(width × height)`. Levels multiply it. */
+  base: number
+  levels: Record<TypeLevel, TypeStep>
+}
 
 /** Logical, so an AR edition mirrors without a second layout. */
 export type LogicalAlign = 'start' | 'center' | 'end'
@@ -60,13 +121,20 @@ export type TextSource =
   | { from: 'static'; textEn: string; textAr: string }
 
 /**
- * `priceMark` is placed and sized, never opened. Raised minor digits, the tier
- * tab, the three-decimal KWD/OMR/BHD branch and LTR-in-Arabic are all internal —
- * E6 §3. The owner's one control is the tier, which lives on the offer.
+ * `priceMark` is one element the owner drags, places and sizes — never one they
+ * open. The was-price and the offer price are inside it, together, and are not
+ * two text levels to be assembled: raised minor digits, the tier tab, the
+ * three-decimal KWD/OMR/BHD branch and LTR-in-Arabic are all internal. E6 §3.
+ *
+ * This is the one place the designer's drag-and-drop stops being free-form, and
+ * it is deliberate. Owners given text boxes for a price produce hundreds of
+ * inconsistent price treatments inside a month, and the price mark is the single
+ * element that decides whether output reads as a real offer book. The owner's
+ * one control is the tier, which lives on the offer.
  */
 export type BlockElement =
   | { kind: 'image'; box: Box; source: ImageSource }
-  | { kind: 'text'; box: Box; source: TextSource; style: TypeRole; align: LogicalAlign }
+  | { kind: 'text'; box: Box; source: TextSource; level: TypeLevel; align: LogicalAlign }
   | { kind: 'priceMark'; box: Box }
   | { kind: 'chip'; box: Box; anchor: ChipAnchorRef }
   | { kind: 'logo'; box: Box }

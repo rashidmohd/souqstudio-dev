@@ -12,7 +12,7 @@
 
 import type { Block, BlockElement, TokenRef } from '@souqstudio/types'
 import { resolveBlock, type Placement, type Rect } from '../src/index'
-import { KIT, PAGE_GROUND, type DummyProduct } from './dummy'
+import { KIT, PAGE_GROUND, SAMPLE_SCALE, type DummyProduct } from './dummy'
 
 export interface RenderContext {
   blocks: Record<string, Block>
@@ -48,8 +48,17 @@ function renderPlacement(placement: Placement, ctx: RenderContext): string {
   const product = placement.offerId === null ? undefined : ctx.products[placement.offerId]
   const { elements } = resolveBlock(block, placement.rect, ctx.direction)
 
+  // Type levels size against the block, not against the element box: that is
+  // what keeps h1 larger than h2 in a 1080px post and a 380px booklet cell
+  // alike, and it is why a level carries a multiplier rather than a px size.
+  //
+  // Geometric mean rather than the shorter edge. A footer band is wide and
+  // short, and anchoring to its shorter edge collapsed every string in it while
+  // the cards above read correctly.
+  const blockEdge = Math.sqrt(placement.rect.width * placement.rect.height)
+
   return elements
-    .map(({ element, rect }) => renderElement(element, rect, product, ctx))
+    .map(({ element, rect }) => renderElement(element, rect, product, ctx, blockEdge))
     .join('\n')
 }
 
@@ -57,7 +66,8 @@ function renderElement(
   element: BlockElement,
   rect: Rect,
   product: DummyProduct | undefined,
-  ctx: RenderContext
+  ctx: RenderContext,
+  blockEdge: number
 ): string {
   switch (element.kind) {
     case 'shape':
@@ -71,7 +81,7 @@ function renderElement(
     case 'priceMark':
       return product === undefined ? '' : priceMark(rect, product)
     case 'text':
-      return text(element, rect, product, ctx)
+      return text(element, rect, product, ctx, blockEdge)
   }
 }
 
@@ -206,15 +216,19 @@ function text(
   element: Extract<BlockElement, { kind: 'text' }>,
   rect: Rect,
   product: DummyProduct | undefined,
-  ctx: RenderContext
+  ctx: RenderContext,
+  blockEdge: number
 ): string {
   const content = resolveText(element, product, ctx)
   if (content === '') return ''
 
-  const factor = element.style === 'display' ? 0.4 : 0.42
-  const size = rect.height * factor
+  const step = SAMPLE_SCALE.levels[element.level]
+  const size = SAMPLE_SCALE.base * blockEdge * step.size
+  const family = SAMPLE_SCALE.families[step.family]
+  const rendered = step.transform === 'uppercase' ? content.toUpperCase() : content
+
   const perChar = size * (ctx.direction === 'rtl' ? 0.48 : 0.52)
-  const lines = wrap(content, Math.max(4, Math.floor(rect.width / perChar)))
+  const lines = wrap(rendered, Math.max(4, Math.floor(rect.width / perChar)))
 
   const anchor =
     element.align === 'center' ? 'middle' : element.align === 'end' ? 'end' : 'start'
@@ -225,15 +239,19 @@ function text(
         ? rect.x + rect.width
         : rect.x
 
-  const fill = element.style === 'caption' ? KIT.inkMuted : inkFor(element, ctx)
-  const weight = element.style === 'display' ? '700' : '400'
+  const fill = element.level === 'caption' ? KIT.inkMuted : inkFor(element, ctx)
 
+  // No fit ladder yet. Overflow is left visible on purpose — it is the whole
+  // reason the worst-case page exists. When the ladder lands, its second rung
+  // is "drop to the next type step", and the ordered scale is what makes that
+  // a defined move rather than an arbitrary size.
   return lines
     .map((line, i) => {
-      const y = rect.y + size * (0.85 + i * 1.15)
+      const y = rect.y + size * (0.85 + i * step.lineHeight)
       return (
-        `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${fill}"` +
-        ` text-anchor="${anchor}" direction="${ctx.direction}">${esc(line)}</text>`
+        `<text x="${x}" y="${y}" font-size="${size}" font-weight="${step.weight}"` +
+        ` font-family="${family}" fill="${fill}" text-anchor="${anchor}"` +
+        ` direction="${ctx.direction}">${esc(line)}</text>`
       )
     })
     .join('')

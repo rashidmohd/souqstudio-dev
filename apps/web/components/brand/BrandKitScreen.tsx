@@ -2,24 +2,15 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import type { BrandKit, BrandOverride, GridConfig, TemplateConfig } from '@souqstudio/types'
+import type { BrandKit, BrandOverride } from '@souqstudio/types'
 import type { BrandFacet, BrandLevel } from '@/lib/brand-inheritance'
 import { Button } from '@/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
 import { ColorFields, COLOR_SLOTS, firstInvalidColorSlot } from '@/components/brand/ColorFields'
-import { ChoiceGrid } from '@/components/brand/ChoiceGrid'
 import { BrandKitSummary } from '@/components/brand/BrandKitSummary'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
 import { useBrandStore, previewColors } from '@/stores/brand-store'
 import { EXAMPLE_HEX } from '@/lib/color'
-
-type GridOption = { id: string; name: string; config: GridConfig; minProducts: number }
-type TemplateOption = {
-  id: string
-  name: string
-  description: string | null
-  config: TemplateConfig
-}
 
 type Props = {
   shopId: string
@@ -30,19 +21,21 @@ type Props = {
   source: Record<BrandFacet, BrandLevel>
   canEdit: boolean
   isOwner: boolean
-  grids: GridOption[]
-  templates: TemplateOption[]
 }
 
 /** Which section a save or an error belongs to. */
-type SaveSection = 'colors' | 'layout'
+type SaveSection = 'colors'
 
 /**
  * The brand kit, editable. E4-05.
  *
- * **Three sections, because there are three facets.** Logo, colours and layout
- * are exactly the facets `lib/brand-inheritance.ts` moves between the
- * organization and the shop, so grid and template share one section and one
+ * **Two editable sections.** Logo and colours are the facets an owner can act
+ * on today. Typography is the third facet in `lib/brand-inheritance.ts` and has
+ * no picker yet — it needs the OFL families mirrored to R2 first, per the known
+ * gap in CLAUDE.md — so it appears in "where this brand comes from" and nowhere
+ * else. There was a Layout section here; a brand kit carries no grid and no
+ * template any more, and a book picks its own. See `docs/composition-model.md`
+ * §2. Facets share a section and one
  * save — they cannot be inherited separately, and splitting them would imply
  * they could. (`progress`, the fourth facet, is the wizard's own state and
  * belongs to nobody's settings screen.)
@@ -65,8 +58,6 @@ export function BrandKitScreen({
   source,
   canEdit,
   isOwner,
-  grids,
-  templates,
 }: Props) {
   const { kit, hydrate } = useBrandStore()
 
@@ -99,12 +90,6 @@ export function BrandKitScreen({
     kit.primaryColor !== baseline.primaryColor ||
     kit.secondaryColor !== baseline.secondaryColor ||
     kit.accentColor !== baseline.accentColor
-
-  const layoutDirty = kit.gridId !== baseline.gridId || kit.templateId !== baseline.templateId
-
-  const selectedGrid = grids.find((grid) => grid.id === kit.gridId) ?? grids[0]
-  const selectedTemplate =
-    templates.find((template) => template.id === kit.templateId) ?? templates[0]
 
   async function save(section: SaveSection, patch: Partial<BrandKit>) {
     setSaving(section)
@@ -166,18 +151,6 @@ export function BrandKitScreen({
     })
   }
 
-  function saveLayout() {
-    if (!kit.gridId || !kit.templateId) {
-      setFeedback({
-        section: 'layout',
-        kind: 'error',
-        message: 'Choose both a grid and a template.',
-      })
-      return
-    }
-    void save('layout', { gridId: kit.gridId, templateId: kit.templateId })
-  }
-
   return (
     <div className="flex flex-col gap-6">
       {brandOverride === 'inherit' ? (
@@ -194,7 +167,7 @@ export function BrandKitScreen({
         </p>
       ) : null}
 
-      <BrandKitSummary grids={grids} templates={templates} />
+      <BrandKitSummary />
 
       {!canEdit ? (
         <p className="font-ui text-body-sm text-muted">
@@ -245,87 +218,6 @@ export function BrandKitScreen({
             ) : null}
           </Section>
 
-          <Section
-            title="Layout"
-            description="How products sit on the page, and the look of the page they sit on. Both can be changed per offer book later."
-            note={brandOverride === 'inherit' ? null : sourceNote(source.layout)}
-            feedback={feedback?.section === 'layout' ? feedback : null}
-          >
-            {grids.length === 0 || templates.length === 0 ? (
-              // Seeds not run. An empty radiogroup would read as "you have no
-              // choices" rather than "this account is not set up".
-              <p className="font-ui text-body-sm text-muted">
-                No grids or templates are published yet, so there is nothing to
-                choose from.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-col gap-2">
-                  <h3 className="font-ui text-subhead text-primary">Grid</h3>
-                  {selectedTemplate ? (
-                    <ChoiceGrid
-                      label="Grid"
-                      options={grids}
-                      selectedId={kit.gridId}
-                      onSelect={useBrandStore.getState().setGrid}
-                      previewFor={(id) => ({
-                        grid: (grids.find((grid) => grid.id === id) ?? selectedGrid)
-                          ?.config as GridConfig,
-                        template: selectedTemplate.config,
-                      })}
-                      colors={colors}
-                      shopName={shopName}
-                    />
-                  ) : null}
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <h3 className="font-ui text-subhead text-primary">Template</h3>
-                  {selectedGrid ? (
-                    <ChoiceGrid
-                      label="Template"
-                      options={templates}
-                      selectedId={kit.templateId}
-                      onSelect={useBrandStore.getState().setTemplate}
-                      previewFor={(id) => ({
-                        grid: selectedGrid.config,
-                        template: (
-                          templates.find((template) => template.id === id) ?? selectedTemplate
-                        )?.config as TemplateConfig,
-                      })}
-                      colors={colors}
-                      shopName={shopName}
-                    />
-                  ) : null}
-                </div>
-
-                {layoutDirty ? (
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="primary"
-                      loading={saving === 'layout'}
-                      onClick={saveLayout}
-                    >
-                      Save layout
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        const store = useBrandStore.getState()
-                        if (baseline.gridId) store.setGrid(baseline.gridId)
-                        if (baseline.templateId) store.setTemplate(baseline.templateId)
-                        setFeedback(null)
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : null}
-              </>
-            )}
-          </Section>
         </>
       )}
 
@@ -391,14 +283,14 @@ function Section({
 const FACET_LABEL = {
   logo: 'Logo',
   colors: 'Colours',
-  layout: 'Grid and template',
+  typography: 'Typography',
 } as const
 
 const LEVEL_SENTENCE: Record<BrandOverride, string> = {
   inherit: 'This shop uses your organization’s brand for everything.',
-  logo: 'This shop has its own logo. Its colours and layout come from your organization.',
-  colors: 'This shop has its own colours. Its logo and layout come from your organization.',
-  full: 'This shop sets its own logo, colours and layout. Nothing is inherited.',
+  logo: 'This shop has its own logo. Its colours and typography come from your organization.',
+  colors: 'This shop has its own colours. Its logo and typography come from your organization.',
+  full: 'This shop sets its own logo, colours and typography. Nothing is inherited.',
 }
 
 /**
@@ -433,7 +325,7 @@ function InheritanceSection({
       </div>
 
       <dl className="flex flex-col gap-1">
-        {(['logo', 'colors', 'layout'] as const).map((facet) => (
+        {(['logo', 'colors', 'typography'] as const).map((facet) => (
           <div key={facet} className="flex items-baseline justify-between gap-3">
             <dt className="font-ui text-body-sm text-secondary">{FACET_LABEL[facet]}</dt>
             <dd className="font-ui text-body-sm text-primary">

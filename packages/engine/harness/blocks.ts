@@ -10,7 +10,7 @@
  * the rule that lets one brand kit carry many blocks.
  */
 
-import type { Block, BlockElement } from '@souqstudio/types'
+import type { Block, BlockElement, TypeLevel } from '@souqstudio/types'
 
 const box = (start: number, top: number, width: number, height: number) => ({
   start,
@@ -35,12 +35,12 @@ const productImage = (b: ReturnType<typeof box>): BlockElement => ({
 const productText = (
   b: ReturnType<typeof box>,
   field: 'name' | 'spec',
-  style: 'display' | 'body' | 'caption'
+  level: TypeLevel
 ): BlockElement => ({
   kind: 'text',
   box: b,
   source: { from: 'product', field },
-  style,
+  level,
   align: 'start',
 })
 
@@ -71,7 +71,7 @@ export const OFFER_CARD: Block = {
         surface,
         productImage(box(0.08, 0.06, 0.84, 0.4)),
         tierChip(box(0.04, 0.02, 0.36, 0.09)),
-        productText(box(0.08, 0.5, 0.84, 0.13), 'name', 'display'),
+        productText(box(0.08, 0.5, 0.84, 0.13), 'name', 'h3'),
         productText(box(0.08, 0.64, 0.84, 0.08), 'spec', 'caption'),
         price(box(0.08, 0.74, 0.84, 0.2)),
       ],
@@ -84,7 +84,7 @@ export const OFFER_CARD: Block = {
         surface,
         productImage(box(0.08, 0.07, 0.84, 0.38)),
         tierChip(box(0.04, 0.03, 0.32, 0.1)),
-        productText(box(0.08, 0.49, 0.84, 0.14), 'name', 'display'),
+        productText(box(0.08, 0.49, 0.84, 0.14), 'name', 'h3'),
         productText(box(0.08, 0.64, 0.84, 0.08), 'spec', 'caption'),
         price(box(0.08, 0.74, 0.84, 0.19)),
       ],
@@ -97,7 +97,7 @@ export const OFFER_CARD: Block = {
         surface,
         productImage(box(0.04, 0.1, 0.3, 0.8)),
         tierChip(box(0.02, 0.04, 0.16, 0.16)),
-        productText(box(0.38, 0.16, 0.36, 0.24), 'name', 'display'),
+        productText(box(0.38, 0.16, 0.36, 0.24), 'name', 'h3'),
         productText(box(0.38, 0.43, 0.36, 0.14), 'spec', 'caption'),
         price(box(0.7, 0.24, 0.27, 0.52)),
       ],
@@ -109,7 +109,7 @@ export const OFFER_CARD: Block = {
       elements: [
         surface,
         productImage(box(0.02, 0.12, 0.14, 0.76)),
-        productText(box(0.19, 0.24, 0.42, 0.3), 'name', 'display'),
+        productText(box(0.19, 0.24, 0.42, 0.3), 'name', 'h3'),
         productText(box(0.19, 0.56, 0.42, 0.2), 'spec', 'caption'),
         price(box(0.66, 0.18, 0.3, 0.64)),
       ],
@@ -135,7 +135,7 @@ export const FOOTER: Block = {
           kind: 'text',
           box: box(0.14, 0.24, 0.3, 0.5),
           source: { from: 'shop', field: 'name' },
-          style: 'display',
+          level: 'h4',
           align: 'start',
         },
         {
@@ -146,7 +146,7 @@ export const FOOTER: Block = {
             textEn: 'Prices valid while stocks last · souqstudio.com',
             textAr: 'الأسعار سارية حتى نفاد الكمية · souqstudio.com',
           },
-          style: 'caption',
+          level: 'caption',
           align: 'end',
         },
       ],
@@ -172,7 +172,7 @@ export const BRAND_AD: Block = {
           kind: 'text',
           box: box(0.06, 0.2, 0.45, 0.3),
           source: { from: 'static', textEn: 'Ramadan Kareem', textAr: 'رمضان كريم' },
-          style: 'display',
+          level: 'h1',
           align: 'start',
         },
         {
@@ -183,7 +183,7 @@ export const BRAND_AD: Block = {
             textEn: 'Save more on every basket this month',
             textAr: 'وفر أكثر على كل سلة هذا الشهر',
           },
-          style: 'body',
+          level: 'h4',
           align: 'start',
         },
       ],
@@ -209,7 +209,7 @@ export const MESSAGE_POST: Block = {
           kind: 'text',
           box: box(0.1, 0.36, 0.8, 0.2),
           source: { from: 'static', textEn: 'Open until midnight', textAr: 'مفتوح حتى منتصف الليل' },
-          style: 'display',
+          level: 'h2',
           align: 'center',
         },
         {
@@ -220,7 +220,7 @@ export const MESSAGE_POST: Block = {
             textEn: 'All three branches, every day this week',
             textAr: 'جميع الفروع الثلاثة، كل يوم هذا الأسبوع',
           },
-          style: 'body',
+          level: 'h4',
           align: 'center',
         },
       ],

@@ -28,11 +28,14 @@ const INK = 'var(--sq-tpl-ink)'
  * depends on for a first impression, on a mid-range Android over 4G. SVG paints
  * immediately, costs nothing, and scales to whatever box it is given.
  *
- * What it must not become is a second renderer that drifts from the artboard.
- * It reads the same `GridConfig` cell fractions and the same `TemplateConfig`
- * the editor will, so a grid or template change moves both. It shows *layout
- * and colour*, which is the entire decision being made on these two steps —
- * anything finer belongs in the editor.
+ * **The layout is a fixed sample, not a choice.** A brand kit carries no grid
+ * and no template — a book picks its own, per `docs/composition-model.md` §2 —
+ * so this shows one representative page and varies only the brand applied to
+ * it. That is the entire decision being made on the colour step.
+ *
+ * It is a placeholder for a better preview. Once a block renderer exists, this
+ * should draw a seeded block through the engine instead of its own sample, so
+ * an owner sees what their books will actually look like.
  *
  * Coordinates are a unit viewBox and never mirror: the artboard stays LTR in
  * Arabic, per the canvas rules in apps/web/CLAUDE.md.
@@ -40,16 +43,44 @@ const INK = 'var(--sq-tpl-ink)'
 
 const VIEW = 100
 
+/**
+ * One representative page: a three-across grid of plain cards with a tag price.
+ * Deliberately unremarkable — it exists to carry colour, not to be a design.
+ */
+const SAMPLE_GRID: GridConfig = {
+  columns: 3,
+  rows: 2,
+  gap: 0.03,
+  cells: [
+    { x: 0.04, y: 0.16, w: 0.28, h: 0.38 },
+    { x: 0.36, y: 0.16, w: 0.28, h: 0.38 },
+    { x: 0.68, y: 0.16, w: 0.28, h: 0.38 },
+    { x: 0.04, y: 0.58, w: 0.28, h: 0.38 },
+    { x: 0.36, y: 0.58, w: 0.28, h: 0.38 },
+    { x: 0.68, y: 0.58, w: 0.28, h: 0.38 },
+  ],
+}
+
+const SAMPLE_TEMPLATE: TemplateConfig = {
+  surface: 'light',
+  priceStyle: 'tag',
+  badge: 'corner',
+  cardRadius: 3,
+  cardBorder: true,
+  density: 'balanced',
+}
+
 type Props = {
-  grid: GridConfig
-  template: TemplateConfig
   colors: { primary: string; secondary: string; accent: string }
   /** Rendered above the cells, as an offer book header would be. */
   shopName?: string
   className?: string
 }
 
-export function OfferPreview({ grid, template, colors, shopName, className }: Props) {
+export function OfferPreview({ colors, shopName, className }: Props) {
+  const grid = SAMPLE_GRID
+  const template = SAMPLE_TEMPLATE
+
   // Only the brand surface resolves to a real colour here; the other two are
   // token references the browser resolves, so contrast is computed against the
   // known token values rather than by parsing a var().

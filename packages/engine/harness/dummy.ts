@@ -10,7 +10,7 @@
  * ones.
  */
 
-import type { TokenRef } from '@souqstudio/types'
+import type { TokenRef, TypeScale } from '@souqstudio/types'
 
 export interface DummyTier {
   labelEn: string
@@ -133,3 +133,29 @@ export const KIT: Record<TokenRef, string> = {
 }
 
 export const PAGE_GROUND = '#F8F7F3'
+
+/**
+ * The typography half of the stand-in brand kit.
+ *
+ * `base` is a fraction of the block's shorter edge and every level multiplies
+ * it, so h1 stays larger than h2 in a 1080px carousel post and in a 380px
+ * booklet cell alike. A px size would be right in exactly one of them.
+ */
+export const SAMPLE_SCALE: TypeScale = {
+  families: {
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    body: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    price: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+  },
+  base: 0.055,
+  levels: {
+    h1: { family: 'display', size: 2.2, weight: 800, lineHeight: 1.05 },
+    h2: { family: 'display', size: 1.7, weight: 800, lineHeight: 1.08 },
+    h3: { family: 'display', size: 1.25, weight: 700, lineHeight: 1.15 },
+    h4: { family: 'display', size: 1, weight: 700, lineHeight: 1.2 },
+    h5: { family: 'body', size: 0.85, weight: 600, lineHeight: 1.25 },
+    h6: { family: 'body', size: 0.72, weight: 600, lineHeight: 1.3, transform: 'uppercase' },
+    body: { family: 'body', size: 0.72, weight: 400, lineHeight: 1.35 },
+    caption: { family: 'body', size: 0.58, weight: 400, lineHeight: 1.3 },
+  },
+}

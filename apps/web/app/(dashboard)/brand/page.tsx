@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { prisma } from '@souqstudio/db'
-import type { GridConfig, TemplateConfig } from '@souqstudio/types'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { toRole } from '@/lib/authz'
@@ -43,31 +42,16 @@ export default async function BrandKitPage() {
     )
   }
 
-  // Grids and templates are published rows identical for every shop, so they
-  // are read here rather than through an API the client would have to wait on.
-  // Same reasoning as the onboarding page, which reads them the same way.
-  const [brand, grids, templates] = await Promise.all([
-    readEffectiveBrand({
-      organizationId: shop.organizationId,
-      shopId: shop.id,
-      brandOverride: shop.brandOverride,
-    }),
-    prisma.grid.findMany({
-      where: { status: 'published' },
-      select: { id: true, name: true, config: true, minProducts: true },
-      orderBy: { name: 'asc' },
-    }),
-    prisma.template.findMany({
-      where: { status: 'published' },
-      select: { id: true, name: true, description: true, config: true },
-      orderBy: { name: 'asc' },
-    }),
-  ])
+  const brand = await readEffectiveBrand({
+    organizationId: shop.organizationId,
+    shopId: shop.id,
+    brandOverride: shop.brandOverride,
+  })
 
   // **A brand is created in the wizard and managed here.** One creation path,
-  // so the five steps that decide a brand are always taken in the same order
-  // with the same live preview beside them; this screen is for changing a
-  // decision already made. `/onboarding` redirects back the moment the kit is
+  // so the steps that decide a brand are always taken in the same order with
+  // the same live preview beside them; this screen is for changing a decision
+  // already made. `/onboarding` redirects back the moment the kit is
   // complete, so the two cannot bounce off each other.
   //
   // This is also the only way to reach the wizard again today — nothing else
@@ -95,18 +79,6 @@ export default async function BrandKitPage() {
         source={brand.source}
         canEdit={canEdit}
         isOwner={isOwner}
-        grids={grids.map((grid) => ({
-          id: grid.id,
-          name: grid.name,
-          config: grid.config as unknown as GridConfig,
-          minProducts: grid.minProducts,
-        }))}
-        templates={templates.map((template) => ({
-          id: template.id,
-          name: template.name,
-          description: template.description,
-          config: template.config as unknown as TemplateConfig,
-        }))}
       />
     </div>
   )

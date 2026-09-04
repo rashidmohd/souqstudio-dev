@@ -27,7 +27,7 @@ import {
  */
 
 /** The wizard's five steps. Step 5 is the finish screen, not a choice. */
-export const ONBOARDING_STEPS = 5
+export const ONBOARDING_STEPS = 3
 
 export async function readBrandKit(shopId: string): Promise<BrandKit> {
   const shop = await prisma.shop.findUnique({
@@ -218,14 +218,18 @@ export async function readEffectiveBrand(shop: {
  * Is brand setup finished?
  *
  * Judged on the choices, not on a flag. `onboardingCompletedAt` records when it
- * happened, but a kit missing its colours or its template is unfinished no
- * matter what any flag says — and the editor gate in E1-04 depends on this
- * being true only when the editor actually has something to render with.
+ * happened, but a kit missing its colours is unfinished no matter what any flag
+ * says — and the editor gate in E1-04 depends on this being true only when the
+ * editor actually has something to render with.
  *
- * The logo is deliberately not required. A shop with no logo yet can still
- * produce an offer book, and blocking on an upload would strand anyone whose
- * file will not go through.
+ * Grid and template used to be required here. They are not part of a brand kit
+ * any more, and a book chooses its own layout, so the colours are the whole
+ * test. Shops that completed setup under the old rule stay complete.
+ *
+ * Neither the logo nor typography is required. A shop with no logo yet can
+ * still produce an offer book, and blocking on an upload would strand anyone
+ * whose file will not go through; typography falls back to the kit defaults.
  */
 export function isBrandSetupComplete(kit: BrandKit): boolean {
-  return Boolean(kit.primaryColor && kit.secondaryColor && kit.accentColor && kit.gridId && kit.templateId)
+  return Boolean(kit.primaryColor && kit.secondaryColor && kit.accentColor)
 }
