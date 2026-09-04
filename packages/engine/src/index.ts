@@ -15,6 +15,7 @@ export {
   type Direction,
 } from './geometry'
 export { pickArrangement } from './arrangement'
+export { resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
 export { validateGrid, type GridProblem, type GridProblemCode } from './validate'
 export {
   flowBook,

@@ -342,6 +342,12 @@ importers:
       '@souqstudio/config':
         specifier: workspace:*
         version: link:../config
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      tsx:
+        specifier: ^4.0.0
+        version: 4.23.11
       typescript:
         specifier: ^5.0.0
         version: 5.9.3

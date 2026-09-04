@@ -161,9 +161,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   `docs/E5-product-catalog.md` §9.
 - **The layout engine exists as pure functions only.** `packages/engine` carries track
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation and
-  the flow engine, all tested. Nothing imports it yet: there is no `blocks` table, no
-  `page_grids` table and no renderer, so it composes pages from data no screen can
-  produce. See `docs/composition-model.md` §12 for the order. It lives in `packages/`
+  the flow engine, all tested. `pnpm --filter @souqstudio/engine harness` renders sample
+  pages to SVG from hardcoded blocks — that is how the model is checked, and it is not
+  the real renderer. Nothing in the apps imports the engine yet: there is no `blocks`
+  table, no `page_grids` table and no Fabric renderer, so it composes pages from data no
+  screen can produce. See `docs/composition-model.md` §12 for the order. It lives in `packages/`
   because web and worker must share one implementation — two would drift, and drift means
   the PDF does not match the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be

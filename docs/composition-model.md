@@ -193,6 +193,8 @@ interface PageGrid {
   cols: number[]
   rows: number[]
   gap: number
+  /** Inset on all four sides, same units. Omitted means full bleed. */
+  margin?: number
   regions: Region[]
 }
 
@@ -208,6 +210,10 @@ interface Region {
 
 Merges are **rectangular only**, same as a spreadsheet. Non-rectangular selections are
 refused rather than solved.
+
+`margin` was added after the render harness showed every card running to the trim edge
+of an A4 sheet. Full bleed is right for a social post and wrong for anything a guillotine
+touches, so it is optional and defaults to zero.
 
 ### 4.1 What this deletes
 

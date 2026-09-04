@@ -154,6 +154,13 @@ export interface PageGrid {
   rows: number[]
   /** Gap between tracks, as a fraction of the shorter page edge. */
   gap: number
+  /**
+   * Inset from the page edge on all four sides, as a fraction of the shorter
+   * page edge. Omitted means zero — correct for a full-bleed social post, wrong
+   * for anything that gets trimmed: a card running to the edge of an A4 sheet
+   * loses a few millimetres to the guillotine.
+   */
+  margin?: number | undefined
   regions: Region[]
 }
 

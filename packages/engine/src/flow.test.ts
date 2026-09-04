@@ -278,3 +278,38 @@ describe('flowBook — refusals', () => {
     )
   })
 })
+
+describe('flowBook — page margin', () => {
+  it('insets every track when a margin is set', () => {
+    const master: PageGrid = { ...fullGrid(2, 2), margin: 0.05 }
+    const result = flowBook(input({ master, offerIds: offers(4), page: { width: 1000, height: 1000 } }))
+    const first = result.pages[0]!.placements[0]!
+    expect(first.rect.x).toBeCloseTo(50)
+    expect(first.rect.y).toBeCloseTo(50)
+  })
+
+  it('leaves the same margin at the far edge', () => {
+    const master: PageGrid = { ...fullGrid(2, 2), margin: 0.05 }
+    const result = flowBook(input({ master, offerIds: offers(4), page: { width: 1000, height: 1000 } }))
+    const last = result.pages[0]!.placements[3]!
+    expect(last.rect.x + last.rect.width).toBeCloseTo(950)
+    expect(last.rect.y + last.rect.height).toBeCloseTo(950)
+  })
+
+  it('defaults to a full-bleed page when omitted', () => {
+    const result = flowBook(
+      input({ master: fullGrid(1, 1), offerIds: offers(1), page: { width: 1000, height: 1000 } })
+    )
+    expect(result.pages[0]!.placements[0]!.rect).toEqual({ x: 0, y: 0, width: 1000, height: 1000 })
+  })
+
+  it('mirrors correctly inside the margin in RTL', () => {
+    const master: PageGrid = { ...fullGrid(2, 1), margin: 0.1 }
+    const result = flowBook(
+      input({ master, offerIds: offers(2), page: { width: 1000, height: 1000 }, direction: 'rtl' })
+    )
+    // Reading-order first card sits against the right margin, not the page edge.
+    const first = result.pages[0]!.placements[0]!
+    expect(first.rect.x + first.rect.width).toBeCloseTo(900)
+  })
+})

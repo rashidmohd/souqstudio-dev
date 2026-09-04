@@ -10,7 +10,7 @@
  */
 
 import type { PageGrid, Pin, Region } from '@souqstudio/types'
-import { resolveTracks } from './tracks'
+import { resolveTracks, type Track } from './tracks'
 import { spanRect, spansIntersect, type CellSpan, type Direction, type Rect } from './geometry'
 import { validateGrid } from './validate'
 
@@ -69,8 +69,13 @@ export function flowBook(input: FlowInput): FlowResult {
 
   const shorterEdge = Math.min(page.width, page.height)
   const gap = master.gap * shorterEdge
-  const cols = resolveTracks(master.cols, page.width, gap)
-  const rows = resolveTracks(master.rows, page.height, gap)
+  const margin = (master.margin ?? 0) * shorterEdge
+
+  // Tracks are laid out inside the margin, then shifted onto the page. Doing it
+  // here keeps `spanRect` ignorant of the page: it sees tracks and nothing else.
+  const inset = (track: Track): Track => ({ ...track, offset: track.offset + margin })
+  const cols = resolveTracks(master.cols, page.width - margin * 2, gap).map(inset)
+  const rows = resolveTracks(master.rows, page.height - margin * 2, gap).map(inset)
 
   const inBounds = (span: CellSpan): boolean =>
     span.colStart >= 0 &&
