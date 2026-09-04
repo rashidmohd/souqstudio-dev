@@ -109,9 +109,14 @@ export function ColorFields() {
           Add a colour
         </Button>
 
+        {/* One isolated token, not two. Two `[data-figure]` spans with "of"
+            between them still sequence by paragraph direction, so "3 of 8"
+            rendered as "8 of 3" in Arabic — reordered into a different fact. */}
         <p className="font-ui text-body-sm text-muted">
-          <span data-figure>{palette.length}</span> of <span data-figure>{MAX_PALETTE}</span>
-          {canRemove(palette) ? null : ` · ${MIN_PALETTE} is the minimum`}
+          <span data-figure>
+            {palette.length}/{MAX_PALETTE}
+          </span>{' '}
+          colours{canRemove(palette) ? null : ` · ${MIN_PALETTE} is the minimum`}
         </p>
       </div>
     </div>

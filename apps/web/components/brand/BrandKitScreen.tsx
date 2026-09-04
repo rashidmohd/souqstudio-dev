@@ -214,7 +214,7 @@ export function BrandKitScreen({
             icon={Palette}
             title="Colours"
             description="Your colours, under your own names. Where each one goes is decided by the blocks that use it."
-            state={`${palette.length} colours`}
+            state={<><span data-figure>{palette.length}</span> colours</>}
             note={brandOverride === 'inherit' ? null : sourceNote(source.colors)}
             feedback={feedback?.section === 'colors' ? feedback : null}
           >
@@ -248,7 +248,7 @@ export function BrandKitScreen({
             icon={Type}
             title="Typography"
             description="Your text styles, under your own names. Each carries its own typeface, size, weight and colour."
-            state={`${styles.length} styles`}
+            state={<><span data-figure>{styles.length}</span> styles</>}
             note={brandOverride === 'inherit' ? null : sourceNote(source.typography)}
             feedback={feedback?.section === 'typography' ? feedback : null}
           >
@@ -327,8 +327,14 @@ function BrandCard({
   icon: LucideIcon
   title: string
   description: string
-  /** What the owner has chosen, in a few words. The card answers it at a glance. */
-  state: string
+  /**
+   * What the owner has chosen, in a few words. The card answers it at a glance.
+   *
+   * A node rather than a string, because any figure in it needs `[data-figure]`
+   * — an interpolated numeral visually reorders inside Arabic text, and this
+   * shipped as "3 colours" rendering as "colours 3".
+   */
+  state: React.ReactNode
   note?: string | null
   feedback?: { kind: 'error' | 'saved'; message: string } | null
   children: React.ReactNode

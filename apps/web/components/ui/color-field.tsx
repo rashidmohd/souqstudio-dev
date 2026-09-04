@@ -66,10 +66,14 @@ export function ColorField({
 
       <div
         className={cn(
-          'flex items-stretch overflow-hidden rounded-control',
+          'flex items-stretch overflow-hidden rounded-control bg-input',
           size === 'lg' ? 'h-control-lg' : 'h-control',
-          'border-hairline bg-input',
-          error ? 'border-border-critical' : 'border-border-strong'
+          // Matches `Input` exactly — same width, same tokens. A hairline here
+          // put a 0.5px edge beside a 1px one and the two read as different
+          // kinds of control sitting in the same row.
+          'border border-border-strong',
+          'transition-colors duration-fast ease-sq',
+          error && 'border-critical-fg'
         )}
       >
         {/* Fills its tile edge to edge — see `.sq-swatch`. The label is on the
@@ -80,7 +84,7 @@ export function ColorField({
           onChange={(event) => onChange(event.target.value)}
           aria-label={`${label} colour picker`}
           className={cn(
-            'sq-swatch h-full shrink-0 border-e-hairline border-border-strong',
+            'sq-swatch h-full shrink-0 border-e border-border-strong',
             size === 'lg' ? 'w-12' : 'w-8'
           )}
         />

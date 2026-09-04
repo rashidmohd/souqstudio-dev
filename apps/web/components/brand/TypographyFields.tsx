@@ -77,8 +77,12 @@ export function TypographyFields() {
           Add a style
         </Button>
 
+        {/* One isolated token — see the note in ColorFields. */}
         <p className="font-ui text-body-sm text-muted">
-          <span data-figure>{styles.length}</span> of <span data-figure>{MAX_STYLES}</span>
+          <span data-figure>
+            {styles.length}/{MAX_STYLES}
+          </span>{' '}
+          styles
         </p>
       </div>
 
