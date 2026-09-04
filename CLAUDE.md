@@ -150,9 +150,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   E5 §3 makes an ingest stage is unwritten, though `BgRemovePayload` carries its fields.
 - **Brand kit fonts are pickable but not self-hosted.** `/brand` now has a picker:
   `lib/brand-fonts.ts` carries the curated catalog — ten OFL families, every one
-  covering Arabic and Latin, filtered per role — and `TypographyFields` writes
-  `fontDisplay`, `fontPrice` and `fontBody` through `PATCH /api/v1/brand`, which
-  validates against the catalog. **Chrome loads those faces from Google's CDN for
+  covering Arabic and Latin, filtered per slot — and `TypographyFields` writes
+  `fontHeadline`, `fontDisplay`, `fontPrice` and `fontBody` through
+  `PATCH /api/v1/brand`, which validates against the catalog. `resolveScale()`
+  builds the full h1–h6 scale from those four slots; any level may be re-bound to
+  any slot, so a hero band is a different voice rather than a bigger product name. **Chrome loads those faces from Google's CDN for
   the specimen, and the render path must not.** Playwright cannot depend on an
   external network on a critical path, PDF embedding needs the real font file,
   and subsetting is what stops a bilingual book shipping every Arabic glyph

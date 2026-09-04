@@ -24,10 +24,15 @@ import {
  * be narrow enough for a three-decimal Kuwaiti amount in a dense cell, and a
  * promo face is wrong for pack sizes.
  *
- * The specimen shows Arabic above English on purpose. Every family here covers
- * both, and Arabic is where a face fails first — it also runs longer than its
- * English equivalent, which is the whole reason the fit ladder exists. Showing
- * only Latin would let an owner choose a face they will never see working.
+ * **The specimen shows a hero band and a product card, not a card alone.** The
+ * two are the reason `headline` is a slot of its own: a cover headline and a
+ * product name are not the same voice, and a specimen that only drew a card
+ * would let an owner pick a headline face without ever seeing it do its job.
+ *
+ * Arabic sits above English on purpose. Every family here covers both, and
+ * Arabic is where a face fails first — it also runs longer than its English
+ * equivalent, which is the whole reason the fit ladder exists. Showing only
+ * Latin would let an owner choose a face they will never see working.
  *
  * Changes land in the store immediately. Persisting is the caller's, matching
  * `ColorFields`.
@@ -73,31 +78,47 @@ function hintFor(role: FontRole, family: string): string {
  */
 function Specimen({ fonts }: { fonts: Record<FontRole, string> }) {
   return (
-    <div className="flex flex-col gap-2 rounded-control bg-stone-0 p-4">
+    <div className="flex flex-col gap-3">
       <span className="font-ui text-label font-medium text-secondary">Specimen</span>
 
-      <div className="flex flex-col gap-1">
+      {/* A hero band. This is what `headline` is for, and it is the half a
+          card-only specimen used to hide. */}
+      <div className="flex flex-col gap-1 rounded-control bg-stone-0 p-4">
+        <span className="font-ui text-label text-muted">Hero band · h1</span>
+        <p dir="rtl" className="text-display" style={{ fontFamily: fontStack(fonts.headline) }}>
+          رمضان كريم
+        </p>
+        <p className="text-display" style={{ fontFamily: fontStack(fonts.headline) }}>
+          Ramadan Kareem
+        </p>
+        <p className="text-body-sm text-secondary" style={{ fontFamily: fontStack(fonts.body) }}>
+          Save more on every basket this month
+        </p>
+      </div>
+
+      {/* An offer card. Different face, deliberately — that is the point. */}
+      <div className="flex flex-col gap-1 rounded-control bg-stone-0 p-4">
+        <span className="font-ui text-label text-muted">Offer card · h3</span>
         <p dir="rtl" className="text-heading" style={{ fontFamily: fontStack(fonts.display) }}>
           أرز بسمتي ذهبي
         </p>
         <p className="text-heading" style={{ fontFamily: fontStack(fonts.display) }}>
           Golden basmati rice
         </p>
+        <p className="text-body-sm text-secondary" style={{ fontFamily: fontStack(fonts.body) }}>
+          10 kg jute bag · product of India
+        </p>
+
+        {/* Western numerals and LTR, in Arabic too — E6 §6. */}
+        <p
+          dir="ltr"
+          data-figure
+          className="text-title"
+          style={{ fontFamily: fontStack(fonts.price), fontWeight: 800 }}
+        >
+          AED 24.50
+        </p>
       </div>
-
-      <p className="text-body-sm text-secondary" style={{ fontFamily: fontStack(fonts.body) }}>
-        10 kg jute bag · product of India
-      </p>
-
-      {/* Western numerals and LTR, in Arabic too — E6 §6. */}
-      <p
-        dir="ltr"
-        data-figure
-        className="text-title"
-        style={{ fontFamily: fontStack(fonts.price), fontWeight: 800 }}
-      >
-        AED 24.50
-      </p>
     </div>
   )
 }
@@ -136,10 +157,11 @@ function useGoogleFonts(families: readonly string[]): void {
 /** The three slots a save sends. Exported so the caller cannot guess them. */
 export function typographyPatch(kit: BrandKit): Pick<
   BrandKit,
-  'fontDisplay' | 'fontPrice' | 'fontBody'
+  'fontHeadline' | 'fontDisplay' | 'fontPrice' | 'fontBody'
 > {
   const fonts = resolveFonts(kit)
   return {
+    [ROLE_SLOT.headline]: fonts.headline,
     [ROLE_SLOT.display]: fonts.display,
     [ROLE_SLOT.price]: fonts.price,
     [ROLE_SLOT.body]: fonts.body,

@@ -228,8 +228,58 @@ export const MESSAGE_POST: Block = {
   ],
 }
 
+
+/**
+ * A hero band. Static, full width, and the reason `headline` is its own slot —
+ * this is the block that proves a level is a property of the brand rather than
+ * of a card. It sets h1 and h2 and never touches the product-name face.
+ */
+export const HERO_BAND: Block = {
+  id: 'blk_hero',
+  organizationId: null,
+  name: 'Hero band',
+  repeats: false,
+  thumbnailUrl: null,
+  arrangements: [
+    {
+      aspectMin: 0.1,
+      aspectMax: 30,
+      elements: [
+        { kind: 'shape', box: box(0, 0, 1, 1), surface: 'primary', radius: 3 },
+        { kind: 'logo', box: box(0.04, 0.12, 0.08, 0.2) },
+        {
+          kind: 'text',
+          box: box(0.04, 0.4, 0.56, 0.3),
+          source: { from: 'static', textEn: 'Ramadan Kareem', textAr: 'رمضان كريم' },
+          level: 'h1',
+          align: 'start',
+        },
+        {
+          kind: 'text',
+          box: box(0.04, 0.74, 0.56, 0.14),
+          source: {
+            from: 'static',
+            textEn: 'Save more on every basket this month',
+            textAr: 'وفر أكثر على كل سلة هذا الشهر',
+          },
+          level: 'body',
+          align: 'start',
+        },
+        {
+          kind: 'text',
+          box: box(0.66, 0.4, 0.3, 0.3),
+          source: { from: 'static', textEn: 'Three days only', textAr: 'ثلاثة أيام فقط' },
+          level: 'h2',
+          align: 'end',
+        },
+      ],
+    },
+  ],
+}
+
 export const BLOCKS: Record<string, Block> = {
   [OFFER_CARD.id]: OFFER_CARD,
+  [HERO_BAND.id]: HERO_BAND,
   [FOOTER.id]: FOOTER,
   [BRAND_AD.id]: BRAND_AD,
   [MESSAGE_POST.id]: MESSAGE_POST,

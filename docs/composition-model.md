@@ -123,6 +123,21 @@ ladder says an overlong string should "drop to the next type step — bounded by
 system's scale, never an arbitrary size". With four semantic roles there is no next step to
 drop to. With h1…h6 there is, and rung two of the ladder becomes a defined move.
 
+**A level is not tied to a block kind.** h1 in a hero band and h1 in a cover masthead are
+the same level resolving against different block sizes — the scale belongs to the brand,
+never to the card. Which face a level draws from is a separate, re-bindable decision:
+
+```ts
+type TypeFamily = 'headline' | 'display' | 'price' | 'body'
+```
+
+`headline` is separate from `display` and that separation is load-bearing. With three
+slots named after parts of an offer card, h1 and h3 both resolved to `display` — a hero
+band could be *larger* than a product name but never a *different voice*, and a flyer's
+"RAMADAN KAREEM" is not the typeface its product names are set in. Four slots is only the
+default: any level may be re-bound to any slot, so the ceiling on expression is the
+binding, not the count.
+
 A level carries a **multiplier**, never a pixel size:
 
 ```ts

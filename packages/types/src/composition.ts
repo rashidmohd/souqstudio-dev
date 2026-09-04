@@ -22,8 +22,22 @@
 /** A brand-kit colour role. Resolved against the shop's kit at render time. */
 export type TokenRef = 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'
 
-/** One of the three families a brand kit carries. */
-export type TypeFamily = 'display' | 'body' | 'price'
+/**
+ * A face slot in the brand kit. A level binds to one of these; the kit says
+ * which actual family each resolves to.
+ *
+ * `headline` exists because it was missing and the omission was load-bearing.
+ * With three slots named after parts of an offer card, h1 and h3 both resolved
+ * to `display` — a hero band could be larger than a product name but never a
+ * different voice, and "RAMADAN KAREEM" across a cover is not the typeface a
+ * product name is set in. The slots are named for what they *do* on a page, not
+ * for where they sit on a card.
+ *
+ * Four, not eight: a level *binds* to a slot and any level may be re-bound, so
+ * the ceiling on expression is the binding, not the count. Four is what the
+ * picker asks for by default.
+ */
+export type TypeFamily = 'headline' | 'display' | 'price' | 'body'
 
 /**
  * A named step on the brand kit's type scale. What an owner picks when they drop
@@ -35,6 +49,10 @@ export type TypeFamily = 'display' | 'body' | 'price'
  * semantic roles there is no next step to drop to. With an ordered scale there
  * is, and the ladder becomes well defined — h2 falls to h3, and stops at the
  * floor the block declares.
+ *
+ * A level is not tied to a block kind. h1 in a hero band and h1 in a cover
+ * masthead are the same level resolving against different block sizes — the
+ * scale is a property of the brand, never of the card.
  *
  * There is no price level, deliberately. A price is not text; see `priceMark`
  * in `BlockElement`.
@@ -53,6 +71,7 @@ export const TYPE_LEVELS: readonly TypeLevel[] = [
 ]
 
 export interface TypeStep {
+  /** Which face slot this level draws from. Re-bindable per level. */
   family: TypeFamily
   /**
    * Multiplier on the scale's `base`. **Never a pixel size** — the same block

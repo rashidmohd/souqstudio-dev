@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import type { BrandKit } from '@souqstudio/types'
 import {
   BRAND_FONTS,
+  DEFAULT_LEVEL_FAMILY,
+  familyForLevel,
+  resolveScale,
   DEFAULT_FONTS,
   FONT_ROLES,
   fontStack,
@@ -64,8 +67,9 @@ describe('resolveFont', () => {
     expect(resolveFont(kit, 'body')).toBe(DEFAULT_FONTS.body)
   })
 
-  it('resolves all three roles together', () => {
+  it('resolves all four slots together', () => {
     expect(resolveFonts({ fontDisplay: 'Cairo' })).toEqual({
+      headline: DEFAULT_FONTS.headline,
       display: 'Cairo',
       price: DEFAULT_FONTS.price,
       body: DEFAULT_FONTS.body,
@@ -106,5 +110,60 @@ describe('fontStack', () => {
     expect(fontStack('Readex Pro')).toBe(
       "'Readex Pro', 'IBM Plex Sans Arabic', system-ui, sans-serif"
     )
+  })
+})
+
+describe('the headline slot', () => {
+  it('is separate from display, so a hero is a different voice and not just a size', () => {
+    // One slot for both made "RAMADAN KAREEM" and a product name the same face.
+    const kit: BrandKit = { fontHeadline: 'Lalezar', fontDisplay: 'Cairo' }
+    expect(familyForLevel(kit, 'h1')).toBe('Lalezar')
+    expect(familyForLevel(kit, 'h3')).toBe('Cairo')
+  })
+
+  it('binds the hero range to headline and the product range to display', () => {
+    expect(DEFAULT_LEVEL_FAMILY.h1).toBe('headline')
+    expect(DEFAULT_LEVEL_FAMILY.h2).toBe('headline')
+    expect(DEFAULT_LEVEL_FAMILY.h3).toBe('display')
+  })
+
+  it('offers a candidate for the headline slot', () => {
+    expect(fontsForRole('headline').length).toBeGreaterThan(0)
+  })
+})
+
+describe('resolveScale', () => {
+  it('fills every level, whatever the kit holds', () => {
+    const scale = resolveScale({})
+    for (const level of ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption'] as const) {
+      expect(scale.levels[level].size).toBeGreaterThan(0)
+      expect(scale.levels[level].family).toBeDefined()
+    }
+  })
+
+  it('keeps the hierarchy ordered — h1 is always larger than h2', () => {
+    const { levels } = resolveScale({})
+    expect(levels.h1.size).toBeGreaterThan(levels.h2.size)
+    expect(levels.h2.size).toBeGreaterThan(levels.h3.size)
+    expect(levels.h3.size).toBeGreaterThan(levels.body.size)
+    expect(levels.body.size).toBeGreaterThan(levels.caption.size)
+  })
+
+  it('lets a level be re-bound to any slot', () => {
+    // The scale is not card-shaped: an owner who wants a ticker band set in the
+    // headline face can have it without a new level or a new block kind.
+    const kit: BrandKit = {
+      fontHeadline: 'Lalezar',
+      typeScale: {
+        ...resolveScale({}),
+        levels: { ...resolveScale({}).levels, h5: { ...resolveScale({}).levels.h5, family: 'headline' } },
+      },
+    }
+    expect(familyForLevel(kit, 'h5')).toBe('Lalezar')
+  })
+
+  it('sizes relative to the block, never in pixels', () => {
+    // A px size would be right in a 1080 post and wrong in a 380 booklet cell.
+    expect(resolveScale({}).base).toBeLessThan(1)
   })
 })

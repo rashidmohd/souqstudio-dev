@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { PageGrid, Pin, Region } from '@souqstudio/types'
 import { flowBook } from '../src/index'
-import { BLOCKS, BRAND_AD, FOOTER, MESSAGE_POST, OFFER_CARD } from './blocks'
+import { BLOCKS, BRAND_AD, FOOTER, HERO_BAND, MESSAGE_POST, OFFER_CARD } from './blocks'
 import { FRIENDLY, WORST_CASE, type DummyProduct } from './dummy'
 import { renderPage, type RenderContext } from './svg'
 
@@ -78,6 +78,28 @@ function merged(): PageGrid {
   }
 }
 
+/**
+ * A cover: hero band across the top, offers beneath. One page, two typefaces,
+ * and the whole reason a headline slot exists.
+ */
+function cover(): PageGrid {
+  return {
+    cols: [1, 1, 1],
+    rows: [0.9, 1, 1],
+    gap: 0.022,
+    margin: 0.04,
+    regions: [
+      { id: 'hero', colStart: 0, colEnd: 2, rowStart: 0, rowEnd: 0, blockId: HERO_BAND.id, fill: 'static' },
+      cell(0, 1, 'r1c0'),
+      cell(1, 1, 'r1c1'),
+      cell(2, 1, 'r1c2'),
+      cell(0, 2, 'r2c0'),
+      cell(1, 2, 'r2c1'),
+      cell(2, 2, 'r2c2'),
+    ],
+  }
+}
+
 const carousel = (): PageGrid => ({
   cols: [1],
   rows: [1],
@@ -132,6 +154,21 @@ function shoot(
 
   shots.push({ file, title, note, svg: renderPage(page.placements, opts.size, ctx) })
 }
+
+// A cover: hero band in the headline face, product cards in the display face.
+shoot(
+  'cover-hero.svg',
+  'Cover — hero band plus offers',
+  'One page, two typefaces. h1 and h2 resolve to the headline slot; product names to display. A level is a property of the brand, not of a card.',
+  { master: cover(), products: FRIENDLY, size: A4 }
+)
+
+shoot(
+  'cover-hero-arabic.svg',
+  'Cover — Arabic edition',
+  'The same master mirrored. The hero band, its logo and its headline all flip; the price marks do not.',
+  { master: cover(), products: FRIENDLY, size: A4, direction: 'rtl' }
+)
 
 // A booklet page with friendly data — the demo case.
 shoot('booklet-friendly.svg', 'Booklet — friendly data', '3 across, 3 rows, merged footer row.', {

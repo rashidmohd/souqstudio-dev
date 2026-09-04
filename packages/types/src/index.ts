@@ -76,8 +76,10 @@ export interface BrandKit {
   accentColor?: string | undefined
   /** Colours pulled from the logo, offered as swatches. Not choices yet. */
   suggestedColors?: string[] | undefined
-  /** The three families. Superseded by `typeScale.families`; kept until a
-   *  picker exists to write the scale. See the known gap in CLAUDE.md. */
+  /** The four face slots. `fontHeadline` is what a hero band, a cover masthead
+   *  or a campaign headline is set in — deliberately separate from the face
+   *  product names use, because they are not the same voice. */
+  fontHeadline?: string | undefined
   fontDisplay?: string | undefined
   fontPrice?: string | undefined
   fontBody?: string | undefined

@@ -143,14 +143,18 @@ export const PAGE_GROUND = '#F8F7F3'
  */
 export const SAMPLE_SCALE: TypeScale = {
   families: {
+    // Four slots. `headline` is not `display`: a hero band and a product name
+    // are not the same voice, and one slot for both made them the same size
+    // problem instead of two type decisions.
+    headline: "'Lalezar', 'Helvetica Neue', Helvetica, Arial, sans-serif",
     display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
     body: "'Helvetica Neue', Helvetica, Arial, sans-serif",
     price: "'Helvetica Neue', Helvetica, Arial, sans-serif",
   },
   base: 0.055,
   levels: {
-    h1: { family: 'display', size: 2.2, weight: 800, lineHeight: 1.05 },
-    h2: { family: 'display', size: 1.7, weight: 800, lineHeight: 1.08 },
+    h1: { family: 'headline', size: 2.2, weight: 400, lineHeight: 1.02 },
+    h2: { family: 'headline', size: 1.7, weight: 400, lineHeight: 1.06 },
     h3: { family: 'display', size: 1.25, weight: 700, lineHeight: 1.15 },
     h4: { family: 'display', size: 1, weight: 700, lineHeight: 1.2 },
     h5: { family: 'body', size: 0.85, weight: 600, lineHeight: 1.25 },

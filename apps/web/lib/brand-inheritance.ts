@@ -47,6 +47,7 @@ const FACET_OF: Record<keyof BrandKit, BrandFacet> = {
   secondaryColor: 'colors',
   accentColor: 'colors',
   suggestedColors: 'colors',
+  fontHeadline: 'typography',
   fontDisplay: 'typography',
   fontPrice: 'typography',
   fontBody: 'typography',

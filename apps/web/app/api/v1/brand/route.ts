@@ -50,6 +50,7 @@ const schema = z
     primaryColor: hex,
     secondaryColor: hex,
     accentColor: hex,
+    fontHeadline: fontFamily,
     fontDisplay: fontFamily,
     fontPrice: fontFamily,
     fontBody: fontFamily,

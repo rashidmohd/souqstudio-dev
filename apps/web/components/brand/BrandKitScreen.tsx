@@ -12,7 +12,7 @@ import { OfferPreview } from '@/components/brand/OfferPreview'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
 import { Image as ImageIcon, Palette, Shapes, Type, type LucideIcon } from 'lucide-react'
-import { resolveFonts } from '@/lib/brand-fonts'
+import { FONT_ROLES, resolveFonts } from '@/lib/brand-fonts'
 import { EDITOR_BUILT } from '@/lib/features'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
 import { useBrandStore, previewColors } from '@/stores/brand-store'
@@ -105,10 +105,7 @@ export function BrandKitScreen({
 
   const fonts = resolveFonts(kit)
   const baselineFonts = resolveFonts(baseline)
-  const typographyDirty =
-    fonts.display !== baselineFonts.display ||
-    fonts.price !== baselineFonts.price ||
-    fonts.body !== baselineFonts.body
+  const typographyDirty = FONT_ROLES.some((role) => fonts[role] !== baselineFonts[role])
 
   async function save(section: SaveSection, patch: Partial<BrandKit>) {
     setSaving(section)
@@ -250,8 +247,8 @@ export function BrandKitScreen({
           <BrandCard
             icon={Type}
             title="Typography"
-            description="Three typefaces: one for names, one for prices, one for the small print."
-            state={`${fonts.display} · ${fonts.price} · ${fonts.body}`}
+            description="Four typefaces: hero headlines, product names, prices, and the small print."
+            state={FONT_ROLES.map((role) => fonts[role]).join(' · ')}
             note={brandOverride === 'inherit' ? null : sourceNote(source.typography)}
             feedback={feedback?.section === 'typography' ? feedback : null}
           >
@@ -272,9 +269,7 @@ export function BrandKitScreen({
                   variant="ghost"
                   onClick={() => {
                     const store = useBrandStore.getState()
-                    store.setFont('display', baselineFonts.display)
-                    store.setFont('price', baselineFonts.price)
-                    store.setFont('body', baselineFonts.body)
+                    for (const role of FONT_ROLES) store.setFont(role, baselineFonts[role])
                     setFeedback(null)
                   }}
                 >
