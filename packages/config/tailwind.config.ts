@@ -172,6 +172,14 @@ const config: Config = {
       },
       width: {
         chip: 'var(--sq-size-chip)',
+        rail: 'var(--sq-rail)',
+        'rail-collapsed': 'var(--sq-rail-collapsed)',
+      },
+      // `size-*` derives from `spacing` like the rest, so the glyph sizes have
+      // to be named here or `size-5` silently compiles to nothing.
+      size: {
+        icon: 'var(--sq-icon)',
+        'icon-lg': 'var(--sq-icon-lg)',
       },
       borderWidth: {
         hairline: '0.5px',

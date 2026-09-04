@@ -144,6 +144,19 @@
      value. Grows with the other touch targets below. */
   --sq-size-chip:    28px;
 
+  /* Icon glyphs. 20px is the size the skill already gives an icon-only button's
+     glyph, so the rail borrowing it puts a nav row at the same weight as the
+     controls beside it. Neither value is a tap target — the 32/44px control
+     around the glyph is, which is why these do not grow on coarse pointers. */
+  --sq-icon:            16px;
+  --sq-icon-lg:         20px;
+
+  /* The rail's two widths. It had none: the markup said `w-16` and `lg:w-64`,
+     and this system REPLACES Tailwind's spacing scale with 4/8/12/16/24/32/48,
+     so both compiled to nothing and the rail was sized by its own content. */
+  --sq-rail:           280px;
+  --sq-rail-collapsed:  64px;
+
   --sq-dur-fast: 120ms;
   --sq-dur-base: 200ms;
   --sq-ease: cubic-bezier(0.2, 0, 0.2, 1);

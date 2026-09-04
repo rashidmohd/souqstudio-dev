@@ -49,7 +49,7 @@ export function NavItem({ icon: Icon, label, href, active = false, collapsed = f
         collapsed ? 'justify-center px-0' : 'justify-center px-0 lg:justify-start lg:px-3'
       )}
     >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <Icon className="size-icon-lg shrink-0" aria-hidden="true" />
       {collapsed ? null : <span className="hidden truncate lg:inline">{label}</span>}
     </Link>
   )

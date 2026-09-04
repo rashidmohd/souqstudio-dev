@@ -35,6 +35,16 @@ hydration. The toggle is hidden below 1024px, where the breakpoint has already d
 and an expand control would promise something it cannot deliver. Neither state animates
 its width — the design system permits opacity and transform only.
 
+**The widths are `--sq-rail` (280px) and `--sq-rail-collapsed` (64px), and they are the
+first widths the rail has ever had.** The markup said `w-16` and `lg:w-64`; this system
+replaces Tailwind's spacing scale with 4/8/12/16/24/32/48, so neither class compiled to
+anything and the rail was sized by its own content. Anything that needs a width off that
+scale needs a token, not a number in a class name.
+
+The mark sits at the head of the rail — `logo.svg` when the rail is wide *and* expanded,
+`icon.svg` in every other case, since a 148px wordmark does not fit 64px. It is not a
+link: `Offer books` is directly below it and already goes home.
+
 The rail has **two scope zones separated by a hard divider**, because every screen belongs
 to either the org or one shop and users get badly confused when those mix:
 

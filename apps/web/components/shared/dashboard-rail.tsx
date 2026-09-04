@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   BookOpen,
@@ -112,19 +113,60 @@ export function DashboardRail({ initialState }: { initialState: RailState }) {
       id="dashboard-rail"
       aria-label="Main"
       className={cn(
-        'flex w-16 shrink-0 flex-col gap-1 border-e-hairline border-border-subtle bg-surface p-2',
+        'flex w-rail-collapsed shrink-0 flex-col gap-1 border-e-hairline border-border-subtle bg-surface p-2',
         // No width transition. The design system permits opacity and transform
         // only — animating width forces layout on every frame and stutters on
         // the mid-range tablets these shops actually use.
-        collapsed ? 'lg:w-16 lg:p-2' : 'lg:w-64 lg:p-3'
+        collapsed ? 'lg:w-rail-collapsed lg:p-2' : 'lg:w-rail lg:p-3'
       )}
     >
-      {/* The icons point at the rail, so they mirror when the rail moves to the
-          other edge in Arabic. -scale-x is a transform, not a physical class. */}
-      <div className={cn('mb-1 hidden lg:flex', collapsed ? 'justify-center' : 'justify-end')}>
+      {/* The mark, per references/brand-assets.md: the wordmark where there is
+          room for it, the square icon where there is not. Deliberately not a
+          link — `Offer books` sits directly below and already goes home, and two
+          controls to one destination is one too many.
+
+          Which mark shows is not the same question as which state the owner
+          chose. Below 1024px the rail is 64px wide however they left it, and a
+          148px wordmark does not fit, so the icon carries every narrow case and
+          the wordmark appears only when the rail is both wide and expanded. */}
+      <div
+        className={cn(
+          'mb-2 flex items-center gap-1',
+          collapsed ? 'flex-col' : 'flex-col lg:flex-row lg:justify-between lg:gap-2 lg:ps-2'
+        )}
+      >
+        <Image
+          src="/brand/icon.svg"
+          alt="SouqStudio"
+          width={24}
+          height={24}
+          // `unoptimized` for the same reason as the illustrations in
+          // empty-state: the optimizer has nothing to do to a local SVG.
+          unoptimized
+          priority
+          className={cn('size-6', collapsed ? undefined : 'lg:hidden')}
+        />
+        {collapsed ? null : (
+          <Image
+            src="/brand/logo.svg"
+            alt="SouqStudio"
+            width={138}
+            height={24}
+            unoptimized
+            priority
+            className="hidden h-6 w-auto lg:block"
+          />
+        )}
+
+        {/* The icons point at the rail, so they mirror when the rail moves to
+            the other edge in Arabic. -scale-x is a transform, not a physical
+            class. */}
         <Button
           variant="ghost"
           iconOnly
+          // Hidden below 1024px, where the breakpoint has already decided the
+          // width and an expand control would promise what CSS overrules.
+          className="hidden lg:inline-flex"
           onClick={toggle}
           aria-expanded={!collapsed}
           aria-controls="dashboard-rail"
@@ -132,9 +174,9 @@ export function DashboardRail({ initialState }: { initialState: RailState }) {
           title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
         >
           {collapsed ? (
-            <PanelLeftOpen className="size-4 rtl:-scale-x-100" aria-hidden="true" />
+            <PanelLeftOpen className="size-icon-lg rtl:-scale-x-100" aria-hidden="true" />
           ) : (
-            <PanelLeftClose className="size-4 rtl:-scale-x-100" aria-hidden="true" />
+            <PanelLeftClose className="size-icon-lg rtl:-scale-x-100" aria-hidden="true" />
           )}
         </Button>
       </div>
