@@ -48,7 +48,16 @@
       "persistent": true
     },
     "lint": {},
-    "typecheck": {},
+    // Topological, and it has to be. Without `^typecheck`, editing
+    // `packages/types` leaves every dependent's typecheck as a cache hit —
+    // `pnpm typecheck` reports all green while the apps replay stale logs, and
+    // the error surfaces in `next build` or in the worker's build on Railway
+    // instead. That is exactly how a BrandKit change shipped a broken worker.
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ]
+    },
     "test": {
       "dependsOn": [
         "^build"

@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq'
 import sharp from 'sharp'
-import { prisma } from '@souqstudio/db'
+import { prisma, Prisma } from '@souqstudio/db'
 import type { BgRemovePayload } from '@souqstudio/db'
 import type { BrandKit } from '@souqstudio/types'
 import { getObjectBytes, putObject, keyFromPublicUrl, publicUrl } from '../lib/r2'
@@ -102,6 +102,13 @@ async function markLogo(
   // The two branches are the same three lines against two tables. Kept apart
   // rather than abstracted: Prisma's delegates are separate types, and a
   // generic wrapper over them costs more to read than the duplication saves.
+  //
+  // The writes assert `Prisma.InputJsonObject`, matching `lib/brand-kit.ts` in
+  // the web app. `BrandKit` is an interface, and an interface has no implicit
+  // index signature, so it is not assignable to Prisma's mapped JSON input type
+  // however JSON-shaped its fields are. This held structurally only while every
+  // field was a primitive; `typeScale` nests another interface and ended that.
+  // The value really is JSON — it round-trips through a JSONB column.
   if (target.level === 'org') {
     const org = await prisma.organization.findUnique({
       where: { id: target.id },
@@ -112,7 +119,7 @@ async function markLogo(
     await prisma.organization.update({
       where: { id: target.id },
       data: {
-        brandKit: { ...((org.brandKit ?? {}) as BrandKit), ...patch },
+        brandKit: { ...((org.brandKit ?? {}) as BrandKit), ...patch } as Prisma.InputJsonObject,
         ...(logoUrl ? { logoUrl } : {}),
       },
     })
@@ -128,7 +135,7 @@ async function markLogo(
   await prisma.shop.update({
     where: { id: target.id },
     data: {
-      brandKit: { ...((shop.brandKit ?? {}) as BrandKit), ...patch },
+      brandKit: { ...((shop.brandKit ?? {}) as BrandKit), ...patch } as Prisma.InputJsonObject,
       ...(logoUrl ? { logoUrl } : {}),
     },
   })
