@@ -148,13 +148,18 @@ Tracked, not forgotten. Raise rather than inventing an answer.
 - **Worker handlers** — `email` and `bg` are implemented. `pdf`, `ai` and `enrich`
   are still stubs that throw. `bg` handles logos only; the catalog cutout branch that
   E5 §3 makes an ingest stage is unwritten, though `BgRemovePayload` carries its fields.
-- **Brand kit fonts are typed and unimplemented.** `BrandKit` carries
-  `fontDisplay`, `fontPrice` and `fontBody`, and `lib/brand-inheritance.ts` puts
-  them in the `layout` facet, but nothing reads or writes them and E4-05's
-  `/brand` screen has no picker. Building one means first mirroring the curated
-  OFL families into R2 and subsetting them —
-  `souqstudio-design → references/brand-kit-fonts.md`. Until then the editor has
-  no shop-chosen typeface to load, which E6 will notice.
+- **Brand kit fonts are pickable but not self-hosted.** `/brand` now has a picker:
+  `lib/brand-fonts.ts` carries the curated catalog — ten OFL families, every one
+  covering Arabic and Latin, filtered per role — and `TypographyFields` writes
+  `fontDisplay`, `fontPrice` and `fontBody` through `PATCH /api/v1/brand`, which
+  validates against the catalog. **Chrome loads those faces from Google's CDN for
+  the specimen, and the render path must not.** Playwright cannot depend on an
+  external network on a critical path, PDF embedding needs the real font file,
+  and subsetting is what stops a bilingual book shipping every Arabic glyph
+  twice. Mirroring the files into R2 is still required before export ships —
+  `souqstudio-design → references/brand-kit-fonts.md`. E6 also has to
+  `await document.fonts.load()` for every family and weight *before* creating any
+  Fabric text object, or every bounding box is measured against the fallback.
 - **Promo tiers are not seeded on organization creation.** `offers.promoTierId` is NOT
   NULL and the migration only seeds the organizations that already existed. The signup
   path must seed `Deal` and `Offer` for every new org or its first offer fails. See

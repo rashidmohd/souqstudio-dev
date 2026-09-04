@@ -191,13 +191,13 @@ correctly on a light, dark or brand-coloured ground. The header label is centre
 anchored on purpose: SVG resolves `text-anchor: start` against inherited
 direction, which would move it under an Arabic ancestor.
 
-### LogoField · ColorFields · ChoiceGrid
+### LogoField · ColorFields · TypographyFields
 
 | | |
 | --- | --- |
-| File | `components/brand/{LogoField,ColorFields,ChoiceGrid}.tsx` |
+| File | `components/brand/{LogoField,ColorFields,TypographyFields}.tsx` |
 | Status | `built` — apps/web only |
-| Governs | E4-01 / E4-02 / E4-03 / E4-04, in both the wizard and the brand kit screen |
+| Governs | E4-01 / E4-02 / E4, in both the wizard and the brand kit screen |
 
 ```tsx
 type LogoFieldProps = {
@@ -209,16 +209,22 @@ type LogoFieldProps = {
 // Its validation is exported separately and is pure:
 function firstInvalidColorSlot(kit: BrandKit): { key: ColorSlot; label: string } | null
 
-type ChoiceGridProps = {
-  label: string                       // names the radiogroup; the heading is the caller's
-  options: Choice[]
-  selectedId: string | undefined
-  onSelect: (id: string) => void
-  previewFor: (id: string) => { grid: GridConfig; template: TemplateConfig }
-  colors: { primary: string; secondary: string; accent: string }
-  shopName: string
-}
+// TypographyFields takes no props either, same reason. Three Selects filtered
+// by role from `lib/brand-fonts.ts`, plus a bilingual specimen. What a save
+// sends is exported so the caller cannot guess the slots:
+function typographyPatch(kit: BrandKit): Pick<BrandKit, 'fontDisplay' | 'fontPrice' | 'fontBody'>
 ```
+
+**`ChoiceGrid` and `ChoiceStep` are deleted**, along with `BrandKitSummary`. They
+existed to pick a grid and a template, and a brand kit carries neither — a book
+chooses its own layout, per `docs/composition-model.md` §2. The summary card went
+with them: the brand kit screen is now one card per facet and each card states
+what is set, so a card restating all of it at the top was saying it twice.
+
+`BrandCard` — icon, title, description, current state, control — is local to
+`BrandKitScreen.tsx`, the same way `Section` was before it. It is a composition
+of `Card` and `IconChip`, not a new primitive. If a second screen ever wants it,
+it comes through this file first.
 
 **The three brand choices, without any navigation around them.** Each was
 extracted from the wizard step of the same name when E4-05 needed the same

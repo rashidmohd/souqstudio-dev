@@ -10,6 +10,7 @@ import {
   ONBOARDING_STEPS,
 } from '@/lib/brand-kit'
 import { isValidHex, EXAMPLE_HEX } from '@/lib/color'
+import { findFont } from '@/lib/brand-fonts'
 
 /**
  * E1-04 and E4 — read and save the brand kit.
@@ -34,11 +35,24 @@ const hex = z
   .trim()
   .refine(isValidHex, `Use a colour like ${EXAMPLE_HEX}.`)
 
+/**
+ * A font is valid only if it is in the catalog. The value reaches a JSONB
+ * column and then a stylesheet request, and a family we do not load renders as
+ * something else without ever failing.
+ */
+const fontFamily = z
+  .string()
+  .trim()
+  .refine((value) => findFont(value) !== undefined, 'Choose one of the offered typefaces.')
+
 const schema = z
   .object({
     primaryColor: hex,
     secondaryColor: hex,
     accentColor: hex,
+    fontDisplay: fontFamily,
+    fontPrice: fontFamily,
+    fontBody: fontFamily,
     onboardingStep: z.number().int().min(1).max(ONBOARDING_STEPS),
     /** Set once, on the finish step. */
     complete: z.boolean(),

@@ -7,7 +7,13 @@ import type { BrandFacet, BrandLevel } from '@/lib/brand-inheritance'
 import { Button } from '@/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
 import { ColorFields, COLOR_SLOTS, firstInvalidColorSlot } from '@/components/brand/ColorFields'
-import { BrandKitSummary } from '@/components/brand/BrandKitSummary'
+import { TypographyFields, typographyPatch } from '@/components/brand/TypographyFields'
+import { OfferPreview } from '@/components/brand/OfferPreview'
+import { Card } from '@/components/ui/card'
+import { IconChip } from '@/components/ui/icon-chip'
+import { Image as ImageIcon, Palette, Shapes, Type, type LucideIcon } from 'lucide-react'
+import { resolveFonts } from '@/lib/brand-fonts'
+import { EDITOR_BUILT } from '@/lib/features'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
 import { useBrandStore, previewColors } from '@/stores/brand-store'
 import { EXAMPLE_HEX } from '@/lib/color'
@@ -24,7 +30,7 @@ type Props = {
 }
 
 /** Which section a save or an error belongs to. */
-type SaveSection = 'colors'
+type SaveSection = 'colors' | 'typography'
 
 /**
  * The brand kit, editable. E4-05.
@@ -40,7 +46,13 @@ type SaveSection = 'colors'
  * they could. (`progress`, the fourth facet, is the wizard's own state and
  * belongs to nobody's settings screen.)
  *
- * **Saves are per section, and mount only when that section is dirty**, so the
+ * **One card per thing an owner sets** — logo, colours, typography, blocks.
+ * Each carries its own icon, its explanation, what is currently chosen, and its
+ * control. It replaced a stack of plain sections and a separate summary card at
+ * the top: the summary was restating what each section already knew, and a
+ * wizard-shaped flow is wrong for something edited for the life of the shop.
+ *
+ * **Saves are per card, and mount only when that card is dirty**, so the
  * screen has at most one primary button visible in practice. E2-pending §1
  * flags the shop detail page for showing three at once; this is the same shape
  * with the dirty gate doing the work.
@@ -90,6 +102,13 @@ export function BrandKitScreen({
     kit.primaryColor !== baseline.primaryColor ||
     kit.secondaryColor !== baseline.secondaryColor ||
     kit.accentColor !== baseline.accentColor
+
+  const fonts = resolveFonts(kit)
+  const baselineFonts = resolveFonts(baseline)
+  const typographyDirty =
+    fonts.display !== baselineFonts.display ||
+    fonts.price !== baselineFonts.price ||
+    fonts.body !== baselineFonts.body
 
   async function save(section: SaveSection, patch: Partial<BrandKit>) {
     setSaving(section)
@@ -167,29 +186,39 @@ export function BrandKitScreen({
         </p>
       ) : null}
 
-      <BrandKitSummary />
-
       {!canEdit ? (
         <p className="font-ui text-body-sm text-muted">
           You need to be a manager of this shop to change its brand.
         </p>
       ) : (
         <>
-          <Section
+          <BrandCard
+            icon={ImageIcon}
             title="Logo"
             description="Used on the header, the footer and the cover of every offer book."
+            state={logoUrl ? 'Uploaded' : 'Not set yet'}
             note={brandOverride === 'inherit' ? null : sourceNote(source.logo)}
           >
             <LogoField variant="secondary" />
-          </Section>
+          </BrandCard>
 
-          <Section
+          <BrandCard
+            icon={Palette}
             title="Colours"
             description="Primary and secondary set the page. Accent is what prices and badges are drawn in."
+            state={COLOR_SLOTS.every(({ key }) => kit[key]) ? 'Three set' : 'Not set yet'}
             note={brandOverride === 'inherit' ? null : sourceNote(source.colors)}
             feedback={feedback?.section === 'colors' ? feedback : null}
           >
             <ColorFields />
+
+            <div className="flex flex-col gap-2">
+              <span className="font-ui text-label font-medium text-secondary">Preview</span>
+              <div className="overflow-hidden rounded-control border-hairline border-border-subtle">
+                <OfferPreview colors={colors} shopName={shopName} className="block h-auto w-full" />
+              </div>
+            </div>
+
             {colorsDirty ? (
               <div className="flex gap-2">
                 <Button
@@ -216,8 +245,62 @@ export function BrandKitScreen({
                 </Button>
               </div>
             ) : null}
-          </Section>
+          </BrandCard>
 
+          <BrandCard
+            icon={Type}
+            title="Typography"
+            description="Three typefaces: one for names, one for prices, one for the small print."
+            state={`${fonts.display} · ${fonts.price} · ${fonts.body}`}
+            note={brandOverride === 'inherit' ? null : sourceNote(source.typography)}
+            feedback={feedback?.section === 'typography' ? feedback : null}
+          >
+            <TypographyFields />
+
+            {typographyDirty ? (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={saving === 'typography'}
+                  onClick={() => void save('typography', typographyPatch(kit))}
+                >
+                  Save typography
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    const store = useBrandStore.getState()
+                    store.setFont('display', baselineFonts.display)
+                    store.setFont('price', baselineFonts.price)
+                    store.setFont('body', baselineFonts.body)
+                    setFeedback(null)
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : null}
+          </BrandCard>
+
+          {/* The fourth facet of a kit is what it builds with. A kit holds no
+              layout — a book picks its own grid — but the blocks it draws with
+              are the shop's, and this is where they will live. Disabled with
+              the reason visible rather than omitted, the same rule the left
+              rail follows for an unbuilt destination. */}
+          <BrandCard
+            icon={Shapes}
+            title="Blocks"
+            description="The building blocks your offer books are made of — an offer card, a header, a footer."
+            state={EDITOR_BUILT ? 'Ready' : 'Not available yet'}
+            note={null}
+          >
+            <p className="font-ui text-body-sm text-muted">
+              Blocks arrive with the offer book editor. Until then every book
+              uses the standard set, in your colours and typefaces.
+            </p>
+          </BrandCard>
         </>
       )}
 
@@ -238,25 +321,38 @@ function sourceNote(level: BrandLevel): string {
     : 'Set on this shop.'
 }
 
-function Section({
+function BrandCard({
+  icon: Icon,
   title,
   description,
+  state,
   note,
   feedback,
   children,
 }: {
+  icon: LucideIcon
   title: string
   description: string
+  /** What the owner has chosen, in a few words. The card answers it at a glance. */
+  state: string
   note?: string | null
   feedback?: { kind: 'error' | 'saved'; message: string } | null
   children: React.ReactNode
 }) {
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-heading text-primary">{title}</h2>
-        <p className="font-ui text-body-sm text-secondary">{description}</p>
-        {note ? <p className="font-ui text-body-sm text-muted">{note}</p> : null}
+    <Card className="flex flex-col gap-4">
+      <div className="flex items-start gap-3">
+        <IconChip icon={Icon} />
+
+        <div className="flex min-w-0 flex-col gap-1">
+          {/* `font-ui`, not `font-display`. Host Grotesk has no Arabic and the
+              checklist caps it at two appearances a screen — the page title and
+              an empty state. One card heading is four on this screen. */}
+          <h2 className="font-ui text-heading text-primary">{title}</h2>
+          <p className="font-ui text-body-sm text-secondary">{description}</p>
+          <p className="truncate font-ui text-body-sm text-primary">{state}</p>
+          {note ? <p className="font-ui text-body-sm text-muted">{note}</p> : null}
+        </div>
       </div>
 
       {/* Inline banners rather than toasts: `Toast` has a signature in the
@@ -276,7 +372,7 @@ function Section({
       ) : null}
 
       {children}
-    </section>
+    </Card>
   )
 }
 
@@ -320,7 +416,7 @@ function InheritanceSection({
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-heading text-primary">Where this brand comes from</h2>
+        <h2 className="font-ui text-heading text-primary">Where this brand comes from</h2>
         <p className="font-ui text-body-sm text-secondary">{LEVEL_SENTENCE[brandOverride]}</p>
       </div>
 
