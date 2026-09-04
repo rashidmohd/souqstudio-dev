@@ -49,7 +49,7 @@ export function BrandKitSummary({
           <LogoPlate label="Your logo" background="bg-stone-0" src={logoUrl} />
         ) : (
           <div className="flex flex-col gap-1">
-            <div className="flex h-24 items-center justify-center rounded-control border-hairline border-border-subtle bg-sand">
+            <div className="flex h-preview items-center justify-center rounded-control border-hairline border-border-subtle bg-sand">
               <span className="font-ui text-body-sm text-secondary">No logo yet</span>
             </div>
             <span className="font-ui text-body-sm text-muted">Your logo</span>

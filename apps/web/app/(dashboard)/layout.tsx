@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
 import { cookies } from 'next/headers'
 import { DashboardRail } from '@/components/shared/dashboard-rail'
+import { getActiveShop } from '@/lib/active-shop'
+import { organizationName } from '@/lib/organization'
 import { RAIL_COOKIE, parseRailState } from '@/lib/rail-preference'
 import { requireCompliantSession } from '@/lib/session'
+import { listShopOptions } from '@/lib/shops'
 
 /**
  * The app shell. Layout family 1 — see the design skill →
@@ -25,12 +28,28 @@ import { requireCompliantSession } from '@/lib/session'
  * guards its own destination and redirects forever. See TWO_FACTOR_SETUP_PATH.
  */
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  await requireCompliantSession()
+  const session = await requireCompliantSession()
   const railState = parseRailState(cookies().get(RAIL_COOKIE)?.value)
+
+  // In parallel: three independent reads, all of them the rail's. The shell is
+  // rendered on every signed-in request, so they run together rather than in
+  // sequence behind each other.
+  const [shops, activeShop, organization] = await Promise.all([
+    listShopOptions(session),
+    getActiveShop(session),
+    organizationName(session),
+  ])
 
   return (
     <div className="flex min-h-screen bg-page">
-      <DashboardRail initialState={railState} />
+      <DashboardRail
+        initialState={railState}
+        userName={session.user.name}
+        userEmail={session.user.email}
+        shops={shops}
+        activeShopId={activeShop?.id ?? null}
+        organizationName={organization}
+      />
       <main className="min-w-0 flex-1">{children}</main>
     </div>
   )

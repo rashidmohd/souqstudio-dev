@@ -21,9 +21,9 @@ type SkeletonProps = {
 
 const SHAPE_CLASS = {
   text: 'h-4 w-full rounded-control',
-  card: 'h-32 w-full rounded-card',
+  card: 'h-skeleton-card w-full rounded-card',
   row: 'min-h-row w-full rounded-control',
-  chip: 'h-6 w-16 rounded-chip',
+  chip: 'h-6 w-skeleton-chip rounded-chip',
 } as const
 
 export const Skeleton = React.forwardRef<HTMLDivElement, SkeletonProps>(function Skeleton(

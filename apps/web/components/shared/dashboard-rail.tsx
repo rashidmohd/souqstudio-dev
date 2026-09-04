@@ -16,10 +16,13 @@ import {
   CreditCard,
   UserCog,
 } from 'lucide-react'
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { ShopSwitcher } from '@/components/shop/ShopSwitcher'
 import { NavItem } from '@/components/shared/nav-item'
 import { cn } from '@/lib/utils'
 import { railCookie, type RailState } from '@/lib/rail-preference'
+import type { ShopOption } from '@/lib/shops'
 import {
   ANALYTICS_BUILT,
   BRAND_KIT_BUILT,
@@ -92,7 +95,21 @@ const ORG_SCOPE = [
 
 const USER_SCOPE = [{ icon: UserCog, label: 'Account', href: '/settings/account' }]
 
-export function DashboardRail({ initialState }: { initialState: RailState }) {
+export function DashboardRail({
+  initialState,
+  userName,
+  userEmail,
+  shops,
+  activeShopId,
+  organizationName,
+}: {
+  initialState: RailState
+  userName: string | null
+  userEmail: string
+  shops: ShopOption[]
+  activeShopId: string | null
+  organizationName: string | null
+}) {
   const pathname = usePathname()
   const [state, setState] = React.useState<RailState>(initialState)
   const collapsed = state === 'collapsed'
@@ -144,8 +161,14 @@ export function DashboardRail({ initialState }: { initialState: RailState }) {
           the wordmark appears only when the rail is both wide and expanded. */}
       <div
         className={cn(
-          'mb-2 flex items-center gap-1',
-          collapsed ? 'flex-col' : 'flex-col lg:flex-row lg:justify-between lg:gap-2 lg:ps-2'
+          // 24px below the mark against 4px between nav rows: the mark is a
+          // header, not the first item, and at 8px it read as neither. The
+          // nav's own `gap-1` adds 4px on top of this.
+          'mb-6 flex items-center gap-2',
+          // `ps-3`, not `ps-2`. Nav rows pad themselves 12px inside the rail's
+          // 12px, so a label starts 24px from the edge; the mark has to start
+          // there too or the rail has two left edges.
+          collapsed ? 'flex-col' : 'flex-col lg:flex-row lg:justify-between lg:gap-2 lg:ps-3'
         )}
       >
         <Image
@@ -194,13 +217,30 @@ export function DashboardRail({ initialState }: { initialState: RailState }) {
         </Button>
       </div>
 
+      {/* Each zone is headed by what it is scoped to, which is the whole point
+          of the divider below. Without these the rail is one column of nine
+          destinations and nothing says that `Brand kit` belongs to a branch
+          while `Shops` belongs to the business. */}
+      <ShopSwitcher shops={shops} activeShopId={activeShopId} collapsed={collapsed} />
+
       <div className="flex flex-col gap-1">
         {SHOP_SCOPE.map((item) => (
           <NavItem key={item.href} {...item} active={isActive(item.href)} collapsed={collapsed} />
         ))}
       </div>
 
-      <hr className="my-2 border-t-hairline border-border-subtle" />
+      <hr className="my-3 border-t-hairline border-border-subtle" />
+
+      {/* The eyebrow role is 11px mono, and the scale calls it caps — but this
+          is a proper name, and the system's own casing rule keeps those in
+          their own casing. So: the eyebrow's size and colour, the name's
+          capitals. Hidden wherever the rail is narrow; 64px cannot hold a
+          business name and truncating one to three letters says nothing. */}
+      {organizationName && !collapsed ? (
+        <p className="mb-1 hidden truncate px-3 font-figure text-eyebrow text-muted lg:block">
+          {organizationName}
+        </p>
+      ) : null}
 
       <div className="flex flex-col gap-1">
         {ORG_SCOPE.map((item) => (
@@ -208,9 +248,20 @@ export function DashboardRail({ initialState }: { initialState: RailState }) {
         ))}
       </div>
 
+      {/* The user zone. `leading` carries an avatar rather than the glyph: this
+          row is a person, which is the whole reason it is pinned down here away
+          from the org's own settings. The label stays `Account` — the
+          destination is what the row promises, and the avatar is what says
+          whose it is. */}
       <div className="mt-auto flex flex-col gap-1">
         {USER_SCOPE.map((item) => (
-          <NavItem key={item.href} {...item} active={isActive(item.href)} collapsed={collapsed} />
+          <NavItem
+            key={item.href}
+            {...item}
+            active={isActive(item.href)}
+            collapsed={collapsed}
+            leading={<Avatar name={userName} email={userEmail} />}
+          />
         ))}
       </div>
     </nav>

@@ -170,7 +170,7 @@ export function ShopAccessField({
               {!isOwner && row?.granted ? (
                 <Select
                   label="Role in this shop"
-                  className="w-44"
+                  className="w-field-select"
                   value={row.role}
                   onChange={(e) => update(person.id, { role: e.target.value })}
                   options={[

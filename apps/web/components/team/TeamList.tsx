@@ -139,7 +139,7 @@ export function TeamList({
               member.role !== 'owner' ? (
                 <Select
                   label="Role"
-                  className="w-36"
+                  className="w-field-select"
                   value={member.role}
                   disabled={busyRow === member.id}
                   onChange={(e) => changeRole(member, e.target.value)}

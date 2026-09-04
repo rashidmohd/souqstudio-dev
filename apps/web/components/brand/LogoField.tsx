@@ -236,7 +236,7 @@ export function LogoPlate({
   return (
     <div className="flex flex-col gap-1">
       <div
-        className={`flex h-24 items-center justify-center rounded-control border-hairline border-border-subtle ${background}`}
+        className={`flex h-preview items-center justify-center rounded-control border-hairline border-border-subtle ${background}`}
       >
         <Image
           src={src}
@@ -246,7 +246,7 @@ export function LogoPlate({
           // Already normalized and stored by us; the optimizer would re-fetch a
           // remote URL for no gain.
           unoptimized
-          className="max-h-16 w-auto object-contain"
+          className="max-h-preview-cap w-auto object-contain"
         />
       </div>
       <span className="font-ui text-body-sm text-muted">{label}</span>

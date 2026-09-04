@@ -19,6 +19,30 @@ import type { VerifiedSession } from '@/lib/session'
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 100
 
+/**
+ * The rail's switcher list: reachable shops, id and name only.
+ *
+ * Separate from `listShops` because that one carries a member count, the latest
+ * offer book and the brand override for the settings page, and the rail renders
+ * on every signed-in request. Same `shopWhere`, so "which shops can this person
+ * see" still has one implementation, and the same ordering so the switcher and
+ * the settings list agree.
+ *
+ * Capped rather than paginated. A native picker with two hundred entries is the
+ * wrong control anyway — if an organization ever gets there, the switcher needs
+ * a search, not a longer list.
+ */
+export type ShopOption = { id: string; name: string }
+
+export async function listShopOptions(session: VerifiedSession): Promise<ShopOption[]> {
+  return prisma.shop.findMany({
+    where: await shopWhere(session),
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: MAX_LIMIT,
+    select: { id: true, name: true },
+  })
+}
+
 export type ListShopsOptions = {
   cursor?: string | undefined
   limit?: number | undefined

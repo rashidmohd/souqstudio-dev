@@ -419,11 +419,40 @@ its accessibility tree for free. Matches `Input`: label above always, 8px rectan
 rather than a pill, error supersedes hint, `aria-invalid` and `aria-describedby` wired.
 
 **Added by E2 without going through this file first** — the inventory listed no select,
-dropdown or combobox at all, and E2 needed one in four places. Two questions it would
-have forced, still open: whether the shop switcher uses this or is its own component
-with its own affordance (a native select in the rail reads as a form field in a
-navigation column), and whether it needs `Input`'s `size: 'default' | 'lg'` — without it
-a select beside a `size="lg"` input will not line up.
+dropdown or combobox at all, and E2 needed one in four places. Of the two questions it
+would have forced, one is now answered: the shop switcher is its own component and does
+*not* use this one — see `ShopSwitcher` below. Still open: whether this needs `Input`'s
+`size: 'default' | 'lg'` — without it a select beside a `size="lg"` input will not line up.
+
+### ShopSwitcher
+
+| | |
+| --- | --- |
+| File | `components/shop/ShopSwitcher.tsx` |
+| Status | `built` — apps/web only, E2 |
+| Governs | layout-map.md → App shell → the rail's shop zone |
+
+```tsx
+type ShopSwitcherProps = {
+  shops: ShopOption[]               // { id, name } from lib/shops.ts
+  activeShopId: string | null
+  collapsed: boolean                // matches NavItem's
+}
+```
+
+**A bare native `<select>` laid transparently over our own row, not `Select`.** The
+objection to `Select` here was that it reads as a form field in a navigation column —
+true of its label-above-a-rectangle shell, not of the element. This keeps the platform
+picker, its scroll physics and its accessibility tree, and still looks like a nav row.
+The visible markup is `aria-hidden`; the select carries the accessible name, so the row
+is announced once, as one control.
+
+**One shop renders no control**, not a disabled one: a disabled switcher's reason cannot
+be shown in a 280px column, and a reason living only in a tooltip is barred.
+
+The shop's mark is a `--sq-radius-chip` square on `--sq-sky-tint`, deliberately against
+the account row's sand circle. A shop is a thing and a person is a person, and the two
+sit at opposite ends of the same rail.
 
 ### DataTable
 
@@ -523,6 +552,7 @@ type NavItemProps = {
   href: string
   active?: boolean
   collapsed?: boolean               // icon only — the owner's collapse
+  leading?: ReactNode               // replaces the icon; the account row's avatar
 }
 ```
 
@@ -535,6 +565,45 @@ measuring the viewport in JavaScript, which flashes the wrong state on first
 paint, so the sub-1024px collapse stays in CSS and hides the label with
 `hidden lg:inline`. The two compose. `aria-label` and `title` are set at every
 width, collapsed or not.
+
+**Every row's leading element occupies the same 28px box**, whatever it holds — a 20px
+glyph, the account avatar, the switcher's chip. Three different box widths put the labels
+in two columns 8px apart and centre the glyphs on two axes once the rail collapses. The
+box is the column; what sits in it is not.
+
+**`leading` replaces the glyph, and `icon` stays required anyway.** The account row
+passes an `Avatar` because it is a person, not a destination. Making `icon`
+optional alongside it would allow a row with neither, and the rail would have two
+item shapes instead of one.
+
+---
+
+### Avatar
+
+| | |
+| --- | --- |
+| File | `components/ui/avatar.tsx` |
+| Status | `built` — apps/web only |
+| Governs | SKILL.md → Colour → the fill-only tier |
+
+```tsx
+type AvatarProps = {
+  name: string | null               // users.name is nullable
+  email: string                     // the fallback initial comes from here
+  className?: string
+}
+```
+
+**Initials, not an image.** `users` has no avatar column and no upload path, so this
+is not a placeholder waiting for a photo — it is the component. `--sq-size-chip`
+(28px, 32px coarse), circular, `--sq-sand` with `--sq-charcoal` on it at 10.22:1,
+which is the icon-chip pairing and keeps it inside the fill-only tier's one rule.
+
+`aria-hidden` always: it sits inside a control that already carries an accessible
+name, and two letters read aloud as letters is noise, not identity. Initials come
+from `lib/initials.ts` — first and last word of the name, else the email's local
+part, never the domain, and split by code point so an Arabic or astral first letter
+survives.
 
 ---
 

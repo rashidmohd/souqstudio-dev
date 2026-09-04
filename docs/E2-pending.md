@@ -78,22 +78,25 @@ Needs `POST /organizations/:id/logo/upload-url` and `POST /organizations/:id/log
 cloning the two-step in `app/api/v1/brand/logo/`. `orgAssetKey()` already exists in
 `lib/r2.ts`.
 
-### Shop switcher in the rail
+### Shop switcher in the rail — **built**
 
-`layout-map.md` puts a switcher at the top of the shop-scope zone. It does not exist.
-The interim is a "Switch to" row action on `/settings/shops`, which writes the same
-`sq_shop` cookie through `PUT /api/v1/shops/active` — functional, but it means changing
-shop is a trip to settings rather than one control in the rail.
+`components/shop/ShopSwitcher.tsx`, at the head of the shop-scope zone. The `/settings/shops`
+row action still works and still writes the same cookie through `PUT /api/v1/shops/active`;
+the switcher calls that same route, so there is one place where switching is authorized.
 
-Blocked on two questions the component inventory would have forced (both now recorded in
-that file):
+**The open question is answered: its own component, with a bare native `<select>` inside
+it.** The objection was that a native select in a navigation column reads as a form field
+— true of `components/ui/select.tsx`, which is a labelled 8px rectangle by design, and not
+true of the element. So the row is our own markup and the select lies transparently over
+it: no label above, no rectangle, and the platform picker and accessibility tree still come
+for free on a tablet, which is the same reason `Select` is native underneath.
 
-- Does the switcher use `components/ui/select.tsx`, or is it its own component? A native
-  select in a navigation column reads as a form field.
-- Does `Select` need `Input`'s `size: 'default' | 'lg'`? Without it a select beside a
-  `size="lg"` input will not line up.
+One shop renders no control, rather than a disabled one whose reason cannot be shown.
 
-Also unbuilt from the same diagram: the `[org name]` zone header.
+`Select`'s second question — whether it needs `Input`'s `size: 'default' | 'lg'` — is
+untouched by this and still open.
+
+The `[org name]` zone header from the same diagram is also built, in the rail itself.
 
 ### E2-01 — delete organization
 

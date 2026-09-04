@@ -160,6 +160,11 @@ const config: Config = {
         control: 'var(--sq-h-control)',
         'control-lg': 'var(--sq-h-control-lg)',
         chip: 'var(--sq-size-chip)',
+        preview: 'var(--sq-preview)',
+        'skeleton-card': 'var(--sq-skeleton-card)',
+      },
+      maxHeight: {
+        'preview-cap': 'var(--sq-preview-cap)',
       },
       minHeight: {
         control: 'var(--sq-h-control)',
@@ -174,12 +179,15 @@ const config: Config = {
         chip: 'var(--sq-size-chip)',
         rail: 'var(--sq-rail)',
         'rail-collapsed': 'var(--sq-rail-collapsed)',
+        'field-select': 'var(--sq-field-select)',
+        'skeleton-chip': 'var(--sq-skeleton-chip)',
       },
       // `size-*` derives from `spacing` like the rest, so the glyph sizes have
       // to be named here or `size-5` silently compiles to nothing.
       size: {
         icon: 'var(--sq-icon)',
         'icon-lg': 'var(--sq-icon-lg)',
+        'control-lg': 'var(--sq-h-control-lg)',
       },
       borderWidth: {
         hairline: '0.5px',

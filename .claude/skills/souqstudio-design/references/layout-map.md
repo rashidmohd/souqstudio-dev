@@ -54,6 +54,12 @@ link: `Offer books` is directly below it and already goes home.
 The rail has **two scope zones separated by a hard divider**, because every screen belongs
 to either the org or one shop and users get badly confused when those mix:
 
+Both zone headers are built: the switcher is `components/shop/ShopSwitcher.tsx`, and the
+org name is rendered by the rail itself, in the eyebrow's size and colour but in the
+name's own capitals — the scale calls eyebrows caps, and the casing rule keeps proper
+names as they are. Both are hidden wherever the rail is narrow; 64px cannot hold a
+business name, and truncating one to three letters says nothing.
+
 ```
 [shop switcher]
   Offer books        ← shop scope
@@ -67,7 +73,7 @@ to either the org or one shop and users get badly confused when those mix:
   Team
   Billing
 ──────────────       ← pinned to the foot
-  Account            ← user scope
+  Account            ← user scope, an Avatar rather than a glyph
 ```
 
 **`Organization` was added by E2-01** and leads the org zone. The three entries below

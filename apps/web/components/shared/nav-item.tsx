@@ -28,9 +28,25 @@ type NavItemProps = {
    * mechanisms compose — collapsed by choice, collapsed by width, or both.
    */
   collapsed?: boolean | undefined
+  /**
+   * Replaces the icon. The account row is a person rather than a destination,
+   * so it passes an `Avatar`.
+   *
+   * `icon` stays required rather than going optional alongside this. Every row
+   * still has to name a glyph, so a row with neither is not expressible and the
+   * rail keeps one shape for its items instead of two.
+   */
+  leading?: React.ReactNode
 }
 
-export function NavItem({ icon: Icon, label, href, active = false, collapsed = false }: NavItemProps) {
+export function NavItem({
+  icon: Icon,
+  label,
+  href,
+  active = false,
+  collapsed = false,
+  leading,
+}: NavItemProps) {
   return (
     <Link
       href={href}
@@ -49,7 +65,14 @@ export function NavItem({ icon: Icon, label, href, active = false, collapsed = f
         collapsed ? 'justify-center px-0' : 'justify-center px-0 lg:justify-start lg:px-3'
       )}
     >
-      <Icon className="size-icon-lg shrink-0" aria-hidden="true" />
+      {/* Every row's leading element occupies the same 28px box, whatever it
+          holds. A 20px glyph, a 28px avatar and the switcher's 28px chip
+          otherwise start their labels in two different columns 8px apart, and
+          centre on two different axes once the rail collapses. The box is the
+          column; what sits in it is not. */}
+      <span className="flex h-chip w-chip shrink-0 items-center justify-center">
+        {leading ?? <Icon className="size-icon-lg" aria-hidden="true" />}
+      </span>
       {collapsed ? null : <span className="hidden truncate lg:inline">{label}</span>}
     </Link>
   )

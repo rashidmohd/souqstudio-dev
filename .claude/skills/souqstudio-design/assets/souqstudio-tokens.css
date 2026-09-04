@@ -157,6 +157,17 @@
   --sq-rail:           280px;
   --sq-rail-collapsed:  64px;
 
+  /* Component box sizes. Off the spacing scale on purpose: spacing is the gap
+     between things, and these are things. Each one replaces a Tailwind default
+     — h-24, h-32, max-h-16, w-36, w-44, size-10 — that compiled to nothing once
+     this file replaced the scale, so the value lived in the markup and never
+     reached the render. A box that needs a size needs a name. */
+  --sq-preview:         96px;   /* logo preview box */
+  --sq-preview-cap:     64px;   /* the logo sitting inside it */
+  --sq-skeleton-card:  128px;   /* stands in for a real card */
+  --sq-skeleton-chip:   64px;   /* stands in for a chip */
+  --sq-field-select:   176px;   /* a role select; its longest option sets this */
+
   --sq-dur-fast: 120ms;
   --sq-dur-base: 200ms;
   --sq-ease: cubic-bezier(0.2, 0, 0.2, 1);

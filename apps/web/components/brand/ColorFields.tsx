@@ -97,7 +97,7 @@ export function ColorFields() {
                 value={value}
                 onChange={(event) => setColor(key, event.target.value)}
                 aria-label={`${label} colour picker`}
-                className="size-10 shrink-0 cursor-pointer rounded-control border border-border-strong bg-input"
+                className="size-control-lg shrink-0 cursor-pointer rounded-control border border-border-strong bg-input"
               />
               <div className="min-w-0 flex-1">
                 <Input
