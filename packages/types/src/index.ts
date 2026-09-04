@@ -1,6 +1,12 @@
 // Shared TypeScript types for SouqStudio
 // Add types here that are used across multiple apps/packages
 
+// The composition model — blocks, page grids, flow and pins. See
+// `docs/composition-model.md`. It supersedes `GridConfig`, `TemplateConfig` and
+// the E6 §2 grammar further down this file; those stay until the E4 brand flow
+// is migrated off them.
+export * from './composition'
+
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'
 export type BillingStatus = 'active' | 'past_due' | 'suspended' | 'cancelled'
 export type OfferBookStatus = 'draft' | 'published' | 'archived'

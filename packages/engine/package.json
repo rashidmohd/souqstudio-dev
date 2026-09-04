@@ -1,0 +1,20 @@
+{
+  "name": "@souqstudio/engine",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@souqstudio/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@souqstudio/config": "workspace:*",
+    "typescript": "^5.0.0",
+    "vitest": "^2"
+  }
+}

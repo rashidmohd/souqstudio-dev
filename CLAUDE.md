@@ -159,9 +159,13 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   NULL and the migration only seeds the organizations that already existed. The signup
   path must seed `Deal` and `Offer` for every new org or its first offer fails. See
   `docs/E5-product-catalog.md` §9.
-- **The layout engine does not exist.** E6 v2 composes pages with one; it is shared
-  between web and worker, so it belongs in `packages/`, not `apps/web/lib`. Two
-  implementations would drift, and drift means the PDF does not match the screen.
+- **The layout engine exists as pure functions only.** `packages/engine` carries track
+  resolution, span geometry with RTL mirroring, arrangement selection, grid validation and
+  the flow engine, all tested. Nothing imports it yet: there is no `blocks` table, no
+  `page_grids` table and no renderer, so it composes pages from data no screen can
+  produce. See `docs/composition-model.md` §12 for the order. It lives in `packages/`
+  because web and worker must share one implementation — two would drift, and drift means
+  the PDF does not match the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be
   uploaded to `https://assets.souqstudio.com/email/logo-dark.png` before any email is
   sent, or every message renders with a broken image at the top.

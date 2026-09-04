@@ -1,5 +1,10 @@
 # E6 — Offer Book Editor
 
+> **Partly superseded — read `docs/composition-model.md` first.**
+> §2 (template grammar), §5 (density profiles) and E6-05 (page management) are replaced by
+> the composition model: blocks with arrangements, a page as a grid of regions, one master
+> with instances, and products flowing through it. §1, §3, §4, §6, §7 and §8 stand.
+
 ## Overview
 
 The editor is the core of SouqStudio. It is where shop owners build their offer books.
