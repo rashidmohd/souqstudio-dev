@@ -40,6 +40,15 @@ export interface BrandFont {
   roles: FontRole[]
   /** Weights loaded for this family. Kept to what its roles actually use. */
   weights: number[]
+  /**
+   * Whether the family ships a true italic.
+   *
+   * Almost none do. Arabic has no italic convention, so Arabic-capable families
+   * generally omit it and a browser synthesises a slant instead — which looks
+   * wrong in Arabic and merely cheap in Latin. Italic stays available; this is
+   * what lets the picker say so.
+   */
+  hasItalic: boolean
   /** Shown under the name in the picker. Says what it is for, not what it is. */
   note: string
 }
@@ -53,60 +62,70 @@ export const BRAND_FONTS: readonly BrandFont[] = [
     family: 'Cairo',
     roles: ['display', 'body', 'headline'],
     weights: [400, 600, 700, 800],
+    hasItalic: false,
     note: 'Neutral and legible at any size. A safe default.',
   },
   {
     family: 'Tajawal',
     roles: ['body', 'display'],
     weights: [400, 500, 700],
+    hasItalic: false,
     note: 'Open and even. Reads well at small sizes.',
   },
   {
     family: 'Almarai',
     roles: ['body'],
     weights: [400, 700, 800],
+    hasItalic: false,
     note: 'Holds up on a dense page with many products.',
   },
   {
     family: 'Readex Pro',
     roles: ['display', 'body', 'headline'],
     weights: [400, 600, 700],
+    hasItalic: false,
     note: 'Modern and calm. Good for product names.',
   },
   {
     family: 'Rubik',
     roles: ['display', 'body', 'headline'],
     weights: [400, 500, 700, 800],
+    hasItalic: true,
     note: 'Slightly rounded. Friendly without being soft.',
   },
   {
     family: 'Changa',
     roles: ['price', 'display', 'headline'],
     weights: [500, 700, 800],
+    hasItalic: false,
     note: 'Narrow enough for a long price in a tight cell.',
   },
   {
     family: 'Lalezar',
     roles: ['headline', 'price', 'display'],
     weights: [400],
+    hasItalic: false,
     note: 'Heavy and loud. Built for hero bands and promo bursts.',
   },
   {
     family: 'Reem Kufi',
     roles: ['headline', 'display'],
     weights: [400, 600, 700],
+    hasItalic: false,
     note: 'Traditional shapes. Distinctive on a cover.',
   },
   {
     family: 'Baloo Bhaijaan 2',
     roles: ['headline', 'display', 'price'],
     weights: [400, 600, 800],
+    hasItalic: false,
     note: 'Rounded and warm. Reads as approachable.',
   },
   {
     family: 'Noto Sans Arabic',
     roles: ['body', 'display', 'price', 'headline'],
     weights: [400, 500, 700, 800],
+    hasItalic: false,
     note: 'The universal fallback. Covers everything.',
   },
 ]
@@ -228,6 +247,11 @@ export function googleFontsHref(families: readonly string[]): string {
 }
 
 /** A CSS font stack. The fallback is what shows while the face is loading. */
+/** Whether choosing italic on this family gets a real one or a synthesised slant. */
+export function supportsItalic(family: string): boolean {
+  return findFont(family)?.hasItalic ?? false
+}
+
 export function fontStack(family: string): string {
   return `'${family}', 'IBM Plex Sans Arabic', system-ui, sans-serif`
 }

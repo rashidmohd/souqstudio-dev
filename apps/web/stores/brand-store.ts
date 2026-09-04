@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import type { BrandColor, BrandKit, LogoStatus } from '@souqstudio/types'
+import type { BrandColor, BrandKit, LogoStatus, TextStyle } from '@souqstudio/types'
 import { ROLE_SLOT, type FontRole } from '@/lib/brand-fonts'
 
 /**
@@ -32,6 +32,7 @@ type BrandState = {
   setColors: (colors: Pick<BrandKit, 'primaryColor' | 'secondaryColor' | 'accentColor'>) => void
   setPalette: (palette: BrandColor[]) => void
   setFont: (role: FontRole, family: string) => void
+  setTextStyles: (styles: TextStyle[]) => void
   setLogo: (input: { logoUrl: string; suggestedColors: string[]; logoStatus: LogoStatus }) => void
   setLogoStatus: (status: LogoStatus) => void
   setSaving: (saving: boolean) => void
@@ -88,6 +89,11 @@ export const useBrandStore = create<BrandState>()(
     setFont: (role, family) =>
       set((state) => {
         state.kit[ROLE_SLOT[role]] = family
+      }),
+
+    setTextStyles: (styles) =>
+      set((state) => {
+        state.kit.textStyles = styles
       }),
 
     setLogo: ({ logoUrl, suggestedColors, logoStatus }) =>

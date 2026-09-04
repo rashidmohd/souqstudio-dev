@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
 import { ColorFields, firstInvalidColorSlot } from '@/components/brand/ColorFields'
 import { palettePatch, resolvePalette } from '@/lib/brand-palette'
-import { TypographyFields, typographyPatch } from '@/components/brand/TypographyFields'
+import { TypographyFields } from '@/components/brand/TypographyFields'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
 import { Image as ImageIcon, Palette, Shapes, Type, type LucideIcon } from 'lucide-react'
-import { FONT_ROLES, resolveFonts } from '@/lib/brand-fonts'
+import { resolveTextStyles, typographyPatch } from '@/lib/brand-typography'
 import { EDITOR_BUILT } from '@/lib/features'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
 import { useBrandStore } from '@/stores/brand-store'
@@ -105,9 +105,14 @@ export function BrandKitScreen({
       return was === undefined || was.hex !== color.hex || was.name !== color.name
     })
 
-  const fonts = resolveFonts(kit)
-  const baselineFonts = resolveFonts(baseline)
-  const typographyDirty = FONT_ROLES.some((role) => fonts[role] !== baselineFonts[role])
+  const styles = resolveTextStyles(kit)
+  const baselineStyles = resolveTextStyles(baseline)
+  const typographyDirty =
+    styles.length !== baselineStyles.length ||
+    styles.some((style, index) => {
+      const was = baselineStyles[index]
+      return was === undefined || JSON.stringify(was) !== JSON.stringify(style)
+    })
 
   async function save(section: SaveSection, patch: Partial<BrandKit>) {
     setSaving(section)
@@ -242,8 +247,8 @@ export function BrandKitScreen({
           <BrandCard
             icon={Type}
             title="Typography"
-            description="Four typefaces: hero headlines, product names, prices, and the small print."
-            state={FONT_ROLES.map((role) => fonts[role]).join(' · ')}
+            description="Your text styles, under your own names. Each carries its own typeface, size, weight and colour."
+            state={`${styles.length} styles`}
             note={brandOverride === 'inherit' ? null : sourceNote(source.typography)}
             feedback={feedback?.section === 'typography' ? feedback : null}
           >
@@ -255,7 +260,7 @@ export function BrandKitScreen({
                   type="button"
                   variant="primary"
                   loading={saving === 'typography'}
-                  onClick={() => void save('typography', typographyPatch(kit))}
+                  onClick={() => void save('typography', typographyPatch(styles))}
                 >
                   Save typography
                 </Button>
@@ -263,8 +268,7 @@ export function BrandKitScreen({
                   type="button"
                   variant="ghost"
                   onClick={() => {
-                    const store = useBrandStore.getState()
-                    for (const role of FONT_ROLES) store.setFont(role, baselineFonts[role])
+                    useBrandStore.getState().setTextStyles(baselineStyles)
                     setFeedback(null)
                   }}
                 >

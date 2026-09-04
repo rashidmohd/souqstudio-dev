@@ -98,6 +98,42 @@ export const TYPE_LEVELS: readonly TypeLevel[] = [
   'caption',
 ]
 
+/**
+ * A named text style, the way a brand guideline states one: "Product name",
+ * "Price", "Headline". The typography half of what `BrandColor` is for colour.
+ *
+ * Open-ended and named by the shop, for the same reason the palette is. A fixed
+ * h1–h6 ladder both capped a brand at eight styles and named them after nothing
+ * the owner recognises.
+ *
+ * `slot` is what a seeded block binds to, and is the only part of this the shop
+ * does not invent — a block shipped before it ever met this shop has to name
+ * something. A style the owner adds has no slot and needs none; a block they
+ * author references it by `id`.
+ */
+export interface TextStyle {
+  id: string
+  name: string
+  /** A family from the catalog. Not a stack — the catalog owns fallbacks. */
+  family: string
+  /** Multiplier on the scale's `base`. Never a pixel size. */
+  size: number
+  weight: number
+  /**
+   * Synthesised on most Arabic-capable families, which ship no true italic —
+   * and Arabic has no italic convention to synthesise toward. Offered, warned
+   * about, never blocked: it is the shop's brand.
+   */
+  italic: boolean
+  /** A `BrandColor.id`. Null means the block's default ink. */
+  colorId: string | null
+  lineHeight: number
+  letterSpacing?: number | undefined
+  transform?: 'none' | 'uppercase' | undefined
+  /** Which `TypeLevel` a seeded block reaches this style through, if any. */
+  slot?: TypeLevel | undefined
+}
+
 export interface TypeStep {
   /** Which face slot this level draws from. Re-bindable per level. */
   family: TypeFamily

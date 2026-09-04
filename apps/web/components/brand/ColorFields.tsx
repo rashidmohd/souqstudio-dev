@@ -160,17 +160,24 @@ function PaletteRow({
         />
       </div>
 
-      <Button
-        type="button"
-        variant="ghost"
-        iconOnly
-        disabled={!removable}
-        aria-label={`Remove ${color.name}`}
-        onClick={onRemove}
-        className="mt-6"
-      >
-        <X className="size-4" aria-hidden="true" />
-      </Button>
+      {/* Aligned by construction, not by an offset. Both fields are a label
+          over a control, so the button gets an empty label of its own rather
+          than a hand-tuned top margin that breaks the moment a label wraps. */}
+      <div className="flex flex-col gap-1">
+        <span aria-hidden="true" className="font-ui text-label font-medium">
+          &nbsp;
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          iconOnly
+          disabled={!removable}
+          aria-label={`Remove ${color.name}`}
+          onClick={onRemove}
+        >
+          <X className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
     </div>
   )
 }

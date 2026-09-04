@@ -52,6 +52,7 @@ const FACET_OF: Record<keyof BrandKit, BrandFacet> = {
   fontDisplay: 'typography',
   fontPrice: 'typography',
   fontBody: 'typography',
+  textStyles: 'typography',
   typeScale: 'typography',
   onboardingStep: 'progress',
   onboardingCompletedAt: 'progress',

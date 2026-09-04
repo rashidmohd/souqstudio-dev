@@ -6,7 +6,7 @@
 // the E6 §2 grammar further down this file; those stay until the E4 brand flow
 // is migrated off them.
 export * from './composition'
-import type { BrandColor, TypeScale } from './composition'
+import type { BrandColor, TextStyle, TypeScale } from './composition'
 
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'
 export type BillingStatus = 'active' | 'past_due' | 'suspended' | 'cancelled'
@@ -96,7 +96,16 @@ export interface BrandKit {
   fontDisplay?: string | undefined
   fontPrice?: string | undefined
   fontBody?: string | undefined
-  /** Families plus the ordered h1–h6 scale a block's text elements pick from. */
+  /**
+   * The shop's text styles, named by the shop — the typography half of a brand
+   * guideline, and the counterpart of `palette`.
+   *
+   * Open-ended for the same reason: a fixed h1–h6 ladder capped a brand at eight
+   * styles and named them after nothing an owner recognises. Each style carries
+   * its own family, size, weight, italic and colour.
+   */
+  textStyles?: TextStyle[] | undefined
+  /** The derived h1–h6 view, for blocks that bind to a slot. */
   typeScale?: TypeScale | undefined
   logoStatus?: LogoStatus | undefined
   /** The logo exactly as uploaded, kept so removal can be retried or undone. */

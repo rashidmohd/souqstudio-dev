@@ -180,6 +180,25 @@ module.exports = {
       },
     },
 
+    // ── The shop owner's own typography and palette ─────────────────────────
+    // The design system governs chrome and says so in its own scope note: "it
+    // does not govern what a shop owner produces", and brand kit fonts are "the
+    // one section about the owner's typography rather than ours — it constrains
+    // the picker, never the aesthetic result".
+    //
+    // These two files are that picker. `italic` here is a field on the shop's
+    // text style, not a class on our chrome; the hex values are the shop's own
+    // palette resolved for a preview. The rule cannot tell those from a real
+    // violation — the same blind spot the manual checklist calls out for an
+    // icon on sky — so the distinction is drawn by path, narrowly, and nowhere
+    // else. Chrome typography is still covered everywhere it lives.
+    {
+      files: ['**/lib/brand-typography.ts', '**/components/brand/TypographyFields.tsx'],
+      rules: {
+        'no-restricted-syntax': 'off',
+      },
+    },
+
     // ── The colour module is where literal colours live ─────────────────────
     // Same shape of exemption as lib/env.ts above: exactly one file may do the
     // thing the rule forbids everywhere else, because it is the file that

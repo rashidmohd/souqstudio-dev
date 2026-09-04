@@ -22,6 +22,12 @@ import { cn } from '@/lib/utils'
  * The hex field accepts what is typed, valid or not. Rejecting mid-keystroke
  * fights the person typing; `error` is the caller's to pass once they have
  * stopped.
+ *
+ * **`size` uses `Input`'s vocabulary and defaults to the same value**, so a
+ * colour field beside a text field lines up without anyone hand-tuning an
+ * offset. The inventory raised this against `Select` — "without it a select
+ * beside a `size="lg"` input will not line up" — and it is the same bug here.
+ * Two controls with a `size` prop must not disagree about what the values mean.
  */
 type ColorFieldProps = {
   label: string
@@ -32,6 +38,8 @@ type ColorFieldProps = {
   error?: string | undefined
   /** Fired on focus anywhere in the row. Lets a caller track the active slot. */
   onActivate?: (() => void) | undefined
+  /** 32px default, 40px `lg` — the same vocabulary as `Input` and `Button`. */
+  size?: 'default' | 'lg' | undefined
   id?: string | undefined
 }
 
@@ -42,6 +50,7 @@ export function ColorField({
   hint,
   error,
   onActivate,
+  size = 'default',
   id,
 }: ColorFieldProps) {
   const generatedId = React.useId()
@@ -57,7 +66,8 @@ export function ColorField({
 
       <div
         className={cn(
-          'flex h-control-lg items-stretch overflow-hidden rounded-control',
+          'flex items-stretch overflow-hidden rounded-control',
+          size === 'lg' ? 'h-control-lg' : 'h-control',
           'border-hairline bg-input',
           error ? 'border-border-critical' : 'border-border-strong'
         )}
@@ -69,7 +79,10 @@ export function ColorField({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           aria-label={`${label} colour picker`}
-          className="sq-swatch h-full w-12 shrink-0 border-e-hairline border-border-strong"
+          className={cn(
+            'sq-swatch h-full shrink-0 border-e-hairline border-border-strong',
+            size === 'lg' ? 'w-12' : 'w-8'
+          )}
         />
 
         <input

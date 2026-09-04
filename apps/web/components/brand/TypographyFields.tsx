@@ -1,139 +1,223 @@
 'use client'
 
 import * as React from 'react'
-import type { BrandKit } from '@souqstudio/types'
+import { Plus, X } from 'lucide-react'
+import type { BrandColor, TextStyle } from '@souqstudio/types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { useBrandStore } from '@/stores/brand-store'
+import { BRAND_FONTS, fontStack, googleFontsHref, supportsItalic } from '@/lib/brand-fonts'
+import { resolvePalette } from '@/lib/brand-palette'
 import {
-  FONT_ROLES,
-  ROLE_COPY,
-  ROLE_SLOT,
-  fontStack,
-  fontsForRole,
-  googleFontsHref,
-  resolveFonts,
-  type FontRole,
-} from '@/lib/brand-fonts'
+  MAX_STYLES,
+  SIZE_STEPS,
+  TYPE_BASE,
+  WEIGHTS,
+  canAddStyle,
+  canRemoveStyle,
+  italicIsSynthetic,
+  newTextStyle,
+  resolveTextStyles,
+} from '@/lib/brand-typography'
 
 /**
- * Choosing the three typefaces. E4, and
- * `souqstudio-design → references/brand-kit-fonts.md`.
+ * The shop's text styles. E4.
  *
- * **A curated list, not the Google Fonts library.** `lib/brand-fonts.ts` says
- * why, and filters each slot to the families that suit it: a price face has to
- * be narrow enough for a three-decimal Kuwaiti amount in a dense cell, and a
- * promo face is wrong for pack sizes.
+ * **A definition, not a ladder.** The palette page of a brand guideline says
+ * "these are our colours"; the type page says "these are our styles" — Headline,
+ * Product name, Small print — each with its own family, size, weight, italic and
+ * colour. It was a fixed h1–h6 scale, which capped a brand at eight styles and
+ * named them after nothing an owner recognises.
  *
- * **The specimen shows a hero band and a product card, not a card alone.** The
- * two are the reason `headline` is a slot of its own: a cover headline and a
- * product name are not the same voice, and a specimen that only drew a card
- * would let an owner pick a headline face without ever seeing it do its job.
+ * Styles a seeded block binds to cannot be deleted, and say so. Everything else
+ * the owner adds is theirs.
  *
- * Arabic sits above English on purpose. Every family here covers both, and
- * Arabic is where a face fails first — it also runs longer than its English
- * equivalent, which is the whole reason the fit ladder exists. Showing only
- * Latin would let an owner choose a face they will never see working.
- *
- * Changes land in the store immediately. Persisting is the caller's, matching
- * `ColorFields`.
+ * Changes land in the store immediately. Persisting is the caller's.
  */
 export function TypographyFields() {
-  const { kit, setFont } = useBrandStore()
-  const fonts = resolveFonts(kit)
+  const { kit, setTextStyles } = useBrandStore()
+  const styles = resolveTextStyles(kit)
+  const palette = resolvePalette(kit)
 
-  useGoogleFonts(Object.values(fonts))
+  useGoogleFonts(styles.map((style) => style.family))
+
+  const update = (id: string, patch: Partial<TextStyle>) =>
+    setTextStyles(styles.map((style) => (style.id === id ? { ...style, ...patch } : style)))
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
-        {FONT_ROLES.map((role) => (
-          <Select
-            key={role}
-            label={ROLE_COPY[role].label}
-            hint={hintFor(role, fonts[role])}
-            value={fonts[role]}
-            onChange={(event) => setFont(role, event.target.value)}
-            options={fontsForRole(role).map((font) => ({
-              value: font.family,
-              label: font.family,
-            }))}
+        {styles.map((style) => (
+          <StyleRow
+            key={style.id}
+            style={style}
+            palette={palette}
+            removable={canRemoveStyle(styles, style)}
+            onChange={(patch) => update(style.id, patch)}
+            onRemove={() => setTextStyles(styles.filter((s) => s.id !== style.id))}
           />
         ))}
       </div>
 
-      <Specimen fonts={fonts} />
-    </div>
-  )
-}
-
-function hintFor(role: FontRole, family: string): string {
-  const note = fontsForRole(role).find((font) => font.family === family)?.note
-  return note ? `${ROLE_COPY[role].hint} · ${note}` : ROLE_COPY[role].hint
-}
-
-/**
- * What the three faces look like together, at roughly the proportions a card
- * uses. Not the artboard — a real preview needs the block renderer — but enough
- * to tell whether a price face and a name face sit together.
- */
-function Specimen({ fonts }: { fonts: Record<FontRole, string> }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <span className="font-ui text-label font-medium text-secondary">Specimen</span>
-
-      {/* A hero band. This is what `headline` is for, and it is the half a
-          card-only specimen used to hide. */}
-      <div className="flex flex-col gap-1 rounded-control bg-stone-0 p-4">
-        <span className="font-ui text-label text-muted">Hero band · h1</span>
-        <p dir="rtl" className="text-display" style={{ fontFamily: fontStack(fonts.headline) }}>
-          رمضان كريم
-        </p>
-        <p className="text-display" style={{ fontFamily: fontStack(fonts.headline) }}>
-          Ramadan Kareem
-        </p>
-        <p className="text-body-sm text-secondary" style={{ fontFamily: fontStack(fonts.body) }}>
-          Save more on every basket this month
-        </p>
-      </div>
-
-      {/* An offer card. Different face, deliberately — that is the point. */}
-      <div className="flex flex-col gap-1 rounded-control bg-stone-0 p-4">
-        <span className="font-ui text-label text-muted">Offer card · h3</span>
-        <p dir="rtl" className="text-heading" style={{ fontFamily: fontStack(fonts.display) }}>
-          أرز بسمتي ذهبي
-        </p>
-        <p className="text-heading" style={{ fontFamily: fontStack(fonts.display) }}>
-          Golden basmati rice
-        </p>
-        <p className="text-body-sm text-secondary" style={{ fontFamily: fontStack(fonts.body) }}>
-          10 kg jute bag · product of India
-        </p>
-
-        {/* Western numerals and LTR, in Arabic too — E6 §6. */}
-        <p
-          dir="ltr"
-          data-figure
-          className="text-title"
-          style={{ fontFamily: fontStack(fonts.price), fontWeight: 800 }}
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={!canAddStyle(styles)}
+          onClick={() => setTextStyles([...styles, newTextStyle(kit, styles)])}
         >
-          AED 24.50
+          <Plus className="size-4" aria-hidden="true" />
+          Add a style
+        </Button>
+
+        <p className="font-ui text-body-sm text-muted">
+          <span data-figure>{styles.length}</span> of <span data-figure>{MAX_STYLES}</span>
         </p>
       </div>
     </div>
   )
 }
 
+function StyleRow({
+  style,
+  palette,
+  removable,
+  onChange,
+  onRemove,
+}: {
+  style: TextStyle
+  palette: BrandColor[]
+  removable: boolean
+  onChange: (patch: Partial<TextStyle>) => void
+  onRemove: () => void
+}) {
+  const color = palette.find((entry) => entry.id === style.colorId)
+
+  return (
+    <div className="flex flex-col gap-3 rounded-control border-hairline border-border-subtle p-3">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <Input
+            label="Name"
+            value={style.name}
+            onChange={(event) => onChange({ name: event.target.value })}
+            hint={style.slot ? 'Used by the standard blocks' : undefined}
+          />
+        </div>
+
+        {/* Aligned by construction — an empty label rather than a top margin. */}
+        <div className="flex flex-col gap-1">
+          <span aria-hidden="true" className="font-ui text-label font-medium">
+            &nbsp;
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            iconOnly
+            disabled={!removable}
+            aria-label={`Remove ${style.name}`}
+            onClick={onRemove}
+          >
+            <X className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Select
+          label="Typeface"
+          value={style.family}
+          onChange={(event) => onChange({ family: event.target.value })}
+          options={BRAND_FONTS.map((font) => ({ value: font.family, label: font.family }))}
+        />
+
+        <Select
+          label="Size"
+          value={String(style.size)}
+          onChange={(event) => onChange({ size: Number(event.target.value) })}
+          options={SIZE_STEPS.map((step) => ({ value: String(step), label: `${step}×` }))}
+          hint="Scales with the block"
+        />
+
+        <Select
+          label="Weight"
+          value={String(style.weight)}
+          onChange={(event) => onChange({ weight: Number(event.target.value) })}
+          options={WEIGHTS.map((weight) => ({ value: String(weight), label: String(weight) }))}
+        />
+
+        <Select
+          label="Style"
+          value={style.italic ? 'italic' : 'regular'}
+          onChange={(event) => onChange({ italic: event.target.value === 'italic' })}
+          options={[
+            { value: 'regular', label: 'Regular' },
+            { value: 'italic', label: 'Italic' },
+          ]}
+          // Stated, never blocked: it is the shop's brand.
+          hint={
+            italicIsSynthetic(style)
+              ? `${style.family} has no italic — this will be slanted, not italic`
+              : undefined
+          }
+        />
+      </div>
+
+      <Select
+        label="Colour"
+        value={style.colorId ?? ''}
+        onChange={(event) => onChange({ colorId: event.target.value || null })}
+        options={[
+          { value: '', label: 'Default ink' },
+          ...palette.map((entry) => ({ value: entry.id, label: entry.name })),
+        ]}
+      />
+
+      <Preview style={style} hex={color?.hex} />
+    </div>
+  )
+}
+
 /**
- * Load the chosen families from Google's CDN, for the specimen only.
+ * The style, drawn. Sized against a fixed reference block so the rows are
+ * comparable to each other — on a page the same multiplier resolves against
+ * whatever block it lands in.
+ */
+const REFERENCE_BLOCK = 360
+
+function Preview({ style, hex }: { style: TextStyle; hex: string | undefined }) {
+  const fontSize = TYPE_BASE * REFERENCE_BLOCK * style.size
+
+  const css: React.CSSProperties = {
+    fontFamily: fontStack(style.family),
+    fontSize,
+    fontWeight: style.weight,
+    lineHeight: style.lineHeight,
+    // The shop's own colour, not a design decision, so it cannot come from a
+    // token. Same exemption usage-meter.tsx relies on.
+    ...(hex ? { color: hex } : {}),
+    ...(style.italic ? { fontStyle: 'italic' as const } : {}),
+    ...(style.transform === 'uppercase' ? { textTransform: 'uppercase' as const } : {}),
+  }
+
+  return (
+    <div className="flex flex-col gap-1 rounded-control bg-stone-0 p-3">
+      {/* Arabic first: it is where a face fails, and it runs longer. */}
+      <p dir="rtl" style={css}>
+        أرز بسمتي ذهبي
+      </p>
+      <p style={css}>Golden basmati rice</p>
+    </div>
+  )
+}
+
+/**
+ * Load the chosen families from Google's CDN, for the previews only.
  *
- * One `<link>` per set of families, replaced when the set changes and left in
- * place otherwise, so switching a slot does not accumulate stylesheets. The tag
- * is not removed on unmount: the face is almost certainly wanted again on the
- * next render of this screen, and dropping it would flash the fallback.
- *
- * **Chrome only.** The export pipeline must self-host — Playwright cannot
- * depend on an external network on a critical path, and PDF embedding needs the
- * real file. See `lib/brand-fonts.ts`.
+ * **Chrome only.** The export pipeline must self-host — Playwright cannot depend
+ * on an external network on a critical path, and PDF embedding needs the real
+ * file. See `lib/brand-fonts.ts`.
  */
 function useGoogleFonts(families: readonly string[]): void {
   const href = googleFontsHref(families)
@@ -154,16 +238,4 @@ function useGoogleFonts(families: readonly string[]): void {
   }, [href])
 }
 
-/** The three slots a save sends. Exported so the caller cannot guess them. */
-export function typographyPatch(kit: BrandKit): Pick<
-  BrandKit,
-  'fontHeadline' | 'fontDisplay' | 'fontPrice' | 'fontBody'
-> {
-  const fonts = resolveFonts(kit)
-  return {
-    [ROLE_SLOT.headline]: fonts.headline,
-    [ROLE_SLOT.display]: fonts.display,
-    [ROLE_SLOT.price]: fonts.price,
-    [ROLE_SLOT.body]: fonts.body,
-  }
-}
+export { supportsItalic }

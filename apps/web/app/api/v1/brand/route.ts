@@ -12,6 +12,7 @@ import {
 import { isValidHex, EXAMPLE_HEX } from '@/lib/color'
 import { findFont } from '@/lib/brand-fonts'
 import { MAX_PALETTE, MIN_PALETTE } from '@/lib/brand-palette'
+import { MAX_STYLES, MIN_STYLES } from '@/lib/brand-typography'
 
 /**
  * E1-04 and E4 — read and save the brand kit.
@@ -63,6 +64,24 @@ const schema = z
     primaryColor: hex,
     secondaryColor: hex,
     accentColor: hex,
+    textStyles: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(64),
+          name: z.string().trim().min(1).max(40),
+          family: fontFamily,
+          size: z.number().positive().max(8),
+          weight: z.number().int().min(100).max(900),
+          italic: z.boolean(),
+          colorId: z.string().max(64).nullable(),
+          lineHeight: z.number().positive().max(4),
+          letterSpacing: z.number().optional(),
+          transform: z.enum(['none', 'uppercase']).optional(),
+          slot: z.enum(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption']).optional(),
+        })
+      )
+      .min(MIN_STYLES)
+      .max(MAX_STYLES),
     fontHeadline: fontFamily,
     fontDisplay: fontFamily,
     fontPrice: fontFamily,

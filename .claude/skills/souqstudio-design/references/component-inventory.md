@@ -190,7 +190,8 @@ type ColorFieldProps = {
   onChange: (hex: string) => void
   hint?: string
   error?: string
-  onActivate?: () => void      // fired on focus anywhere in the row
+  onActivate?: () => void          // fired on focus anywhere in the row
+  size?: 'default' | 'lg'          // same vocabulary as Input and Button
   id?: string
 }
 ```
@@ -209,8 +210,14 @@ tree — the same trade `Select` makes, for the same stated reason.
 fills its tile edge to edge. It lives in CSS rather than as Tailwind arbitrary
 variants, which the design system forbids — same reasoning as `.sq-wordmark`.
 
+**`size` matches `Input` and defaults to the same value**, so a colour field beside a
+text field lines up with no hand-tuned offset. This file raised that exact problem
+against `Select` — *"without it a select beside a `size='lg'` input will not line
+up"* — and it was shipped here once before being caught. **Any control that sits in a
+row beside `Input` needs this prop.** `Select` still does not have it.
+
 **Added without going through this file first is not what happened here** — it is
-recorded before use. Still open: whether it needs `Input`'s `size` vocabulary.
+recorded before use.
 
 ### LogoField · ColorFields · TypographyFields
 
@@ -230,10 +237,9 @@ type LogoFieldProps = {
 // Its validation is exported separately and is pure:
 function firstInvalidColorSlot(kit: BrandKit): { key: string; label: string } | null
 
-// TypographyFields takes no props either, same reason. Three Selects filtered
-// by role from `lib/brand-fonts.ts`, plus a bilingual specimen. What a save
-// sends is exported so the caller cannot guess the slots:
-function typographyPatch(kit: BrandKit): Pick<BrandKit, 'fontDisplay' | 'fontPrice' | 'fontBody'>
+// TypographyFields takes no props either, same reason. One row per text style:
+// name, typeface, size, weight, italic, colour, and a bilingual preview of that
+// style. `lib/brand-typography.ts` owns the defaults, the bounds and the patch.
 ```
 
 **`ChoiceGrid` and `ChoiceStep` are deleted**, along with `BrandKitSummary`. They
@@ -246,6 +252,22 @@ what is set, so a card restating all of it at the top was saying it twice.
 `BrandKitScreen.tsx`, the same way `Section` was before it. It is a composition
 of `Card` and `IconChip`, not a new primitive. If a second screen ever wants it,
 it comes through this file first.
+
+**Both edit open-ended lists, not fixed slots.** `ColorFields` is the palette page
+of a brand guideline and `TypographyFields` is the type page: named entries the
+shop invents, each carrying its own properties. A text style holds a typeface,
+size, weight, italic and a colour drawn from the palette.
+
+`MIN_STYLES` is 5 — the smallest set that can render a page: a headline, a
+product name, a price, supporting text and small print. A style a seeded block
+binds to cannot be deleted and says so, because deleting it would leave that
+block with nothing to set a product name in.
+
+**Italic is offered and warned about, never blocked.** Of the ten catalog
+families only Rubik ships a true italic; Arabic has no italic convention, so the
+rest get a synthesised slant and the hint says which. `eslint.design.cjs` exempts
+these two files from `no-restricted-syntax` — the rule governs chrome, and this
+is the owner's typography, which the design skill's own scope note excludes.
 
 **ColorFields edits an open-ended palette, not three fixed slots.** It was three
 rows labelled Primary, Secondary and Accent with a legend underneath explaining
