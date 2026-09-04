@@ -237,9 +237,9 @@ type LogoFieldProps = {
 // Its validation is exported separately and is pure:
 function firstInvalidColorSlot(kit: BrandKit): { key: string; label: string } | null
 
-// TypographyFields takes no props either, same reason. One row per text style:
-// name, typeface, size, weight, italic, colour, and a bilingual preview of that
-// style. `lib/brand-typography.ts` owns the defaults, the bounds and the patch.
+// TypographyFields takes no props either, same reason. A read-only list of
+// styles; editing happens in a `Dialog`. `lib/brand-typography.ts` owns the
+// defaults, the bounds and the patch.
 ```
 
 **`ChoiceGrid` and `ChoiceStep` are deleted**, along with `BrandKitSummary`. They
@@ -252,6 +252,18 @@ what is set, so a card restating all of it at the top was saying it twice.
 `BrandKitScreen.tsx`, the same way `Section` was before it. It is a composition
 of `Card` and `IconChip`, not a new primitive. If a second screen ever wants it,
 it comes through this file first.
+
+**The typography list shows the result; a `Dialog` does the editing.** A text
+style has six properties, and eight styles inline was forty-eight controls
+stacked in one card — a wall to scroll past rather than a guideline to read.
+Each row instead draws the style *as itself*, at its own weight, face and
+colour, over a plain-language summary ("Cairo · 1.25× · 700 · Deep blue"), so
+what an owner set is legible without decoding a form. This is `Dialog`'s first
+use as an edit surface rather than a confirmation; the "prefer undo over
+confirm" note above still governs destructive actions and is untouched.
+
+`ColorFields` stays inline — a colour row is a name and a swatch, and a dialog
+for two fields is friction with nothing to show for it.
 
 **Both edit open-ended lists, not fixed slots.** `ColorFields` is the palette page
 of a brand guideline and `TypographyFields` is the type page: named entries the
