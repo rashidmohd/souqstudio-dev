@@ -126,7 +126,7 @@ pnpm test
 pnpm db:generate
 pnpm db:push       # DEVELOPMENT ONLY
 pnpm db:migrate    # CI and production
-pnpm db:seed       # grids and templates — idempotent, safe to re-run
+pnpm db:seed       # plans — idempotent, safe to re-run. Blocks are not seeded yet.
 pnpm db:studio
 ```
 
@@ -170,9 +170,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation and
   the flow engine, all tested. `pnpm --filter @souqstudio/engine harness` renders sample
   pages to SVG from hardcoded blocks — that is how the model is checked, and it is not
-  the real renderer. Nothing in the apps imports the engine yet: there is no `blocks`
-  table, no `page_grids` table and no Fabric renderer, so it composes pages from data no
-  screen can produce. See `docs/composition-model.md` §12 for the order. It lives in `packages/`
+  the real renderer. **The tables now exist** — `blocks`, `block_versions`, `page_grids`,
+  `book_pins`, migrated 5 September — but `blocks` is empty and nothing in the apps
+  imports the engine yet. Two things stand between here and a visible page: a seeded block
+  library (the harness has working versions of an offer card, header, footer and hero
+  band) and a Fabric renderer. See `docs/composition-model.md` §12 for the order. It lives in `packages/`
   because web and worker must share one implementation — two would drift, and drift means
   the PDF does not match the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be

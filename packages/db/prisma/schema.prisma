@@ -36,7 +36,10 @@ model Organization {
   logoUrl  String?
   /// E2-05. Organization-level brand defaults — the kit every shop inherits
   /// from. Same shape as shops.brandKit:
-  /// { primaryColor, secondaryColor, accentColor, gridId, templateId, fontDisplay, fontPrice, fontBody }
+  /// `BrandKit` from @souqstudio/types: palette, textStyles, the four font
+  /// slots and logo status. Identity only — it holds no layout. A brand kit
+  /// has many blocks; it does not contain a choice of one, and which grid a
+  /// book uses is a decision about that book. See docs/composition-model.md §2.
   /// A shop resolves its effective kit from this plus its own, according to
   /// shops.brandOverride. See apps/web/lib/brand-inheritance.ts.
   brandKit Json?
@@ -78,6 +81,8 @@ model Organization {
   catalogImports        CatalogImport[]
   captureSessions       CaptureSession[]
   promoTiers            PromoTier[]
+  /// Blocks this organization authored. A seeded block has no organization.
+  blocks                Block[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -92,7 +97,10 @@ model Shop {
   location       String?
   phone          String?
   logoUrl        String?
-  /// { primaryColor, secondaryColor, accentColor, gridId, templateId, fontDisplay, fontPrice, fontBody }
+  /// `BrandKit` from @souqstudio/types: palette, textStyles, the four font
+  /// slots and logo status. Identity only — it holds no layout. A brand kit
+  /// has many blocks; it does not contain a choice of one, and which grid a
+  /// book uses is a decision about that book. See docs/composition-model.md §2.
   brandKit       Json?
   brandOverride  String  @default("inherit") // inherit | logo | colors | full
   isActive       Boolean @default(true)
@@ -510,21 +518,26 @@ model Plan {
   /// Sort order, and the only definition of "up" and "down". A plan change is
   /// an upgrade when the target tier is higher — that is what decides whether
   /// it applies now with proration or at the end of the period (E3-01).
-  tier              Int
+  tier               Int
   /// E3-03. Whether unused monthly credits survive the reset. Starter does not
   /// roll over; Pro and above carry up to CREDIT_ROLLOVER_MULTIPLE of the
   /// monthly allocation. See apps/web/lib/credits.ts.
-  creditsRollover   Boolean @default(false)
+  creditsRollover    Boolean @default(false)
   /// Stripe Price for the base subscription. Null on a plan that is not
   /// self-serve — Enterprise is a conversation, not a checkout button.
-  stripePriceId     String? @unique
+  stripePriceId      String? @unique
   /// Stripe Price for one shop above the included count, billed as a second
   /// subscription item with a quantity (E3-02). Null when the plan has no
   /// per-shop overage.
-  stripeShopPriceId String? @unique
+  stripeShopPriceId  String? @unique
   /// Whether the plan appears in the comparison table. An Enterprise or legacy
   /// plan stays assignable while being unlisted.
-  isPublic          Boolean @default(true)
+  isPublic           Boolean @default(true)
+  /// How many products one offer book may carry. A plan limit rather than an
+  /// architectural one: the real cost of 100 versus 400 is export duration and
+  /// how many pages stay live in Fabric, neither of which is a design problem.
+  /// Raising it is a row change. See docs/composition-model.md §7.
+  maxProductsPerBook Int     @default(100)
 
   /// Feature flags JSON. Shape: { allocatedCredits, prioritySupport,
   /// customTemplates, apiAccess, whiteLabel } — all booleans, all optional.
@@ -977,21 +990,14 @@ enum FootnoteScope {
 }
 
 model OfferBook {
-  id             String  @id @default(cuid())
-  shopId         String
-  title          String
-  format         String // instagram_post | story | whatsapp | leaflet | catalog | a3 | print
-  status         String  @default("draft") // draft | published | archived
-  /// The template whose grammar the engine places into. Null only on a book
-  /// created before a template was chosen; publish requires it.
-  templateId     String?
-  /// SHOWCASE | STANDARD | DENSE — E6 §5. Book-level default; a page may
-  /// override it. Eight offers a page and thirty offers a page are the same
-  /// template at different densities, not two templates.
-  densityProfile String  @default("STANDARD")
+  id       String @id @default(cuid())
+  shopId   String
+  title    String
+  format   String // instagram_post | story | whatsapp | leaflet | catalog | a3 | print
+  status   String @default("draft") // draft | published | archived
   /// The edition language this book was authored in. The sibling edition
   /// renders from the same rows; it is a render target, not a copy.
-  language       String  @default("en") // en | ar
+  language String @default("en") // en | ar
 
   shortCode     String          @unique
   shareableLink String?
@@ -999,7 +1005,11 @@ model OfferBook {
   passwordHash  String?
   linkActive    Boolean         @default(true)
   shop          Shop            @relation(fields: [shopId], references: [id])
-  template      Template?       @relation(fields: [templateId], references: [id])
+  /// The master grid and any cover or back page. Density is not stored: it is
+  /// the consequence of track count at a given page size, and two controls that
+  /// can disagree is one too many.
+  grids         PageGrid[]
+  pins          BookPin[]
   pages         OfferBookPage[]
   offers        Offer[]
   pageViews     PageView[]
@@ -1014,25 +1024,23 @@ model OfferBook {
 }
 
 model OfferBookPage {
-  id             String    @id @default(cuid())
-  bookId         String
+  id            String    @id @default(cuid())
+  bookId        String
   /// Zero-based render order.
-  index          Int
-  /// Which `PageType` in the template this page instantiates —
-  /// OFFER_GRID | CAMPAIGN | CROSS_SELL | COVER.
-  pageType       String
-  /// Overrides the book's density for this page only. Null inherits.
-  densityProfile String?
-  /// `SlotOverride[]`, keyed by slotId — see @souqstudio/types. Every entry is
-  /// a bounded delta against the engine's output: offset clamped to ±8% of slot
-  /// width, image scale 0.8..1.25, a pinned image, text overrides. Re-running
-  /// the engine preserves entries by slotId and discards orphans, which is what
-  /// makes a weekly reissue cheap.
+  index         Int
+  /// `SlotOverride[]` keyed by `regionId` + `offerId` — see @souqstudio/types.
+  /// Every entry is a bounded delta against the engine's output: offset clamped
+  /// to ±8% of region width, image scale 0.8..1.25, a pinned image, text
+  /// overrides.
+  ///
+  /// Keyed by region and offer rather than by grid position, and that is what
+  /// makes a weekly reissue cheap: swap four products and every surviving card
+  /// keeps its nudge. Position-derived ids could not survive a repack.
   ///
   /// This replaces the book-level `canvasState` Fabric dump. Fabric is no
   /// longer the source of truth for a page; the engine plus these deltas are.
-  slotOverrides  Json?
-  book           OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  slotOverrides Json?
+  book          OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, index])
   @@map("offer_book_pages")
@@ -1180,46 +1188,134 @@ model OfferShopOverride {
 }
 
 // ─── Templates & Grids ───────────────────────────────────────────────────────
-model Template {
-  id          String            @id @default(cuid())
-  name        String
-  description String?
-  /// Full template config JSON (background, typography, badge styles, etc.)
-  config      Json
-  status      String            @default("draft") // draft | published | archived
-  planTier    String            @default("starter") // starter | pro | business | enterprise
-  isSeasonal  Boolean           @default(false)
-  activeFrom  DateTime?
-  activeTo    DateTime?
-  versions    TemplateVersion[]
-  offerBooks  OfferBook[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+/// A designed building block — the unit an offer book is assembled from.
+///
+/// Lego, not a page. A block is one repeatable thing: an offer card, a header, a
+/// hero band, a footer. It knows its own interior and nothing about where it
+/// sits; the page grid decides that. See `docs/composition-model.md` §3.
+///
+/// This replaced `templates`, which described a whole page. A brand kit carries
+/// no layout any more and a book picks its own grid, so a template that bundled
+/// look *and* arrangement had nothing left to be.
+model Block {
+  id             String  @id @default(cuid())
+  /// Null for the blocks SouqStudio seeds. Set for ones an owner authored —
+  /// which is what makes a saved block the asset that compounds.
+  organizationId String?
+  name           String
+  description    String?
 
-  @@map("templates")
+  /// Does this block repeat over the product list, or is it placed once?
+  ///
+  /// The one distinction that matters, and it decides the binding vocabulary: a
+  /// repeating block offers product fields because it renders once per offer
+  /// and knows which one. A static block has no product in scope, so those
+  /// fields do not exist for it rather than merely being empty.
+  repeats Boolean @default(true)
+
+  /// `Arrangement[]` from @souqstudio/types — one layout per aspect range, so a
+  /// merged region reflows rather than stretching. Every colour inside is a
+  /// TokenRef and every size a multiple of the type scale; never a hex, never a
+  /// pixel.
+  arrangements Json
+
+  thumbnailUrl String?
+  status       String         @default("draft") // draft | published | archived
+  planTier     String         @default("starter")
+  isSeasonal   Boolean        @default(false)
+  activeFrom   DateTime?
+  activeTo     DateTime?
+  organization Organization?  @relation(fields: [organizationId], references: [id])
+  versions     BlockVersion[]
+  pins         BookPin[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([organizationId, status])
+  @@map("blocks")
 }
 
-model TemplateVersion {
-  id         String   @id @default(cuid())
-  templateId String
-  config     Json
-  template   Template @relation(fields: [templateId], references: [id])
-  createdAt  DateTime @default(now())
+model BlockVersion {
+  id           String   @id @default(cuid())
+  blockId      String
+  arrangements Json
+  block        Block    @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
 
-  @@map("template_versions")
+  @@index([blockId])
+  @@map("block_versions")
 }
 
-model Grid {
-  id                String   @id @default(cuid())
-  name              String
-  /// Grid config JSON (columns, rows, cell ratios, hero positions, etc.)
-  config            Json
-  compatibleFormats String[]
-  minProducts       Int      @default(1)
-  maxProducts       Int      @default(12)
-  status            String   @default("draft") // draft | published
+/// A page as a spreadsheet: fr tracks, merged regions, one block per region.
+///
+/// `role` is what makes a weekly reissue cheap. Body pages are instances of the
+/// `master` — edit it once and every page follows — while `cover` and `back` are
+/// authored individually and never repeat.
+model PageGrid {
+  id     String @id @default(cuid())
+  bookId String
+  /// master | cover | back
+  role   String @default("master")
 
-  @@map("grids")
+  /// Column track sizes in fr, in reading order. `Float[]`, not a grid preset:
+  /// tracks are draggable, exactly like column widths in a spreadsheet.
+  cols   Float[]
+  /// Row track sizes, top to bottom. Rows never mirror.
+  rows   Float[]
+  /// Gap between tracks, as a fraction of the shorter page edge.
+  gap    Float   @default(0.02)
+  /// Inset on all four sides, same units. Zero is full bleed — right for a
+  /// social post, wrong for anything a guillotine touches.
+  margin Float   @default(0)
+
+  /// `Region[]` from @souqstudio/types. Coordinates are logical and inclusive,
+  /// so an AR edition mirrors the whole grid — merges included — with no second
+  /// layout to author.
+  regions Json
+
+  book OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // No relation to `blocks`. A region names its block by id *inside* the
+  // `regions` JSON, and Prisma cannot enforce a foreign key through JSON — a
+  // relation here would only create a join table nothing ever writes to. The
+  // engine resolves block ids when it loads a book; that is the seam.
+
+  @@index([bookId])
+  @@map("page_grids")
+}
+
+/// A static block parked at a position in the flow. Products route around it.
+///
+/// A pin targets a *position*, not a card — which is the entire point. A
+/// replacement targets a card, and next week that card holds a different
+/// product, so the edit is meaningless or lost. With fifteen more products next
+/// week the brand ad is still on page 2 in the same two cells.
+///
+/// Displacement grows the book; it never consumes the product that would have
+/// sat there. Silently dropping a product is the class of bug that reaches
+/// print.
+model BookPin {
+  id        String @id @default(cuid())
+  bookId    String
+  /// Zero-based. Absolute for now; anchoring to a category boundary is v2 and
+  /// the schema must not foreclose it.
+  pageIndex Int
+  blockId   String
+
+  /// Logical and inclusive, same convention as a Region.
+  colStart Int
+  colEnd   Int
+  rowStart Int
+  rowEnd   Int
+
+  /// Static content for this pin — headline, image, whatever its block binds.
+  content Json?
+
+  book  OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  block Block     @relation(fields: [blockId], references: [id])
+
+  @@index([bookId, pageIndex])
+  @@map("book_pins")
 }
 
 // ─── AI & Characters ─────────────────────────────────────────────────────────

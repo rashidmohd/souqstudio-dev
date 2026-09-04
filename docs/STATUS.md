@@ -11,6 +11,10 @@ Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pendi
 The epic specs themselves (`docs/E1-*.md` … `docs/E13-*.md`) stay the record of what was
 asked for — corrections to them are recorded in the pending notes, not edited in.
 
+The composition model's tables are migrated as of 5 September —
+`blocks`, `block_versions`, `page_grids`, `book_pins`, and `plans.maxProductsPerBook`;
+`grids` and `templates` are dropped. `blocks` is empty: seeding the library is next.
+
 `docs/composition-model.md` is the cross-epic architecture for how a book is composed —
 brand kit, blocks, the page grid, the master, flow and pins. It supersedes E6 §2 and §5,
 changes the E4 brand-kit shape, and absorbs most of what E7 was scoped to do. **Read it

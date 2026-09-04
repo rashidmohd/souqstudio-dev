@@ -512,6 +512,12 @@ reorder stays for the few they care about.
 
 ## 11. Schema deltas — `packages/db/prisma/schema.prisma`
 
+**Applied**, migration `20260905000000_composition_model_blocks_and_grids`. It was safe to
+drop `grids` and `templates` with rows in them because nothing referenced either: the
+database held 0 offer books and 0 offers at the time, so no book pointed at a template and
+no page at a grid. `blocks` ships empty — the seeded library is the next step, and until it
+lands a new organization has no block to compose with.
+
 | Table | Change |
 | --- | --- |
 | `grids` | **Dropped.** |
@@ -522,7 +528,7 @@ reorder stays for the few they care about.
 | `offer_book_pages.pageType` | **Dropped.** |
 | `offer_book_pages.densityProfile` | **Dropped.** |
 | `offer_book_pages.slotOverrides` | Kept, rekeyed to `regionId + offerId`. |
-| **New** `page_grids` | `bookId`, `role` (master / cover / back), `cols`, `rows`, `gap`, `regions` JSONB. |
+| **New** `page_grids` | `bookId`, `role` (master / cover / back), `cols`, `rows`, `gap`, `margin`, `regions` JSONB. **No relation to `blocks`** — a region names its block by id inside the JSON, and Prisma cannot enforce a key through JSON; a relation would only add a join table nothing writes to. |
 | **New** `book_pins` | `bookId`, `pageIndex`, `regionId`, `blockId`, content JSONB. |
 | `plans` | Add `maxProductsPerBook`. |
 

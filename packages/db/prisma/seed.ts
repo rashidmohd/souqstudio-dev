@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client'
-import type { GridConfig, TemplateConfig } from '@souqstudio/types'
 
 /**
  * Reference data every environment needs: the five grids of E4-03 and the five
@@ -18,205 +17,20 @@ import type { GridConfig, TemplateConfig } from '@souqstudio/types'
 
 const prisma = new PrismaClient()
 
-// ─── Grids — E4-03 ────────────────────────────────────────────────────────────
-
-/**
- * Cell rectangles are fractions of the artboard, not pixels, so one grid serves
- * a 1080×1080 Instagram post and an A4 page without a second definition.
- */
-const GRIDS: Array<{
-  id: string
-  name: string
-  config: GridConfig
-  compatibleFormats: string[]
-  minProducts: number
-  maxProducts: number
-}> = [
-  {
-    id: 'grid_2x2',
-    name: '2×2',
-    config: {
-      columns: 2,
-      rows: 2,
-      gap: 0.03,
-      cells: [
-        { x: 0, y: 0, w: 0.5, h: 0.5 },
-        { x: 0.5, y: 0, w: 0.5, h: 0.5 },
-        { x: 0, y: 0.5, w: 0.5, h: 0.5 },
-        { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
-      ],
-    },
-    compatibleFormats: ['instagram_post', 'whatsapp', 'leaflet', 'catalog', 'a3', 'print'],
-    minProducts: 4,
-    maxProducts: 4,
-  },
-  {
-    id: 'grid_hero',
-    name: 'Hero + grid',
-    config: {
-      columns: 2,
-      rows: 3,
-      gap: 0.03,
-      cells: [
-        // The hero takes the full width of the top two thirds.
-        { x: 0, y: 0, w: 1, h: 0.55 },
-        { x: 0, y: 0.55, w: 0.3333, h: 0.45 },
-        { x: 0.3333, y: 0.55, w: 0.3333, h: 0.45 },
-        { x: 0.6666, y: 0.55, w: 0.3334, h: 0.45 },
-      ],
-    },
-    compatibleFormats: ['instagram_post', 'whatsapp', 'leaflet', 'catalog', 'a3', 'print'],
-    minProducts: 4,
-    maxProducts: 4,
-  },
-  {
-    id: 'grid_3x2',
-    name: '3×2',
-    config: {
-      columns: 3,
-      rows: 2,
-      gap: 0.025,
-      cells: [
-        { x: 0, y: 0, w: 0.3333, h: 0.5 },
-        { x: 0.3333, y: 0, w: 0.3333, h: 0.5 },
-        { x: 0.6666, y: 0, w: 0.3334, h: 0.5 },
-        { x: 0, y: 0.5, w: 0.3333, h: 0.5 },
-        { x: 0.3333, y: 0.5, w: 0.3333, h: 0.5 },
-        { x: 0.6666, y: 0.5, w: 0.3334, h: 0.5 },
-      ],
-    },
-    compatibleFormats: ['instagram_post', 'whatsapp', 'leaflet', 'catalog', 'a3', 'print'],
-    minProducts: 6,
-    maxProducts: 6,
-  },
-  {
-    id: 'grid_story_strip',
-    name: 'Story strip',
-    config: {
-      columns: 1,
-      rows: 4,
-      gap: 0.02,
-      cells: [
-        { x: 0, y: 0, w: 1, h: 0.25 },
-        { x: 0, y: 0.25, w: 1, h: 0.25 },
-        { x: 0, y: 0.5, w: 1, h: 0.25 },
-        { x: 0, y: 0.75, w: 1, h: 0.25 },
-      ],
-    },
-    // Story only, per E7-04. A tall strip on a square post wastes half the page.
-    compatibleFormats: ['story'],
-    minProducts: 4,
-    maxProducts: 4,
-  },
-  {
-    id: 'grid_sidebar',
-    name: 'Sidebar',
-    config: {
-      columns: 2,
-      rows: 2,
-      gap: 0.03,
-      cells: [
-        // Anchored by fraction, not by "left" — the artboard never mirrors, so
-        // this stays put in Arabic exactly as designed.
-        { x: 0, y: 0, w: 0.55, h: 1 },
-        { x: 0.55, y: 0, w: 0.45, h: 0.5 },
-        { x: 0.55, y: 0.5, w: 0.45, h: 0.5 },
-      ],
-    },
-    compatibleFormats: ['instagram_post', 'whatsapp', 'leaflet', 'catalog', 'a3', 'print'],
-    minProducts: 3,
-    maxProducts: 3,
-  },
-]
-
-// ─── Templates — E4-04 ────────────────────────────────────────────────────────
-
-const TEMPLATES: Array<{
-  id: string
-  name: string
-  description: string
-  config: TemplateConfig
-  planTier: string
-  isSeasonal: boolean
-}> = [
-  {
-    id: 'tpl_clean',
-    name: 'Clean & minimal',
-    description: 'White ground, quiet type. Pharmacy and premium grocery.',
-    config: {
-      surface: 'light',
-      priceStyle: 'plain',
-      badge: 'none',
-      cardRadius: 3,
-      cardBorder: true,
-      density: 'airy',
-    },
-    planTier: 'starter',
-    isSeasonal: false,
-  },
-  {
-    id: 'tpl_bold',
-    name: 'Bold & sale',
-    description: 'Brand colour everywhere, big badges. Electronics and promotions.',
-    config: {
-      surface: 'brand',
-      priceStyle: 'burst',
-      badge: 'circle',
-      cardRadius: 3,
-      cardBorder: false,
-      density: 'balanced',
-    },
-    planTier: 'starter',
-    isSeasonal: false,
-  },
-  {
-    id: 'tpl_premium',
-    name: 'Premium',
-    description: 'Dark ground with accent detailing. Luxury and lifestyle retail.',
-    config: {
-      surface: 'dark',
-      priceStyle: 'tag',
-      badge: 'corner',
-      cardRadius: 3,
-      cardBorder: false,
-      density: 'airy',
-    },
-    planTier: 'pro',
-    isSeasonal: false,
-  },
-  {
-    id: 'tpl_festive',
-    name: 'Festive',
-    description: 'Seasonal borders and motifs. Eid, Diwali and National Day.',
-    config: {
-      surface: 'brand',
-      priceStyle: 'band',
-      badge: 'ribbon',
-      cardRadius: 3,
-      cardBorder: true,
-      density: 'balanced',
-      // E7 fills this with a real asset; the frame is the template's own.
-      overlay: 'seasonal-frame',
-    },
-    planTier: 'pro',
-    isSeasonal: true,
-  },
-  {
-    id: 'tpl_supermarket',
-    name: 'Supermarket',
-    description: 'Dense and price-forward. Hypermarkets and bulk retail.',
-    config: {
-      surface: 'light',
-      priceStyle: 'band',
-      badge: 'corner',
-      cardRadius: 3,
-      cardBorder: true,
-      density: 'dense',
-    },
-    planTier: 'starter',
-    isSeasonal: false,
-  },
-]
+// ─── Blocks ───────────────────────────────────────────────────────────────────
+//
+// **Nothing is seeded here yet, and that is a gap rather than a decision.**
+//
+// The five grids and five templates that lived here are gone with their tables.
+// A brand kit carries no layout and a book picks its own grid, so a template
+// that bundled look *and* arrangement had nothing left to be —
+// `docs/composition-model.md` §4.1.
+//
+// What replaces them is a seeded `blocks` library: an offer card with its four
+// arrangements, a header, a footer, a hero band. `packages/engine/harness` has
+// working versions of all four and they render correctly; porting them here is
+// the next step, and until it happens a new organization has no block to compose
+// with. See the build order in `docs/composition-model.md` §12.
 
 // ─── Plans — E3 ───────────────────────────────────────────────────────────────
 
@@ -321,26 +135,6 @@ const PLANS: Array<{
 ]
 
 async function main() {
-  for (const grid of GRIDS) {
-    await prisma.grid.upsert({
-      where: { id: grid.id },
-      // Published on seed: these are the shipped defaults, and a draft grid
-      // would leave the setup wizard with nothing to offer.
-      update: { ...grid, status: 'published' },
-      create: { ...grid, status: 'published' },
-    })
-  }
-  console.log(`[seed] ${GRIDS.length} grids`)
-
-  for (const template of TEMPLATES) {
-    await prisma.template.upsert({
-      where: { id: template.id },
-      update: { ...template, status: 'published' },
-      create: { ...template, status: 'published' },
-    })
-  }
-  console.log(`[seed] ${TEMPLATES.length} templates`)
-
   for (const plan of PLANS) {
     await prisma.plan.upsert({
       where: { id: plan.id },
