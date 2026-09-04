@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { LogoStep } from '@/components/brand/LogoStep'
 import { ColorsStep } from '@/components/brand/ColorsStep'
 import { useBrandStore } from '@/stores/brand-store'
+import { palettePatch, resolvePalette } from '@/lib/brand-palette'
 
 type Props = {
   shopName: string
@@ -94,9 +95,7 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit }: Props) {
   async function finish() {
     const saved = await saveAndGo(
       {
-        primaryColor: kit.primaryColor,
-        secondaryColor: kit.secondaryColor,
-        accentColor: kit.accentColor,
+        ...palettePatch(resolvePalette(kit)),
         complete: true,
       },
       TOTAL_STEPS
@@ -165,14 +164,7 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit }: Props) {
                 <ColorsStep
                   onBack={goBack}
                   onContinue={() =>
-                    void saveAndGo(
-                      {
-                        primaryColor: kit.primaryColor,
-                        secondaryColor: kit.secondaryColor,
-                        accentColor: kit.accentColor,
-                      },
-                      3
-                    )
+                    void saveAndGo(palettePatch(resolvePalette(kit)), 3)
                   }
                 />
               ) : null}

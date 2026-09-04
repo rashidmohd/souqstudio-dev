@@ -228,7 +228,7 @@ type LogoFieldProps = {
 
 // ColorFields takes no props — it reads and writes the brand store.
 // Its validation is exported separately and is pure:
-function firstInvalidColorSlot(kit: BrandKit): { key: ColorSlot; label: string } | null
+function firstInvalidColorSlot(kit: BrandKit): { key: string; label: string } | null
 
 // TypographyFields takes no props either, same reason. Three Selects filtered
 // by role from `lib/brand-fonts.ts`, plus a bilingual specimen. What a save
@@ -246,6 +246,20 @@ what is set, so a card restating all of it at the top was saying it twice.
 `BrandKitScreen.tsx`, the same way `Section` was before it. It is a composition
 of `Card` and `IconChip`, not a new primitive. If a second screen ever wants it,
 it comes through this file first.
+
+**ColorFields edits an open-ended palette, not three fixed slots.** It was three
+rows labelled Primary, Secondary and Accent with a legend underneath explaining
+which was for headers and which for prices. That was two limitations wearing one
+coat: a brand capped at three colours, and a product telling an owner what their
+own colours are for. A brand kit is a **guideline — it defines colours and does
+not place them**; where a colour lands is the block's decision, and the same
+colour is a hero ground in one block and a price chip in another.
+
+Rows are name plus `ColorField`, add and remove, bounded by `MIN_PALETTE` (3, what
+setup completion and the seeded block slots need) and `MAX_PALETTE` (8, a product
+judgement — nothing breaks at twenty, but twenty is not an identity). The three
+`TokenRef` slots a seeded block names bind to the first three entries;
+`lib/brand-palette.ts` owns that and the legacy mirror.
 
 **The three brand choices, without any navigation around them.** Each was
 extracted from the wizard step of the same name when E4-05 needed the same

@@ -11,6 +11,7 @@ import {
 } from '@/lib/brand-kit'
 import { isValidHex, EXAMPLE_HEX } from '@/lib/color'
 import { findFont } from '@/lib/brand-fonts'
+import { MAX_PALETTE, MIN_PALETTE } from '@/lib/brand-palette'
 
 /**
  * E1-04 and E4 — read and save the brand kit.
@@ -45,8 +46,20 @@ const fontFamily = z
   .trim()
   .refine((value) => findFont(value) !== undefined, 'Choose one of the offered typefaces.')
 
+/**
+ * A palette is a definition, not a usage map — see `lib/brand-palette.ts`. The
+ * bounds are a product judgement: three is what setup completion and the seeded
+ * blocks need, and beyond eight a palette stops being an identity.
+ */
+const paletteEntry = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().trim().min(1).max(40),
+  hex,
+})
+
 const schema = z
   .object({
+    palette: z.array(paletteEntry).min(MIN_PALETTE).max(MAX_PALETTE),
     primaryColor: hex,
     secondaryColor: hex,
     accentColor: hex,

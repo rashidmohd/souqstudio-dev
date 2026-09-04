@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import type { BrandKit, LogoStatus } from '@souqstudio/types'
+import type { BrandColor, BrandKit, LogoStatus } from '@souqstudio/types'
 import { ROLE_SLOT, type FontRole } from '@/lib/brand-fonts'
 
 /**
@@ -30,6 +30,7 @@ type BrandState = {
   hydrate: (input: { kit: BrandKit; logoUrl: string | null; shopName: string }) => void
   setColor: (slot: 'primaryColor' | 'secondaryColor' | 'accentColor', hex: string) => void
   setColors: (colors: Pick<BrandKit, 'primaryColor' | 'secondaryColor' | 'accentColor'>) => void
+  setPalette: (palette: BrandColor[]) => void
   setFont: (role: FontRole, family: string) => void
   setLogo: (input: { logoUrl: string; suggestedColors: string[]; logoStatus: LogoStatus }) => void
   setLogoStatus: (status: LogoStatus) => void
@@ -71,6 +72,17 @@ export const useBrandStore = create<BrandState>()(
     setColors: (colors) =>
       set((state) => {
         Object.assign(state.kit, colors)
+      }),
+
+    setPalette: (palette) =>
+      set((state) => {
+        state.kit.palette = palette
+        // The first three mirror into the old fields so every existing read —
+        // the logo suggestions, the contrast checks, `previewColors` — keeps
+        // working while the palette becomes the real store.
+        state.kit.primaryColor = palette[0]?.hex
+        state.kit.secondaryColor = palette[1]?.hex
+        state.kit.accentColor = palette[2]?.hex
       }),
 
     setFont: (role, family) =>

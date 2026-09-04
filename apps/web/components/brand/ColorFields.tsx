@@ -1,57 +1,56 @@
 'use client'
 
 import * as React from 'react'
-import { TriangleAlert } from 'lucide-react'
-import type { BrandKit } from '@souqstudio/types'
+import { nanoid } from 'nanoid'
+import { Plus, X } from 'lucide-react'
+import type { BrandColor, BrandKit } from '@souqstudio/types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ColorField } from '@/components/ui/color-field'
-import { useBrandStore, previewColors } from '@/stores/brand-store'
-import { fromHex, isValidHex, whiteTextPasses, EXAMPLE_HEX } from '@/lib/color'
-
-export type ColorSlot = 'primaryColor' | 'secondaryColor' | 'accentColor'
-
-export const COLOR_SLOTS: Array<{ key: ColorSlot; label: string; hint: string }> = [
-  { key: 'primaryColor', label: 'Primary', hint: 'Headers and the page ground' },
-  { key: 'secondaryColor', label: 'Secondary', hint: 'Supporting text and rules' },
-  { key: 'accentColor', label: 'Accent', hint: 'Prices and offer badges' },
-]
+import { useBrandStore } from '@/stores/brand-store'
+import { fromHex, isValidHex, whiteTextPasses, EXAMPLE_HEX, NEW_COLOR_HEX } from '@/lib/color'
+import {
+  MAX_PALETTE,
+  MIN_PALETTE,
+  canAdd,
+  canRemove,
+  nextColorName,
+  resolvePalette,
+} from '@/lib/brand-palette'
 
 /**
- * The first slot holding something that is not a colour, or null.
+ * The shop's palette. E4-02.
  *
- * Pure, and exported, because two callers now submit these three fields — the
- * wizard's Continue button and the brand kit screen's Save. A second copy of
- * the check would drift, and the one that drifted would be the one that let a
- * malformed hex through to the artboard.
+ * **A definition, not a usage map.** This is the palette page of a brand
+ * guideline: these are our colours, under our own names. It does not say where
+ * each one goes — a block decides that, and the same colour is a hero ground in
+ * one block and a price chip in another.
+ *
+ * It was three fixed rows labelled Primary, Secondary and Accent, with a legend
+ * underneath explaining which was for headers and which for prices. That was two
+ * limitations wearing one coat: a brand capped at three colours, and a product
+ * telling an owner what their own colours are for. A shop with a fourth and a
+ * fifth colour now simply has them, named whatever it calls them.
+ *
+ * Every change lands in the store immediately. Persisting is the caller's.
  */
-export function firstInvalidColorSlot(kit: BrandKit): { key: ColorSlot; label: string } | null {
-  const bad = COLOR_SLOTS.find(({ key }) => !isValidHex(kit[key] ?? ''))
-  return bad ? { key: bad.key, label: bad.label } : null
+
+/** The first slot holding something that is not a colour, or null. Pure, and
+ *  exported, because the wizard's Continue and the screen's Save both run it. */
+export function firstInvalidColorSlot(kit: BrandKit): { key: string; label: string } | null {
+  const bad = resolvePalette(kit).find((color) => !isValidHex(color.hex))
+  return bad ? { key: bad.id, label: bad.name } : null
 }
 
-/**
- * Choosing the three brand colours. E4-02.
- *
- * **Extracted from `ColorsStep` so E4-05's brand kit screen can reuse it.** The
- * step baked in a Continue/Back footer and held its validation inside that
- * footer's handler; a screen that saves rather than continues could not reuse
- * either. The validation left as `firstInvalidColorSlot` above, and the
- * navigation stayed in `ColorsStep`.
- *
- * Every change lands in the store immediately, so any preview beside this
- * tracks the picker with no network in the loop. Persistence is the caller's.
- *
- * The contrast warning is on the accent, because that is what prices are set
- * in and an unreadable price is the one failure that costs a sale. It warns and
- * does not block: it is the shop's brand, and overruling it is not ours to do.
- */
 export function ColorFields() {
-  const { kit, setColor } = useBrandStore()
-  const [assigning, setAssigning] = React.useState<ColorSlot>('primaryColor')
+  const { kit, setPalette } = useBrandStore()
+  const palette = resolvePalette(kit)
+  const [assigning, setAssigning] = React.useState(0)
 
   const suggested = kit.suggestedColors ?? []
-  const colors = previewColors(kit)
-  const accentRgb = fromHex(colors.accent)
-  const accentFailsWhite = accentRgb ? !whiteTextPasses(accentRgb) : false
+
+  const update = (index: number, patch: Partial<BrandColor>) =>
+    setPalette(palette.map((color, i) => (i === index ? { ...color, ...patch } : color)))
 
   return (
     <div className="flex flex-col gap-4">
@@ -62,10 +61,10 @@ export function ColorFields() {
               <button
                 key={hex}
                 type="button"
-                onClick={() => setColor(assigning, hex)}
+                onClick={() => update(assigning, { hex })}
                 // The hex is the label — a swatch announced as "button" tells a
                 // screen reader nothing about which colour it is.
-                aria-label={`Use ${hex} as ${assigning.replace('Color', '')}`}
+                aria-label={`Use ${hex} for ${palette[assigning]?.name ?? 'this colour'}`}
                 className="size-8 rounded-chip border border-border-strong transition-transform duration-fast ease-sq hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
                 // The value is the shop's own colour, not a design decision, so
                 // it cannot come from a token. Same exemption usage-meter.tsx
@@ -75,98 +74,103 @@ export function ColorFields() {
             ))}
           </div>
           <p className="font-ui text-body-sm text-muted">
-            Assigning to <span className="text-primary">{assigning.replace('Color', '')}</span>
+            Assigning to{' '}
+            <span className="text-primary">{palette[assigning]?.name ?? 'the first colour'}</span>
           </p>
         </div>
       ) : null}
 
       <div className="flex flex-col gap-3">
-        {COLOR_SLOTS.map(({ key, label, hint }) => {
-          const value =
-            kit[key] ??
-            previewColors(kit)[key.replace('Color', '') as 'primary' | 'secondary' | 'accent']
-          return (
-            <ColorField
-              key={key}
-              label={label}
-              hint={hint}
-              value={value}
-              // Clicking or tabbing into the row makes this the slot a
-              // suggested swatch fills.
-              onActivate={() => setAssigning(key)}
-              onChange={(hex) => {
-                setAssigning(key)
-                // Stored as typed, valid or not — a half-written hex simply
-                // falls back, and rejecting mid-keystroke would fight the
-                // person typing.
-                setColor(key, hex)
-              }}
-              error={isValidHex(value) ? undefined : `Use a colour like ${EXAMPLE_HEX}.`}
-            />
-          )
-        })}
+        {palette.map((color, index) => (
+          <PaletteRow
+            key={color.id}
+            color={color}
+            canRemove={canRemove(palette)}
+            onActivate={() => setAssigning(index)}
+            onChange={(patch) => update(index, patch)}
+            onRemove={() => setPalette(palette.filter((_, i) => i !== index))}
+          />
+        ))}
       </div>
 
-      <RoleLegend colors={colors} />
-
-      {accentFailsWhite ? (
-        <p
-          role="status"
-          className="flex items-start gap-2 rounded-control bg-caution-bg px-3 py-2 font-ui text-body-sm text-caution-fg"
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={!canAdd(palette)}
+          onClick={() =>
+            setPalette([
+              ...palette,
+              { id: nanoid(8), name: nextColorName(palette), hex: NEW_COLOR_HEX },
+            ])
+          }
         >
-          <TriangleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" />
-          White prices on your accent colour will be hard to read. It still
-          works — darken the accent if you want prices to stand out more.
+          <Plus className="size-4" aria-hidden="true" />
+          Add a colour
+        </Button>
+
+        <p className="font-ui text-body-sm text-muted">
+          <span data-figure>{palette.length}</span> of <span data-figure>{MAX_PALETTE}</span>
+          {canRemove(palette) ? null : ` · ${MIN_PALETTE} is the minimum`}
         </p>
-      ) : null}
+      </div>
     </div>
   )
 }
 
-/**
- * What the three colours actually do, in the abstract.
- *
- * **Not a preview of a page.** A sample flyer sat here, and it was misleading in
- * a specific way: a brand kit holds no grid and no template, so a rendered page
- * implied the kit decided a layout it does not decide, and it said nothing about
- * what happens when the same colours land on a hero band or a header.
- *
- * This is a legend, not a mock-up. Each row shows one role doing its job at the
- * smallest scale that makes the job legible, and nothing here claims to be what
- * a book will look like.
- */
-function RoleLegend({ colors }: { colors: { primary: string; secondary: string; accent: string } }) {
+function PaletteRow({
+  color,
+  canRemove: removable,
+  onActivate,
+  onChange,
+  onRemove,
+}: {
+  color: BrandColor
+  canRemove: boolean
+  onActivate: () => void
+  onChange: (patch: Partial<BrandColor>) => void
+  onRemove: () => void
+}) {
+  const rgb = fromHex(color.hex)
+
   return (
-    <div className="flex flex-col gap-2">
-      <span className="font-ui text-label font-medium text-secondary">Where these are used</span>
-
-      <div className="flex flex-col gap-2 rounded-control border-hairline border-border-subtle p-3">
-        {/* Primary — a header, a hero band, a cover ground. */}
-        <div
-          className="flex items-center rounded-control px-3 py-2"
-          // The shop's own colour, not a design decision, so it cannot come
-          // from a token. Same exemption usage-meter.tsx relies on.
-          style={{ backgroundColor: colors.primary }}
-        >
-          <span className="font-ui text-body-sm text-inverse">Headers, hero bands and covers</span>
-        </div>
-
-        {/* Secondary — supporting text and rules. */}
-        <p className="font-ui text-body-sm" style={{ color: colors.secondary }}>
-          Supporting text, rules and section labels
-        </p>
-
-        {/* Accent — the price mark and offer badges. */}
-        <div className="flex items-center gap-2">
-          <span
-            className="rounded-chip px-3 py-1 font-ui text-body-sm text-inverse"
-            style={{ backgroundColor: colors.accent }}
-          >
-            <span data-figure>24.50</span>
-          </span>
-          <span className="font-ui text-body-sm text-secondary">Prices and offer badges</span>
-        </div>
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <Input
+          label="Name"
+          value={color.name}
+          onFocus={onActivate}
+          onChange={(event) => onChange({ name: event.target.value })}
+        />
       </div>
+
+      <div className="min-w-0 flex-1">
+        <ColorField
+          label="Colour"
+          value={color.hex}
+          onActivate={onActivate}
+          // Stored as typed, valid or not — rejecting mid-keystroke would fight
+          // the person typing.
+          onChange={(hex) => onChange({ hex })}
+          error={isValidHex(color.hex) ? undefined : `Use a colour like ${EXAMPLE_HEX}.`}
+          // Readability, stated as a fact about the colour rather than as a rule
+          // about where it may be used. It is the shop's brand, and overruling
+          // it is not ours to do.
+          hint={rgb && !whiteTextPasses(rgb) ? 'White text on this is hard to read' : undefined}
+        />
+      </div>
+
+      <Button
+        type="button"
+        variant="ghost"
+        iconOnly
+        disabled={!removable}
+        aria-label={`Remove ${color.name}`}
+        onClick={onRemove}
+        className="mt-6"
+      >
+        <X className="size-4" aria-hidden="true" />
+      </Button>
     </div>
   )
 }

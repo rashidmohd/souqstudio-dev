@@ -43,6 +43,7 @@ export type BrandLevel = 'org' | 'shop'
 const FACET_OF: Record<keyof BrandKit, BrandFacet> = {
   logoStatus: 'logo',
   logoOriginalUrl: 'logo',
+  palette: 'colors',
   primaryColor: 'colors',
   secondaryColor: 'colors',
   accentColor: 'colors',

@@ -6,7 +6,8 @@ import type { BrandKit, BrandOverride } from '@souqstudio/types'
 import type { BrandFacet, BrandLevel } from '@/lib/brand-inheritance'
 import { Button } from '@/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
-import { ColorFields, COLOR_SLOTS, firstInvalidColorSlot } from '@/components/brand/ColorFields'
+import { ColorFields, firstInvalidColorSlot } from '@/components/brand/ColorFields'
+import { palettePatch, resolvePalette } from '@/lib/brand-palette'
 import { TypographyFields, typographyPatch } from '@/components/brand/TypographyFields'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
@@ -95,10 +96,14 @@ export function BrandKitScreen({
     setBaseline(brandKit)
   }, [brandKit, logoUrl, shopName, hydrate])
 
+  const palette = resolvePalette(kit)
+  const baselinePalette = resolvePalette(baseline)
   const colorsDirty =
-    kit.primaryColor !== baseline.primaryColor ||
-    kit.secondaryColor !== baseline.secondaryColor ||
-    kit.accentColor !== baseline.accentColor
+    palette.length !== baselinePalette.length ||
+    palette.some((color, index) => {
+      const was = baselinePalette[index]
+      return was === undefined || was.hex !== color.hex || was.name !== color.name
+    })
 
   const fonts = resolveFonts(kit)
   const baselineFonts = resolveFonts(baseline)
@@ -132,17 +137,14 @@ export function BrandKitScreen({
   }
 
   function saveColors() {
-    // Cleared and typed wrong are different mistakes and get different
-    // sentences. A kit always arrives here complete — the page redirects an
-    // unfinished one to the wizard — so an empty slot means the owner emptied
-    // the field, and "Primary is not a colour we can read" would be an odd
-    // thing to say about a box they just cleared.
-    const missing = COLOR_SLOTS.find(({ key }) => !kit[key])
-    if (missing) {
+    // Empty and unreadable are different mistakes and get different sentences.
+    // A colour the owner just cleared should not be told it is unparseable.
+    const empty = palette.find((color) => color.hex.trim() === '')
+    if (empty) {
       setFeedback({
         section: 'colors',
         kind: 'error',
-        message: `Pick a ${missing.label.toLowerCase()} colour before saving.`,
+        message: `Pick a colour for ${empty.name} before saving.`,
       })
       return
     }
@@ -157,11 +159,18 @@ export function BrandKitScreen({
       })
       return
     }
-    void save('colors', {
-      primaryColor: kit.primaryColor,
-      secondaryColor: kit.secondaryColor,
-      accentColor: kit.accentColor,
-    })
+
+    const unnamed = palette.find((color) => color.name.trim() === '')
+    if (unnamed) {
+      setFeedback({
+        section: 'colors',
+        kind: 'error',
+        message: 'Give every colour a name — it is how you will recognise it later.',
+      })
+      return
+    }
+
+    void save('colors', palettePatch(palette))
   }
 
   return (
@@ -199,8 +208,8 @@ export function BrandKitScreen({
           <BrandCard
             icon={Palette}
             title="Colours"
-            description="Primary and secondary set the page. Accent is what prices and badges are drawn in."
-            state={COLOR_SLOTS.every(({ key }) => kit[key]) ? 'Three set' : 'Not set yet'}
+            description="Your colours, under your own names. Where each one goes is decided by the blocks that use it."
+            state={`${palette.length} colours`}
             note={brandOverride === 'inherit' ? null : sourceNote(source.colors)}
             feedback={feedback?.section === 'colors' ? feedback : null}
           >
@@ -220,11 +229,7 @@ export function BrandKitScreen({
                   type="button"
                   variant="ghost"
                   onClick={() => {
-                    useBrandStore.getState().setColors({
-                      primaryColor: baseline.primaryColor,
-                      secondaryColor: baseline.secondaryColor,
-                      accentColor: baseline.accentColor,
-                    })
+                    useBrandStore.getState().setPalette(baselinePalette)
                     setFeedback(null)
                   }}
                 >

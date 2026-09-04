@@ -113,10 +113,22 @@ moment the catalog corrects itself.
 
 ### 3.2 Every colour and font is a role reference, never a hex
 
+A shop's palette is **open-ended and unlabelled by use** — a list of named colours, the
+way a printed brand guideline states them, not three slots that dictate placement. A block
+still needs to name a colour before it has ever met a shop, so it names a *slot*; the kit
+says which palette entry each slot resolves to. A fourth and fifth colour need no slot — a
+block the owner authors references them by id.
+
 ```ts
+interface BrandColor { id: string; name: string; hex: string }
+
 type TokenRef  = 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'
 type TypeLevel = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'body' | 'caption'
 ```
+
+`surface`, `ink` and `inkMuted` are page mechanics rather than brand colours — something
+has to be the ground and something has to be legible on it — so they are not in a shop's
+palette and are not the shop's to choose.
 
 **The type scale is ordered, and that buys more than a naming convention.** E6 §4's fit
 ladder says an overlong string should "drop to the next type step — bounded by the design

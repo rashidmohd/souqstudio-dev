@@ -19,7 +19,35 @@
 // noise, and why a seeded block looks like the shop that loaded it. Break it and
 // the library becomes a set of unrelated pictures.
 
-/** A brand-kit colour role. Resolved against the shop's kit at render time. */
+/**
+ * One colour in a shop's palette.
+ *
+ * A palette is a **definition, not a usage map** — the same thing a printed
+ * brand guideline is. It says "these are our colours"; it does not say the
+ * second one is for headers. Where a colour lands is decided by the block that
+ * references it, and the same colour is a hero ground in one block and a price
+ * chip in another.
+ *
+ * `name` is the shop's own word for it — "Ramadan gold", not "accent". `id` is
+ * what a block stores, so renaming a colour never breaks a block.
+ */
+export interface BrandColor {
+  id: string
+  name: string
+  hex: string
+}
+
+/**
+ * A slot a block can reference without knowing a particular shop's palette.
+ *
+ * These are **binding points, not prescriptions**. A seeded block has to name a
+ * colour before it has ever met a shop, so it names a slot; the kit says which
+ * palette entry each slot resolves to. A shop's fourth and fifth colours have no
+ * slot and do not need one — a block the owner authors references them by id.
+ *
+ * `surface`, `ink` and `inkMuted` are page mechanics rather than brand colours:
+ * something has to be the ground and something has to be readable on it.
+ */
 export type TokenRef = 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'
 
 /**

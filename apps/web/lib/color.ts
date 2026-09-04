@@ -49,6 +49,26 @@ export function isValidHex(hex: string): boolean {
  */
 export const EXAMPLE_HEX = '#1F4FD8'
 
+/**
+ * The artboard's page mechanics.
+ *
+ * `surface`, `ink` and `inkMuted` are not brand colours — a shop does not choose
+ * them, and they are not part of its palette. Something has to be the ground a
+ * page is printed on and something has to be readable on it, whatever the shop's
+ * colours are. They live here for the same reason the WCAG reference white and
+ * black do: this is the one file where a literal colour is reference data rather
+ * than a styling decision, and there is no chrome token to point at because this
+ * is artboard content, not chrome.
+ */
+export const ARTBOARD_NEUTRALS = {
+  surface: '#FFFFFF',
+  ink: '#1A1A1A',
+  inkMuted: '#6E7480',
+} as const
+
+/** What a colour an owner has just added starts as, before they pick one. */
+export const NEW_COLOR_HEX = '#808080'
+
 // ─── Contrast — E4-02 requires a WCAG AA check ────────────────────────────────
 
 /** WCAG relative luminance. The 0.03928 kink is the sRGB transfer curve. */

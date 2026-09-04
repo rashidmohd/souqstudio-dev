@@ -6,7 +6,7 @@
 // the E6 §2 grammar further down this file; those stay until the E4 brand flow
 // is migrated off them.
 export * from './composition'
-import type { TypeScale } from './composition'
+import type { BrandColor, TypeScale } from './composition'
 
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'
 export type BillingStatus = 'active' | 'past_due' | 'suspended' | 'cancelled'
@@ -71,6 +71,19 @@ export type LogoStatus = 'none' | 'processing' | 'ready' | 'original'
  * is what lets a refresh resume where it left off.
  */
 export interface BrandKit {
+  /**
+   * The shop's colours, in their own order and under their own names — the
+   * palette half of a brand guideline.
+   *
+   * Open-ended on purpose. It was three fixed slots called primary, secondary
+   * and accent, which both capped a brand at three colours and implied where
+   * each one goes. A guideline defines colours; blocks decide placement.
+   *
+   * `primaryColor`, `secondaryColor` and `accentColor` below are the first three
+   * entries, kept in sync on every save so that everything reading them keeps
+   * working. `palette` is authoritative when present.
+   */
+  palette?: BrandColor[] | undefined
   primaryColor?: string | undefined
   secondaryColor?: string | undefined
   accentColor?: string | undefined
