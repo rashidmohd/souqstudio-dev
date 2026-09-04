@@ -8,14 +8,13 @@ import { Button } from '@/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
 import { ColorFields, COLOR_SLOTS, firstInvalidColorSlot } from '@/components/brand/ColorFields'
 import { TypographyFields, typographyPatch } from '@/components/brand/TypographyFields'
-import { OfferPreview } from '@/components/brand/OfferPreview'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
 import { Image as ImageIcon, Palette, Shapes, Type, type LucideIcon } from 'lucide-react'
 import { FONT_ROLES, resolveFonts } from '@/lib/brand-fonts'
 import { EDITOR_BUILT } from '@/lib/features'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
-import { useBrandStore, previewColors } from '@/stores/brand-store'
+import { useBrandStore } from '@/stores/brand-store'
 import { EXAMPLE_HEX } from '@/lib/color'
 
 type Props = {
@@ -95,8 +94,6 @@ export function BrandKitScreen({
     hydrate({ kit: brandKit, logoUrl, shopName })
     setBaseline(brandKit)
   }, [brandKit, logoUrl, shopName, hydrate])
-
-  const colors = previewColors(kit)
 
   const colorsDirty =
     kit.primaryColor !== baseline.primaryColor ||
@@ -208,13 +205,6 @@ export function BrandKitScreen({
             feedback={feedback?.section === 'colors' ? feedback : null}
           >
             <ColorFields />
-
-            <div className="flex flex-col gap-2">
-              <span className="font-ui text-label font-medium text-secondary">Preview</span>
-              <div className="overflow-hidden rounded-control border-hairline border-border-subtle">
-                <OfferPreview colors={colors} shopName={shopName} className="block h-auto w-full" />
-              </div>
-            </div>
 
             {colorsDirty ? (
               <div className="flex gap-2">

@@ -159,37 +159,58 @@ for display only. `autoComplete="off"`, deliberately not `one-time-code`: that
 hint makes the platform offer the emailed code, which is the *other* field on
 the same screen.
 
-### OfferPreview
+### OfferPreview — **deleted**
+
+Was a miniature offer book page in the shop's colours, rendered as inline SVG, shown
+beside the colour step and on the brand kit screen.
+
+**Removed, not replaced.** It existed to preview a chosen grid and template, and a
+brand kit holds neither — a book picks its own layout, per
+`docs/composition-model.md` §2. Once the choice was gone the component was drawing an
+invented page, which was worse than drawing nothing: it implied the kit decided a
+layout it does not decide, and said nothing about what the same colours do on a hero
+band or a header.
+
+What replaced it is a **legend, not a mock-up** — `RoleLegend` inside `ColorFields`,
+showing each colour doing its job at the smallest scale that makes the job legible. A
+real preview needs the block renderer and belongs to E6.
+
+### ColorField
 
 | | |
 | --- | --- |
-| File | `components/brand/OfferPreview.tsx` |
+| File | `components/ui/color-field.tsx` |
 | Status | `built` — apps/web only |
-| Governs | E4-03 / E4-04 grid and template choice previews |
+| Governs | SKILL.md → Components → Inputs (shares the input's shape rules) |
 
 ```tsx
-type OfferPreviewProps = {
-  grid: GridConfig
-  template: TemplateConfig
-  colors: { primary: string; secondary: string; accent: string }
-  shopName?: string
-  className?: string
+type ColorFieldProps = {
+  label: string
+  value: string
+  onChange: (hex: string) => void
+  hint?: string
+  error?: string
+  onActivate?: () => void      // fired on focus anywhere in the row
+  id?: string
 }
 ```
 
-A miniature offer book page in the shop's own colours, as **inline SVG**. E4's
-notes call for a mini Fabric canvas; that still holds for E7's admin template
-builder, and does not here — see the deviation recorded in `docs/E4-brand-setup.md`.
+A swatch fused to a hex field inside one bordered shell. They were two separate
+widgets — a small square beside an input — which read as unrelated and left the
+shop's colour rattling inside a form field it did not fill.
 
-**Paints in `--sq-tpl-*`, never `--sq-ui-*`.** It is a picture of what the shop
-will print, so it belongs to the content namespace. This is one of the few
-components legitimately excluded from the chrome token rules, alongside the
-editor and card designer.
+**A native `<input type="color">`, not a popover picker.** shadcn/ui ships no colour
+picker; the community ones (Kibo UI, shadcnblocks) are built on Popover and Slider,
+neither of which is in this inventory, and both arrive with shadows this system does
+not have. Native gives the platform picker on a phone with its own accessibility
+tree — the same trade `Select` makes, for the same stated reason.
 
-Placeholder blocks are ink at low opacity rather than named greys, so they read
-correctly on a light, dark or brand-coloured ground. The header label is centre
-anchored on purpose: SVG resolves `text-anchor: start` against inherited
-direction, which would move it under an Arabic ancestor.
+`.sq-swatch` in `styles/globals.css` strips the vendor pseudo-elements so the swatch
+fills its tile edge to edge. It lives in CSS rather than as Tailwind arbitrary
+variants, which the design system forbids — same reasoning as `.sq-wordmark`.
+
+**Added without going through this file first is not what happened here** — it is
+recorded before use. Still open: whether it needs `Input`'s `size` vocabulary.
 
 ### LogoField · ColorFields · TypographyFields
 

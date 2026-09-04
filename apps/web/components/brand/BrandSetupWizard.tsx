@@ -5,10 +5,9 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import type { BrandKit } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
-import { OfferPreview } from '@/components/brand/OfferPreview'
 import { LogoStep } from '@/components/brand/LogoStep'
 import { ColorsStep } from '@/components/brand/ColorsStep'
-import { useBrandStore, previewColors } from '@/stores/brand-store'
+import { useBrandStore } from '@/stores/brand-store'
 
 type Props = {
   shopName: string
@@ -60,8 +59,6 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit }: Props) {
   React.useEffect(() => {
     hydrate({ kit: brandKit, logoUrl, shopName })
   }, [brandKit, logoUrl, shopName, hydrate])
-
-  const colors = previewColors(kit)
 
   /** Persist, then move. A failed save must not silently advance. */
   async function saveAndGo(patch: Partial<BrandKit> & { complete?: boolean }, next: number) {
@@ -209,16 +206,6 @@ export function BrandSetupWizard({ shopName, logoUrl, brandKit }: Props) {
           </AnimatePresence>
         </div>
 
-        {/* Live preview. Below the steps on mobile, beside them from lg. */}
-        <aside className="flex flex-col gap-2">
-          <span className="font-ui text-label font-medium text-secondary">Preview</span>
-          <div className="overflow-hidden rounded-card border-hairline border-border-subtle">
-            <OfferPreview colors={colors} shopName={shopName} className="block h-auto w-full" />
-          </div>
-          <p className="font-ui text-body-sm text-muted">
-            A sample page in your colours. Real products come next.
-          </p>
-        </aside>
       </div>
     </div>
   )

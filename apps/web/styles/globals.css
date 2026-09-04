@@ -49,3 +49,37 @@ html, body {
   font-size: var(--sq-text-body);
   line-height: var(--sq-leading-body);
 }
+
+/* ── Colour swatch ─────────────────────────────────────────────────────────
+   A native `<input type="color">` renders its swatch inset inside a bordered
+   box that no utility class reaches — the border and padding are vendor
+   pseudo-elements. Stripping them lets the swatch fill its tile edge to edge,
+   so the control reads as a block of the shop's colour rather than as a small
+   square rattling inside a form field.
+
+   Native rather than a JS picker on purpose, and for the same reason `Select`
+   wraps a native `<select>`: on the phone a shop owner is actually holding,
+   this opens the platform colour picker with its own accessibility tree.
+
+   Here rather than as Tailwind arbitrary variants, which the design system
+   forbids — same reasoning as `.sq-wordmark` above.                          */
+.sq-swatch {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.sq-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.sq-swatch::-webkit-color-swatch {
+  border: 0;
+}
+
+.sq-swatch::-moz-color-swatch {
+  border: 0;
+}
