@@ -31,8 +31,13 @@ packages/db/
 - Use `cuid()` for all IDs. Never auto-increment integers as primary keys.
 - All timestamps: `createdAt DateTime @default(now())` and `updatedAt DateTime @updatedAt`.
 - JSONB fields: use `Json` type in Prisma. Document the shape in a comment above the field.
-- `search_vector` on `catalog_products` is a raw PostgreSQL `tsvector` — managed via SQL migration,
-  not Prisma field. Add as `Unsupported("tsvector")` or manage via raw SQL migration.
+- `search_vector` on `catalog_products` is a raw PostgreSQL `tsvector`. Its type, its GIN
+  index and its trigger are raw SQL in the E5 migration — **and it is also declared in the
+  model** as `searchVector Unsupported("tsvector")?` with the three GIN indexes. Both, not
+  either. A model that does not mention the column makes `db push` and `migrate dev`
+  generate a `DROP` for it, and losing the search index reads as slow search rather than as
+  a missing index. `Unsupported` fields are excluded from the generated client, so it can
+  only be queried raw — which is what you want.
 - Postgres enums appear **only** in the offer and catalog model added by E5. Everything
   older spells closed sets as `String // a | b | c` and stays that way. The reasoning is
   in the comment above `enum PackUnit` in the schema; do not convert the older columns.

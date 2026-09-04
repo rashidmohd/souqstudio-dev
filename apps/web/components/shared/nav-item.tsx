@@ -9,8 +9,8 @@ import { cn } from '@/lib/utils'
  * NavItem. Governed by the design skill → Components → Navigation items, and by
  * references/component-inventory.md, which owns this signature.
  *
- * The active state is the only place blue appears as a background anywhere in
- * the shell.
+ * The active background is --sq-blue-50, a pale tint — deliberately not the solid
+ * --sq-blue the primary button carries, so an active nav item never reads as a CTA.
  */
 type NavItemProps = {
   icon: LucideIcon

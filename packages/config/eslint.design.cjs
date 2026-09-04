@@ -36,7 +36,7 @@ const FILL_ONLY_AS_INK =
 // Plex Sans Arabic has no true italic. Emphasis is weight.
 const ITALIC = '(^|\\s)italic(\\s|$)'
 
-// Blue is selection, focus and links — never a button fill.
+// Blue IS the primary action, but it must arrive through the semantic token.
 const BLUE_FILL = '(^|\\s)bg-blue(\\s|$)'
 
 const restrict = (pattern, message) => ({
@@ -72,7 +72,7 @@ const DESIGN_RULES = [
    'No italics. IBM Plex Sans Arabic has no true italic and mixed-script screens must not emphasise differently by language. Use font-medium.'],
 
   [BLUE_FILL,
-   'Never a blue-filled button or panel. Blue is selection, focus and links — roughly 5% of pixels. The primary action is bg-action-primary (charcoal).'],
+   'Raw blue fill. The primary action is bg-action-primary, which resolves to the brand blue — going direct pins the light value and skips the dark-mode #8AA1F1. Blue is still never a page background, card fill or large tinted panel.'],
 ]
 
 module.exports = {

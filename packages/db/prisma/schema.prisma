@@ -718,12 +718,22 @@ model CatalogProduct {
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
-  // search_vector tsvector is managed via raw SQL migration — it spans nameEn,
-  // nameAr, brand, category and tags. See references/database.md.
+  /// Trigger-maintained by the E5 migration — nameEn and nameAr at weight A,
+  /// brand and category at B, spec and tags at C, `simple` dictionary. Prisma
+  /// cannot express the column's type, the GIN index or the trigger, so all
+  /// three are raw SQL. It is declared here as Unsupported anyway: a model that
+  /// does not mention the column makes `prisma db push` and `migrate dev`
+  /// generate a DROP for it, and losing the search index would look like slow
+  /// search rather than like a missing index. An Unsupported field is excluded
+  /// from the generated client automatically, so it can only be queried raw.
+  searchVector Unsupported("tsvector")? @map("search_vector")
 
   @@unique([organizationId, barcode])
   @@index([organizationId])
   @@index([organizationId, archivedAt])
+  @@index([searchVector], type: Gin, map: "idx_catalog_fts")
+  @@index([nameEn(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_catalog_trgm_en")
+  @@index([nameAr(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_catalog_trgm_ar")
   @@map("catalog_products")
 }
 

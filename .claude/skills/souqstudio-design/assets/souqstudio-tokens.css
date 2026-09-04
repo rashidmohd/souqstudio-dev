@@ -67,9 +67,14 @@
   --sq-ui-border-strong:     rgba(50, 50, 50, 0.25);
   --sq-ui-border-focus:      var(--sq-blue);
 
-  --sq-ui-action-primary-bg:     var(--sq-charcoal);
+  /* The brand blue carries the primary action. White on #143CD2 is 8.06:1 and
+     on the #1032AE hover 10.05:1 — both clear AA at any size. Charcoal is still
+     the ink, the illustration line and the meter fill; it is no longer the
+     button. Go through this token, never bg-blue: the raw utility pins the
+     light value and skips the dark-mode one below. */
+  --sq-ui-action-primary-bg:     var(--sq-blue);
   --sq-ui-action-primary-fg:     var(--sq-stone-0);
-  --sq-ui-action-primary-hover:  #1F1F1F;
+  --sq-ui-action-primary-hover:  var(--sq-blue-600);
   --sq-ui-action-secondary-bg:   transparent;
   --sq-ui-action-secondary-fg:   var(--sq-stone-900);
   --sq-ui-action-danger-fg:      var(--sq-critical-fg);
@@ -223,9 +228,13 @@ em, i, .italic { font-style: normal; font-weight: 500; }
   --sq-ui-border-subtle:   rgba(239, 238, 232, 0.12);
   --sq-ui-border-strong:   rgba(239, 238, 232, 0.24);
 
-  --sq-ui-action-primary-bg:    #EFEEE8;
+  /* Dark keeps the action blue, but not --sq-blue: #143CD2 on the #1E1E1C page
+     is 2.07:1, under the 3:1 non-text floor, so the button's shape would barely
+     separate from the ground. #8AA1F1 is already the dark link and focus value;
+     it is 6.72:1 on the page and takes #1E1E1C ink at the same 6.72:1. */
+  --sq-ui-action-primary-bg:    #8AA1F1;
   --sq-ui-action-primary-fg:    #1E1E1C;
-  --sq-ui-action-primary-hover: #FFFFFF;
+  --sq-ui-action-primary-hover: #A5B8F5;
 
   --sq-ui-text-link:       #8AA1F1;  /* sq-blue is unreadable on a dark ground */
   --sq-ui-border-focus:    #8AA1F1;

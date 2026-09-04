@@ -13,8 +13,10 @@ export function Button({ href, children }: ButtonProps) {
   )
 }
 
+// --sq-blue. Literal because CSS variables do not resolve in email clients;
+// keep it in step with --sq-ui-action-primary-bg in souqstudio-tokens.css.
 const button: React.CSSProperties = {
-  backgroundColor: '#323232',
+  backgroundColor: '#143CD2',
   color: '#FFFFFF',
   borderRadius: '6px',
   fontSize: '14px',

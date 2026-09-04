@@ -86,9 +86,13 @@ and it appears in the consistency checklist instead.
 
 ### Where the brand blue goes
 
-**Blue is not the button colour.** `--sq-charcoal` is the primary action. Blue is reserved for selection, focus rings, links, and active nav — roughly 5% of pixels. The moment blue becomes the CTA it appears everywhere and starts fighting the artboard.
+**Blue is the primary action.** `--sq-ui-action-primary-bg` resolves to `--sq-blue` — the mark's own colour, on the one button per region that matters. Blue also carries selection, focus rings, links, and active nav.
 
-Never: blue as a page background, a card fill, a large tinted panel, or a chart series adjacent to a status colour.
+Charcoal held the CTA until it was measured: blue reached roughly 5% of pixels and every surface with visual weight was grey, so the logged-in product read as a greyscale app wearing a blue logo. The restraint that justified charcoal did not disappear, it moved — **one primary per screen region**. Blue earns its weight by being the single most important action on a screen, never by being sprinkled across it.
+
+Reach for it through `bg-action-primary`, never `bg-blue`. The raw utility pins the light value and skips the dark-mode `#8AA1F1`, and lint blocks it.
+
+Never: blue as a page background, a card fill, a large tinted panel, or a chart series adjacent to a status colour. The button is where blue goes solid — nothing larger.
 
 ### Gold, and the colour that is not in the brand
 
@@ -264,7 +268,7 @@ Every recurring element is specified here. Do not invent a variant — if a scre
 | Danger | transparent | `--sq-ui-action-danger-fg` | 1px `--sq-critical-fg` | Destructive, outside dialogs |
 | Danger solid | `--sq-critical-fg` | white | none | Destructive, **only** as the confirm inside a dialog |
 
-- **Never a blue-filled button.** Blue is selection, focus and links. A blue button puts the brand colour on every screen and it starts competing with the artboard.
+- **Primary is blue, through the token.** `bg-action-primary`, never `bg-blue` — the raw utility pins the light value and skips the dark-mode `#8AA1F1`. Lint blocks it.
 - **One primary per screen region.** Two primaries means the screen asks two questions and should be split.
 - Height 32px, 44px on coarse pointers — from the token file, never hardcoded. Inline padding 12px at 32, 16px at 44.
 - Icon-only buttons are circular at the full control height — a 20px glyph padded to 32 or 44, never a 20px target. Always an `aria-label`, and see Icons for where icon-only is permitted at all.
@@ -290,7 +294,7 @@ A soft full-bleed tint block with charcoal text and a secondary button inside. `
 
 **These are for prompts, not content** — onboarding next-steps, feature introductions, upgrade nudges. General content lives on white cards. Use more than two on a screen and the page turns into a quilt; the restraint is what makes them read as prompts at all.
 
-Never put a primary charcoal button inside one. The tint already carries the emphasis, and a solid dark button on a tint block fights it.
+Never put a primary button inside one. The tint already carries the emphasis, and a solid fill on a tint block fights it. Blue on sand is 6.43:1, so this is not a contrast objection and going blue does not lift it.
 
 **`--sq-ui-text-muted` is not available on a tint.** Its 4.91:1 rating is measured
 against `--sq-ui-page`; on sand it drops to 4.19:1 and on sky-tint to 4.26:1, both
@@ -356,7 +360,7 @@ Single line, icon plus text, no illustration, anchored bottom inline-start so RT
 
 ### Navigation items
 
-Active: `--sq-ui-selected-bg` with `--sq-ui-selected-fg`. Hover: `--sq-stone-100`. Rest: `--sq-ui-text-secondary`. This is the only place blue appears as a background in the shell.
+Active: `--sq-ui-selected-bg` with `--sq-ui-selected-fg`. Hover: `--sq-stone-100`. Rest: `--sq-ui-text-secondary`. The background here is the pale `--sq-blue-50`, not the solid blue of the primary button, so an active nav item and a CTA never read as the same object.
 
 ## States
 

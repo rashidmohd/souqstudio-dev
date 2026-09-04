@@ -163,9 +163,14 @@ rank. **That ordering is the precedence, not a nicety** — a chain that has cor
 public record needs its own row to win, and it wins here rather than in a merge written
 twice in application code.
 
-**Status: written, not applied.** The column, index, trigger and extensions are in
+**Status: applied and verified.** The column, index, trigger and extensions are in
 `20260904000000_e5_offer_model_and_catalog_search`, along with the rest of the E5 delta.
-The dev database is still at the E3 migration.
+This exact query was run against the live database with three seeded rows: English and
+Arabic queries return the same product, and the organization's own row leads.
+
+The column is **also declared in the Prisma model** as `searchVector Unsupported("tsvector")?`
+with the three GIN indexes, on top of the raw SQL. Raw SQL alone leaves Prisma believing
+the column should not exist, so `db push` and `migrate dev` generate a `DROP` for it.
 
 ---
 

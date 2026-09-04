@@ -41,7 +41,7 @@ map to a stated rule in this skill:
 | `shadow-sm` `shadow` | There is no elevation in this system |
 | `text-sand` `border-sky` `text-stone-300` | Fill-only tier used as ink |
 | `italic` | Plex Sans Arabic has no true italic |
-| `bg-blue` | Blue is never a button or panel fill |
+| `bg-blue` | Primary is `bg-action-primary`; the raw utility skips the dark-mode value |
 | `--sq-tpl-*` in a chrome component | Template tokens are offer book content only |
 | `process.env` | Import the validated env module |
 | `@prisma/client` | Import `prisma` from `@souqstudio/db` |

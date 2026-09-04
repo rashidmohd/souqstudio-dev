@@ -10,8 +10,8 @@ import { cn } from '@/lib/utils'
  * General content lives on white `Card`s. More than two on a screen and the page
  * becomes a quilt; the restraint is what makes them read as prompts at all.
  *
- * **Never a primary charcoal button inside.** The tint already carries the
- * emphasis and a solid dark button on a tint block fights it — use `secondary`
+ * **Never a primary button inside.** The tint already carries the
+ * emphasis and a solid fill on a tint block fights it — use `secondary`
  * or `ghost`. Lint cannot see the nesting, so that one is on review.
  *
  * No border and no shadow: separation comes from the tint against

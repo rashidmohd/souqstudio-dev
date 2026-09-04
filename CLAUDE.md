@@ -57,8 +57,9 @@ These apply everywhere and are not negotiable per-task.
   shadcn ships shadows on cards, popovers, dropdowns and dialogs — strip them.
 - **Every button is a full pill.** Cards and dialogs 12px, inputs and chips 8px, tinted
   blocks 16px, artboard elements 3px.
-- **Blue is not the button colour.** `--sq-charcoal` is the primary action. Blue is
-  selection, focus, links and active nav — roughly 5% of pixels.
+- **Blue is the button colour.** `--sq-ui-action-primary-bg` is `--sq-blue`, alongside
+  selection, focus, links and active nav. Always `bg-action-primary`, never `bg-blue` —
+  the raw utility skips the dark-mode value. One primary per screen region.
 - **Logical CSS properties only.** `ms-` `me-` `ps-` `pe-` `border-inline-start`. Never
   `ml-` `mr-` `pl-` `pr-` `left-` `right-`. The app ships in Arabic.
 - **Every figure gets `[data-figure]`** — prices, counts, percentages, dates. Mono,
@@ -154,10 +155,6 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   OFL families into R2 and subsetting them —
   `souqstudio-design → references/brand-kit-fonts.md`. Until then the editor has
   no shop-chosen typeface to load, which E6 will notice.
-- **The E5 migration is written and unapplied.** `20260904000000_e5_offer_model_and_catalog_search`
-  carries the offer model, the bilingual catalog, `image_assets`, spreadsheet import and
-  the tsvector work. Its header lists four hand-edits to what `prisma migrate diff`
-  generated. The dev database is still at the E3 migration.
 - **Promo tiers are not seeded on organization creation.** `offers.promoTierId` is NOT
   NULL and the migration only seeds the organizations that already existed. The signup
   path must seed `Deal` and `Offer` for every new org or its first offer fails. See

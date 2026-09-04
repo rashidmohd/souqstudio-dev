@@ -84,7 +84,7 @@ Pick up at `E2-pending.md` §1, which has the three steps in order. The hazard t
 rows* rather than an error — it fails closed, and a mistake looks like an empty screen in
 production rather than a stack trace.
 
-### The tsvector migration is written but unapplied
+### The tsvector migration is applied — full-text search is unblocked
 
 `catalog_products.search_vector`, its GIN index, the update trigger and `pg_trgm` are raw
 SQL in `20260904000000_e5_offer_model_and_catalog_search`. It landed there rather than in
@@ -93,16 +93,28 @@ writing it twice would have meant writing it wrong once. The vector now spans `n
 `nameAr` at weight A, brand and category at B, spec and tags at C — `simple` dictionary,
 never `english`, because the catalog is multilingual.
 
-**It has not been applied.** The dev database is at
-`20260811120000_e3_billing_subscription`; the E5 migration is the only one pending. It was
-generated with `prisma migrate diff` and then hand-edited — the header lists four
-departures — so read it before running `pnpm db:migrate`, and run it against a scratch
-database first. `catalog_products`, `offer_books` and `offer_book_products` are all empty
-today, so the destructive half of it costs nothing at the moment.
+**Applied to the dev database on 4 September 2026.** `prisma migrate status` reports four
+migrations and no pending work. Verified end to end against the live database: the trigger
+populates the vector on insert, an English query and an Arabic query return the same row,
+a tag hit ranks below a name hit, `pg_trgm` matches "Basmatti" to "Basmati" at 0.8, the
+partial unique index rejects a duplicate universal barcode, and the organization's own row
+outranks the universal one at equal rank — which is the two-collection precedence.
+
+Two things that came out of applying it:
+
+- **The tsvector column is now declared in the model too**, as
+  `searchVector Unsupported("tsvector")?` with its three GIN indexes. Raw SQL alone was not
+  enough: a model that does not mention the column makes `db push` and `migrate dev`
+  generate a `DROP` for it, and losing the search index reads as slow search rather than as
+  a missing index. Both places, not either.
+- **The only schema drift left is the E2 leftover** — `user_shop_access.updatedAt` still
+  carries a `DEFAULT` the model does not declare. The E3 migration header documented it and
+  it is still there. It is harmless and it will keep appearing in every diff until someone
+  clears it.
 
 `prisma/migrations/migration_lock.toml` was missing and is now written. Without it
 `prisma migrate diff --from-migrations` refuses to run at all, which is the tool anyone
-would reach for to check this migration against the history.
+would reach for to check a migration against the history.
 
 ### Three worker handlers throw — blocks E6, E8, E9
 
