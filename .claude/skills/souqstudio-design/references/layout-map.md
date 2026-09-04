@@ -28,6 +28,12 @@ errors. It just looks wrong, and the artboard gets compressed.
 
 Left rail, persistent, collapses to icons below 1024px.
 
+**Persistent means sticky**, not merely always-rendered: `sticky top-0 h-dvh self-start`,
+with `overflow-y-auto` so the rail scrolls inside itself on a short viewport instead of
+dropping Account off the bottom. `self-start` is load-bearing — a flex child stretches to
+the container's height by default, which leaves `sticky` no distance to travel and makes
+it a no-op.
+
 **At and above 1024px the owner collapses it too**, from a toggle in the rail's own
 head. The choice is written to `sq_rail` by the client and read by the layout on the
 server, so the rail renders at its remembered width instead of correcting itself after

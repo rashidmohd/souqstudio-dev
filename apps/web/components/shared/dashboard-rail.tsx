@@ -114,6 +114,19 @@ export function DashboardRail({ initialState }: { initialState: RailState }) {
       aria-label="Main"
       className={cn(
         'flex w-rail-collapsed shrink-0 flex-col gap-1 border-e-hairline border-border-subtle bg-surface p-2',
+        // Sticky, and the three classes are one mechanism, not three choices.
+        // A flex child stretches to the container's full height by default,
+        // which leaves `sticky` nothing to travel within and silently does
+        // nothing: `self-start` stops the stretch, `h-dvh` then gives the rail
+        // the viewport's height, and `top-0` pins it there. `h-dvh` rather than
+        // `h-screen` because 100vh overshoots under a mobile browser's
+        // retracting toolbar.
+        //
+        // `overflow-y-auto` is the short-viewport case. The rail is the one
+        // component every signed-in screen renders, and a laptop in a video
+        // call is not tall — without it, Account drops off the bottom with no
+        // way to reach it.
+        'sticky top-0 h-dvh self-start overflow-y-auto',
         // No width transition. The design system permits opacity and transform
         // only — animating width forces layout on every frame and stutters on
         // the mid-range tablets these shops actually use.
