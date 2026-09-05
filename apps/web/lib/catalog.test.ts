@@ -4,6 +4,9 @@ import {
   displayName,
   displaySpec,
   formatPackSize,
+  hasValidCheckDigit,
+  isBarcode,
+  normalizeBarcode,
   packLabel,
   toCatalogLanguage,
 } from '@/lib/catalog-display'
@@ -133,5 +136,61 @@ describe('packLabel', () => {
 
   it('renders nothing without a pack size — no size is not a zero size', () => {
     expect(packLabel({ packSize: null, packUnit: 'G', packCount: 8 })).toBeNull()
+  })
+})
+
+describe('barcodes', () => {
+  // Real GTINs. A validator written against invented numbers passes on the
+  // invented numbers and fails on the pack in the owner's hand.
+  const EAN13 = '4006381333931'
+  const UPCA = '036000291452'
+
+  it('recognises the four GTIN lengths and nothing else', () => {
+    expect(isBarcode(EAN13)).toBe(true) // EAN-13
+    expect(isBarcode(UPCA)).toBe(true) // UPC-A
+    expect(isBarcode('96385074')).toBe(true) // EAN-8
+    expect(isBarcode('00012345600012')).toBe(true) // GTIN-14
+
+    // A five-digit number is a search for a five-digit number.
+    expect(isBarcode('12345')).toBe(false)
+    expect(isBarcode('basmati')).toBe(false)
+    expect(isBarcode('123456789012345')).toBe(false)
+  })
+
+  it('strips the separators a label prints and a person types', () => {
+    expect(normalizeBarcode('4006381 333931')).toBe(EAN13)
+    expect(normalizeBarcode('0-36000-29145-2')).toBe(UPCA)
+    expect(isBarcode('4006381 333931')).toBe(true)
+  })
+
+  it('leaves anything else in place so it fails rather than transforming', () => {
+    // `+` is not a separator. Removing it would turn a nonsense string into a
+    // valid-looking code for a product nobody meant.
+    expect(normalizeBarcode('400638+1333931')).toBe('400638+1333931')
+    expect(isBarcode('400638+1333931')).toBe(false)
+  })
+
+  it('validates the check digit at every length', () => {
+    expect(hasValidCheckDigit(EAN13)).toBe(true)
+    expect(hasValidCheckDigit(UPCA)).toBe(true)
+    expect(hasValidCheckDigit('96385074')).toBe(true)
+    expect(hasValidCheckDigit('00012345600012')).toBe(true)
+  })
+
+  it('catches a single mistyped digit, which is what it is for', () => {
+    expect(hasValidCheckDigit('4006381333932')).toBe(false)
+    expect(hasValidCheckDigit('4006381333831')).toBe(false)
+    expect(hasValidCheckDigit('036000291451')).toBe(false)
+  })
+
+  it('catches a transposition, which weighting from the right is what buys', () => {
+    // Anchoring the 3-1 weights from the left instead of the right passes this.
+    expect(hasValidCheckDigit('4006381333913')).toBe(false)
+  })
+
+  it('rejects anything that is not a barcode at all', () => {
+    expect(hasValidCheckDigit('12345')).toBe(false)
+    expect(hasValidCheckDigit('')).toBe(false)
+    expect(hasValidCheckDigit('basmati rice')).toBe(false)
   })
 })

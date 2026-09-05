@@ -10,12 +10,18 @@ import type {
   Page,
 } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AddProductForm } from '@/components/catalog/AddProductForm'
 import { CategoryTiles } from '@/components/catalog/CategoryTiles'
 import { ProductCard } from '@/components/catalog/ProductCard'
 import { EmptyState } from '@/components/shared/empty-state'
-import type { CatalogLanguage } from '@/lib/catalog-display'
+import {
+  isBarcode,
+  normalizeBarcode,
+  type CatalogLanguage,
+} from '@/lib/catalog-display'
 
 /**
  * The catalog browser — E5-01 and E5-02 on one screen.
@@ -48,6 +54,51 @@ type Trail = {
 
 type Subcategory = { name: string; productCount: number }
 
+type QueryResult =
+  | { ok: true; items: CatalogSearchHit[]; scannedBarcode: string | null }
+  | { ok: false; message: string }
+
+/**
+ * One query, two endpoints — E5-01 and E5-03.
+ *
+ * **A barcode never goes to full-text search.** The migration's trigger builds
+ * `search_vector` from name, brand, category, spec and tags; `barcode` is not
+ * in it, so a scanned code passed to `/catalog/search` matches nothing and the
+ * screen would say "no products match that" about a product it holds. Routing
+ * on the shape of the query is what makes the search box's own promise —
+ * "product name, brand or barcode" — true.
+ */
+async function runQuery(q: string, category: string | null): Promise<QueryResult> {
+  if (isBarcode(q)) {
+    const res = await fetch(
+      `/api/v1/catalog/barcode/${encodeURIComponent(normalizeBarcode(q))}`
+    )
+    const result: ApiResult<{ barcode: string; product: CatalogProductSummary | null }> =
+      await res.json()
+
+    if (result.error) return { ok: false, message: result.error.message }
+
+    return {
+      ok: true,
+      items: result.data.product
+        ? [{ ...result.data.product, matchedBy: 'barcode' }]
+        : [],
+      // Remembered even when nothing matched — especially then, because it is
+      // what the "add this product" form starts from.
+      scannedBarcode: result.data.barcode,
+    }
+  }
+
+  const params = new URLSearchParams({ q })
+  if (category) params.set('category', category)
+
+  const res = await fetch(`/api/v1/catalog/search?${params.toString()}`)
+  const result: ApiResult<{ items: CatalogSearchHit[] }> = await res.json()
+
+  if (result.error) return { ok: false, message: result.error.message }
+  return { ok: true, items: result.data.items, scannedBarcode: null }
+}
+
 export function CatalogBrowser({
   categories,
   lang,
@@ -61,6 +112,18 @@ export function CatalogBrowser({
   const [hits, setHits] = React.useState<CatalogSearchHit[] | null>(null)
   const [browse, setBrowse] = React.useState<Page<CatalogProductSummary> | null>(null)
   const [subcategories, setSubcategories] = React.useState<Subcategory[]>([])
+
+  /** The code behind a lookup that found nothing, so the add form starts from it. */
+  const [scannedBarcode, setScannedBarcode] = React.useState<string | null>(null)
+  /** Open with the name or code the owner was looking for when they gave up. */
+  const [adding, setAdding] = React.useState(false)
+  /**
+   * Bumped after a product is added. It is a dependency of the search effect,
+   * so the list the owner is looking at re-runs and their new product appears
+   * in it — `router.refresh()` would re-render the server component and leave
+   * this client-held result set exactly as it was.
+   */
+  const [reload, setReload] = React.useState(0)
 
   const [searchLoading, setSearchLoading] = React.useState(false)
   const [browseLoading, setBrowseLoading] = React.useState(false)
@@ -80,6 +143,7 @@ export function CatalogBrowser({
     const q = query.trim()
     if (!q) {
       setHits(null)
+      setScannedBarcode(null)
       setSearchLoading(false)
       return
     }
@@ -88,25 +152,25 @@ export function CatalogBrowser({
     setSearchLoading(true)
 
     const timer = setTimeout(() => {
-      const params = new URLSearchParams({ q })
-      if (trail) params.set('category', trail.category.name)
-
       void (async () => {
         try {
-          const res = await fetch(`/api/v1/catalog/search?${params.toString()}`)
-          const result: ApiResult<{ items: CatalogSearchHit[] }> = await res.json()
+          const result = await runQuery(q, trail ? trail.category.name : null)
           if (settled) return
-          if (result.error) {
-            setError(result.error.message)
+
+          if (!result.ok) {
+            setError(result.message)
             setHits([])
+            setScannedBarcode(null)
             return
           }
           setError(null)
-          setHits(result.data.items)
+          setHits(result.items)
+          setScannedBarcode(result.scannedBarcode)
         } catch {
           if (settled) return
           setError(NETWORK_ERROR)
           setHits([])
+          setScannedBarcode(null)
         } finally {
           if (!settled) setSearchLoading(false)
         }
@@ -117,7 +181,7 @@ export function CatalogBrowser({
       settled = true
       clearTimeout(timer)
     }
-  }, [query, trail])
+  }, [query, trail, reload])
 
   // ── Browse — E5-02 ────────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -276,7 +340,12 @@ export function CatalogBrowser({
           onSelect={(category) => setTrail({ category, subcategory: null })}
         />
       ) : products.length === 0 ? (
-        <ZeroResults searching={searching} onReset={reset} />
+        <ZeroResults
+          searching={searching}
+          scannedBarcode={scannedBarcode}
+          onAdd={() => setAdding(true)}
+          onReset={reset}
+        />
       ) : (
         <>
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -297,6 +366,34 @@ export function CatalogBrowser({
           ) : null}
         </>
       )}
+
+      {/* E5-04. The dialog is mounted once here rather than inside the
+          zero-results branch: rendering it there would unmount the form the
+          moment the product is created and the list stops being empty, which
+          takes the success path down with it. */}
+      <Dialog
+        open={adding}
+        onOpenChange={setAdding}
+        title="Add a product"
+        description="It goes into your own catalog straight away."
+        // The form owns its own submit button, so the dialog's primary is the
+        // way out. Two submit buttons for one form is the thing the Dialog
+        // signature's single `primaryAction` exists to prevent, and the form
+        // is the one that knows whether it is valid.
+        primaryAction={{ label: 'Close', onClick: () => setAdding(false) }}
+      >
+        <AddProductForm
+          categories={categories}
+          {...(scannedBarcode
+            ? { initialBarcode: scannedBarcode }
+            : { initialName: query.trim() })}
+          onDone={() => {
+            setAdding(false)
+            setReload((n) => n + 1)
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      </Dialog>
     </div>
   )
 }
@@ -312,17 +409,36 @@ export function CatalogBrowser({
  */
 function ZeroResults({
   searching,
+  scannedBarcode,
+  onAdd,
   onReset,
 }: {
   searching: boolean
+  scannedBarcode: string | null
+  onAdd: () => void
   onReset: () => void
 }) {
+  // E5-04 is triggered by exactly this: a search or a scan that found nothing.
+  // So the one CTA an `EmptyState` allows is the add, not the clear — the
+  // search box is still on screen and clearing it costs a keystroke, whereas
+  // "we do not have it, add it" is the move the owner came here to make.
+  if (scannedBarcode) {
+    return (
+      <EmptyState
+        kind="zero-results"
+        title="No product with that barcode"
+        body="Nothing in the shared catalog or yours carries that code. Add it and it is yours to use straight away."
+        action={{ label: 'Add this product', onClick: onAdd }}
+      />
+    )
+  }
+
   return searching ? (
     <EmptyState
       kind="zero-results"
       title="No products match that"
-      body="Try fewer words, or the brand name printed on the pack. Barcodes work too."
-      action={{ label: 'Clear the search', onClick: onReset }}
+      body="Try fewer words, or the brand name printed on the pack. If we simply do not have it, add it yourself."
+      action={{ label: 'Add this product', onClick: onAdd }}
     />
   ) : (
     <EmptyState

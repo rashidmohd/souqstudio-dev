@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { Prisma, prisma } from '@souqstudio/db'
+import type { MatchCandidate } from '@/lib/catalog-import'
 import type {
   CatalogCategoryTile,
   CatalogCollection,
@@ -457,4 +458,350 @@ function decodeCursor(value: string | undefined): BrowseCursor | null {
   } catch {
     return null
   }
+}
+
+// ─── Barcode lookup — E5-03 ───────────────────────────────────────────────────
+
+/**
+ * One product by its barcode, the organization's own row winning.
+ *
+ * Not a search. A barcode is an identity, so this is an equality test and the
+ * ranking machinery above has nothing to contribute — which is also why the
+ * search box has to route here rather than pass the number to `searchCatalog`:
+ * **`barcode` is not in `search_vector`.** The migration's trigger builds the
+ * vector from name, brand, category, spec and tags and nothing else, so typing
+ * a barcode into full-text search finds precisely nothing.
+ *
+ * The shadowing predicate is not needed here — ordering the organization's row
+ * first does the same job for a single lookup, and it also returns the private
+ * row when the universal one carries the same barcode, which is the point.
+ */
+export async function lookupBarcode(
+  session: VerifiedSession,
+  barcode: string
+): Promise<CatalogProductSummary | null> {
+  const organizationId = session.user.organizationId
+
+  const rows = await prisma.$queryRaw<CatalogRow[]>(
+    Prisma.sql`
+      SELECT
+        p.id,
+        p."organizationId",
+        p."nameEn", p."nameAr",
+        p."brandEn", p."brandAr",
+        p."specEn", p."specAr",
+        p.category, p.subcategory,
+        p."packSize"::text AS "packSize",
+        p."packUnit"::text AS "packUnit",
+        p."packCount",
+        p.barcode,
+        img."r2Key" AS "imageKey",
+        img.kind::text AS "imageKind"
+      FROM catalog_products p
+      ${IMAGE_PICK}
+      WHERE p."archivedAt" IS NULL
+        AND p.barcode = ${barcode}
+        AND (p."organizationId" = ${organizationId} OR p."organizationId" IS NULL)
+      ORDER BY (p."organizationId" IS NULL) ASC
+      LIMIT 1
+    `
+  )
+
+  const row = rows[0]
+  return row ? toSummary(row) : null
+}
+
+// ─── Creating a product in the organization's collection — E5-04 ──────────────
+
+export type NewProduct = {
+  nameEn: string
+  nameAr?: string | undefined
+  brandEn?: string | undefined
+  specEn?: string | undefined
+  category?: string | undefined
+  subcategory?: string | undefined
+  packSize?: string | undefined
+  packUnit?: PackUnit | undefined
+  packCount?: number | undefined
+  barcode?: string | undefined
+}
+
+export type NewProductImage = {
+  r2Key: string
+  url: string
+  width: number
+  height: number
+}
+
+/**
+ * E5-04 — a product the owner adds because the catalog did not have it.
+ *
+ * **It lands in the organization's collection and is usable immediately.**
+ * Review decides promotion to the universal catalog, not availability: a shop
+ * owner in Dubai at 11pm does not wait on a reviewer in the morning. The
+ * contribution row is the queue entry, and it points at a product that is
+ * already live for the shop that submitted it.
+ *
+ * All three writes are one transaction. A product with no image row renders as
+ * a grey tile nobody can explain, and an `image_assets` row pointing at a
+ * product that failed to insert is an orphan the cutout worker would pick up
+ * and fail on — neither half is worth having without the other.
+ *
+ * The `ImageAsset` is `ORIGINAL` and `APPROVED`: it is what the owner
+ * photographed, so there is no matte to judge. The cutout the worker produces
+ * arrives as a second row, `PENDING`, and `IMAGE_PICK` above will not prefer it
+ * until it is approved.
+ */
+export async function createOrgProduct(
+  session: VerifiedSession,
+  shopId: string,
+  product: NewProduct,
+  image: NewProductImage
+): Promise<{ id: string; imageAssetId: string }> {
+  const organizationId = session.user.organizationId
+
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.catalogProduct.create({
+      data: {
+        organizationId,
+        nameEn: product.nameEn,
+        nameAr: product.nameAr ?? null,
+        brandEn: product.brandEn ?? null,
+        specEn: product.specEn ?? null,
+        category: product.category ?? null,
+        subcategory: product.subcategory ?? null,
+        packSize: product.packSize ?? null,
+        packUnit: product.packUnit ?? null,
+        packCount: product.packCount ?? null,
+        barcode: product.barcode ?? null,
+        source: 'user_contribution',
+      },
+      select: { id: true },
+    })
+
+    const asset = await tx.imageAsset.create({
+      data: {
+        productId: created.id,
+        kind: 'ORIGINAL',
+        r2Key: image.r2Key,
+        width: image.width,
+        height: image.height,
+        reviewState: 'APPROVED',
+      },
+      select: { id: true },
+    })
+
+    await tx.productContribution.create({
+      data: {
+        shopId,
+        catalogId: created.id,
+        imageUrl: image.url,
+        name: product.nameEn,
+        brand: product.brandEn ?? null,
+        category: product.category ?? null,
+      },
+    })
+
+    return { id: created.id, imageAssetId: asset.id }
+  })
+}
+
+
+// ─── Import matching — E5-06 ──────────────────────────────────────────────────
+
+/**
+ * How many candidates an ambiguous row offers the owner.
+ *
+ * Three. A picker with ten near-identical names is not a decision, it is a
+ * second search — and if the right product is not in the top three, the score
+ * was never going to find it and the row wants creating instead.
+ */
+const MAX_CANDIDATES = 3
+
+export type ImportNeedle = { index: number; name: string; barcode: string | null }
+
+export type ImportMatches = {
+  /** Row index → the product its barcode identifies, when it has one. */
+  byBarcode: Map<number, string>
+  /** Row index → ranked name candidates. */
+  byName: Map<number, MatchCandidate[]>
+}
+
+/**
+ * Resolve a whole sheet's worth of rows in two queries.
+ *
+ * **Two queries for the sheet, not two per row.** A five-hundred-row import
+ * doing a round trip per row is a thousand round trips, and against a hosted
+ * database that is minutes rather than seconds — long enough that the owner
+ * leaves. Both queries fan out over `unnest`, so the row count changes the size
+ * of one array rather than the number of calls.
+ *
+ * **tsvector for recall, trigram for the score.** E5-06 asks for both, and they
+ * do different jobs: full-text finds "Rice Basmati" from "Basmati Rice", which
+ * trigram scores poorly on word order, while `similarity()` returns a true
+ * 0..1 the match thresholds in `catalog-import.ts` can be reasoned about. So the
+ * `WHERE` admits either and the ranking is the similarity alone — mixing
+ * `ts_rank`, which is unbounded and corpus-dependent, into a number compared
+ * against a constant would make that constant meaningless.
+ */
+export async function matchImportRows(
+  session: VerifiedSession,
+  needles: ImportNeedle[]
+): Promise<ImportMatches> {
+  const organizationId = session.user.organizationId
+  const byBarcode = new Map<number, string>()
+  const byName = new Map<number, MatchCandidate[]>()
+
+  if (needles.length === 0) return { byBarcode, byName }
+
+  // ── Barcodes ────────────────────────────────────────────────────────────
+  const withBarcodes = needles.filter(
+    (needle): needle is ImportNeedle & { barcode: string } => needle.barcode !== null
+  )
+
+  if (withBarcodes.length > 0) {
+    const rows = await prisma.$queryRaw<Array<{ barcode: string; id: string }>>(
+      Prisma.sql`
+        SELECT DISTINCT ON (p.barcode) p.barcode, p.id
+        FROM catalog_products p
+        WHERE p."archivedAt" IS NULL
+          AND p.barcode = ANY(${withBarcodes.map((n) => n.barcode)}::text[])
+          AND (p."organizationId" = ${organizationId} OR p."organizationId" IS NULL)
+        -- DISTINCT ON keeps the first row per barcode, so this ORDER BY is what
+        -- makes the organization's own record win over the universal one.
+        ORDER BY p.barcode, (p."organizationId" IS NULL) ASC, p.id ASC
+      `
+    )
+
+    const found = new Map(rows.map((row) => [row.barcode, row.id]))
+    for (const needle of withBarcodes) {
+      const id = found.get(needle.barcode)
+      if (id) byBarcode.set(needle.index, id)
+    }
+  }
+
+  // ── Names ───────────────────────────────────────────────────────────────
+  const unresolved = needles.filter(
+    (needle) => !byBarcode.has(needle.index) && needle.name.trim() !== ''
+  )
+
+  if (unresolved.length > 0) {
+    const rows = await prisma.$queryRaw<
+      Array<{ idx: number; id: string; score: number }>
+    >(
+      Prisma.sql`
+        WITH needle(idx, name) AS (
+          SELECT * FROM unnest(
+            ${unresolved.map((n) => n.index)}::int[],
+            ${unresolved.map((n) => n.name)}::text[]
+          )
+        )
+        SELECT n.idx, m.id, m.score
+        FROM needle n
+        JOIN LATERAL (
+          SELECT
+            p.id,
+            GREATEST(
+              similarity(p."nameEn", n.name),
+              COALESCE(similarity(p."nameAr", n.name), 0)
+            ) AS score
+          FROM catalog_products p
+          WHERE ${visibleRows(organizationId)}
+            AND (
+              p."nameEn" % n.name
+              OR p."nameAr" % n.name
+              OR p.search_vector @@ plainto_tsquery('simple', n.name)
+            )
+          ORDER BY score DESC, (p."organizationId" IS NULL) ASC, p.id ASC
+          LIMIT ${MAX_CANDIDATES}
+        ) m ON TRUE
+        ORDER BY n.idx ASC, m.score DESC
+      `
+    )
+
+    for (const row of rows) {
+      const list = byName.get(row.idx) ?? []
+      list.push({ catalogProductId: row.id, score: row.score })
+      byName.set(row.idx, list)
+    }
+  }
+
+  return { byBarcode, byName }
+}
+
+/**
+ * Products created from import rows the owner chose to keep.
+ *
+ * **No `ProductContribution` row, unlike E5-04.** A photographed product is an
+ * offer to the universal catalog and belongs in the review queue; a line from
+ * the shop's own stock list is their private record, often an own-brand line
+ * that would never be promoted. Sending every imported row to a reviewer would
+ * bury the queue in exactly the products it should not contain.
+ *
+ * No image either. That is what E5-07's phone capture is for, and until then
+ * the card falls back to no image rather than to a wrong one.
+ */
+export async function createImportedProducts(
+  session: VerifiedSession,
+  products: NewProduct[]
+): Promise<string[]> {
+  const organizationId = session.user.organizationId
+
+  const created = await prisma.$transaction(
+    products.map((product) =>
+      prisma.catalogProduct.create({
+        data: {
+          organizationId,
+          nameEn: product.nameEn,
+          nameAr: product.nameAr ?? null,
+          brandEn: product.brandEn ?? null,
+          specEn: product.specEn ?? null,
+          category: product.category ?? null,
+          subcategory: product.subcategory ?? null,
+          packSize: product.packSize ?? null,
+          packUnit: product.packUnit ?? null,
+          packCount: product.packCount ?? null,
+          barcode: product.barcode ?? null,
+          source: 'import',
+        },
+        select: { id: true },
+      })
+    )
+  )
+
+  return created.map((row) => row.id)
+}
+
+/** The summaries the review screen needs for matched rows and candidates. */
+export async function summariesByIds(
+  session: VerifiedSession,
+  ids: string[]
+): Promise<Map<string, CatalogProductSummary>> {
+  if (ids.length === 0) return new Map()
+
+  const organizationId = session.user.organizationId
+
+  const rows = await prisma.$queryRaw<CatalogRow[]>(
+    Prisma.sql`
+      SELECT
+        p.id,
+        p."organizationId",
+        p."nameEn", p."nameAr",
+        p."brandEn", p."brandAr",
+        p."specEn", p."specAr",
+        p.category, p.subcategory,
+        p."packSize"::text AS "packSize",
+        p."packUnit"::text AS "packUnit",
+        p."packCount",
+        p.barcode,
+        img."r2Key" AS "imageKey",
+        img.kind::text AS "imageKind"
+      FROM catalog_products p
+      ${IMAGE_PICK}
+      WHERE p.id = ANY(${ids}::text[])
+        AND (p."organizationId" = ${organizationId} OR p."organizationId" IS NULL)
+    `
+  )
+
+  return new Map(rows.map((row) => [row.id, toSummary(row)]))
 }

@@ -101,8 +101,15 @@ DELETE /api/v1/shops/:id                # triggers prorated Stripe credit
 GET    /api/v1/catalog/search?q=&category=&limit=    # E5-01. Ranked top 10, no paging
 GET    /api/v1/catalog/categories                    # E5-02. ?parent=<name> for subcategories
 GET    /api/v1/catalog/products?category=&subcategory=&cursor=   # E5-02. Cursor-paged
-GET    /api/v1/catalog/barcode/:ean
+GET    /api/v1/catalog/barcode/:ean                  # E5-03. Equality, not search
+POST   /api/v1/catalog/upload-url                    # E5-04. Presigned PUT for a photo
 POST   /api/v1/catalog/contributions    # shop submits a missing product
+
+POST   /api/v1/catalog/imports/upload-url            # E5-06. Presigned PUT for a CSV
+POST   /api/v1/catalog/imports                       # parse, infer the column map
+PATCH  /api/v1/catalog/imports/:id                   # confirm the map, resolve every row
+GET    /api/v1/catalog/imports/:id?cursor=           # the review screen's read
+POST   /api/v1/catalog/imports/:id/commit            # apply the owner's decisions
         (This file used to list a `lang` parameter on search. There is none:
          every row carries both languages and the client picks, because one
          fetch feeds an English panel and an Arabic one, and the E5-06 import
@@ -111,7 +118,22 @@ POST   /api/v1/catalog/contributions    # shop submits a missing product
          which is what makes an English and an Arabic query find the same row.
          `products` is a separate route from `search` rather than the same one
          with an optional `q`: search is a ranked top ten and browsing is an
-         ordered page, so one route would return a union the client branches on.)
+         ordered page, so one route would return a union the client branches on.
+         `barcode/:ean` is separate for a harder reason — `barcode` is not in
+         `search_vector`, so a code passed to `search` matches nothing at all.
+         It returns three answers, not two: `invalid_barcode` for a failed
+         check digit, a 200 with `product: null` for a valid code we do not
+         hold — that is the E5-04 prompt, not an error — and the product.
+         `contributions` creates the catalog row, its ORIGINAL image asset and
+         the review-queue entry in one transaction, then queues the cutout;
+         a dead queue does not fail the request.
+         The import is four routes rather than one because it is four separate
+         decisions by the owner, each of which can be abandoned: the file, the
+         column map, the per-row review, the commit. `PATCH :id` re-reads the
+         file from `sourceKey` rather than trusting a client-held parse — the
+         file is kept precisely so the rows reviewed are the rows in it. The
+         commit takes an explicit decision per row and defaults nothing: a row
+         it is not told about keeps its status and is not committed.)
 
 GET    /api/v1/offer-books
 POST   /api/v1/offer-books

@@ -33,7 +33,7 @@ E5 (import, barcode, upload) and the Open Food Facts seed.
 | **E1** Authentication & onboarding | Built. Signup, login, email verification, password reset, TOTP two-factor with backup codes, org-wide 2FA policy, the four-step brand setup wizard, and the getting-started checklist. |
 | **E2** Organization management | Built. Org settings, shops (add, deactivate, archive), team and invites, per-shop access, brand inheritance. See `E2-pending.md`. |
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
-| **E5** Product catalog | **Partly built.** E5-01 full-text search and E5-02 category browsing ship at `/catalog`, over both collections with org-row precedence and barcode shadowing. Barcode lookup, missing-product upload, the contribution queue, spreadsheet import and phone capture are not written. See `E5-pending.md`. |
+| **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
@@ -178,13 +178,22 @@ library, the price mark, the fit ladder and the first renderer are all built and
 against dummy products; none of it can be seen in the app with real data because there is
 none. This is the only thing on the critical path, and it is E5.
 
-**The reader over it now exists.** `/catalog` searches and browses both collections, and
-the four queries behind it were run against the dev database and execute cleanly — they
-returned zero rows, which is the point. What is still missing is every way a row *gets*
-there: barcode lookup (E5-03), missing-product upload (E5-04), spreadsheet import (E5-06),
-phone capture (E5-07), and the Open Food Facts seed. Ranking is therefore unverified
-against real data; the two heuristic constants that decide it are named in
-`E5-pending.md` §3.
+**The reader over it now exists, and so does the first way in.** `/catalog` searches and
+browses both collections, looks a barcode up, and lets an owner add a product the catalog
+does not have — into their own collection, usable immediately, with the review queue as a
+separate question. Every query was run against the dev database and executes cleanly; they
+all returned zero rows, which is the point.
+
+**The bulk path is built too.** `/catalog/import` takes a CSV, guesses what each column
+means, resolves every row against both collections in two queries rather than two per row,
+and puts the ones it could not place with confidence in front of the owner. It commits into
+the catalog; carrying the sheet's prices into an offer book is E6's half, because there are
+no offer books.
+
+What is still missing: XLSX (a dependency decision, not effort), E5-07 phone capture, the
+camera half of E5-03, and the Open Food Facts seed — **which is now the thing standing
+between this and a catalog with products in it.** Ranking and the import's match thresholds
+are both unverified against real data; the constants are named in `E5-pending.md` §3.
 
 ### A preview route with no auth check was committed — remove before deploying
 
@@ -269,7 +278,11 @@ would reach for to check a migration against the history.
 
 `bg` is implemented for logos only. E5 §3 makes background removal an ingest stage for
 catalog images too — the payload fields are on `BgRemovePayload`, the handler branch that
-writes `image_assets` CUTOUT rows is not.
+writes `image_assets` CUTOUT rows is not. **E5-04 now enqueues those jobs**, so the branch
+has real work waiting for it: the job runs, produces a cutout at its own `-cutout.png` key
+and writes no row, and the card falls back to the ORIGINAL with `imageIsFallback` set. What
+the branch owes is the row, not the image. Note that `handleBgRemove` overwrites
+`targetPath` blind — never hand it the original's key.
 
 Guidance is in `souqstudio-technical → references/background-jobs.md` and
 `apps/worker/CLAUDE.md`. The rule that matters: **credits are deducted on completion,
@@ -314,12 +327,19 @@ before it starts.
 
 ### E5 — Product catalog (MVP) — search and browsing are built
 
-**E5-01 and E5-02 ship.** `/catalog` is a search box over both collections with the
-category tiles as its empty state, `CATALOG_BUILT` is flipped and the rail carries the item
-again. What remains is the ingest half — E5-03 barcode, E5-04 upload, E5-06 import, E5-07
-capture — plus the admin queue of E5-05. Read `E5-pending.md` before picking any of them
-up; it carries the corrections building the first half produced, including the fact that
-`?lang=` does not exist and why.
+**E5-01, E5-02, E5-03, E5-04 and E5-06 ship.** `/catalog` is a search box over both
+collections with the category tiles as its empty state, a barcode goes to its own lookup
+rather than to full-text search, a search or scan that finds nothing offers to add the
+product, and `/catalog/import` takes a CSV through mapping, matching and review.
+`CATALOG_BUILT` is flipped and the rail carries the item again.
+
+**Next is the Open Food Facts seed** — with every path into the catalog built, the catalog
+being empty is now a data problem rather than a code one. After that, E5-07 phone capture
+and the camera half of E5-03; XLSX is a dependency decision waiting on a human.
+
+Read `E5-pending.md` first: it carries the corrections building this produced, including
+that `barcode` is not in `search_vector`, that `?lang=` does not exist, why the cutout job
+must never be given the photo's own key, and where the import deliberately stops.
 
 **The shape is settled and the schema is written.** `docs/E5-product-catalog.md` is v2:
 one table with a nullable `organizationId` (null = universal, set = the organization's own

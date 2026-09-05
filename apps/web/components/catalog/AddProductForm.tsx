@@ -1,0 +1,384 @@
+'use client'
+
+import * as React from 'react'
+import Image from 'next/image'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
+import type { CatalogCategoryTile } from '@souqstudio/types'
+
+/**
+ * E5-04 — add a product the catalog does not have.
+ *
+ * Same shape as `ShopForm`: values plus per-field errors, validate on blur,
+ * re-validate on change once a field has errored, submit never disabled, one
+ * `role="alert"` banner for whatever the server says, and everything typed is
+ * preserved when the server rejects it.
+ *
+ * **The photo uploads before the form is submitted**, on selection, so the wait
+ * that a 4MB phone photo on 4G actually costs happens while the owner is still
+ * typing the name rather than after they press the button. The form carries the
+ * resulting key; the key is what the server validates against this shop's
+ * prefix.
+ *
+ * `nameAr` is offered and never required. E5 §2 makes it a completeness warning
+ * at publish time, not a gate at entry — an owner adding a product at 11pm to
+ * get a flyer out does not also have the Arabic to hand, and blocking them here
+ * is how a catalog stops being self-served.
+ */
+
+type Errors = {
+  photo?: string | undefined
+  nameEn?: string | undefined
+  packSize?: string | undefined
+  barcode?: string | undefined
+}
+
+type Values = {
+  nameEn: string
+  nameAr: string
+  brandEn: string
+  specEn: string
+  category: string
+  packSize: string
+  packUnit: string
+  packCount: string
+  barcode: string
+}
+
+const NETWORK_ERROR = 'Could not reach the server. Check your connection and try again.'
+
+const PACK_UNITS = [
+  { value: 'G', label: 'Grams' },
+  { value: 'KG', label: 'Kilograms' },
+  { value: 'ML', label: 'Millilitres' },
+  { value: 'L', label: 'Litres' },
+  { value: 'PIECE', label: 'Pieces' },
+]
+
+export function AddProductForm({
+  categories,
+  initialName,
+  initialBarcode,
+  onDone,
+  onCancel,
+}: {
+  categories: CatalogCategoryTile[]
+  /** What they searched for, so the form starts from the thing they wanted. */
+  initialName?: string | undefined
+  /** Set when they got here by scanning a code nothing matched. */
+  initialBarcode?: string | undefined
+  onDone: (productId: string) => void
+  onCancel: () => void
+}) {
+  const [values, setValues] = React.useState<Values>({
+    nameEn: initialName ?? '',
+    nameAr: '',
+    brandEn: '',
+    specEn: '',
+    category: '',
+    packSize: '',
+    packUnit: '',
+    packCount: '',
+    barcode: initialBarcode ?? '',
+  })
+  const [errors, setErrors] = React.useState<Errors>({})
+  const [formError, setFormError] = React.useState<string | null>(null)
+  const [submitting, setSubmitting] = React.useState(false)
+
+  const [uploading, setUploading] = React.useState(false)
+  const [imageKey, setImageKey] = React.useState<string | null>(null)
+  const [preview, setPreview] = React.useState<string | null>(null)
+
+  const nameRef = React.useRef<HTMLInputElement>(null)
+  const fileRef = React.useRef<HTMLInputElement>(null)
+
+  // The preview is an object URL over the local file, not the uploaded object:
+  // R2 is not necessarily readable the instant the PUT returns, and a broken
+  // image where the photo should be reads as a failed upload.
+  React.useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview)
+    }
+  }, [preview])
+
+  function set(field: keyof Values, value: string) {
+    setValues((prev) => ({ ...prev, [field]: value }))
+    if (field in errors && errors[field as keyof Errors]) {
+      setErrors((prev) => ({
+        ...prev,
+        ...validate({ ...values, [field]: value }, imageKey),
+      }))
+    }
+  }
+
+  function validate(v = values, key = imageKey): Errors {
+    const found: Errors = {}
+    if (!key) found.photo = 'Add a photo of the product.'
+    if (!v.nameEn.trim()) found.nameEn = 'Enter the product name.'
+    if (v.packSize.trim() && !/^\d{1,7}(\.\d{1,3})?$/.test(v.packSize.trim())) {
+      found.packSize = 'Use digits, like 500 or 1.5.'
+    }
+    // Length only. The check digit is the server's answer, because it is the
+    // same rule the barcode lookup applies and two copies would disagree.
+    if (v.barcode.trim() && !/^[\d\s-]{8,20}$/.test(v.barcode.trim())) {
+      found.barcode = 'A barcode is 8 to 14 digits.'
+    }
+    return found
+  }
+
+  async function onPickFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    setFormError(null)
+    setErrors((prev) => ({ ...prev, photo: undefined }))
+
+    try {
+      const authRes = await fetch('/api/v1/catalog/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type, contentLength: file.size }),
+      })
+      const auth = await authRes.json()
+      if (auth.error) {
+        setErrors((prev) => ({ ...prev, photo: auth.error.message }))
+        return
+      }
+
+      const put = await fetch(auth.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
+      if (!put.ok) {
+        setErrors((prev) => ({ ...prev, photo: 'That photo did not upload. Try again.' }))
+        return
+      }
+
+      setImageKey(auth.data.key)
+      setPreview(URL.createObjectURL(file))
+    } catch {
+      setFormError(NETWORK_ERROR)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFormError(null)
+
+    const found = validate()
+    setErrors(found)
+    if (found.photo) {
+      fileRef.current?.focus()
+      return
+    }
+    if (found.nameEn || found.packSize || found.barcode) {
+      nameRef.current?.focus()
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/v1/catalog/contributions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageKey,
+          nameEn: values.nameEn.trim(),
+          ...(values.nameAr.trim() ? { nameAr: values.nameAr.trim() } : {}),
+          ...(values.brandEn.trim() ? { brandEn: values.brandEn.trim() } : {}),
+          ...(values.specEn.trim() ? { specEn: values.specEn.trim() } : {}),
+          ...(values.category ? { category: values.category } : {}),
+          ...(values.packSize.trim() ? { packSize: values.packSize.trim() } : {}),
+          ...(values.packUnit ? { packUnit: values.packUnit } : {}),
+          ...(values.packCount.trim()
+            ? { packCount: Number(values.packCount.trim()) }
+            : {}),
+          ...(values.barcode.trim() ? { barcode: values.barcode.trim() } : {}),
+        }),
+      })
+      const result = await res.json()
+
+      if (result.error) {
+        setFormError(result.error.message)
+        if (result.error.code === 'invalid_barcode' || result.error.code === 'barcode_exists') {
+          setErrors((prev) => ({ ...prev, barcode: result.error.message }))
+        }
+        return
+      }
+
+      onDone(result.data.productId)
+    } catch {
+      setFormError(NETWORK_ERROR)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+      {formError ? (
+        <p
+          role="alert"
+          className="rounded-control bg-critical-bg px-3 py-2 font-ui text-body-sm text-critical-fg"
+        >
+          {formError}
+        </p>
+      ) : null}
+
+      <div className="flex flex-col gap-1">
+        <label
+          htmlFor="product-photo"
+          className="font-ui text-label font-medium text-primary"
+        >
+          Photo
+          <span className="text-critical-fg" aria-hidden="true">
+            {' *'}
+          </span>
+        </label>
+
+        <div className="flex items-center gap-3">
+          <div className="relative flex size-control-lg shrink-0 items-center justify-center overflow-hidden rounded-control bg-sand-tint">
+            {preview ? (
+              // A local object URL, so the optimizer has nothing to fetch.
+              <Image src={preview} alt="" aria-hidden="true" fill unoptimized className="object-contain" />
+            ) : null}
+          </div>
+
+          <input
+            ref={fileRef}
+            id="product-photo"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => void onPickFile(event)}
+            aria-describedby="product-photo-hint"
+            className="font-ui text-body-sm text-secondary"
+          />
+        </div>
+
+        {errors.photo ? (
+          <p className="font-ui text-body-sm text-critical-fg">{errors.photo}</p>
+        ) : (
+          <p id="product-photo-hint" className="font-ui text-body-sm text-muted">
+            {uploading
+              ? 'Uploading…'
+              : 'At least 400 pixels each side. We remove the background for you.'}
+          </p>
+        )}
+      </div>
+
+      <Input
+        ref={nameRef}
+        label="Product name"
+        name="nameEn"
+        placeholder="Basmati rice"
+        required
+        value={values.nameEn}
+        error={errors.nameEn}
+        onChange={(e) => set('nameEn', e.target.value)}
+        onBlur={() => setErrors((prev) => ({ ...prev, nameEn: validate().nameEn }))}
+      />
+
+      <Input
+        label="Product name in Arabic"
+        name="nameAr"
+        lang="ar"
+        dir="rtl"
+        placeholder="أرز بسمتي"
+        hint="Optional now. Needed before this product goes into an Arabic offer book."
+        value={values.nameAr}
+        onChange={(e) => set('nameAr', e.target.value)}
+      />
+
+      <Input
+        label="Brand"
+        name="brandEn"
+        placeholder="Al Wadi"
+        value={values.brandEn}
+        onChange={(e) => set('brandEn', e.target.value)}
+      />
+
+      <Input
+        label="Variant"
+        name="specEn"
+        placeholder="Assorted flavours, 200g tub"
+        hint="The line that goes under the name on a card."
+        value={values.specEn}
+        onChange={(e) => set('specEn', e.target.value)}
+      />
+
+      <Select
+        label="Category"
+        name="category"
+        placeholder="Choose a category"
+        options={categories.map((c) => ({ value: c.name, label: c.name }))}
+        value={values.category}
+        onChange={(e) => set('category', e.target.value)}
+      />
+
+      <div className="flex flex-wrap items-start gap-3">
+        <Input
+          label="Pack size"
+          name="packSize"
+          figure
+          placeholder="500"
+          value={values.packSize}
+          error={errors.packSize}
+          onChange={(e) => set('packSize', e.target.value)}
+          onBlur={() => setErrors((prev) => ({ ...prev, packSize: validate().packSize }))}
+        />
+        <Select
+          label="Unit"
+          name="packUnit"
+          placeholder="Unit"
+          options={PACK_UNITS}
+          value={values.packUnit}
+          onChange={(e) => set('packUnit', e.target.value)}
+        />
+        <Input
+          label="Items per pack"
+          name="packCount"
+          figure
+          placeholder="1"
+          hint="8 for an 8 × 25 g multipack."
+          value={values.packCount}
+          onChange={(e) => set('packCount', e.target.value)}
+        />
+      </div>
+
+      <Input
+        label="Barcode"
+        name="barcode"
+        figure
+        inputMode="numeric"
+        placeholder="6291001234567"
+        value={values.barcode}
+        error={errors.barcode}
+        onChange={(e) => set('barcode', e.target.value)}
+        onBlur={() => setErrors((prev) => ({ ...prev, barcode: validate().barcode }))}
+      />
+
+      <p className="font-ui text-body-sm text-muted">
+        <span className="text-critical-fg">*</span> Required
+      </p>
+
+      <div className="flex items-center gap-2">
+        <Button type="submit" variant="primary" loading={submitting}>
+          Add product
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+
+      <p className="font-ui text-body-sm text-muted">
+        This product is yours to use straight away. We also send it for review, and if it
+        is approved every shop gets it.
+      </p>
+    </form>
+  )
+}

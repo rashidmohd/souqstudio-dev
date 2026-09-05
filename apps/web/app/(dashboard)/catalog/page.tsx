@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { listCategories } from '@/lib/catalog'
 import { requireCompliantSession } from '@/lib/session'
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser'
@@ -28,12 +29,23 @@ export default async function CatalogPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-title text-primary">Catalog</h1>
-        <p className="font-ui text-body text-secondary">
-          Search the shared catalog and your own products. Pick one to put it in an
-          offer book.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-display text-title text-primary">Catalog</h1>
+          <p className="font-ui text-body text-secondary">
+            Search the shared catalog and your own products. Pick one to put it in an
+            offer book.
+          </p>
+        </div>
+
+        {/* A link, not a Button. It navigates, and the search box below is the
+            screen's primary action — one per region. */}
+        <Link
+          href="/catalog/import"
+          className="font-ui text-body-sm text-link underline"
+        >
+          Import a spreadsheet
+        </Link>
       </div>
 
       {/* The interface language is hardcoded to English in app/layout.tsx and

@@ -471,9 +471,12 @@ export interface CatalogCategoryTile {
   productCount: number
 }
 
-/** Which of the three ways a row was found. Ordering and the "own record"
- *  marker both need it, and the import review screen will want it too. */
-export type CatalogMatchKind = 'text' | 'synonym' | 'fuzzy'
+/** Which of the four ways a row was found. Ordering and the "own record"
+ *  marker both need it, and the import review screen will want it too.
+ *  `barcode` is not one of the ranked three: it is an equality test on a
+ *  column the search vector does not even carry, so it arrives by its own
+ *  route and never competes with a text hit. */
+export type CatalogMatchKind = 'text' | 'synonym' | 'fuzzy' | 'barcode'
 
 export interface CatalogSearchHit extends CatalogProductSummary {
   matchedBy: CatalogMatchKind

@@ -43,6 +43,23 @@ export const ACCEPTED_LOGO_TYPES = [
 export type AcceptedLogoType = (typeof ACCEPTED_LOGO_TYPES)[number]
 
 /**
+ * E5-04. A product photo taken on a phone, so the ceiling is the same as a
+ * logo's and the format list is deliberately shorter: **no SVG.** A packshot is
+ * never a vector, and an SVG accepted from an upload is script-bearing content
+ * we would then serve from our own domain. The logo path can afford it because
+ * it rasterises everything; the catalog path stores what it is given.
+ */
+export const MAX_PRODUCT_IMAGE_BYTES = 10 * 1024 * 1024
+
+export const ACCEPTED_PRODUCT_IMAGE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+] as const
+
+export type AcceptedProductImageType = (typeof ACCEPTED_PRODUCT_IMAGE_TYPES)[number]
+
+/**
  * Where a shop's assets live. Org first so a whole tenant's objects can be
  * found, listed or deleted as a unit — which is what a GDPR or PDPL erasure
  * request actually asks for.
@@ -66,6 +83,50 @@ export function shopAssetKey(
  */
 export function orgAssetKey(organizationId: string, filename: string): string {
   return `${organizationId}/org/${filename}`
+}
+
+/**
+ * Where a shop's own product photos live — E5-04 names this prefix exactly.
+ *
+ * Under the shop rather than the organization because the contribution row
+ * records which shop submitted it, and erasure by prefix has to be able to
+ * remove one branch's uploads without touching another's.
+ */
+export function customProductKey(
+  organizationId: string,
+  shopId: string,
+  filename: string
+): string {
+  return `${organizationId}/${shopId}/custom-products/${filename}`
+}
+
+/**
+ * Where the cutout of a product photo goes — **never over the photo itself.**
+ *
+ * `handleBgRemove` in the worker writes its result to the job's `targetPath`
+ * and does not check what is already there. Passing the original's key would
+ * replace the packshot with the cutout, and E5 §3 keeps the original precisely
+ * so that a bad matte is recoverable — the `image_assets` ORIGINAL row would
+ * then be pointing at a cutout, with nothing left to re-run against.
+ *
+ * Always PNG: a cutout has an alpha channel by definition, whatever the source
+ * format was.
+ */
+/**
+ * Where an uploaded spreadsheet lives — E5-06 keeps the file rather than only
+ * its parse, so a disputed import is re-read rather than re-uploaded. Under the
+ * shop for the same erasure-by-prefix reason as everything else.
+ */
+export function importKey(
+  organizationId: string,
+  shopId: string,
+  filename: string
+): string {
+  return `${organizationId}/${shopId}/imports/${filename}`
+}
+
+export function cutoutKey(originalKey: string): string {
+  return `${originalKey.replace(/\.[^./]+$/, '')}-cutout.png`
 }
 
 /** The public URL for a stored object. R2_PUBLIC_URL is the CDN origin. */
