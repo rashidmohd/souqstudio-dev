@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
+import { FileDropzone } from '@/components/ui/file-dropzone'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import type { CatalogCategoryTile } from '@souqstudio/types'
@@ -91,7 +92,6 @@ export function AddProductForm({
   const [preview, setPreview] = React.useState<string | null>(null)
 
   const nameRef = React.useRef<HTMLInputElement>(null)
-  const fileRef = React.useRef<HTMLInputElement>(null)
 
   // The preview is an object URL over the local file, not the uploaded object:
   // R2 is not necessarily readable the instant the PUT returns, and a broken
@@ -127,10 +127,7 @@ export function AddProductForm({
     return found
   }
 
-  async function onPickFile(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  async function onPickFile(file: File) {
     setUploading(true)
     setFormError(null)
     setErrors((prev) => ({ ...prev, photo: undefined }))
@@ -172,11 +169,10 @@ export function AddProductForm({
 
     const found = validate()
     setErrors(found)
-    if (found.photo) {
-      fileRef.current?.focus()
-      return
-    }
-    if (found.nameEn || found.packSize || found.barcode) {
+    // The photo error renders inside the dropzone with `role="alert"`, so it
+    // announces itself; focus goes to the first field the owner can actually
+    // type in rather than to a control they reach by pressing a button.
+    if (found.photo || found.nameEn || found.packSize || found.barcode) {
       nameRef.current?.focus()
       return
     }
@@ -230,46 +226,28 @@ export function AddProductForm({
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="product-photo"
-          className="font-ui text-label font-medium text-primary"
-        >
-          Photo
-          <span className="text-critical-fg" aria-hidden="true">
-            {' *'}
-          </span>
-        </label>
-
-        <div className="flex items-center gap-3">
-          <div className="relative flex size-control-lg shrink-0 items-center justify-center overflow-hidden rounded-control bg-sand-tint">
-            {preview ? (
-              // A local object URL, so the optimizer has nothing to fetch.
-              <Image src={preview} alt="" aria-hidden="true" fill unoptimized className="object-contain" />
-            ) : null}
+      {/* No illustration here, deliberately. This zone sits inside a form the
+          owner is halfway through, and the design system permits artwork only
+          where nothing is in progress — the same rule that keeps it off
+          zero-results and error states. */}
+      <FileDropzone
+        label="Photo of the product"
+        accept="image/png,image/jpeg,image/webp"
+        busy={uploading}
+        buttonLabel={preview ? 'Choose a different photo' : 'Choose a photo'}
+        onFile={(file) => void onPickFile(file)}
+        {...(errors.photo ? { error: errors.photo } : {})}
+        hint="PNG, JPG or WebP, at least 400 pixels on each side. We remove the background for you."
+      >
+        {preview ? (
+          // A local object URL rather than the uploaded object: R2 is not
+          // necessarily readable the instant the PUT returns, and a broken
+          // image where the photo should be reads as a failed upload.
+          <div className="relative h-preview w-full max-w-xs overflow-hidden rounded-control bg-sand-tint">
+            <Image src={preview} alt="" aria-hidden="true" fill unoptimized className="object-contain" />
           </div>
-
-          <input
-            ref={fileRef}
-            id="product-photo"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(event) => void onPickFile(event)}
-            aria-describedby="product-photo-hint"
-            className="font-ui text-body-sm text-secondary"
-          />
-        </div>
-
-        {errors.photo ? (
-          <p className="font-ui text-body-sm text-critical-fg">{errors.photo}</p>
-        ) : (
-          <p id="product-photo-hint" className="font-ui text-body-sm text-muted">
-            {uploading
-              ? 'Uploading…'
-              : 'At least 400 pixels each side. We remove the background for you.'}
-          </p>
-        )}
-      </div>
+        ) : null}
+      </FileDropzone>
 
       <Input
         ref={nameRef}

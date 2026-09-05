@@ -801,6 +801,59 @@ express one. `disabledReason` is what renders it.
 Nothing renders `illustration` yet: all twelve manifest slots are `todo` and a
 placeholder box is barred. The prop exists so callers are written correctly now.
 
+### FileDropzone
+
+| | |
+| --- | --- |
+| File | `components/ui/file-dropzone.tsx` |
+| Status | `built` — apps/web only, E5 |
+| Governs | SKILL.md → Components → Inputs; States → Empty (the illustration rule) |
+
+```tsx
+type FileDropzoneProps = {
+  label: string                     // heading for the zone, never a placeholder
+  accept: string                    // input `accept`, and the drop is filtered by it too
+  onFile: (file: File) => void      // exactly one file
+  hint?: string                     // formats and limits, said before the drop
+  error?: string
+  busy?: boolean                    // loading state on the button, both paths inert
+  disabled?: boolean
+  buttonLabel?: string              // default "Choose a file"
+  illustration?: IllustrationKey    // first-run prompts only — see below
+  children?: React.ReactNode        // preview of what was chosen
+}
+```
+
+**Added by E5 without going through this file first, and recorded here rather than
+left implicit.** The inventory listed no file input at all, and by E5-06 there were
+three bare `<input type="file">` controls in the product — the one widget that looks
+like no other, and on a phone reads as broken rather than plain.
+
+**The button is not decoration around the drop target.** Dragging has no keyboard
+equivalent and none on a touchscreen, so a zone whose only affordance is the drop is
+unusable for a keyboard user and for the phone most of these owners hold. The input
+stays in the DOM as `sr-only` and the button clicks it — deliberately the identical
+arrangement `LogoField` already uses, so the two cannot drift.
+
+**One file, always.** Every caller wants one. A drop of five with four silently
+discarded is worse than a drop of five that says so.
+
+**`accept` is applied by hand on the drop**, not only passed to the input: the
+attribute governs the picker and nothing else, and a browser handing over an empty
+`type` for a `.csv` is why the check falls back to the extension.
+
+**`illustration` carries the same restriction as `EmptyState`** — permitted only
+where the zone is a first-run prompt with nothing in progress, refused on a dropzone
+sitting inside a form the owner is halfway through. Unlike `EmptyState` this is not
+enforced in the type, because a dropzone has no `kind` to discriminate on; it is a
+review catch, and it is the one thing about this component worth reviewing.
+
+**Open — `LogoField` has not adopted it.** E4's logo upload still carries its own
+copy of the sr-only-input-plus-button arrangement, now duplicated rather than shared.
+It should move onto this, and it was left alone in the change that added this because
+`LogoField` also owns the cutout polling and the brand store writes, which is a
+larger edit than the one that was asked for.
+
 ### Skeleton
 
 | | |

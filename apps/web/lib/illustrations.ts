@@ -28,6 +28,11 @@ export const ILLUSTRATIONS = {
   'empty-team': 'meet-the-team.svg',
   'error-not-found': 'lost.svg',
   'error-generic': 'problem-solving.svg',
+  // E5-06. A prompt before anything exists — not a zero-result and not a
+  // failure — which is the one place the system permits artwork. Object-led
+  // rather than figure-led, and the import flow carries no other illustration,
+  // so there is nothing for it to sit inconsistently beside.
+  'import-upload': 'add-file.svg',
 } as const
 
 export type IllustrationKey = keyof typeof ILLUSTRATIONS

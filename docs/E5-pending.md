@@ -22,6 +22,7 @@ Last updated 5 September 2026, after E5-01, E5-02, E5-03, E5-04 and E5-06.
 | Barcode | `GET /api/v1/catalog/barcode/:ean`, routed to from the search box |
 | Add a product | `POST /api/v1/catalog/{upload-url,contributions}` + `AddProductForm` |
 | Import | `lib/csv.ts`, `lib/catalog-import.ts`, four `/catalog/imports` routes, `/catalog/import` |
+| File upload | `components/ui/file-dropzone.tsx` — drag-and-drop, used by E5-04 and E5-06 |
 
 **Search is raw SQL and cannot be anything else.** `search_vector` is
 `Unsupported("tsvector")`, which Prisma excludes from the generated client, so the column
@@ -124,6 +125,41 @@ price and prints a confident wrong number next to a real one.
 created product — a stored bad barcode shadows the real product it will never match. A
 *transposed* one is the dangerous case: it can match a real, different product, which is
 why the check runs before the row is matched rather than after.
+
+### FileDropzone, and the illustration
+
+Both upload surfaces were shipping a bare `<input type="file">` — the one widget in the
+product that looks like no other, and on a phone reads as broken rather than plain.
+`components/ui/file-dropzone.tsx` replaces them: drop or button, one file, `accept`
+enforced on the drop as well as in the picker. It went into
+`references/component-inventory.md` before it was built, per that file's own process.
+
+Three things about it worth not undoing:
+
+- **The button is the accessible path, not decoration.** Dragging has no keyboard
+  equivalent and none on a touchscreen. The `sr-only` input plus a `Button` that clicks
+  it is deliberately identical to what `LogoField` already does.
+- **Drag depth is counted, not toggled.** Moving the cursor from the zone onto the button
+  inside it fires `dragleave` on the zone; a boolean flickers the highlight off every
+  time the pointer crosses a child, and it is invisible until someone drags slowly.
+- **`preventDefault` on `dragover`.** Without it the browser navigates to the dropped
+  file and the owner loses the page.
+
+**The illustration is on the import's first step only.** `import-upload` →
+`add-file.svg`, fetched from the CDN, audited, and checked in — a first-run prompt with
+nothing in progress, which is the same test that permits artwork on `EmptyState`'s
+`empty` and refuses it on zero-results and error. The mapping step, the review step and
+the add-a-product photo field get none: the owner is mid-task in all three.
+
+**One thing a human should settle**, recorded in `illustration-manifest.md` rather than
+decided here: the compliance checklist says "no brand blue", and all four previously
+shipped illustrations use `#143CD2` as their accent. `add-file.svg` matches the shipped
+set. Either the checklist line goes or all five files get remapped in one pass — but not
+one at a time, or the set stops being a set.
+
+**`LogoField` has not adopted the dropzone.** E4's logo upload still carries its own copy
+of the same arrangement. It should move, and was left alone because it also owns the
+cutout polling and the brand-store writes — a larger edit than the one that was asked for.
 
 ### What the epic says that the build had to answer differently
 

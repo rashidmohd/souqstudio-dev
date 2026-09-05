@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { CatalogProductSummary, ImportRowStatus } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
+import { FileDropzone } from '@/components/ui/file-dropzone'
 import { Select } from '@/components/ui/select'
 import {
   CANONICAL_FIELDS,
@@ -76,10 +77,7 @@ export function ImportWizard({ lang }: { lang: CatalogLanguage }) {
   const [done, setDone] = React.useState<{ created: number; matched: number } | null>(null)
 
   // ── 1. Upload ─────────────────────────────────────────────────────────────
-  async function onPickFile(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  async function onPickFile(file: File) {
     setBusy(true)
     setError(null)
     try {
@@ -247,7 +245,7 @@ export function ImportWizard({ lang }: { lang: CatalogLanguage }) {
       ) : null}
 
       {!parsed ? (
-        <UploadStep busy={busy} onPick={(e) => void onPickFile(e)} />
+        <UploadStep busy={busy} onPick={(file) => void onPickFile(file)} />
       ) : !review ? (
         <MappingStep
           parsed={parsed}
@@ -278,27 +276,29 @@ function UploadStep({
   onPick,
 }: {
   busy: boolean
-  onPick: (event: React.ChangeEvent<HTMLInputElement>) => void
+  onPick: (file: File) => void
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-card border-hairline border-border-subtle bg-surface p-6">
-      <h2 className="font-display text-heading text-primary">Choose your file</h2>
-      <p className="font-ui text-body text-secondary">
-        A CSV with one product per row. Whatever your columns are called, you say what
-        they mean on the next screen.
-      </p>
-
-      <input
-        type="file"
-        accept=".csv,text/csv"
-        disabled={busy}
-        onChange={onPick}
-        className="font-ui text-body-sm text-secondary"
+    <div className="flex flex-col gap-3">
+      {/* The one place in this flow that takes an illustration: a first-run
+          prompt with nothing in progress, which is the same test the design
+          system applies to `EmptyState`. The mapping and review steps get
+          none — the owner is mid-task there and artwork above a decision
+          delays it. */}
+      <FileDropzone
+        label="Bring in your price list"
+        accept=".csv,text/csv,application/csv,text/plain"
+        illustration="import-upload"
+        busy={busy}
+        buttonLabel="Choose a CSV"
+        onFile={onPick}
+        // Both limits stated before the drop rather than as a rejection after
+        // it: the format we cannot read yet, and the size the route refuses.
+        hint="A CSV with one product per row, up to 5MB. Excel files are not supported yet — save as CSV first."
       />
 
-      {/* Stated up front rather than as a rejection after the upload. */}
       <p className="font-ui text-body-sm text-muted">
-        Excel files are not supported yet — save as CSV first.
+        Whatever your columns are called, you say what they mean on the next screen.
       </p>
     </div>
   )
