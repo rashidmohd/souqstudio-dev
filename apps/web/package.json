@@ -18,6 +18,7 @@
     "@prisma/client": "^5.0.0",
     "@souqstudio/db": "workspace:*",
     "@souqstudio/email": "workspace:*",
+    "@souqstudio/engine": "workspace:*",
     "@souqstudio/types": "workspace:*",
     "@tremor/react": "^3.0.0",
     "bcryptjs": "^3.0.3",

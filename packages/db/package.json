@@ -17,7 +17,8 @@
     "@souqstudio/types": "workspace:*",
     "@prisma/client": "^5.0.0",
     "bullmq": "^5.0.0",
-    "ioredis": "^5.0.0"
+    "ioredis": "^5.0.0",
+    "@souqstudio/engine": "workspace:*"
   },
   "devDependencies": {
     "@souqstudio/config": "workspace:*",

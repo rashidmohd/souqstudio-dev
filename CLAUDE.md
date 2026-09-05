@@ -126,7 +126,7 @@ pnpm test
 pnpm db:generate
 pnpm db:push       # DEVELOPMENT ONLY
 pnpm db:migrate    # CI and production
-pnpm db:seed       # plans — idempotent, safe to re-run. Blocks are not seeded yet.
+pnpm db:seed       # plans, blocks, promo-tier backfill — idempotent
 pnpm db:studio
 ```
 
@@ -162,21 +162,17 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   `souqstudio-design → references/brand-kit-fonts.md`. E6 also has to
   `await document.fonts.load()` for every family and weight *before* creating any
   Fabric text object, or every bounding box is measured against the fallback.
-- **Promo tiers are not seeded on organization creation.** `offers.promoTierId` is NOT
-  NULL and the migration only seeds the organizations that already existed. The signup
-  path must seed `Deal` and `Offer` for every new org or its first offer fails. See
-  `docs/E5-product-catalog.md` §9.
-- **The layout engine exists as pure functions only.** `packages/engine` carries track
-  resolution, span geometry with RTL mirroring, arrangement selection, grid validation and
-  the flow engine, all tested. `pnpm --filter @souqstudio/engine harness` renders sample
-  pages to SVG from hardcoded blocks — that is how the model is checked, and it is not
-  the real renderer. **The tables now exist** — `blocks`, `block_versions`, `page_grids`,
-  `book_pins`, migrated 5 September — but `blocks` is empty and nothing in the apps
-  imports the engine yet. Two things stand between here and a visible page: a seeded block
-  library (the harness has working versions of an offer card, header, footer and hero
-  band) and a Fabric renderer. See `docs/composition-model.md` §12 for the order. It lives in `packages/`
-  because web and worker must share one implementation — two would drift, and drift means
-  the PDF does not match the screen.
+- **The layout engine runs, but nothing in the apps calls it.** `packages/engine` carries
+  track resolution, span geometry with RTL mirroring, arrangement selection, grid
+  validation, the flow engine and the seeded block library, all tested. The tables exist
+  (`blocks`, `block_versions`, `page_grids`, `book_pins`, migrated 5 September) and
+  `pnpm db:seed` fills `blocks` with four published blocks — offer card, hero band, footer,
+  message. `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG from
+  **those same rows**, which is how the model is checked and is not the real renderer.
+  What is still missing is a Fabric renderer in the app and the editor around it; see
+  `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
+  must share one implementation — two would drift, and drift means the PDF does not match
+  the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be
   uploaded to `https://assets.souqstudio.com/email/logo-dark.png` before any email is
   sent, or every message renders with a broken image at the top.

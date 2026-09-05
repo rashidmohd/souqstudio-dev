@@ -538,16 +538,26 @@ lands a new organization has no block to compose with.
 
 ## 12. Build order
 
-1. **Block schema and renderer**, one arrangement, EN only. Nothing renders without it.
-2. **Price mark component and promo tiers** — E6 §3, unchanged priority. Everything else
-   renders around it.
+1. ~~**Block schema**~~ — done. Tables migrated 5 September; `SEED_BLOCKS` in
+   `packages/engine/src/library.ts` publishes four blocks, and the harness renders them.
+   The **renderer** is still open and is the next thing that makes a page visible.
+2. ~~**Price mark and promo tiers**~~ — done. `layoutPriceMark` in the engine decides
+   every piece's position and size; drawing is the renderer's. The three load-bearing
+   rules are asserted rather than described: the minor raises to the major's cap height,
+   the tier tab overlaps the mark at every size, and the pieces lay out start-to-end and
+   never mirror. Promo tiers seed on organization creation and backfill in `db:seed`.
 3. **Page grid and the flow engine** — tracks, regions, fill from the product list,
    pagination. No merging yet.
 4. **Merge, and arrangements** — the two together, because merging without reflow produces
    distorted cards.
 5. **Master and instances** — edit once, all pages follow.
 6. **Pins**, cell and page scoped.
-7. **Fit ladder** (E6 §4), then **RTL** (E6 §6).
+7. ~~**Fit ladder**~~ (E6 §4) — done, in `packages/engine/src/fit.ts`. Four rungs:
+   tighten leading, step down the scale, truncate, escalate. `fitPolicy` decides what
+   each piece of text may suffer — a product name is never cut and never falls below its
+   floor; it escalates instead, and the owner sees the flag before the book prints. The
+   measurer is injected, because the engine cannot measure a glyph without a font and
+   must not try. **RTL** (E6 §6) is already in the engine.
 8. **Block designer and the saved library.** Last, deliberately — seeded blocks must be
    good before owner authoring is worth having.
 9. **Chips, footnotes, shop variants** (E6 §7, §8).

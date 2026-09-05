@@ -15,6 +15,27 @@ export {
   type Direction,
 } from './geometry'
 export { pickArrangement } from './arrangement'
+export {
+  fitText,
+  fitStyle,
+  fitPolicy,
+  wrapText,
+  MIN_LINE_HEIGHT,
+  type FitRequest,
+  type FitResult,
+  type TextMeasurer,
+} from './fit'
+export {
+  layoutPriceMark,
+  toPriceMark,
+  splitAmount,
+  minorDigits,
+  CAP_RATIO,
+  MAX_ROTATION,
+  type PriceMarkLayout,
+  type PriceMarkOptions,
+  type MarkPiece,
+} from './price-mark'
 export { resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
 export { validateGrid, type GridProblem, type GridProblemCode } from './validate'
 export {
@@ -25,3 +46,5 @@ export {
   type FlowPage,
   type Placement,
 } from './flow'
+
+export { SEED_BLOCKS, type SeedBlock } from './library'

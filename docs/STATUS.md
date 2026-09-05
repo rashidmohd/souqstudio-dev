@@ -13,7 +13,7 @@ asked for — corrections to them are recorded in the pending notes, not edited 
 
 The composition model's tables are migrated as of 5 September —
 `blocks`, `block_versions`, `page_grids`, `book_pins`, and `plans.maxProductsPerBook`;
-`grids` and `templates` are dropped. `blocks` is empty: seeding the library is next.
+`grids` and `templates` are dropped. `pnpm db:seed` publishes four blocks into it — offer card, hero band, footer, message — and the render harness draws those same rows. A Fabric renderer and the editor are next.
 
 `docs/composition-model.md` is the cross-epic architecture for how a book is composed —
 brand kit, blocks, the page grid, the master, flow and pins. It supersedes E6 §2 and §5,

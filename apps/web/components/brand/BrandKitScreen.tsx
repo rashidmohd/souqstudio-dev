@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import type { BrandKit, BrandOverride } from '@souqstudio/types'
+import type { Arrangement, BrandKit, BrandOverride } from '@souqstudio/types'
 import type { BrandFacet, BrandLevel } from '@/lib/brand-inheritance'
 import { Button } from '@/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
@@ -11,9 +11,9 @@ import { palettePatch, resolvePalette } from '@/lib/brand-palette'
 import { TypographyFields } from '@/components/brand/TypographyFields'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
+import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { Image as ImageIcon, Palette, Shapes, Type, type LucideIcon } from 'lucide-react'
 import { resolveTextStyles, typographyPatch } from '@/lib/brand-typography'
-import { EDITOR_BUILT } from '@/lib/features'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
 import { useBrandStore } from '@/stores/brand-store'
 import { EXAMPLE_HEX } from '@/lib/color'
@@ -27,6 +27,8 @@ type Props = {
   source: Record<BrandFacet, BrandLevel>
   canEdit: boolean
   isOwner: boolean
+  /** The seeded library. Published rows, identical for every shop. */
+  blocks: Array<{ id: string; name: string; description: string | null; arrangements: Arrangement[] }>
 }
 
 /** Which section a save or an error belongs to. */
@@ -70,6 +72,7 @@ export function BrandKitScreen({
   source,
   canEdit,
   isOwner,
+  blocks,
 }: Props) {
   const { kit, hydrate } = useBrandStore()
 
@@ -287,14 +290,40 @@ export function BrandKitScreen({
             icon={Shapes}
             title="Blocks"
             description="The building blocks your offer books are made of — an offer card, a header, a footer."
-            state={EDITOR_BUILT ? 'Ready' : 'Not available yet'}
+            state={<><span data-figure>{blocks.length}</span> blocks</>}
             note={null}
           >
+            {/* Drawn in this shop's palette and typefaces, against the longest
+                name and a three-decimal price in the catalog. A preview built
+                from friendly data tells an owner their card works and lets the
+                real catalog prove otherwise. */}
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {blocks.map((block) => (
+                <li key={block.id} className="flex flex-col gap-2">
+                  <div className="overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0">
+                    <BlockPreview
+                      arrangements={block.arrangements}
+                      kit={kit}
+                      width={300}
+                      height={block.id === 'blk_offer_card' ? 400 : 150}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-ui text-label font-medium text-primary">{block.name}</span>
+                    {block.description ? (
+                      <span className="font-ui text-body-sm text-muted">{block.description}</span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
             <p className="font-ui text-body-sm text-muted">
-              Blocks arrive with the offer book editor. Until then every book
-              uses the standard set, in your colours and typefaces.
+              These come with every account. Designing your own arrives with the
+              offer book editor.
             </p>
           </BrandCard>
+
         </>
       )}
 

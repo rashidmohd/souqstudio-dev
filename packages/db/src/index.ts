@@ -6,6 +6,7 @@ export { prisma, withOrg } from './client'
  * needs.
  */
 export { Prisma } from '@prisma/client'
+export { DEFAULT_PROMO_TIERS, seedPromoTiers } from './promo-tiers'
 /**
  * Row types, for the same reason. A library that takes "a plan" as an argument
  * wants the generated row shape, not a hand-written copy that drifts from the

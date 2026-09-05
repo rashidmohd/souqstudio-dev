@@ -1,3 +1,6 @@
+import { Prisma } from '@prisma/client'
+import { SEED_BLOCKS } from '@souqstudio/engine'
+import { DEFAULT_PROMO_TIERS } from '../src/promo-tiers'
 import { PrismaClient } from '@prisma/client'
 
 /**
@@ -19,18 +22,10 @@ const prisma = new PrismaClient()
 
 // ─── Blocks ───────────────────────────────────────────────────────────────────
 //
-// **Nothing is seeded here yet, and that is a gap rather than a decision.**
-//
-// The five grids and five templates that lived here are gone with their tables.
-// A brand kit carries no layout and a book picks its own grid, so a template
-// that bundled look *and* arrangement had nothing left to be —
-// `docs/composition-model.md` §4.1.
-//
-// What replaces them is a seeded `blocks` library: an offer card with its four
-// arrangements, a header, a footer, a hero band. `packages/engine/harness` has
-// working versions of all four and they render correctly; porting them here is
-// the next step, and until it happens a new organization has no block to compose
-// with. See the build order in `docs/composition-model.md` §12.
+// The five grids and five templates that lived here are gone with their tables:
+// a brand kit carries no layout and a book picks its own grid, so a template
+// that bundled look *and* arrangement had nothing left to be. What replaced
+// them is the block library in `seed-blocks.ts`.
 
 // ─── Plans — E3 ───────────────────────────────────────────────────────────────
 
@@ -134,7 +129,59 @@ const PLANS: Array<{
   },
 ]
 
+/**
+ * Any organization missing its promo tiers gets them.
+ *
+ * The E5 migration seeded these for the organizations that existed then, and
+ * nothing seeded them for the ones created since — so an account made after that
+ * migration could not create its first offer. Signup now seeds them
+ * (`apps/web/lib/promo-tiers.ts`); this backfills the accounts that fell in the
+ * gap, and is a no-op on every run after the first.
+ */
+async function backfillPromoTiers() {
+  const orgs = await prisma.organization.findMany({
+    where: { promoTiers: { none: {} } },
+    select: { id: true },
+  })
+
+  for (const org of orgs) {
+    await prisma.promoTier.createMany({
+      data: DEFAULT_PROMO_TIERS.map((tier) => ({ ...tier, organizationId: org.id })),
+    })
+  }
+
+  console.log(`[seed] promo tiers backfilled for ${orgs.length} organizations`)
+}
+
+async function seedBlocks() {
+  for (const block of SEED_BLOCKS) {
+    const data = {
+      name: block.name,
+      description: block.description,
+      repeats: block.repeats,
+      // `Arrangement[]` is JSON-shaped but is an interface, and an interface has
+      // no implicit index signature, so it is not assignable to Prisma's mapped
+      // JSON input type. Same assertion as `lib/brand-kit.ts` in the web app.
+      arrangements: block.arrangements as unknown as Prisma.InputJsonValue,
+      status: 'published',
+      // Null organizationId is what makes a block seeded rather than authored.
+      organizationId: null,
+    }
+
+    await prisma.block.upsert({
+      where: { id: block.id },
+      update: data,
+      create: { id: block.id, ...data },
+    })
+  }
+
+  console.log(`[seed] ${SEED_BLOCKS.length} blocks`)
+}
+
 async function main() {
+  await backfillPromoTiers()
+  await seedBlocks()
+
   for (const plan of PLANS) {
     await prisma.plan.upsert({
       where: { id: plan.id },

@@ -10,8 +10,16 @@
  * the ladder will have to absorb.
  */
 
-import type { Block, BlockElement, TokenRef } from '@souqstudio/types'
-import { resolveBlock, type Placement, type Rect } from '../src/index'
+import type { Block, BlockElement, Currency, TokenRef } from '@souqstudio/types'
+import {
+  fitPolicy,
+  fitText,
+  layoutPriceMark,
+  resolveBlock,
+  type MarkPiece,
+  type Placement,
+  type Rect,
+} from '../src/index'
 import { KIT, PAGE_GROUND, SAMPLE_SCALE, type DummyProduct } from './dummy'
 
 export interface RenderContext {
@@ -120,7 +128,7 @@ function chip(rect: Rect, product: DummyProduct, ctx: RenderContext): string {
   // Fit on both axes. Sizing from height alone is what broke the wide
   // arrangement: the same box is a tall pill in one region aspect and a flat
   // sliver in another.
-  const size = fitText(label, rect.width * 0.86, rect.height * 0.52, 0.56)
+  const size = fitLabel(label, rect.width * 0.86, rect.height * 0.52, 0.56)
   return [
     rounded(rect, color(product.tier.token), rect.height / 2),
     `<text x="${mid(rect.x, rect.width)}" y="${mid(rect.y, rect.height)}" font-size="${size}"`,
@@ -129,89 +137,77 @@ function chip(rect: Rect, product: DummyProduct, ctx: RenderContext): string {
   ].join('')
 }
 
-/** Largest font size at which `content` fits `maxWidth`, capped at `maxSize`. */
-function fitText(content: string, maxWidth: number, maxSize: number, perChar: number): number {
+/** Largest font size at which a short label fits. Not the fit ladder — a chip
+ *  label is one word in a pill, with no wrapping and nothing to step down to. */
+function fitLabel(content: string, maxWidth: number, maxSize: number, perChar: number): number {
   if (content.length === 0) return maxSize
   return Math.min(maxSize, maxWidth / (content.length * perChar))
 }
 
 /**
- * A stand-in for the real component. The rules it does honour are the ones that
- * decide whether a page reads as an offer book: minor digits raised to the
- * major's cap height rather than baseline-aligned, the tier label as an attached
- * tab, and the whole mark LTR with Western numerals even in an AR edition.
+ * Draws what `layoutPriceMark` decided. No geometry here.
+ *
+ * The harness used to do this arithmetic itself, which meant the rules that
+ * decide whether a page reads as a real offer book — the raised minor, the
+ * attached tab, the fit on both axes — lived in throwaway code and were checked
+ * only by eye. They are in the engine now, with tests, and this just paints.
  */
 function priceMark(rect: Rect, product: DummyProduct): string {
   const tint = color(product.tier.token)
-  const tabHeight = rect.height * 0.26
-  const tab = { x: rect.x, y: rect.y, width: rect.width * 0.56, height: tabHeight }
-  const mark = {
-    x: rect.x,
-    y: rect.y + tabHeight * 0.86,
-    width: rect.width,
-    height: rect.height - tabHeight * 0.86,
-  }
+  const l = layoutPriceMark(
+    {
+      tierId: 'harness',
+      major: product.major,
+      minor: product.minor,
+      currency: product.currency as Currency,
+      currencyPlacement: 'PREFIX',
+      shape: 'TAG',
+      ...(product.comparePrice === undefined ? {} : { comparePrice: product.comparePrice }),
+    },
+    rect,
+    { tierLabel: product.tier.labelEn.toUpperCase() }
+  )
 
-  // The mark must fit its box on both axes. A merged region changes the box's
-  // aspect, and a price that overflows its card is the one failure the whole
-  // artefact cannot absorb — so width constrains the type size as much as
-  // height does. This is the fit ladder in miniature; the real one lives in the
-  // renderer that replaces this.
-  const CURRENCY_RATIO = 0.3
-  const MINOR_RATIO = 0.44
-  const GLYPH = 0.6
-  const demand =
-    product.currency.length * CURRENCY_RATIO * GLYPH +
-    0.12 +
-    product.major.length * GLYPH +
-    product.minor.length * MINOR_RATIO * GLYPH
-  const major = Math.min(mark.height * 0.58, (mark.width * 0.86) / demand)
-  const minor = major * MINOR_RATIO
-  const currency = major * CURRENCY_RATIO
+  // Every piece is LTR with Western numerals, in an AR edition too.
+  const piece = (p: MarkPiece, fill: string, weight = 800, extra = '') =>
+    `<text x="${p.x}" y="${p.baseline}" font-size="${p.fontSize}" font-weight="${weight}"` +
+    ` fill="${fill}" direction="ltr"${extra}>${esc(p.text)}</text>`
 
-  const baseline = mark.y + mark.height * 0.74
-  const capTop = baseline - major * 0.72
-
-  // A little air after the currency code; without it 'KWD' collides with the
-  // major digits at small sizes.
-  const currencyWidth = product.currency.length * currency * GLYPH + major * 0.12
-  const majorWidth = product.major.length * major * GLYPH
-  const minorWidth = product.minor.length * minor * GLYPH
-  const groupWidth = currencyWidth + majorWidth + minorWidth
-  const groupStart = mark.x + (mark.width - groupWidth) / 2
-
-  const compare =
-    product.comparePrice === undefined
-      ? ''
-      : [
-          `<text x="${mark.x + mark.width * 0.94}" y="${mark.y + mark.height * 0.26}"`,
-          ` font-size="${Math.min(currency * 0.95, mark.height * 0.2)}" fill="${KIT.inkMuted}"`,
-          ` text-anchor="end" text-decoration="line-through"`,
-          ` direction="ltr">${esc(product.comparePrice)}</text>`,
-        ].join('')
+  const tab = l.tab
+    ? rounded(l.tab.rect, tint, l.tab.rect.height / 2) +
+      `<text x="${mid(l.tab.rect.x, l.tab.rect.width)}" y="${mid(l.tab.rect.y, l.tab.rect.height)}"` +
+      ` font-size="${l.tab.fontSize}" font-weight="700" fill="${KIT.surface}"` +
+      ` text-anchor="middle" dominant-baseline="middle">${esc(l.tab.text)}</text>`
+    : ''
 
   return [
-    rounded(tab, tint, tabHeight / 2),
-    `<text x="${mid(tab.x, tab.width)}" y="${mid(tab.y, tab.height)}"`,
-    ` font-size="${fitText(product.tier.labelEn, tab.width * 0.86, tabHeight * 0.5, 0.62)}"`,
-    ` font-weight="700" fill="${KIT.surface}" text-anchor="middle"`,
-    ` dominant-baseline="middle">${esc(product.tier.labelEn.toUpperCase())}</text>`,
-    rounded(mark, KIT.surface, 3),
-    `<rect x="${mark.x}" y="${mark.y}" width="${mark.width}" height="${mark.height}" rx="3"`,
-    ` fill="none" stroke="${tint}" stroke-width="${Math.max(1, mark.height * 0.035)}"/>`,
-    // Currency stays LTR with Western numerals, including in AR editions.
-    `<text x="${groupStart}" y="${baseline}" font-size="${currency}"`,
-    ` font-weight="700" fill="${KIT.inkMuted}" direction="ltr">${esc(product.currency)}</text>`,
-    `<text x="${groupStart + currencyWidth}" y="${baseline}" font-size="${major}"`,
-    ` font-weight="800" fill="${KIT.ink}" direction="ltr">${esc(product.major)}</text>`,
-    // Raised to the major's cap height. Never baseline-aligned.
-    `<text x="${groupStart + currencyWidth + majorWidth}" y="${capTop + minor * 0.72}"`,
-    ` font-size="${minor}" font-weight="800" fill="${KIT.ink}"`,
-    ` direction="ltr">${esc(product.minor)}</text>`,
-    compare,
+    tab,
+    rounded(l.mark, KIT.surface, 3),
+    `<rect x="${l.mark.x}" y="${l.mark.y}" width="${l.mark.width}" height="${l.mark.height}"`,
+    ` rx="3" fill="none" stroke="${tint}" stroke-width="${Math.max(1, l.mark.height * 0.035)}"/>`,
+    `<text x="${l.currency.x}" y="${l.currency.baseline}" font-size="${l.currency.fontSize}"`,
+    ` font-weight="700" fill="${KIT.inkMuted}" direction="ltr">${esc(l.currency.text)}</text>`,
+    piece(l.major, KIT.ink),
+    l.minor ? piece(l.minor, KIT.ink) : '',
+    l.compare
+      ? piece(l.compare, KIT.inkMuted, 400, ' text-decoration="line-through"')
+      : '',
+    l.prefix ? piece(l.prefix, KIT.inkMuted, 700) : '',
   ].join('')
 }
 
+/**
+ * Text, through the fit ladder.
+ *
+ * The harness used to wrap greedily and let long strings run over the card,
+ * which was the right diagnostic while the ladder did not exist — the worst-case
+ * page is what proved it was needed. Now it runs the real one, so what overflows
+ * here is what would overflow in print.
+ *
+ * An escalated card draws in the caution colour rather than silently: the owner
+ * has to see it before publishing, and E6's quality flags are exactly this
+ * signal reaching the editor.
+ */
 function text(
   element: Extract<BlockElement, { kind: 'text' }>,
   rect: Rect,
@@ -223,12 +219,19 @@ function text(
   if (content === '') return ''
 
   const step = SAMPLE_SCALE.levels[element.level]
-  const size = SAMPLE_SCALE.base * blockEdge * step.size
   const family = SAMPLE_SCALE.families[step.family]
-  const rendered = step.transform === 'uppercase' ? content.toUpperCase() : content
+  const policy = fitPolicy(element.source)
 
-  const perChar = size * (ctx.direction === 'rtl' ? 0.48 : 0.52)
-  const lines = wrap(rendered, Math.max(4, Math.floor(rect.width / perChar)))
+  const fitted = fitText({
+    text: step.transform === 'uppercase' ? content.toUpperCase() : content,
+    box: { width: rect.width, height: rect.height },
+    level: element.level,
+    scale: SAMPLE_SCALE,
+    blockSize: blockEdge,
+    measure: estimateWidth,
+    truncatable: policy.truncatable,
+    ...(policy.floor === undefined ? {} : { floor: policy.floor }),
+  })
 
   const anchor =
     element.align === 'center' ? 'middle' : element.align === 'end' ? 'end' : 'start'
@@ -239,23 +242,33 @@ function text(
         ? rect.x + rect.width
         : rect.x
 
-  const fill = element.level === 'caption' ? KIT.inkMuted : inkFor(element, ctx)
+  const fill = fitted.escalated
+    ? ESCALATED
+    : element.level === 'caption'
+      ? KIT.inkMuted
+      : inkFor(element, ctx)
 
-  // No fit ladder yet. Overflow is left visible on purpose — it is the whole
-  // reason the worst-case page exists. When the ladder lands, its second rung
-  // is "drop to the next type step", and the ordered scale is what makes that
-  // a defined move rather than an arbitrary size.
-  return lines
+  return fitted.lines
     .map((line, i) => {
-      const y = rect.y + size * (0.85 + i * step.lineHeight)
+      const y = rect.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)
       return (
-        `<text x="${x}" y="${y}" font-size="${size}" font-weight="${step.weight}"` +
+        `<text x="${x}" y="${y}" font-size="${fitted.fontSize}" font-weight="${step.weight}"` +
         ` font-family="${family}" fill="${fill}" text-anchor="${anchor}"` +
         ` direction="${ctx.direction}">${esc(line)}</text>`
       )
     })
     .join('')
 }
+
+/**
+ * A stand-in for font metrics. The real renderers measure with a canvas; this
+ * estimates, which is enough to prove the ladder runs and wrong enough that the
+ * harness must never be the thing that signs off a layout.
+ */
+const estimateWidth = (content: string, fontSize: number) => content.length * fontSize * 0.52
+
+/** An escalated card is visible, not silent. */
+const ESCALATED = '#B3261E'
 
 function resolveText(
   element: Extract<BlockElement, { kind: 'text' }>,

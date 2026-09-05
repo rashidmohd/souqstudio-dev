@@ -19,6 +19,24 @@ Pure functions over plain data. No Prisma, no Fabric, no React, no I/O.
 The engine decides geometry and assignment. Fabric renders what it decides and
 owns nothing else — E6 §1.
 
+`price-mark.ts` is the clearest case of that split. It decides where the currency
+code, the major digits, the raised minor, the tier tab and the struck-through
+compare price each sit, and returns them as rectangles and baselines; it draws
+nothing. That is what lets the same three rules hold in the browser and in the
+export worker, and what makes them testable at all — the rules that decide
+whether a page reads as a real offer book used to live in throwaway harness code
+and were checked only by eye.
+
+`fit.ts` is the same split again: it decides sizes and line breaks and draws
+nothing, and it takes its `TextMeasurer` as an argument because measuring a glyph
+needs a font that the engine does not have. The browser passes a canvas
+measurement, the worker passes its own, tests pass an estimator.
+
+`library.ts` holds the seeded blocks. It lives here rather than beside the seed
+because two consumers need the same bytes: `packages/db` writes them into
+`blocks`, and the harness draws them. A second copy would drift, and a drifted
+seed block renders differently in the database from the one that was checked.
+
 ## What does not belong here
 
 - Rendering. The engine returns rectangles; something else draws in them.

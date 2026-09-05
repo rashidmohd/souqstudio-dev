@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { prisma } from '@souqstudio/db'
+import type { Arrangement } from '@souqstudio/types'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { toRole } from '@/lib/authz'
@@ -42,11 +43,20 @@ export default async function BrandKitPage() {
     )
   }
 
-  const brand = await readEffectiveBrand({
-    organizationId: shop.organizationId,
-    shopId: shop.id,
-    brandOverride: shop.brandOverride,
-  })
+  // Blocks are published rows identical for every shop, so they are read here
+  // rather than through an API the client would have to wait on.
+  const [brand, blocks] = await Promise.all([
+    readEffectiveBrand({
+      organizationId: shop.organizationId,
+      shopId: shop.id,
+      brandOverride: shop.brandOverride,
+    }),
+    prisma.block.findMany({
+      where: { organizationId: null, status: 'published' },
+      select: { id: true, name: true, description: true, arrangements: true },
+      orderBy: { name: 'asc' },
+    }),
+  ])
 
   // **A brand is created in the wizard and managed here.** One creation path,
   // so the steps that decide a brand are always taken in the same order with
@@ -79,6 +89,14 @@ export default async function BrandKitPage() {
         source={brand.source}
         canEdit={canEdit}
         isOwner={isOwner}
+        blocks={blocks.map((block) => ({
+          id: block.id,
+          name: block.name,
+          description: block.description,
+          // JSONB round-trips as Prisma.JsonValue; the shape is `Arrangement[]`
+          // and the seed is its only writer.
+          arrangements: block.arrangements as unknown as Arrangement[],
+        }))}
       />
     </div>
   )

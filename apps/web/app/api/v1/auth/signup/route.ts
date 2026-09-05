@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createHash } from 'node:crypto'
-import { prisma } from '@souqstudio/db'
+import { prisma, seedPromoTiers } from '@souqstudio/db'
 import { ok, fail } from '@/lib/api'
 import { hashPassword } from '@/lib/password'
 import { issueSession } from '@/lib/session'
@@ -53,11 +53,14 @@ export async function POST(req: NextRequest) {
   const passwordHash = await hashPassword(password)
 
   // One transaction: an org without an owner, or an owner without a shop, is a
-  // dead account that no self-serve flow can repair.
+  // dead account that no self-serve flow can repair. An org without promo tiers
+  // is the same class of dead — `offers.promoTierId` is NOT NULL, so its first
+  // offer fails with nothing the shop owner can do about it.
   const user = await prisma.$transaction(async (tx) => {
     const organization = await tx.organization.create({
       data: { name: shopName, email },
     })
+    await seedPromoTiers(tx, organization.id)
     await tx.shop.create({
       data: { organizationId: organization.id, name: shopName },
     })
