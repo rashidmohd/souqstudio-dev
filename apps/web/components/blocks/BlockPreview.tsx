@@ -13,6 +13,7 @@ import {
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { fontStack, resolveScale } from '@/lib/brand-fonts'
 import { PREVIEW_PRODUCT } from '@/lib/preview-product'
+import { ARTBOARD_PLACEHOLDER } from '@/lib/color'
 
 /**
  * A seeded block, drawn in the shop's own brand.
@@ -22,6 +23,12 @@ import { PREVIEW_PRODUCT } from '@/lib/preview-product'
  * would land in the bundle of a screen a shop owner opens on a mid-range Android
  * over 4G. Fabric is the *editor's* renderer, where dragging and nudging need an
  * object model; a static picture needs neither.
+ *
+ * **`direction` is the book's, never the interface's.** It defaults to `ltr` and
+ * is not wired to the chrome's `dir` on purpose: the design system is explicit
+ * that the artboard follows the offer book's own language, so an owner working
+ * in an Arabic UI who is producing an English flyer must see an English flyer.
+ * A language toggle on the preview is a feature, not a default.
  *
  * **It computes no geometry.** Every rectangle, font size, line break and price
  * position comes from `@souqstudio/engine` — the same functions the export
@@ -110,7 +117,7 @@ function draw(element: BlockElement, box: Rect, ctx: DrawContext): React.ReactNo
     case 'image':
       return <ImagePlaceholder box={box} />
     case 'logo':
-      return <rect {...xywh(box)} rx={3} fill="#FFFFFF33" />
+      return <rect {...xywh(box)} rx={3} fill={ARTBOARD_PLACEHOLDER.onTint} />
     case 'chip':
       return <Chip box={box} ctx={ctx} />
     case 'priceMark':
@@ -126,14 +133,14 @@ function ImagePlaceholder({ box }: { box: Rect }) {
   const inset = Math.min(box.width, box.height) * 0.12
   return (
     <>
-      <rect {...xywh(box)} rx={3} fill="#ECEAE4" />
+      <rect {...xywh(box)} rx={3} fill={ARTBOARD_PLACEHOLDER.imageOuter} />
       <rect
         x={box.x + inset}
         y={box.y + inset}
         width={box.width - inset * 2}
         height={box.height - inset * 2}
         rx={3}
-        fill="#DEDBD2"
+        fill={ARTBOARD_PLACEHOLDER.imageInner}
       />
     </>
   )

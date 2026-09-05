@@ -28,7 +28,13 @@ type Props = {
   canEdit: boolean
   isOwner: boolean
   /** The seeded library. Published rows, identical for every shop. */
-  blocks: Array<{ id: string; name: string; description: string | null; arrangements: Arrangement[] }>
+  blocks: Array<{
+    id: string
+    name: string
+    description: string | null
+    repeats: boolean
+    arrangements: Arrangement[]
+  }>
 }
 
 /** Which section a save or an error belongs to. */
@@ -297,15 +303,20 @@ export function BrandKitScreen({
                 name and a three-decimal price in the catalog. A preview built
                 from friendly data tells an owner their card works and lets the
                 real catalog prove otherwise. */}
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
               {blocks.map((block) => (
                 <li key={block.id} className="flex flex-col gap-2">
                   <div className="overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0">
+                    {/* Natural aspect per block, not one forced on all four: a
+                        hero band letterboxed into a card's shape is not what
+                        the owner will get. The offer card shows tall, the bands
+                        show wide, and the engine picks the arrangement to
+                        match — which is the behaviour worth previewing. */}
                     <BlockPreview
                       arrangements={block.arrangements}
                       kit={kit}
-                      width={300}
-                      height={block.id === 'blk_offer_card' ? 400 : 150}
+                      width={420}
+                      height={block.repeats ? 540 : 170}
                     />
                   </div>
                   <div className="flex flex-col">

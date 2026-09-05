@@ -69,6 +69,24 @@ export const ARTBOARD_NEUTRALS = {
 /** What a colour an owner has just added starts as, before they pick one. */
 export const NEW_COLOR_HEX = '#808080'
 
+/**
+ * Stand-ins for artwork a preview does not have.
+ *
+ * Artboard content, not chrome, so `--sq-ui-*` would be the wrong namespace and
+ * `--sq-tpl-*` would be claiming these are part of the offer book's design. They
+ * are neither: they are the grey of a missing photograph. Here for the same
+ * reason as `ARTBOARD_NEUTRALS` — this is the file where a literal colour is
+ * reference data rather than a styling decision.
+ *
+ * `onTint` is white at low alpha, so a logo slot reads on a primary or
+ * secondary ground without needing to know which one it landed on.
+ */
+export const ARTBOARD_PLACEHOLDER = {
+  imageOuter: '#ECEAE4',
+  imageInner: '#DEDBD2',
+  onTint: '#FFFFFF33',
+} as const
+
 // ─── Contrast — E4-02 requires a WCAG AA check ────────────────────────────────
 
 /** WCAG relative luminance. The 0.03928 kink is the sRGB transfer curve. */

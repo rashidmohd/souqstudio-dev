@@ -175,6 +175,45 @@ What replaced it is a **legend, not a mock-up** — `RoleLegend` inside `ColorFi
 showing each colour doing its job at the smallest scale that makes the job legible. A
 real preview needs the block renderer and belongs to E6.
 
+### BlockPreview
+
+| | |
+| --- | --- |
+| File | `components/blocks/BlockPreview.tsx` |
+| Status | `built` — apps/web only |
+| Governs | E4 brand kit → Blocks; the preview half of E6's renderer |
+
+```tsx
+type BlockPreviewProps = {
+  arrangements: Arrangement[]
+  kit: BrandKit
+  width: number
+  height: number
+  direction?: 'ltr' | 'rtl'    // the BOOK's language, never the interface's
+  className?: string
+}
+```
+
+A seeded block drawn in the shop's own palette and typefaces. **Inline SVG, not a
+Fabric canvas** — the same call the old `OfferPreview` made and for the same
+reason: Fabric, its font loading and a canvas context per block would land in the
+bundle of a screen opened on a mid-range Android over 4G. Fabric is the
+*editor's* renderer, where dragging needs an object model.
+
+**It computes no geometry.** Every rectangle, type size, line break and price
+position comes from `@souqstudio/engine` — `resolveBlock`, `fitText`,
+`layoutPriceMark` — which is what stops a second renderer drifting from the
+export worker's. One implementation of *where things go*, two thin ones of *how
+to paint*.
+
+`direction` defaults to `ltr` and is deliberately **not** wired to the chrome's
+`dir`: the artboard follows the offer book's language, so an owner working in an
+Arabic UI producing an English flyer must see an English flyer.
+
+It draws against `PREVIEW_PRODUCT` — the longest Arabic-length name, a two-line
+spec and a three-decimal Kuwaiti price. A preview built from friendly data tells
+an owner their card works and lets the real catalog prove otherwise.
+
 ### ColorField
 
 | | |

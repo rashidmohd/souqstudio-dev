@@ -23,8 +23,6 @@ const SESSION_COOKIE = 'sq_session'
 
 /** Reachable with no session at all. */
 const PUBLIC_PATHS = [
-  // TEMPORARY — remove with app/preview-brand.
-  '/preview-brand',
   '/login',
   // E1-03. The second-factor screen sits between a correct password and a
   // session, so by definition there is no session cookie yet. Leaving it out

@@ -53,7 +53,7 @@ export default async function BrandKitPage() {
     }),
     prisma.block.findMany({
       where: { organizationId: null, status: 'published' },
-      select: { id: true, name: true, description: true, arrangements: true },
+      select: { id: true, name: true, description: true, repeats: true, arrangements: true },
       orderBy: { name: 'asc' },
     }),
   ])
@@ -93,6 +93,7 @@ export default async function BrandKitPage() {
           id: block.id,
           name: block.name,
           description: block.description,
+          repeats: block.repeats,
           // JSONB round-trips as Prisma.JsonValue; the shape is `Arrangement[]`
           // and the seed is its only writer.
           arrangements: block.arrangements as unknown as Arrangement[],

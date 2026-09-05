@@ -169,8 +169,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   `pnpm db:seed` fills `blocks` with four published blocks — offer card, hero band, footer,
   message. `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG from
   **those same rows**, which is how the model is checked and is not the real renderer.
-  What is still missing is a Fabric renderer in the app and the editor around it; see
-  `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
+  `/brand` draws those blocks for real — `components/blocks/BlockPreview.tsx` renders
+  them in the shop's palette and typefaces through the engine, computing no geometry
+  itself. What is still missing is the **editor**: Fabric for the interactive canvas,
+  and the offers to put on it. `catalog_products` and `offer_books` are both empty,
+  so E5 is the real blocker downstream of here. See `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
   must share one implementation — two would drift, and drift means the PDF does not match
   the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be
