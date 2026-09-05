@@ -12,14 +12,27 @@ packages/db/
 ├── prisma/
 │   ├── schema.prisma          # Single schema file — all models here
 │   ├── migrations/            # Prisma migration history
-│   └── seed.ts                # Reference data: the 5 grids and 5 templates
+│   └── seed.ts                # Reference data: plans, blocks, catalog categories, promo tiers
+├── scripts/
+│   └── import-off.ts          # E5 — stream the Open Food Facts export into the universal catalog
 ├── src/
 │   ├── index.ts               # Re-exports PrismaClient singleton
 │   ├── client.ts              # PrismaClient with RLS middleware
 │   ├── credits.ts             # E3-03 AI credit accounting (shared between web + worker)
+│   ├── off-mapping.ts         # E5 — the pure half of the OFF import. Tested; no Prisma.
+│   ├── promo-tiers.ts         # E5 — seeded per organization inside the signup transaction
 │   └── queue-client.ts        # BullMQ queue producers (shared between web + worker)
 └── package.json
 ```
+
+**`prisma/seed.ts` is reference data; `scripts/` is bulk data.** The seed is small,
+idempotent, and every environment needs all of it. A script is a one-off run against a
+dataset that lives elsewhere, is measured in gigabytes, and is nobody's dependency. They
+are separated so `pnpm db:seed` stays something you can run without thinking.
+
+**The package now has tests.** `pnpm --filter @souqstudio/db test` covers the pure
+modules — the OFF mapping today. Anything needing a connection is checked by running it,
+not here.
 
 ---
 
@@ -165,7 +178,9 @@ pnpm db:migrate:dev --name add_character_poses
 # Apply migrations in production (CI)
 pnpm db:migrate
 
-# Reference data — the five grids and five templates of E4-03 and E4-04.
+# Reference data — plans, the four seeded blocks, the ten catalog categories,
+# and the promo-tier backfill. (The five grids and five templates this line used
+# to name are gone with their tables; see docs/composition-model.md.)
 # Idempotent: every row is upserted against a hand-written id, so running it
 # twice changes nothing and running it after an edit restores the defaults.
 # Ids are not cuid() for exactly that reason.
@@ -173,6 +188,13 @@ pnpm db:seed
 
 # View and edit data
 pnpm db:studio
+
+# E5 — fill the universal catalog from Open Food Facts (ODbL, commercial use
+# permitted; no images are taken). Streams a 1.28GB gzipped export, so start
+# with the dry run. Idempotent: rows upsert against the universal barcode index,
+# and it never touches an organization's own rows.
+pnpm catalog:import-off -- --url --dry-run --limit 500
+pnpm catalog:import-off -- --url
 ```
 
 Never use `db:push` in production. Always use `db:migrate`.

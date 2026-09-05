@@ -4,7 +4,7 @@ What was built, what it does not yet do, and the corrections to `docs/E5-product
 that were found by building it. The epic stays the record of what was asked for; this file
 is the record of what happened.
 
-Last updated 5 September 2026, after E5-01, E5-02, E5-03, E5-04 and E5-06.
+Last updated 5 September 2026, after E5-01, E5-02, E5-03, E5-04, E5-06 and the Open Food Facts seed.
 
 ---
 
@@ -23,6 +23,7 @@ Last updated 5 September 2026, after E5-01, E5-02, E5-03, E5-04 and E5-06.
 | Add a product | `POST /api/v1/catalog/{upload-url,contributions}` + `AddProductForm` |
 | Import | `lib/csv.ts`, `lib/catalog-import.ts`, four `/catalog/imports` routes, `/catalog/import` |
 | File upload | `components/ui/file-dropzone.tsx` — drag-and-drop, used by E5-04 and E5-06 |
+| Universal seed | `packages/db/src/off-mapping.ts` + `scripts/import-off.ts` — **written, not yet run** |
 
 **Search is raw SQL and cannot be anything else.** `search_vector` is
 `Unsupported("tsvector")`, which Prisma excludes from the generated client, so the column
@@ -178,6 +179,60 @@ cutout polling and the brand-store writes — a larger edit than the one that wa
   information; hiding empty tiles would make the ten-category taxonomy look different for
   every account.
 
+### The Open Food Facts seed — written, and not yet run
+
+`pnpm --filter @souqstudio/db catalog:import-off` streams the 1.28GB gzipped export,
+filters for GCC relevance, and upserts into the universal collection. The mapping is pure
+and has 19 tests; the script has been dry-run against the live export end to end.
+
+**It has never been run for real.** A full pass writes on the order of tens of thousands
+of rows to the shared database and takes hours over that host — both the user's call, not
+something to start unasked. What is proven: the fetch, the gunzip, the header check, the
+delimiter, the filter, the mapping and the counts. What is not: the write path.
+
+Four things measured rather than assumed, over the first 111,410 rows of the real export:
+
+- **About half of GCC-relevant rows are kept.** 1,351 relevant, 677 mapped. The rest are
+  genuinely unusable: 469 carried a code that fails its check digit, 354 had no English
+  name.
+- **`--limit` misrepresents the yield.** The export is sorted by barcode, so a short run
+  reads only the placeholder entries at the head of the file — `00000069`, `00000182` —
+  and reports rejecting almost everything. Do not tune the filters against one.
+- **Line-based splitting is safe**, checked rather than assumed: not one row in 111,410
+  had a field count other than the header's, so nothing contains an embedded newline or
+  tab. Had any done so, every column after it would have shifted silently.
+- **Streaming from the static host is slow** — a few MB a minute, so a full run is hours.
+  Download once and use `--file`.
+
+**The export has no Arabic column at all.** This was caught by the script's own header
+check on the first run, which is what that check is for. The CSV carries `product_name`,
+`generic_name` and `abbreviated_product_name` across its 211 columns and no language
+variants; those live only in the 12.8GB JSONL and the MongoDB dump. So **every seeded
+universal product has a null `nameAr`**, and E5 §2 makes that a publish-time blocker for
+Arabic editions.
+
+That is the seed's most important limitation and it has a name: the `enrich` worker, which
+E5's Backend Notes put translations on, and which is still a stub that throws. Until it
+lands, **the universal catalog is English-only and cannot back an Arabic offer book.** A
+shop's own products are unaffected — E5-04 and E5-06 both take `nameAr` from the owner.
+
+**No images, by licence.** ODbL permits commercial use of the data, and E5's Catalog
+Sources table is explicit that images come from licensed sources or brand permission and
+never from scraping. The image columns are absent from `OFF_FIELDS` rather than read and
+discarded, so nothing downstream can start using them by accident, and there is a test
+asserting no mapped product mentions one.
+
+**Two structural moves came with it**, both recorded in `project-structure`:
+
+- `packages/db/scripts/` for bulk data, kept separate from `prisma/seed.ts`, which stays
+  small and idempotent so `pnpm db:seed` is something you run without thinking.
+- The barcode helpers moved to `packages/types/src/barcode.ts`. Three callers need the
+  same check-digit answer — the search box, the contribution route and this importer — and
+  `types` is the only package with no dependencies, so it is the only one a browser bundle
+  and a CLI can both import. `packages/db` owns the column but would pull Prisma and
+  BullMQ into the client. `apps/web/lib/catalog-display.ts` re-exports, so no call site
+  changed.
+
 ---
 
 ## 2. Not built, and what it needs
@@ -211,12 +266,17 @@ already carries the `importId` a session attaches back to — so the natural ent
 the import review screen, offering a QR for the rows that matched nothing and have no
 photo. The phone gets a capture token, never a shop-owner session.
 
-### XLSX, and the review screen's paging
+### XLSX
 
-The import review screen reads `?limit=200` and does not follow `nextCursor`. The route
-pages properly; the client does not, so an import over two hundred rows shows the first
-two hundred and commits only those. The `MAX_ROWS` ceiling is ten thousand, so this gap
-is real for any sheet worth calling a price list.
+Still a dependency decision. `lib/csv.ts` returns a `Sheet`, so an XLSX reader is a second
+function returning the same shape.
+
+**The review screen's paging gap is fixed.** It follows `nextCursor` to the end, so nothing
+is silently left out of a commit. Two things came with that: the list defaults to the rows
+that actually need a decision, and it draws at most 200 of them — a first import against an
+empty catalog matches nothing, so "needs a decision" is every row, and ten thousand list
+items is a page that stops responding. Undrawn rows are counted, stated, and included in
+the commit; bulk "add all as new" and "leave all out" act on what is listed.
 
 ---
 

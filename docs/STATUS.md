@@ -190,9 +190,14 @@ and puts the ones it could not place with confidence in front of the owner. It c
 the catalog; carrying the sheet's prices into an offer book is E6's half, because there are
 no offer books.
 
-What is still missing: XLSX (a dependency decision, not effort), E5-07 phone capture, the
-camera half of E5-03, and the Open Food Facts seed — **which is now the thing standing
-between this and a catalog with products in it.** Ranking and the import's match thresholds
+**The Open Food Facts seed is written and has not been run.** `pnpm --filter
+@souqstudio/db catalog:import-off` streams the 1.28GB export, filters for GCC relevance
+and upserts into the universal collection; the mapping has 19 tests and the script has
+been dry-run against the live export. Running it for real writes tens of thousands of rows
+and takes hours — a decision, not a step.
+
+What is still missing: XLSX (a dependency decision, not effort), E5-07 phone capture, and
+the camera half of E5-03. Ranking and the import's match thresholds
 are both unverified against real data; the constants are named in `E5-pending.md` §3.
 
 ### A preview route with no auth check was committed — remove before deploying
@@ -274,7 +279,12 @@ would reach for to check a migration against the history.
 - `pdf` blocks E9 export and the E6 editor's export path.
 - `ai` blocks E8 entirely, and is where credits are actually spent — `consumeCredits()`
   in `packages/db/src/credits.ts` is written and called by nothing.
-- `enrich` blocks E5's multilingual synonym pipeline.
+- `enrich` blocks E5's multilingual synonym pipeline **and, now specifically, every
+  Arabic name in the universal catalog.** The Open Food Facts CSV export has no language
+  variants in any of its 211 columns, so every seeded universal product has a null
+  `nameAr`, and E5 §2 makes that a publish-time blocker for Arabic editions. Until this
+  worker lands the shared catalog is English-only and cannot back an Arabic offer book.
+  A shop's own products are unaffected: E5-04 and E5-06 both take `nameAr` from the owner.
 
 `bg` is implemented for logos only. E5 §3 makes background removal an ingest stage for
 catalog images too — the payload fields are on `BgRemovePayload`, the handler branch that
@@ -333,9 +343,10 @@ rather than to full-text search, a search or scan that finds nothing offers to a
 product, and `/catalog/import` takes a CSV through mapping, matching and review.
 `CATALOG_BUILT` is flipped and the rail carries the item again.
 
-**Next is the Open Food Facts seed** — with every path into the catalog built, the catalog
-being empty is now a data problem rather than a code one. After that, E5-07 phone capture
-and the camera half of E5-03; XLSX is a dependency decision waiting on a human.
+**Next is running the seed** — it is written, tested and dry-run, and every path into the
+catalog is built, so the catalog being empty is now one command and a few hours rather
+than a code problem. After that, E5-07 phone capture and the camera half of E5-03; XLSX is
+a dependency decision waiting on a human.
 
 Read `E5-pending.md` first: it carries the corrections building this produced, including
 that `barcode` is not in `search_vector`, that `?lang=` does not exist, why the cutout job

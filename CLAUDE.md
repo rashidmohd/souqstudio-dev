@@ -128,6 +128,9 @@ pnpm db:push       # DEVELOPMENT ONLY
 pnpm db:migrate    # CI and production
 pnpm db:seed       # plans, blocks, catalog categories, promo-tier backfill — idempotent
 pnpm db:studio
+
+pnpm --filter @souqstudio/db catalog:import-off -- --url --dry-run --limit 500
+                   # E5 — seed the universal catalog from Open Food Facts
 ```
 
 Run `pnpm typecheck` after each meaningful change. Fix before continuing.

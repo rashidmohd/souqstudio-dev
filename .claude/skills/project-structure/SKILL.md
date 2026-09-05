@@ -75,7 +75,11 @@ asked to.
 | Email template | `packages/email/src/templates/[category]/Name.tsx` | Must use `Base.tsx`. Typed props. |
 | Email block or primitive | `packages/email/src/components/{blocks,primitives}/` | |
 | Database model | `packages/db/prisma/schema.prisma` | One file. Never split. Then `pnpm db:generate`. |
+| Reference-data seed | `packages/db/prisma/seed.ts` | Small, idempotent, needed by every environment. Hand-written ids so a re-run upserts. |
+| Bulk data script | `packages/db/scripts/[name].ts` | A one-off run against a dataset held elsewhere. Add a `package.json` script for it. Kept out of `seed.ts` so `pnpm db:seed` stays something you can run without thinking. |
+| Pure logic a script and an app share | `packages/db/src/[name].ts` | Tested with `pnpm --filter @souqstudio/db test`. No Prisma import, or it stops being testable without a database. |
 | Shared type | `packages/types/src/[feature].ts` | Re-export from `src/index.ts` |
+| Pure logic the browser *and* a script need | `packages/types/src/[feature].ts` | `types` is the only package with no dependencies, so it is the only one a client bundle and a CLI can both import. `packages/db` would pull Prisma and BullMQ into the browser. `barcode.ts` is the case that forced this. |
 | Worker handler | `apps/worker/src/jobs/[queue].job.ts` | Register in `src/workers/[queue].worker.ts` |
 | Queue producer | `packages/db/src/queue-client.ts` | Payload type + typed enqueue function |
 

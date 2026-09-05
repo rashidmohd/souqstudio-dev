@@ -42,6 +42,26 @@ import {
  * `organizationId: null`. A shop that has corrected a public record keeps its
  * correction: E5 §1's shadowing means their row wins on read regardless of what
  * lands here.
+ *
+ * **`--limit` is a smoke test, and its yield numbers are not representative.**
+ * The export is sorted by barcode, so the head of the file is where the
+ * placeholder entries live — `00000069`, `00000182`, codes that are not GTINs at
+ * all. A 25-row run reads only those and reports rejecting most of what it saw.
+ * Measured over the first 111,410 rows instead: 1,351 were listed for a relevant
+ * country and 677 of those survived, so **about half of relevant rows are kept**,
+ * and the half that are not are genuinely unusable — 469 had a code that fails
+ * its check digit, 354 had no English name. Do not tune the filters against a
+ * short run.
+ *
+ * **Line-based splitting is safe here, and that was checked rather than assumed.**
+ * Across those 111,410 rows not one had a field count other than the header's,
+ * so no field contains an embedded newline or tab. Had any done so, every column
+ * after it would have shifted silently — which is the failure this note exists
+ * to stop someone re-introducing by "improving" the parser.
+ *
+ * **Streaming from the URL is slow** — the static host gives up a few MB a
+ * minute, so a full run over 1.28GB is measured in hours. Download once and use
+ * `--file` for anything beyond a smoke test.
  */
 
 const EXPORT_URL =
@@ -165,6 +185,7 @@ async function main() {
   let header: string[] | null = null
   let seen = 0
   let relevant = 0
+  let rejected = 0
   let mapped = 0
   let written = 0
   let batch: OffProduct[] = []
@@ -195,7 +216,10 @@ async function main() {
     relevant += 1
 
     const product = toProduct(row)
-    if (!product) continue
+    if (!product) {
+      rejected += 1
+      continue
+    }
     mapped += 1
 
     if (!options.dryRun) {
@@ -222,11 +246,19 @@ async function main() {
     ].join(' · ')
   )
 
-  // Said explicitly because the number is always much smaller than `read`, and
-  // a run that looks like it lost most of the file has not.
+  // Said explicitly because `mapped` is always far smaller than `read`, and a
+  // run that looks like it lost most of the file has not.
+  //
+  // `rejected` is counted rather than derived as `relevant - mapped`. Under
+  // `--limit` those are not the same number at all — the loop stops early, so
+  // the difference is mostly rows never looked at, and the derived version
+  // reported a 40-row smoke run as having thrown away 241 products. Counting
+  // the rejections where they happen is the only version that is true under
+  // both a limited and a full run.
   console.log(
-    `[off] ${seen - relevant} rows were not listed for a relevant country, and ` +
-      `${relevant - mapped} more had no usable barcode or name.`
+    `[off] ${seen - relevant} rows were not listed for a relevant country. ` +
+      `Of the ${relevant} that were, ${rejected} had no usable barcode or name` +
+      `${options.limit ? ', and the rest were not reached because of --limit' : ''}.`
   )
 }
 
