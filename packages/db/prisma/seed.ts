@@ -178,9 +178,72 @@ async function seedBlocks() {
   console.log(`[seed] ${SEED_BLOCKS.length} blocks`)
 }
 
+// ─── Catalog categories — E5-02 ───────────────────────────────────────────────
+
+/**
+ * The ten top-level categories E5-02 names, in the order it names them.
+ *
+ * **Rows, not a constant in the web app**, for the same reason as the blocks
+ * above: the catalog browser reads them, the spreadsheet import of E5-06
+ * resolves against them, and E5-08 lets an admin edit them. A hardcoded copy in
+ * any one of those becomes a second source of truth the moment the first edit
+ * lands.
+ *
+ * **`catalog_products.category` is a plain string that matches `name`**, not a
+ * foreign key — that is the schema as written. So `name` is the join key and
+ * must not be edited casually: renaming a category here orphans every product
+ * carrying the old string. The Arabic label is free to change; nothing joins on
+ * it.
+ *
+ * No subcategories are seeded. Nothing in E5 names them, and a seeded list
+ * would immediately disagree with whatever the Open Food Facts import actually
+ * produces — so the browser derives them from the rows on hand instead, and a
+ * breadcrumb only ever offers a step with something behind it. `parentId` stays
+ * for E5-08 to populate.
+ *
+ * Ids are hand-written so a re-run upserts rather than inserting duplicates.
+ */
+const CATALOG_CATEGORIES: Array<{
+  id: string
+  name: string
+  nameAr: string
+  displayOrder: number
+}> = [
+  { id: 'cat_grocery',       name: 'Grocery',       nameAr: 'بقالة',            displayOrder: 1 },
+  { id: 'cat_beverages',     name: 'Beverages',     nameAr: 'مشروبات',          displayOrder: 2 },
+  { id: 'cat_snacks',        name: 'Snacks',        nameAr: 'وجبات خفيفة',      displayOrder: 3 },
+  { id: 'cat_dairy',         name: 'Dairy',         nameAr: 'ألبان',            displayOrder: 4 },
+  { id: 'cat_bakery',        name: 'Bakery',        nameAr: 'مخبوزات',          displayOrder: 5 },
+  { id: 'cat_cleaning',      name: 'Cleaning',      nameAr: 'منظفات',           displayOrder: 6 },
+  { id: 'cat_personal_care', name: 'Personal Care', nameAr: 'العناية الشخصية',  displayOrder: 7 },
+  { id: 'cat_electronics',   name: 'Electronics',   nameAr: 'إلكترونيات',       displayOrder: 8 },
+  { id: 'cat_fresh_produce', name: 'Fresh Produce', nameAr: 'خضار وفواكه',      displayOrder: 9 },
+  { id: 'cat_frozen_foods',  name: 'Frozen Foods',  nameAr: 'أطعمة مجمدة',      displayOrder: 10 },
+]
+
+async function seedCatalogCategories() {
+  for (const category of CATALOG_CATEGORIES) {
+    const data = {
+      name: category.name,
+      nameAr: category.nameAr,
+      displayOrder: category.displayOrder,
+      parentId: null,
+    }
+
+    await prisma.catalogCategory.upsert({
+      where: { id: category.id },
+      update: data,
+      create: { id: category.id, ...data },
+    })
+  }
+
+  console.log(`[seed] ${CATALOG_CATEGORIES.length} catalog categories`)
+}
+
 async function main() {
   await backfillPromoTiers()
   await seedBlocks()
+  await seedCatalogCategories()
 
   for (const plan of PLANS) {
     await prisma.plan.upsert({

@@ -98,10 +98,20 @@ POST   /api/v1/shops                    # triggers Stripe subscription item add
 PATCH  /api/v1/shops/:id
 DELETE /api/v1/shops/:id                # triggers prorated Stripe credit
 
-GET    /api/v1/catalog/search?q=&lang=
-GET    /api/v1/catalog/categories
+GET    /api/v1/catalog/search?q=&category=&limit=    # E5-01. Ranked top 10, no paging
+GET    /api/v1/catalog/categories                    # E5-02. ?parent=<name> for subcategories
+GET    /api/v1/catalog/products?category=&subcategory=&cursor=   # E5-02. Cursor-paged
 GET    /api/v1/catalog/barcode/:ean
 POST   /api/v1/catalog/contributions    # shop submits a missing product
+        (This file used to list a `lang` parameter on search. There is none:
+         every row carries both languages and the client picks, because one
+         fetch feeds an English panel and an Arabic one, and the E5-06 import
+         review screen needs the pair regardless. Ranking does not vary by
+         language either — the vector spans nameEn and nameAr at equal weight,
+         which is what makes an English and an Arabic query find the same row.
+         `products` is a separate route from `search` rather than the same one
+         with an optional `q`: search is a ranked top ten and browsing is an
+         ordered page, so one route would return a union the client branches on.)
 
 GET    /api/v1/offer-books
 POST   /api/v1/offer-books

@@ -441,6 +441,7 @@ export interface CatalogProductSummary {
   specEn: string | null
   specAr: string | null
   category: string | null
+  subcategory: string | null
   packSize: string | null
   packUnit: PackUnit | null
   packCount: number | null
@@ -449,4 +450,31 @@ export interface CatalogProductSummary {
    *  because a fallback renders with a quality flag in the editor. */
   imageUrl: string | null
   imageIsFallback: boolean
+}
+
+/**
+ * A top-level catalog category as the browser renders it — E5-02.
+ *
+ * `nameAr` falls back to `name` at render time rather than at read time, so a
+ * category with no Arabic label shows its English one instead of a blank tile.
+ * The fallback lives in the component because the API is language-neutral.
+ *
+ * `productCount` is the organization's view: its own rows plus the universal
+ * ones it can see, archived excluded. Two organizations reading the same
+ * universal category can legitimately see different numbers.
+ */
+export interface CatalogCategoryTile {
+  id: string
+  name: string
+  nameAr: string | null
+  iconUrl: string | null
+  productCount: number
+}
+
+/** Which of the three ways a row was found. Ordering and the "own record"
+ *  marker both need it, and the import review screen will want it too. */
+export type CatalogMatchKind = 'text' | 'synonym' | 'fuzzy'
+
+export interface CatalogSearchHit extends CatalogProductSummary {
+  matchedBy: CatalogMatchKind
 }

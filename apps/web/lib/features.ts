@@ -18,8 +18,8 @@
 /** E6 — the offer book editor at /editor/[id]. */
 export const EDITOR_BUILT = false
 
-/** E5 — the product catalog browser at /catalog. */
-export const CATALOG_BUILT = false
+/** E5 — the product catalog browser at /catalog. Built: search and browsing. */
+export const CATALOG_BUILT = true
 
 /** E11 — the analytics dashboard at /analytics. */
 export const ANALYTICS_BUILT = false

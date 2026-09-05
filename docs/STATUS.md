@@ -3,22 +3,26 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 4 September 2026, after the E5/E6 delta pass — the offer model, the
-bilingual catalog and the layout-engine architecture.
+Last updated 5 September 2026, after the composition-model build — the layout engine, the
+blocks schema, the reworked brand kit, the first renderer — and after E5-01 and E5-02, the
+catalog search and category browser.
 
 Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pending.md`,
-`docs/E4-pending.md`.
+`docs/E4-pending.md`, `docs/E5-pending.md`.
 The epic specs themselves (`docs/E1-*.md` … `docs/E13-*.md`) stay the record of what was
 asked for — corrections to them are recorded in the pending notes, not edited in.
 
-The composition model's tables are migrated as of 5 September —
-`blocks`, `block_versions`, `page_grids`, `book_pins`, and `plans.maxProductsPerBook`;
-`grids` and `templates` are dropped. `pnpm db:seed` publishes four blocks into it — offer card, hero band, footer, message — and the render harness draws those same rows. A Fabric renderer and the editor are next.
+**`docs/composition-model.md` is the architecture now, and it is built.** Read it before
+starting E6 or E7. It supersedes E6 §2 and §5, changed the E4 brand-kit shape, and absorbs
+most of what E7 was scoped to do. In one sentence: *a brand kit is identity, a block is a
+designed building block, a page is a spreadsheet of regions filled with blocks, and
+products flow through it.*
 
-`docs/composition-model.md` is the cross-epic architecture for how a book is composed —
-brand kit, blocks, the page grid, the master, flow and pins. It supersedes E6 §2 and §5,
-changes the E4 brand-kit shape, and absorbs most of what E7 was scoped to do. **Read it
-before starting E6 or E7.**
+**One line to remember before picking anything up: the catalog is still empty.**
+`catalog_products` and `offer_books` both hold zero rows. The *browser* over that catalog
+now exists — E5-01 search and E5-02 category browsing are built — so the screen is there
+and the rows are not. Filling it is what remains of the critical path: the ingest half of
+E5 (import, barcode, upload) and the Open Food Facts seed.
 
 ---
 
@@ -29,9 +33,13 @@ before starting E6 or E7.**
 | **E1** Authentication & onboarding | Built. Signup, login, email verification, password reset, TOTP two-factor with backup codes, org-wide 2FA policy, the four-step brand setup wizard, and the getting-started checklist. |
 | **E2** Organization management | Built. Org settings, shops (add, deactivate, archive), team and invites, per-shop access, brand inheritance. See `E2-pending.md`. |
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
-| **E4** Brand setup | Built. E4-01 to E4-04 through the E1 wizard; E4-05 is the brand kit screen at `/brand` — view and edit the kit after setup, and a destructive reset to organization defaults. The shop-level override was E2-05's and already shipped. Fonts are out of scope; see the epic. |
+| **E5** Product catalog | **Partly built.** E5-01 full-text search and E5-02 category browsing ship at `/catalog`, over both collections with org-row precedence and barcode shadowing. Barcode lookup, missing-product upload, the contribution queue, spreadsheet import and phone capture are not written. See `E5-pending.md`. |
+| **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
-Everything else is unstarted: **E5, E6, E7, E8, E9, E10, E11, E12, E13**. Their route
+**Not an epic, but built:** the layout engine, the block schema and the first renderer.
+See §1.2 — it is most of what E6 and E7 were scoped to do.
+
+Everything else is unstarted: **E6, E7, E8, E9, E10, E11, E12, E13**. Their route
 directories exist and are empty.
 
 `apps/web/lib/features.ts` is the machine-readable version of this table. A control whose
@@ -39,6 +47,87 @@ destination is not built renders disabled with the reason visible, or is omitted
 the flag in the change that adds the route** — that is the whole point of the file. The
 left rail now reads those flags, so an unbuilt destination is not rendered at all;
 `/catalog` and `/analytics` had been shipping as live nav items pointing at 404s.
+
+### 1.1 What changed in E4, and why
+
+The brand kit carried a `gridId` and a `templateId`. Both are gone. **A brand kit *has*
+many blocks; it does not contain a choice of one**, and which grid a book uses is a
+decision about that book rather than about the shop. The `layout` facet in
+`lib/brand-inheritance.ts` is now `typography`, and `isBrandSetupComplete` tests the
+colours alone.
+
+Two things stopped being fixed-size lists, for the same reason both times — a brand kit is
+a **guideline that defines things, not a map of where they go**:
+
+- **The palette is open-ended.** Named colours the shop writes itself, 3 to 8 of them, not
+  three slots called primary/secondary/accent that also implied where each one belonged.
+  A seeded block still names a `TokenRef` slot because it has never met this shop; the
+  first three entries answer those. A fourth and fifth colour need no slot.
+- **Text styles are open-ended.** Named styles — "Product name", "Headline", "Small print"
+  — each carrying its own typeface, size, weight, italic and colour. 5 to 12. A fixed
+  h1–h6 ladder capped a brand at eight and named them after nothing an owner recognises.
+
+`fontHeadline` is a **separate face slot from `fontDisplay`** and that separation is
+load-bearing: with three slots named after parts of a card, a hero band could be *larger*
+than a product name but never a *different voice*.
+
+Typography is a Google Fonts picker over a **curated ten**, every one covering Arabic and
+Latin. Never the full library — most of it has no Arabic, and an owner who picks a
+Latin-only face then toggles a book to Arabic gets tofu. Chrome loads those faces from
+Google's CDN for previews; **the render path must not** — see the known gap in `CLAUDE.md`.
+
+### 1.2 The composition model, built
+
+Not an epic. It is the architecture E6 and E7 sit on, and most of it now exists.
+
+**`packages/engine`** — pure functions, no Prisma, no Fabric, no React, no I/O. It decides
+geometry and assignment; something else draws. In `packages/` because web and worker must
+share one implementation, and drift there means the PDF does not match the screen.
+
+| Piece | What it decides |
+| --- | --- |
+| `tracks` | fr track sizes to pixel offsets |
+| `geometry` | cell spans to rectangles, **and the only place RTL mirrors** |
+| `arrangement` | which block layout an aspect selects |
+| `validate` | overlaps, bounds, inverted spans, no-flow-region |
+| `flow` | master grid + offers + pins → pages |
+| `render` | a block's elements to absolute rectangles |
+| `price-mark` | every piece of a price mark, and the money formatting |
+| `fit` | the four-rung fit ladder and what each text may suffer |
+| `library` | the four seeded blocks |
+
+**102 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG from
+the same rows the database holds — that is how the model is checked, and it is not a
+renderer anything ships.
+
+**Schema**, migration `20260905000000`: `blocks`, `block_versions`, `page_grids`,
+`book_pins`, `plans.maxProductsPerBook`. `grids`, `templates` and `template_versions` are
+dropped, along with `offer_books.templateId`/`densityProfile` and
+`offer_book_pages.pageType`/`densityProfile`. Safe to drop with rows in them because
+nothing referenced either — the database held zero offer books.
+
+**`pnpm db:seed`** publishes four blocks: offer card (repeating, four arrangements), hero
+band, footer, message. `page_grids` has no relation to `blocks` on purpose — a region
+names its block by id *inside* the `regions` JSON, and Prisma cannot enforce a key through
+JSON, so a relation would only add a join table nothing writes to.
+
+**`components/blocks/BlockPreview.tsx`** is the first renderer: inline SVG, drawing the
+seeded blocks in the shop's palette and typefaces on the `/brand` Blocks card. It computes
+no geometry — every rectangle and line break comes from the engine. Fabric is still the
+*editor's* renderer, where dragging needs an object model.
+
+Three rules are asserted rather than described, because they decide whether output reads
+as a real offer book: the price mark's minor digits raise to the major's cap height, the
+tier tab overlaps the mark at every size, and the mark lays out start-to-end and **never
+mirrors** — LTR with Western numerals in an Arabic edition too.
+
+**What the harness caught, that typecheck and lint could not:** a footer band whose type
+collapsed because the scale anchored to the block's shorter edge instead of its geometric
+mean; a price mark that spilled out of merged regions because it fitted on height alone;
+`KWD` landing on top of the digits because letters were measured at digit width; and a
+seeded offer card whose name box was sized for "Basmati rice" rather than for
+`مسحوق غسيل أوتوماتيك بالليمون للغسالات`. Every one of them was found by looking at a
+render.
 
 ### The design system, reconciled against the brand palette
 
@@ -81,6 +170,49 @@ struck as unfillable.
 
 These are cross-cutting. Each one stops or degrades work in epics that have not started
 yet, so it is cheaper to clear the relevant one first than to work around it.
+
+### The catalog is empty — blocks everything downstream
+
+`catalog_products` and `offer_books` both hold **zero rows**. The layout engine, the block
+library, the price mark, the fit ladder and the first renderer are all built and tested
+against dummy products; none of it can be seen in the app with real data because there is
+none. This is the only thing on the critical path, and it is E5.
+
+**The reader over it now exists.** `/catalog` searches and browses both collections, and
+the four queries behind it were run against the dev database and execute cleanly — they
+returned zero rows, which is the point. What is still missing is every way a row *gets*
+there: barcode lookup (E5-03), missing-product upload (E5-04), spreadsheet import (E5-06),
+phone capture (E5-07), and the Open Food Facts seed. Ranking is therefore unverified
+against real data; the two heuristic constants that decide it are named in
+`E5-pending.md` §3.
+
+### A preview route with no auth check was committed — remove before deploying
+
+Commit `b293829` captured a temporary harness: `apps/web/app/preview-brand/page.tsx` and a
+`/preview-brand` entry in `PUBLIC_PATHS`. That route mounts the brand kit screen with **no
+session check**. It was a scratch page for looking at the four cards without writing to the
+live database, and it should never have been committed. The deletion is in the working
+tree; do not deploy that commit as it stands.
+
+### Promo-tier seeding is fixed — was breaking every new account
+
+**Resolved 5 September.** `offers.promoTierId` is NOT NULL and the E5 migration seeded
+tiers only for the organizations that existed then, so every account created afterwards
+would have failed on its first offer with nothing the owner could do. `seedPromoTiers` now
+runs inside the signup transaction, and `pnpm db:seed` backfills — it caught one live
+organization. The data lives in `packages/db/src/promo-tiers.ts`, not in `apps/web/lib`,
+because `tokenRef` is a `--sq-tpl-*` name and that is offer book content, not chrome.
+
+### `pnpm typecheck` was lying — fixed, and worth knowing why
+
+**Resolved 5 September.** `turbo.json` had `"typecheck": {}` with no `dependsOn`, so the
+task was not topological: editing `packages/types` left every dependent's typecheck as a
+**cache hit**. `pnpm typecheck` reported all green while the apps replayed stale logs, and
+the error surfaced in the worker's build on Railway instead. That is exactly how a
+`BrandKit` change shipped a broken worker. Now `dependsOn: ["^typecheck"]`.
+
+Note that `pnpm check` is `typecheck + lint + stylelint` and still does not include
+`build`. Railway runs `build`.
 
 ### Row-level security has no policy — blocks nothing, endangers everything
 
@@ -180,7 +312,14 @@ unthrottled behind a valid session.
 The MVP epics, in the order that unblocks the most. Each entry says what has to be true
 before it starts.
 
-### E5 — Product catalog (MVP)
+### E5 — Product catalog (MVP) — search and browsing are built
+
+**E5-01 and E5-02 ship.** `/catalog` is a search box over both collections with the
+category tiles as its empty state, `CATALOG_BUILT` is flipped and the rail carries the item
+again. What remains is the ingest half — E5-03 barcode, E5-04 upload, E5-06 import, E5-07
+capture — plus the admin queue of E5-05. Read `E5-pending.md` before picking any of them
+up; it carries the corrections building the first half produced, including the fact that
+`?lang=` does not exist and why.
 
 **The shape is settled and the schema is written.** `docs/E5-product-catalog.md` is v2:
 one table with a nullable `organizationId` (null = universal, set = the organization's own
@@ -190,35 +329,49 @@ and a QR phone-capture handoff. All of it is in the schema and in the E5 migrati
 
 **Needs first:** nothing structural. The work is routes and screens.
 
-Three things the migration does not carry, listed at E5 §9: promo-tier seeding on
-organization creation (the signup path — `offers.promoTierId` is NOT NULL, so the first
-offer a new org creates would violate it), the `enrich` worker for synonyms, and the
-cutout branch of the `bg` worker.
+**This is the only thing on the critical path**, and it is now specifically the *ingest*
+half of it. Everything downstream — the engine, the blocks, the price mark, the fit ladder,
+the renderer, and now the catalog browser too — is built and idle because there are no
+products to place. E6 is not thin without E5; it is impossible.
 
-The catalog is what the editor searches, so E6 is thin without it. E5-08 catalog admin
-overlaps E13; build the shop-facing half first.
+Of the three things E5 §9 says the migration does not carry, **promo-tier seeding is now
+done** (§2). The `enrich` worker for synonyms and the cutout branch of the `bg` worker are
+still open.
+
+E5-08 catalog admin overlaps E13; build the shop-facing half first.
 
 ### E6 — Offer book editor (MVP)
 
-**The architecture changed.** `docs/E6-offer-book-editor.md` is v2: a layout engine
-composes pages from offers plus a template, and Fabric is the adjustment layer holding
-bounded per-slot deltas. `offer_books.canvasState` is gone; `offer_book_pages.slotOverrides`
-replaces it. Free canvas composition is now out of scope permanently, not until V3.
+**Read `docs/composition-model.md`, not E6 §2 or §5.** Those sections describe a page-type
+grammar that no longer exists; the doc's banner says which parts still stand.
 
-**Needs first:** E5, for the catalog the offer tray searches. **Needs the `pdf` worker**
-for export, but not to start.
+**Roughly half of E6 is already built** — see §1.2. The engine composes pages, the blocks
+are seeded, the price mark and the fit ladder are done and tested, and a renderer draws
+blocks on `/brand`. What E6 still owns:
 
-The build order in E6 §10 is not advisory. Price mark first, then engine placement, then
-the fit ladder — steps 1–3 are the whole risk. If the engine's output looks like a real
-flyer with no manual adjustment the product works, and it is much better to learn that at
-step 3 than at E13.
+- **The editor screen** at `/editor/[id]` — offer tray, artboard, properties panel.
+- **The Fabric layer.** `BlockPreview` is inline SVG and static; the editor needs an object
+  model for dragging, nudging and selection. The geometry is not rebuilt — Fabric draws
+  what the engine already decides, the same way the SVG renderer does.
+- **`SlotOverride` handling**, keyed by `regionId` + `offerId` rather than grid position,
+  which is what lets a nudge survive next week's product swap.
+- **Master and instances**, and **pins**. The engine models both; nothing authors them yet.
+- **Quality flags** surfacing `fit-escalated` from the ladder, plus missing `nameAr`
+  blocking publish on AR editions.
 
-The engine is shared between web and worker — one implementation, in `packages/`, not in
-`apps/web/lib`. Two would drift, and drift here means the PDF does not match the screen.
+The risk E6 §10 names — *"if the engine's output looks like a real flyer with no manual
+adjustment, the product works"* — **has been answered, and the answer is yes.** The render
+harness produces booklet pages, a cover with a hero band, merged regions and an Instagram
+carousel with a pinned message, all without a hand-placed element. That was the whole
+gamble and it is off the table.
+
+**Needs first:** E5, for products to place. **Needs the `pdf` worker** for export, but not
+to start.
 
 Read the canvas rules in `apps/web/CLAUDE.md` before the first line — Fabric holds visual
 state, Zustand holds logical state, and `document.fonts.load()` runs before any Fabric
-text object is created or every bounding box is wrong.
+text object is created or every bounding box is measured against the fallback. The brand
+kit now lets an owner pick ten different families, so that is not theoretical.
 
 `stores/editor-store.ts` does not exist yet. `brand-store.ts` is the pattern to follow.
 
@@ -253,10 +406,21 @@ the shop-owner session layer.
 
 ### E7, E8, E11 — later
 
-E7 is admin tooling for templates and grids (and carries the card designer addendum, a
-fifth layout family with no epic of its own). E8 is AI features, V2, and needs the `ai`
-worker. E11 is analytics, V2, and needs the public viewer from E10 to have something to
-track.
+**E7 lost most of its reason to exist.** It was admin tooling for templates and grids,
+and both tables are dropped: a grid is now `perRow` on a region and a template that bundled
+look *and* arrangement had nothing left to be. What E7 still covers is a **block designer**
+— drag an element onto a block, bind it to a product field, pick a text style — plus the
+card designer addendum, a fifth layout family with no epic of its own. Rewrite the epic
+against `docs/composition-model.md` §3 before starting it.
+
+The block schema already anticipates owner-authored blocks: `blocks.organizationId` is
+nullable, and null is what makes a block seeded rather than authored. One rule the designer
+must not break — **the price mark is one element the owner places and sizes, never one they
+open.** Owners given text boxes for a price produce hundreds of inconsistent treatments
+inside a month.
+
+E8 is AI features, V2, and needs the `ai` worker. E11 is analytics, V2, and needs the
+public viewer from E10 to have something to track.
 
 ---
 
@@ -268,7 +432,11 @@ These are waiting on a human, not on effort. Each one changes what gets built.
 | --- | --- | --- |
 | **`Brand` entity** — one org, several licences | E6 | `E4-pending.md` §1 |
 | **Typefaces and Arabic coverage** | the design calibration pass | the type scale splits Host Grotesk from Plex Sans Arabic purely on coverage |
-| **`font-display text-heading`** used for section headings in 21 places across 10 files | nothing | contradicts the type scale and consistency check #6; every settings screen already does it, so it is a sweep and a decision, not a bug fix |
+| **`font-display text-heading`** used for section headings across the settings screens | nothing | contradicts the type scale and consistency check #6 — Host Grotesk has no Arabic, so those headings fall back in an AR interface. `/brand` was moved to `font-ui`; the rest is a sweep and a decision, not a bug fix |
+| **How many typefaces to offer** — the catalog is ten curated families | nothing | every Google Fonts family with Arabic coverage is ~30. Widening is a data change in `lib/brand-fonts.ts`; the full library is the version to refuse, because most of it has no Arabic |
+| **Palette and style ceilings** — 8 colours, 12 text styles | nothing | product judgements, not architecture. `MAX_PALETTE` and `MAX_STYLES`, one constant each. Nothing breaks at twenty; twenty is not an identity |
+| **Per-level control in the typography UI** | nothing | the model lets any text style bind to any face slot and carry its own size and weight, and there is a test for it. The picker exposes the four slots and the per-style dialog, not arbitrary re-binding |
+| **`Select` has no `size` prop** | any row pairing a select with an `lg` input | the inventory raised it at E2 and it has now bitten twice. `ColorField` got the prop; `Select` still has not |
 | **Forcing an incomplete owner into the wizard** from anywhere in the dashboard | nothing | `E4-pending.md` §2 |
 | **`StatusPill` enum** — no value for active/paused/pending/expired | the pill, and three screens using plain text instead | `E2-pending.md` §6 Q1 |
 
@@ -284,6 +452,13 @@ These are waiting on a human, not on effort. Each one changes what gets built.
    signature there or raise it; never invent a second API for the same thing.
 5. `pnpm typecheck` after each meaningful change, `pnpm lint` and
    `references/consistency-checklist.md` before calling UI work done.
+6. **`pnpm build` before anything reaches Railway.** `pnpm check` is typecheck, lint and
+   stylelint — it does not build, and Railway does.
+7. **Look at it.** Consistency check #9 asks for the screen rendered in Arabic with real
+   strings, and it is the one check that keeps finding things the others cannot: a ratio
+   that read `12 of 8` in RTL, a colour field whose shell was half the border weight of
+   the input beside it, type that collapsed in a wide short block. For artboard work,
+   `pnpm --filter @souqstudio/engine harness` renders sample pages in both directions.
 
 The design system is enforced mechanically: Tailwind's default palette, spacing and radius
 scales are replaced rather than extended, so an off-system value does not resolve. Lint

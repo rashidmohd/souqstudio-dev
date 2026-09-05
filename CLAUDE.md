@@ -126,7 +126,7 @@ pnpm test
 pnpm db:generate
 pnpm db:push       # DEVELOPMENT ONLY
 pnpm db:migrate    # CI and production
-pnpm db:seed       # plans, blocks, promo-tier backfill — idempotent
+pnpm db:seed       # plans, blocks, catalog categories, promo-tier backfill — idempotent
 pnpm db:studio
 ```
 
