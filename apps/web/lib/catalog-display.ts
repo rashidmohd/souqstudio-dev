@@ -103,55 +103,13 @@ export function packLabel(
 // ─── Barcodes — E5-03 ─────────────────────────────────────────────────────────
 
 /**
- * The four GTIN lengths in use: EAN-8, UPC-A, EAN-13 and GTIN-14.
+ * Re-exported, not reimplemented. The rule moved to `@souqstudio/types` when the
+ * Open Food Facts importer needed the same answer as the search box: that package
+ * is the only one with no dependencies, so it is the only one a browser bundle and
+ * a CLI script can both import.
  *
- * Anything else is not a barcode, whatever it looks like — a five-digit number
- * typed into the search box is a search for a five-digit number.
+ * Kept re-exported from here so every existing call site reads the same, and so a
+ * component still imports its barcode helpers from the module that holds the rest
+ * of its display logic.
  */
-const GTIN_LENGTHS = new Set([8, 12, 13, 14])
-
-/**
- * Strip the separators a person types or a label prints, and nothing else.
- *
- * Spaces and hyphens appear on packaging and in spreadsheets; they are not part
- * of the number. Every other character is left in place so the result fails
- * `isBarcode` rather than being silently transformed into a different code.
- */
-export function normalizeBarcode(raw: string): string {
-  return raw.replace(/[\s-]/g, '')
-}
-
-/** Digits, at one of the four GTIN lengths. Says nothing about the check digit. */
-export function isBarcode(raw: string): boolean {
-  const value = normalizeBarcode(raw)
-  return GTIN_LENGTHS.has(value.length) && /^\d+$/.test(value)
-}
-
-/**
- * The GTIN check digit, which is the whole reason a barcode has one.
- *
- * Weights alternate 3 and 1 from the **right**, so the pattern depends on the
- * length — anchoring from the left gets EAN-8 and EAN-13 exactly backwards and
- * produces a validator that accepts half of all typos and rejects half of all
- * valid codes.
- *
- * This is checked before the database is asked. A mistyped code and a code we
- * have never seen are different answers: one is "check what you typed", the
- * other is "add this product", and telling an owner to add a product that
- * already exists under the right number is how a catalog fills with duplicates.
- */
-export function hasValidCheckDigit(raw: string): boolean {
-  const value = normalizeBarcode(raw)
-  if (!isBarcode(value)) return false
-
-  const digits = [...value].map(Number)
-  const check = digits[digits.length - 1]
-  if (check === undefined) return false
-
-  const sum = digits
-    .slice(0, -1)
-    .reverse()
-    .reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0)
-
-  return (10 - (sum % 10)) % 10 === check
-}
+export { hasValidCheckDigit, isBarcode, normalizeBarcode } from '@souqstudio/types'

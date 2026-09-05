@@ -141,13 +141,45 @@ export function ImportWizard({ lang }: { lang: CatalogLanguage }) {
     }
   }
 
+  /**
+   * Every row, following the cursor to the end.
+   *
+   * **Not one page.** The commit sends a decision per row and applies them in
+   * one transaction, so a review screen holding the first page and no more does
+   * not show the owner less — it silently commits less, and the rows it never
+   * loaded are simply not imported. `MAX_ROWS` on the upload is ten thousand,
+   * so that gap was real for any sheet worth calling a price list.
+   *
+   * Paged at the route's maximum and looped, rather than asked for in one
+   * request: the ceiling exists so a client cannot ask for an unbounded read,
+   * and raising it for this caller would remove it for everyone.
+   */
   async function loadReview(importId: string) {
-    const res = await fetch(`/api/v1/catalog/imports/${importId}?limit=200`)
-    const result = await res.json()
-    if (result.error) return setError(result.error.message)
+    const rows: ReviewRow[] = []
+    let products: Record<string, CatalogProductSummary> = {}
+    let cursor: string | null = null
 
-    const rows: ReviewRow[] = result.data.rows
-    setReview({ rows, products: result.data.products })
+    // Bounded by MAX_ROWS / the page size, so a server that kept returning a
+    // cursor could not spin here forever.
+    for (let page = 0; page < 60; page += 1) {
+      const query: string = cursor
+        ? `?limit=200&cursor=${encodeURIComponent(cursor)}`
+        : '?limit=200'
+      const res: Response = await fetch(`/api/v1/catalog/imports/${importId}${query}`)
+      const result = await res.json()
+      if (result.error) return setError(result.error.message)
+
+      rows.push(...result.data.rows)
+      // Later pages carry the products their own rows reference, and several
+      // rows across pages name the same product — so this merges rather than
+      // replaces.
+      products = { ...products, ...result.data.products }
+
+      cursor = result.data.nextCursor
+      if (!cursor) break
+    }
+
+    setReview({ rows, products })
 
     // The proposed decisions, all of them visible and all of them changeable.
     // An ambiguous row proposes nothing: E5-06 forbids picking its top score
@@ -260,6 +292,13 @@ export function ImportWizard({ lang }: { lang: CatalogLanguage }) {
           decisions={decisions}
           onDecide={(rowId, decision) =>
             setDecisions((prev) => ({ ...prev, [rowId]: decision }))
+          }
+          onDecideMany={(rowIds, decision) =>
+            setDecisions((prev) => {
+              const next = { ...prev }
+              for (const rowId of rowIds) next[rowId] = decision
+              return next
+            })
           }
           counts={counts}
           busy={busy}
@@ -399,10 +438,27 @@ function MappingStep({
   )
 }
 
+/**
+ * How many rows are drawn at once.
+ *
+ * A first import against an empty catalog matches nothing, so "the rows that
+ * need a decision" is *every* row — ten thousand of them at the `MAX_ROWS`
+ * ceiling, and ten thousand list items is a page that stops responding. The
+ * rest are not hidden: their decision is stated, they are counted on the commit
+ * button, and they are all sent. Reviewing row nine thousand individually is
+ * not a thing anyone does; knowing what happens to it is.
+ */
+const RENDER_LIMIT = 200
+
+function needsDecision(row: ReviewRow): boolean {
+  return row.status === 'AMBIGUOUS' || row.status === 'UNMATCHED'
+}
+
 function ReviewStep({
   review,
   decisions,
   onDecide,
+  onDecideMany,
   counts,
   busy,
   lang,
@@ -411,11 +467,20 @@ function ReviewStep({
   review: Review
   decisions: Record<string, Decision>
   onDecide: (rowId: string, decision: Decision) => void
+  onDecideMany: (rowIds: string[], decision: Decision) => void
   counts: { create: number; use: number; skip: number }
   busy: boolean
   lang: CatalogLanguage
   onCommit: () => void
 }) {
+  const [showAll, setShowAll] = React.useState(false)
+
+  const attention = review.rows.filter(needsDecision)
+  const settled = review.rows.length - attention.length
+  const listed = showAll ? review.rows : attention
+  const drawn = listed.slice(0, RENDER_LIMIT)
+  const undrawn = listed.length - drawn.length
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -426,8 +491,49 @@ function ReviewStep({
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 rounded-card border-hairline border-border-subtle bg-surface p-3">
+        <p className="flex-1 font-ui text-body-sm text-secondary">
+          <Figure value={attention.length} /> of <Figure value={review.rows.length} />{' '}
+          rows need a decision. The other <Figure value={settled} /> matched on their own.
+        </p>
+
+        {review.rows.length > attention.length ? (
+          <button
+            type="button"
+            onClick={() => setShowAll((current) => !current)}
+            className="rounded-control font-ui text-body-sm text-link underline"
+          >
+            {showAll ? 'Show only what needs deciding' : 'Show every row'}
+          </button>
+        ) : null}
+      </div>
+
+      {/* One decision applied to a whole set, because the first import against
+          an empty catalog is thousands of rows that all want the same answer.
+          It is scoped to what is listed, so it can never quietly touch a row
+          the owner is not looking at. */}
+      {attention.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-ui text-body-sm text-secondary">
+            For all <Figure value={listed.length} /> listed:
+          </span>
+          <Button
+            type="button"
+            onClick={() => onDecideMany(listed.map((row) => row.id), { action: 'create' })}
+          >
+            Add all as new
+          </Button>
+          <Button
+            type="button"
+            onClick={() => onDecideMany(listed.map((row) => row.id), { action: 'skip' })}
+          >
+            Leave all out
+          </Button>
+        </div>
+      ) : null}
+
       <ul className="flex flex-col gap-2">
-        {review.rows.map((row) => (
+        {drawn.map((row) => (
           <ReviewRowItem
             key={row.id}
             row={row}
@@ -438,6 +544,14 @@ function ReviewStep({
           />
         ))}
       </ul>
+
+      {undrawn > 0 ? (
+        <p role="status" className="font-ui text-body-sm text-muted">
+          <Figure value={undrawn} /> more rows are not drawn here, to keep this page
+          responsive. They are still part of the import and the decision below counts
+          them — use the buttons above to set them all at once.
+        </p>
+      ) : null}
 
       <div className="flex flex-col gap-2 rounded-card border-hairline border-border-subtle bg-surface p-4">
         {/* The whole point of this line: nobody presses the button without

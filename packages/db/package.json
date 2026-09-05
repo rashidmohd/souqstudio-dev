@@ -11,7 +11,10 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "catalog:import-off": "tsx scripts/import-off.ts"
   },
   "dependencies": {
     "@souqstudio/types": "workspace:*",
@@ -24,7 +27,8 @@
     "@souqstudio/config": "workspace:*",
     "prisma": "^5.0.0",
     "typescript": "^5.0.0",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "vitest": "^2"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

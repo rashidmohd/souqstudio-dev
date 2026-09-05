@@ -313,6 +313,9 @@ importers:
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@20.19.43)(jsdom@20.0.3(canvas@2.11.2))
 
   packages/email:
     dependencies:

@@ -6,6 +6,8 @@
 // the E6 §2 grammar further down this file; those stay until the E4 brand flow
 // is migrated off them.
 export * from './composition'
+// Pure, dependency-free, and needed on both sides of the network — see the file.
+export * from './barcode'
 import type { BrandColor, TextStyle, TypeScale } from './composition'
 
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'
