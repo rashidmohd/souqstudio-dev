@@ -3,6 +3,7 @@ import {
   allValues,
   firstValue,
   isRelevant,
+  pickCategory,
   toCatalogCategory,
   toProduct,
   type OffRow,
@@ -330,5 +331,64 @@ describe('toProduct — categories', () => {
     expect(product).not.toBeNull()
     expect(product?.category).toBeNull()
     expect(product?.tags).toContain('quantum widgets')
+  })
+})
+
+/**
+ * `pickCategory` reads the whole `categories_en` column rather than only its
+ * broadest level. Reading only the broadest was leaving three quarters of the
+ * GCC-relevant catalog uncategorised — see `docs/E5-pending.md` §1 for how that
+ * went unmeasured for so long.
+ */
+describe('pickCategory', () => {
+  it('keeps the answer the broadest level already gave', () => {
+    // The additive guarantee: a row that mapped before maps to the same thing.
+    expect(pickCategory('Dairies, Cheeses, Hard cheeses')).toBe('Dairy')
+    expect(pickCategory('Beverages, Waters, Spring waters')).toBe('Beverages')
+  })
+
+  it('reaches a level down when the broadest one claims nothing', () => {
+    // Real shapes from the export: the broad value is a phrase no rule owns and
+    // the answer is sitting behind it in the same cell.
+    expect(pickCategory('Groceries')).toBe('Grocery')
+    expect(pickCategory('en:Aliments et boissons, Breakfast cereals')).toBe('Grocery')
+    expect(pickCategory('Farming products, Fresh vegetables')).toBe('Fresh Produce')
+  })
+
+  it('still answers null when no level claims anything', () => {
+    expect(pickCategory('Wibble, Wobble')).toBeNull()
+    expect(pickCategory('')).toBeNull()
+    expect(pickCategory(undefined)).toBeNull()
+  })
+
+  describe('a deliberate refusal stops the scan', () => {
+    // The bug this guards: `toCatalogCategory` answers null both for "no rule"
+    // and for "kept out on purpose", and scanning several values turns the
+    // second into the first. A supplement is not a grocery aisle at any depth.
+    it('does not let a deeper level overrule an override that means null', () => {
+      expect(pickCategory('Dietary supplements, Vitamins, Cereal extracts')).toBeNull()
+      expect(pickCategory('Medicine, Cough syrup')).toBeNull()
+      expect(pickCategory('Non food products, Cleaning products')).toBeNull()
+    })
+
+    it("does not let OFF's own placeholders fall through either", () => {
+      expect(pickCategory('Undefined, Snacks')).toBeNull()
+      expect(pickCategory('Null, Breads')).toBeNull()
+    })
+
+    it('applies the refusal at whatever depth it appears', () => {
+      // Scanning stops at the first level that has an opinion, in the column's
+      // own order — so a refusal behind an unclaimed value still wins.
+      expect(pickCategory('Wibble, Dietary supplements, Cereals')).toBeNull()
+    })
+  })
+
+  it('reads a broad value the 40-character cap would have dropped', () => {
+    // `allValues` skips anything longer than 40 characters. The broadest level
+    // is consulted outside that loop for exactly this reason, or a long name
+    // that the rules do claim would silently stop mapping.
+    const long = 'Frozen prepared meals and other convenience dishes'
+    expect(long.length).toBeGreaterThan(40)
+    expect(pickCategory(`${long}, Wibble`)).toBe('Frozen Foods')
   })
 })

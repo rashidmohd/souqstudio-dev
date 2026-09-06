@@ -278,21 +278,77 @@ const CATEGORY_RULES: Array<{ category: CategoryName; keywords: string[] }> = [
  * are phrases and the signal is often in the tail: "Plant-based foods and
  * beverages" is caught by `beverage`, "Sweet snacks" by `snack`.
  */
-export function toCatalogCategory(raw: string | null): CategoryName | null {
-  if (!raw) return null
+/**
+ * How many levels of `categories_en` to consider. OFF orders the column
+ * broadest-first and the tail gets noisy fast; twelve reaches the useful depth
+ * on every row measured and stops before the per-contributor inventions.
+ */
+const CATEGORY_DEPTH = 12
+
+/**
+ * The category for a whole `categories_en` column, not for one value in it.
+ *
+ * **Reading only the broadest level was leaving three quarters of the catalog
+ * uncategorised**, and the figure that hid it was measured against the wrong
+ * population — see `docs/E5-pending.md` §1. `firstValue` takes OFF's broadest
+ * level, which for a great many GCC-relevant rows is a phrase no rule claims;
+ * the answer is usually sitting one or two levels down in the same cell.
+ *
+ * **Broadest first, and that is a decision.** Scanning in the column's own
+ * order means a row whose broad level already maps keeps exactly the answer it
+ * had, so this can only ever *add* a category and never change one. Scanning
+ * from the specific end would sharpen some rows — the plant-based umbrella
+ * splits into cereals, pulses and produce down there — and would also let a
+ * single contributor-invented leaf overrule a correct broad answer. That
+ * trade is worth measuring on its own before it is taken.
+ */
+export function pickCategory(raw: string | undefined): CategoryName | null {
+  // Not folded into the loop: `allValues` drops anything over 40 characters,
+  // and a long broad value that the rules do claim must still answer.
+  const broadest = categoryDecision(firstValue(raw))
+  if (broadest !== undefined) return broadest
+
+  for (const value of allValues(raw, CATEGORY_DEPTH)) {
+    const deeper = categoryDecision(value)
+    if (deeper !== undefined) return deeper
+  }
+  return null
+}
+
+/**
+ * Three states, and the third is why this exists.
+ *
+ * `toCatalogCategory` answers `null` for two different things: *no rule claimed
+ * this*, and *a rule deliberately refused it*. That conflation is harmless while
+ * one value is consulted and wrong the moment several are. `Dietary supplements`
+ * is an override that answers null on purpose — 11,850 rows the ten tiles have
+ * no shelf for — and a row whose deeper levels read `Vitamins and minerals` would
+ * otherwise fall through the refusal and land in Grocery. The refusal has to
+ * stop the scan, which means it has to be distinguishable from silence.
+ *
+ * `undefined` is "no rule". `null` is "kept out on purpose".
+ */
+function categoryDecision(raw: string | null): CategoryName | null | undefined {
+  if (!raw) return undefined
 
   const value = raw.trim().toLowerCase()
-  if (!value) return null
+  if (!value) return undefined
 
-  // Exact answers first, and an override may legitimately be null — see the
-  // note on CATEGORY_OVERRIDES. `has` rather than a truthy check, because null
-  // is a decision here and not a miss.
   if (CATEGORY_OVERRIDES.has(value)) return CATEGORY_OVERRIDES.get(value) ?? null
 
   for (const rule of CATEGORY_RULES) {
     if (rule.keywords.some((keyword) => value.includes(keyword))) return rule.category
   }
-  return null
+  return undefined
+}
+
+export function toCatalogCategory(raw: string | null): CategoryName | null {
+  if (!raw) return null
+
+  // One value's answer, with "no rule" and "refused on purpose" flattened back
+  // together — which is all a single-value caller can act on anyway. The three
+  // states live in `categoryDecision`, so the two cannot drift apart.
+  return categoryDecision(raw) ?? null
 }
 
 /**
@@ -359,9 +415,10 @@ export function toProduct(row: OffRow): OffProduct | null {
     // The variant line, kept as written. See above.
     specEn: (row.quantity ?? '').trim() || null,
     originEn: firstValue(row.origins_en),
-    // One of the ten the app browses, or null. See `toCatalogCategory` — the
-    // raw OFF string is preserved in `tags` above rather than stored here.
-    category: toCatalogCategory(offCategory),
+    // One of the ten the app browses, or null. See `pickCategory` — every level
+    // of the column is considered, not just the broadest, and the raw OFF
+    // string is preserved in `tags` above rather than stored here.
+    category: pickCategory(row.categories_en),
     tags,
   }
 }

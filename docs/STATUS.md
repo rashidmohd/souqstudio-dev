@@ -10,7 +10,7 @@ blocks schema, the reworked brand kit, the first renderer — and after E5-01 an
 catalog search and category browser.
 
 Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pending.md`,
-`docs/E4-pending.md`, `docs/E5-pending.md`.
+`docs/E4-pending.md`, `docs/E5-pending.md`, `docs/E6-pending.md`.
 The epic specs themselves (`docs/E1-*.md` … `docs/E13-*.md`) stay the record of what was
 asked for — corrections to them are recorded in the pending notes, not edited in.
 

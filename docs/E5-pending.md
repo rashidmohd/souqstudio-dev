@@ -514,6 +514,35 @@ between a working screen and a mostly-empty one rather than a refinement.
 
 The dev database agrees, at 26.4% over its 2,041-row sample.
 
+**`pickCategory` is written and its effect is unmeasured. That is the open item.**
+`toProduct` now reads every level of `categories_en` rather than only `firstValue`'s
+broadest one — `pickCategory` in `off-mapping.ts`, 7 tests. It is **broadest-first**, so a
+row that mapped before maps to the same thing: the change can only add a category, never
+change one. What is missing is the number. Measuring it needs a fresh stream of the 1.28GB
+export, because `data/catalog-off.csv` carries the already-mapped `category` and not the
+raw column; a tally script was written and the run was stopped part-way. **Do not quote a
+coverage figure for this until it has been run** — quoting an unmeasured one is the exact
+mistake §1 above is about.
+
+Two things worth keeping from writing it:
+
+- **Writing the tests found a bug in the change.** `toCatalogCategory` answers `null` for
+  two different things — *no rule claimed this* and *a rule refused this on purpose* — and
+  the conflation is harmless while one value is consulted and wrong the moment several
+  are. A row reading `Dietary supplements, Vitamins, Cereal extracts` would have fallen
+  through the deliberate refusal into Grocery, and the same for `Medicine`,
+  `Non food products` and OFF's own `Undefined`/`Null` placeholders. A three-state
+  `categoryDecision` now separates them: `undefined` is "no rule", `null` is "kept out on
+  purpose", and `toCatalogCategory` reads through it so the two cannot drift.
+- **Scanning from the specific end was considered and not taken.** It would sharpen the
+  plant-based umbrella, which splits into cereals, pulses and produce at depth. It would
+  also let one contributor-invented leaf overrule a correct broad answer, and it stops
+  being strictly additive. That is its own measurement, not a variation on this one.
+
+**The rules the tally would have named are still unwritten.** The script tallied the top
+values that *no* level maps, which is the list of keyword rules worth adding — that list
+does not exist yet.
+
 ### Real catalog rows now go through the layout engine
 
 `pnpm --filter @souqstudio/db catalog:harness-export` writes the rows the render harness
