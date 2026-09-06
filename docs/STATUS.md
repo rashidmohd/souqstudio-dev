@@ -123,13 +123,11 @@ still cover the price mark better, because they carry a three-decimal currency o
 
 - **A pack label printed backwards on every Arabic card.** `2 kg` rendered as `kg 2`: the
   digit is bidi-weak, `kg` is a strong LTR run and the space between them is neutral, so an
-  RTL paragraph reorders them. The app is safe — `ProductCard` puts the pack line through
-  `Figure`, and `[data-figure]` carries exactly this isolation — but **the artboard has no
-  `Figure` and no equivalent**. Fixed in the harness renderer with a first-strong rule
-  (`textDirection` in `harness/svg.ts`). E6's Fabric renderer and E9's SVG export both need
-  the same rule and neither has it. This is the one that would have shipped: a printed
+  RTL paragraph reorders them. The chrome is safe — `ProductCard` puts the pack line
+  through `Figure`, and `[data-figure]` carries exactly this isolation — but **the artboard
+  had no `Figure` and no equivalent**. This is the one that would have shipped: a printed
   Arabic flyer with every pack size reversed, in a language nobody reviewing the English
-  edition reads.
+  edition reads. **Fixed** — see below.
 - **The card is mostly empty, because the catalog is.** 58% of rows have a brand, 33% a
   spec, 4.2% a pack size, 4.2% an image, 4.2% an Arabic name. The offer card reserves a box
   per field, so a typical real card is a short name, a grey placeholder and a large void.
@@ -145,6 +143,28 @@ still cover the price mark better, because they carry a three-decimal currency o
 
 The pages are `real-typical`, `real-longest`, `real-arabic` and `real-sparse` in
 `harness/out`.
+
+**`textDirection` is in the engine now, and both renderers use it.** `src/direction.ts`,
+exported, 15 tests, beside `price-mark` — which already decides that a price mark lays out
+start-to-end and never mirrors, so direction resolution is the same kind of decision the
+module already owns. It answers first-strong, the Unicode `plaintext` heuristic, and it is
+resolved in code rather than left to `unicode-bidi: plaintext` because three of the four
+renderers that need it are not a browser.
+
+**`BlockPreview` had the same bug and it is shipping code.** `/brand` draws the seeded
+blocks in the shop's own palette and was passing the page direction straight to every
+`<text>`. It does not *show* today only because `PREVIEW_PRODUCT` carries a fully
+translated Arabic spec — and 96% of the universal catalog does not, which is exactly the
+gap real rows exposed. Fixed in the same change; the note is on `lib/preview-product.ts`.
+**E6's Fabric layer and E9's SVG export still have to call it**, and neither exists yet.
+
+Worth keeping from writing it: **the first version of the rule was wrong twice, and its
+tests caught both.** Matching code-point ranges let `×` (U+00D7, which sits among the
+accented Latin letters) decide that `12 × 1.5 L` was a strong LTR string, and let an
+Arabic-Indic digit (U+0660–U+0669, inside the Arabic block) decide `١٢ × ١٫٥ لتر` — which
+gave the right answer for the wrong reason, the worst way for a rule to be wrong. Matching
+`\p{L}` first removes both by construction: a digit is `Nd`, a symbol is `Sm`, and neither
+is strong in the Unicode bidi algorithm either.
 
 **Schema**, migration `20260905000000`: `blocks`, `block_versions`, `page_grids`,
 `book_pins`, `plans.maxProductsPerBook`. `grids`, `templates` and `template_versions` are
@@ -545,10 +565,10 @@ no spec and 96% have no pack size or image.
 
 **Two of those are now E6's to answer before the editor is worth building:**
 
-- **The artboard needs the `Figure` rule.** Chrome has bidi isolation through
-  `[data-figure]`; Fabric and the SVG export have nothing. `textDirection` in
-  `harness/svg.ts` is the rule, written and commented — it has to be in the real renderers,
-  not only in the throwaway one.
+- **The Fabric layer must call `textDirection`.** The rule is in the engine and
+  `BlockPreview` and the harness both use it; Fabric and the PDF export are the two
+  renderers left. A canvas text object takes its own direction, so this is not inherited —
+  it has to be passed, per text object, from the string rather than from the artboard.
 - **The offer card needs a sparse arrangement.** Reserving a spec box and a pack box on a
   catalog where a third of rows have a spec and a twenty-fifth have a pack size produces a
   card that is half whitespace. This is a block-design decision, so it may belong to E7's

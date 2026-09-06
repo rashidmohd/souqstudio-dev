@@ -7,6 +7,7 @@ import {
   fitText,
   layoutPriceMark,
   resolveBlock,
+  textDirection,
   type Rect,
   type TextMeasurer,
 } from '@souqstudio/engine'
@@ -326,7 +327,13 @@ function Text({
           fontFamily={family}
           fill={fill}
           textAnchor={anchor}
-          direction={ctx.direction}
+          // The page decides where the line sits; the string decides which way
+          // its glyphs run. Passing `ctx.direction` here printed every Latin
+          // pack label backwards on an Arabic artboard — `2 kg` as `kg 2` — and
+          // it does not show on this preview only because `PREVIEW_PRODUCT`
+          // carries a fully translated Arabic spec. A real catalog row does not:
+          // 96% of the universal catalog has no `specAr` at all.
+          direction={textDirection(content, ctx.direction)}
         >
           {line}
         </text>

@@ -537,13 +537,17 @@ It is worth looking at a rendered page to understand what "English-only catalog"
 costs: it is not a missing line, it is a bilingual card with one Latin line in it.
 
 **A pack label reorders in an Arabic artboard.** `2 kg` rendered as `kg 2` on every card of
-the Arabic page. **The app is not affected** — `ProductCard` puts the pack line through
-`Figure`, and `[data-figure]` carries the bidi isolation that prevents exactly this. The
-artboard has no `Figure` and no equivalent, and the harness renderer had none either. Fixed
-there with a first-strong direction rule (`textDirection` in `harness/svg.ts`, which carries
-the reasoning); **E6's Fabric renderer and E9's SVG export both need the same rule**, and
-neither has it. This is the one finding that would have shipped: a printed Arabic flyer with
-every pack size backwards, in a language nobody reviewing the English edition reads.
+the Arabic page. **The catalog screens are not affected** — `ProductCard` puts the pack line
+through `Figure`, and `[data-figure]` carries the bidi isolation that prevents exactly this.
+The artboard had no `Figure` and no equivalent. This is the finding that would have shipped:
+a printed Arabic flyer with every pack size backwards, in a language nobody reviewing the
+English edition reads.
+
+Fixed as `textDirection` in `packages/engine/src/direction.ts` — in the engine rather than
+in the harness, because four renderers need the same answer and two of them are not a
+browser. `BlockPreview` had the identical bug in shipping code and now calls it; E6's Fabric
+layer and E9's SVG export still must. STATUS §1.2 has the detail, including the two ways the
+rule was wrong before its tests caught them.
 
 ## 2. Not built, and what it needs
 

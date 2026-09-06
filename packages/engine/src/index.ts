@@ -36,6 +36,9 @@ export {
   type PriceMarkOptions,
   type MarkPiece,
 } from './price-mark'
+// Which way a *string* reorders, which is not which way the page lays out.
+// Every renderer needs it; see the file for what happens when one does not.
+export { textDirection } from './direction'
 export { resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
 export { validateGrid, type GridProblem, type GridProblemCode } from './validate'
 export {

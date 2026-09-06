@@ -16,6 +16,7 @@ import {
   fitText,
   layoutPriceMark,
   resolveBlock,
+  textDirection,
   type MarkPiece,
   type Placement,
   type Rect,
@@ -252,7 +253,9 @@ function text(
       ? KIT.inkMuted
       : inkFor(element, ctx)
 
-  // Anchoring follows the page; reordering follows the string. See `textDirection`.
+  // Anchoring follows the page; reordering follows the string. The rule is in
+  // the engine because every renderer needs it — see `src/direction.ts` for the
+  // Arabic pack labels that were printing backwards before it existed.
   const dir = textDirection(content, ctx.direction)
 
   return fitted.lines
@@ -265,43 +268,6 @@ function text(
       )
     })
     .join('')
-}
-
-/**
- * The direction a *string* reorders in, which is not the direction the page
- * lays out in.
- *
- * **Found by rendering real rows.** An Arabic edition draws every text element
- * with `direction="rtl"`, and 900 of the 2,131 catalog rows carry a pack line
- * like `2 kg` with no Arabic translation — `specFor` falls back to the English
- * one, correctly. In an RTL paragraph that string reorders to `kg 2`: the digit
- * is bidi-weak, the unit is a strong LTR run, and the space between them is
- * neutral. Every pack label on the Arabic page was printing backwards, and it
- * is the kind of error that survives review because it still looks like text.
- *
- * First-strong, which is the Unicode `plaintext` heuristic and what
- * `unicode-bidi: plaintext` would do if every renderer honoured it. A string
- * beginning with an Arabic letter reorders RTL; one beginning with a Latin
- * letter reorders LTR; one with no strong character at all — a bare `500` —
- * follows the page, because there is nothing in it that can reorder anyway.
- *
- * `text-anchor` deliberately does *not* use this. Where the line sits in its box
- * is a page decision — an Arabic card right-aligns its English pack label — and
- * only the order of the glyphs within the line is the string's own business.
- *
- * The real renderers have to do the same thing. Fabric and the SVG export both
- * inherit the artboard's direction, and the design system's answer in chrome is
- * `[data-figure]` with bidi isolation; nothing equivalent exists on the artboard
- * yet.
- */
-function textDirection(content: string, page: 'ltr' | 'rtl'): 'ltr' | 'rtl' {
-  // Arabic, Hebrew and their supplements against the Latin/Greek/Cyrillic
-  // ranges. Not `\p{Script=Arabic}` alone: the first strong character may be
-  // Latin in a string that also contains Arabic, and that string is still LTR.
-  const strong = /[\u0041-\u005A\u0061-\u007A\u00C0-\u02AF\u0370-\u04FF]|[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u
-  const match = strong.exec(content)
-  if (match === null) return page
-  return match[0].charCodeAt(0) >= 0x0590 ? 'rtl' : 'ltr'
 }
 
 /**

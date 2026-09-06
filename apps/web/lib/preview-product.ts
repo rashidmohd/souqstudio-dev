@@ -11,6 +11,18 @@ import type { Currency } from '@souqstudio/types'
  *
  * Same reasoning as the dummy set in the render harness, and the same reason
  * E6 §5 says to design a card at the dense, bilingual worst case.
+ *
+ * **It is not the worst case in one respect, and real rows found it.** Every
+ * field here is translated, and 96% of the universal catalog has no `specAr` and
+ * no `nameAr` at all — the Open Food Facts export carries no language variants
+ * in any of its 211 columns. So an Arabic edition of a real product draws a
+ * *Latin* spec line, and that is the string that reordered: `2 kg` printed as
+ * `kg 2` until `textDirection` landed in the engine. A preview built only from
+ * translated data cannot show that, which is why the render harness composes
+ * real catalog rows beside these — `pnpm --filter @souqstudio/db
+ * catalog:harness-export`. Adding an English string to `specAr` here would be
+ * the wrong fix: the column means "the Arabic spec", and a row that has one is
+ * still the case this preview is for.
  */
 export const PREVIEW_PRODUCT = {
   nameEn: 'Automatic laundry detergent powder with lemon fragrance',
