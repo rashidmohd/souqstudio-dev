@@ -98,8 +98,10 @@ share one implementation, and drift there means the PDF does not match the scree
 | `price-mark` | every piece of a price mark, and the money formatting |
 | `fit` | the four-rung fit ladder and what each text may suffer |
 | `library` | the four seeded blocks |
+| `direction` | which way a *string* reorders, and where its line is anchored |
+| `compact` | reclaiming the height a card's content did not use |
 
-**102 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG —
+**144 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG —
 that is how the model is checked, and it is not a renderer anything ships. Output lands in
 `packages/engine/harness/out`; open `index.html`.
 
@@ -144,7 +146,16 @@ still cover the price mark better, because they carry a three-decimal currency o
 The pages are `real-typical`, `real-longest`, `real-arabic` and `real-sparse` in
 `harness/out`.
 
-**`textDirection` is in the engine now, and both renderers use it.** `src/direction.ts`,
+**`placeText` is in the engine now, and both renderers use it.** It returns the x, the
+anchor and the direction *together*, because deciding them separately is what broke next:
+the first fix set `direction` from the string while `text-anchor` still came from the page,
+and in SVG — as in CSS — `start` and `end` resolve against the element's *own* direction.
+A real Arabic product name in an English booklet (`خردل`) was anchored at its box's left
+edge and then drawn right-to-left *from* it, straight out of the card. **Found by looking at
+the rendered page, which is the only way it could have been** — every test passed, and it is
+the second time in this change that rule #7 caught what the others could not.
+
+**`textDirection` underneath it.** `src/direction.ts`,
 exported, 15 tests, beside `price-mark` — which already decides that a price mark lays out
 start-to-end and never mirrors, so direction resolution is the same kind of decision the
 module already owns. It answers first-strong, the Unicode `plaintext` heuristic, and it is
@@ -569,10 +580,27 @@ no spec and 96% have no pack size or image.
   `BlockPreview` and the harness both use it; Fabric and the PDF export are the two
   renderers left. A canvas text object takes its own direction, so this is not inherited —
   it has to be passed, per text object, from the string rather than from the artboard.
-- **The offer card needs a sparse arrangement.** Reserving a spec box and a pack box on a
-  catalog where a third of rows have a spec and a twenty-fifth have a pack size produces a
-  card that is half whitespace. This is a block-design decision, so it may belong to E7's
-  block designer rather than to the editor.
+- **The offer card needs a sparse treatment, and `compactBlock` is it.** Built
+  6 September: `packages/engine/src/compact.ts`, 14 tests. The caller measures what each
+  element's content actually needed, the engine removes what is absent and hands the
+  reclaimed height to one beneficiary. Two passes and only two — compaction changes heights
+  only, and line breaking is driven by width, so the second fit produces the same line
+  count at a box that now fits it. It refuses side-by-side arrangements (WIDE, BANNER)
+  rather than inventing an answer for them: they have the same problem and a different
+  shape.
+
+  **Nothing in the app calls it yet**, so there is no default to regret. E6 passes a policy
+  when it wires the editor; the harness renders all four so the choice is made by looking:
+  `compaction-{sparse,typical}-{none,image,price,balance}` in `harness/out`.
+
+  **Recommendation from the renders: `balance`.** `image` and `price` both make one
+  element's *size* a function of a different element's *text length* — a card with a
+  one-line name gets a bigger packshot, or a bigger price, than the card beside it. Over a
+  3×3 grid that reads as ragged rather than as varied, and it is worst on the price, which
+  is the number a customer compares across the page. `balance` moves elements and resizes
+  none, so every packshot and every price mark is the same size in every cell. This is the
+  same call `ProductCard` already made and wrote down — *"a grid of mixed heights reads as
+  broken rather than as varied"* — and the argument does not change on an artboard.
 
 **Needs first:** nothing else. The editor proper **needs the `pdf` worker** for export, but
 not to start.

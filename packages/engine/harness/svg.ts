@@ -14,9 +14,11 @@ import type { Block, BlockElement, Currency, TokenRef } from '@souqstudio/types'
 import {
   fitPolicy,
   fitText,
+  compactBlock,
   layoutPriceMark,
+  placeText,
   resolveBlock,
-  textDirection,
+  type CompactionPolicy,
   type MarkPiece,
   type Placement,
   type Rect,
@@ -29,6 +31,9 @@ export interface RenderContext {
   products: Record<string, HarnessProduct>
   direction: 'ltr' | 'rtl'
   shopName: string
+  /** How a card reclaims the height its content did not use. Defaults to the
+   *  pre-compaction behaviour so the dummy pages are unchanged. */
+  compaction?: CompactionPolicy
 }
 
 const LATIN = "'Helvetica Neue', Helvetica, Arial, sans-serif"
@@ -56,7 +61,7 @@ function renderPlacement(placement: Placement, ctx: RenderContext): string {
   if (block === undefined) return ''
 
   const product = placement.offerId === null ? undefined : ctx.products[placement.offerId]
-  const { elements } = resolveBlock(block, placement.rect, ctx.direction)
+  const resolved = resolveBlock(block, placement.rect, ctx.direction)
 
   // Type levels size against the block, not against the element box: that is
   // what keeps h1 larger than h2 in a 1080px post and a 380px booklet cell
@@ -67,9 +72,42 @@ function renderPlacement(placement: Placement, ctx: RenderContext): string {
   // the cards above read correctly.
   const blockEdge = Math.sqrt(placement.rect.width * placement.rect.height)
 
-  return elements
+  // Two passes, and only two. The first fit is a measurement against the box the
+  // block designed; compaction reclaims what was not used; the second fit — in
+  // `text` below — runs against the box that came back. It converges because
+  // compaction changes heights only and line breaking is driven by width.
+  const compacted = compactBlock(
+    resolved,
+    ({ element, rect }) => neededHeight(element, rect, product, ctx, blockEdge),
+    ctx.compaction ?? 'none'
+  )
+
+  return compacted.elements
     .map(({ element, rect }) => renderElement(element, rect, product, ctx, blockEdge))
     .join('\n')
+}
+
+/**
+ * How much of its box an element's content actually needs.
+ *
+ * Only text can be absent or short. A missing packshot is deliberately *not*
+ * reported as absent: the catalog has an image on 4.2% of rows, and a card that
+ * quietly closes up around the hole looks finished when it is not. E6 §10 makes
+ * a fallback image a quality flag for the same reason — the owner has to see it
+ * before it prints.
+ */
+function neededHeight(
+  element: BlockElement,
+  rect: Rect,
+  product: HarnessProduct | undefined,
+  ctx: RenderContext,
+  blockEdge: number
+): number | null {
+  if (element.kind !== 'text') return rect.height
+
+  const measured = fitFor(element, rect, product, ctx, blockEdge)
+  if (measured === null) return null
+  return measured.fitted.lines.length * measured.fitted.fontSize * measured.fitted.lineHeight
 }
 
 function renderElement(
@@ -202,6 +240,41 @@ function priceMark(rect: Rect, product: HarnessProduct): string {
 }
 
 /**
+ * One text element, fitted. Null when there is nothing to draw.
+ *
+ * Shared by the measuring pass and the drawing pass so the two cannot disagree:
+ * a compaction computed from one fit and a render from another would place text
+ * in a box sized for a different string.
+ */
+function fitFor(
+  element: Extract<BlockElement, { kind: 'text' }>,
+  rect: Rect,
+  product: HarnessProduct | undefined,
+  ctx: RenderContext,
+  blockEdge: number
+) {
+  const content = resolveText(element, product, ctx)
+  if (content === '') return null
+
+  const step = SAMPLE_SCALE.levels[element.level]
+  const family = SAMPLE_SCALE.families[step.family]
+  const policy = fitPolicy(element.source)
+
+  const fitted = fitText({
+    text: step.transform === 'uppercase' ? content.toUpperCase() : content,
+    box: { width: rect.width, height: rect.height },
+    level: element.level,
+    scale: SAMPLE_SCALE,
+    blockSize: blockEdge,
+    measure: estimateWidth,
+    truncatable: policy.truncatable,
+    ...(policy.floor === undefined ? {} : { floor: policy.floor }),
+  })
+
+  return { content, fitted, step, family }
+}
+
+/**
  * Text, through the fit ladder.
  *
  * The harness used to wrap greedily and let long strings run over the card,
@@ -220,32 +293,14 @@ function text(
   ctx: RenderContext,
   blockEdge: number
 ): string {
-  const content = resolveText(element, product, ctx)
-  if (content === '') return ''
+  const measured = fitFor(element, rect, product, ctx, blockEdge)
+  if (measured === null) return ''
+  const { content, fitted, step, family } = measured
 
-  const step = SAMPLE_SCALE.levels[element.level]
-  const family = SAMPLE_SCALE.families[step.family]
-  const policy = fitPolicy(element.source)
-
-  const fitted = fitText({
-    text: step.transform === 'uppercase' ? content.toUpperCase() : content,
-    box: { width: rect.width, height: rect.height },
-    level: element.level,
-    scale: SAMPLE_SCALE,
-    blockSize: blockEdge,
-    measure: estimateWidth,
-    truncatable: policy.truncatable,
-    ...(policy.floor === undefined ? {} : { floor: policy.floor }),
-  })
-
-  const anchor =
-    element.align === 'center' ? 'middle' : element.align === 'end' ? 'end' : 'start'
-  const x =
-    element.align === 'center'
-      ? mid(rect.x, rect.width)
-      : (element.align === 'end') === (ctx.direction === 'ltr')
-        ? rect.x + rect.width
-        : rect.x
+  // Position, anchor and direction together, from the engine. Deciding them
+  // separately is what drew a real Arabic name out through the left edge of an
+  // English card — see `src/direction.ts`.
+  const { anchor, x, direction } = placeText(content, element.align, rect, ctx.direction)
 
   const fill = fitted.escalated
     ? ESCALATED
@@ -253,18 +308,13 @@ function text(
       ? KIT.inkMuted
       : inkFor(element, ctx)
 
-  // Anchoring follows the page; reordering follows the string. The rule is in
-  // the engine because every renderer needs it — see `src/direction.ts` for the
-  // Arabic pack labels that were printing backwards before it existed.
-  const dir = textDirection(content, ctx.direction)
-
   return fitted.lines
     .map((line, i) => {
       const y = rect.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)
       return (
         `<text x="${x}" y="${y}" font-size="${fitted.fontSize}" font-weight="${step.weight}"` +
         ` font-family="${family}" fill="${fill}" text-anchor="${anchor}"` +
-        ` direction="${dir}" unicode-bidi="isolate">${esc(line)}</text>`
+        ` direction="${direction}" unicode-bidi="isolate">${esc(line)}</text>`
       )
     })
     .join('')

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { textDirection } from './direction'
+import { placeText, textDirection } from './direction'
 
 /**
  * The cases here are catalog rows, not invented strings. Every one in the first
@@ -92,6 +92,88 @@ describe('textDirection', () => {
       // U+FEF5, an Arabic ligature in the presentation-forms block. A range that
       // stops at U+06FF misses these and silently calls them ltr.
       expect(textDirection('ﻵ', 'ltr')).toBe('rtl')
+    })
+  })
+})
+
+/**
+ * These guard the regression the first bidi fix introduced. Applying
+ * `textDirection` to the element while leaving `text-anchor` on the page's
+ * reading order drew a real Arabic product name — `خردل`, in an English
+ * booklet — out through the left edge of its card.
+ */
+describe('placeText', () => {
+  const BOX = { x: 100, width: 200 }
+
+  describe('when the string agrees with the page', () => {
+    it('anchors an English name at the left of an English card', () => {
+      expect(placeText('Tapioca chips', 'start', BOX, 'ltr')).toEqual({
+        direction: 'ltr',
+        anchor: 'start',
+        x: 100,
+      })
+    })
+
+    it('anchors an Arabic name at the right of an Arabic card', () => {
+      expect(placeText('عدس أحمر', 'start', BOX, 'rtl')).toEqual({
+        direction: 'rtl',
+        anchor: 'start',
+        x: 300,
+      })
+    })
+  })
+
+  describe('when it does not — which is the case that broke', () => {
+    it('keeps an Arabic name inside an English card', () => {
+      // The physical edge stays the page's: left. But `start` means the right
+      // under an rtl string, so the anchor has to be spelled `end` to mean the
+      // same left edge — otherwise the name runs off the card.
+      expect(placeText('خردل', 'start', BOX, 'ltr')).toEqual({
+        direction: 'rtl',
+        anchor: 'end',
+        x: 100,
+      })
+    })
+
+    it('keeps an English pack label inside an Arabic card', () => {
+      // 96% of the universal catalog on an Arabic artboard.
+      // Right-aligned, as the page asked, but running left-to-right — so it
+      // has to *end* at the right edge rather than start there.
+      expect(placeText('2 kg', 'start', BOX, 'rtl')).toEqual({
+        direction: 'ltr',
+        anchor: 'end',
+        x: 300,
+      })
+      expect(placeText('Sella Basmati Rice', 'start', BOX, 'rtl')).toEqual({
+        direction: 'ltr',
+        anchor: 'end',
+        x: 300,
+      })
+    })
+  })
+
+  describe('the other two alignments', () => {
+    it('centres regardless of either direction', () => {
+      for (const page of ['ltr', 'rtl'] as const) {
+        for (const content of ['Tapioca chips', 'عدس أحمر']) {
+          const placed = placeText(content, 'center', BOX, page)
+          expect(placed.anchor).toBe('middle')
+          expect(placed.x).toBe(200)
+        }
+      }
+    })
+
+    it('mirrors end the way it mirrors start', () => {
+      expect(placeText('Prices valid', 'end', BOX, 'ltr')).toEqual({
+        direction: 'ltr',
+        anchor: 'end',
+        x: 300,
+      })
+      expect(placeText('الأسعار سارية', 'end', BOX, 'rtl')).toEqual({
+        direction: 'rtl',
+        anchor: 'end',
+        x: 100,
+      })
     })
   })
 })

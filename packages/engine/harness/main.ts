@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { PageGrid, Pin, Region } from '@souqstudio/types'
-import { flowBook } from '../src/index'
+import { flowBook, type CompactionPolicy } from '../src/index'
 import { BLOCKS, BRAND_AD, FOOTER, HERO_BAND, MESSAGE_POST, OFFER_CARD } from './blocks'
 import { FRIENDLY, WORST_CASE } from './dummy'
 import type { HarnessProduct } from './product'
@@ -131,6 +131,7 @@ function shoot(
     direction?: 'ltr' | 'rtl'
     pins?: Pin[]
     pageIndex?: number
+    compaction?: CompactionPolicy
   }
 ): void {
   const direction = opts.direction ?? 'ltr'
@@ -152,6 +153,7 @@ function shoot(
     products: Object.fromEntries(opts.products.map((p) => [p.id, p])),
     direction,
     shopName: direction === 'rtl' ? 'أسواق النخيل' : 'Al Nakheel Market',
+    ...(opts.compaction === undefined ? {} : { compaction: opts.compaction }),
   }
 
   shots.push({ file, title, note, svg: renderPage(page.placements, opts.size, ctx) })
@@ -284,6 +286,66 @@ if (real !== null) {
       size: A4,
       ...(rtl ? { direction: 'rtl' as const } : {}),
     })
+  }
+}
+
+// ─── Compaction: the same real rows, four ways ────────────────────────────────
+
+/**
+ * The second finding from the real pages, put where it can be decided.
+ *
+ * A block's boxes are designed at the worst case — the name box holds three
+ * lines of long Arabic — and most real rows are not the worst case, so a fifth
+ * of the card is void between the name and the price. `compactBlock` reclaims
+ * it; **where the reclaimed height should go is a design decision and there is
+ * no defensible default**, which is why all four answers are drawn here rather
+ * than one being picked in code.
+ *
+ * `sparse` is the clearest case — a name and nothing else. `typical` is the one
+ * that decides it, because it is the mix an owner actually composes from.
+ */
+const COMPACTION: { policy: CompactionPolicy; title: string; note: string }[] = [
+  {
+    policy: 'none',
+    title: 'none — the baseline',
+    note: 'Boxes as designed. The void between the name and the price is what a real row leaves.',
+  },
+  {
+    policy: 'image',
+    title: 'image — the packshot takes it',
+    note:
+      'A bet on where the catalog is going: 4.2% of rows have an image today, and a grocery ' +
+      'flyer that leads on the product photo is the common one.',
+  },
+  {
+    policy: 'price',
+    title: 'price — the price mark takes it',
+    note:
+      'The element E6 §3 calls the one that decides whether output reads as a real offer ' +
+      'book. A sparse card becomes a price-led card.',
+  },
+  {
+    policy: 'balance',
+    title: 'balance — nobody takes it',
+    note:
+      'Spread evenly into the gaps, so a sparse card is an airier card rather than a ' +
+      'different one. Changes no heights, only positions.',
+  },
+]
+
+if (real !== null) {
+  for (const set of ['sparse', 'typical'] as const) {
+    const products = real.sets[set]
+    if (products === undefined) continue
+
+    for (const { policy, title, note } of COMPACTION) {
+      shoot(
+        `compaction-${set}-${policy}.svg`,
+        `Compaction · ${set} · ${title}`,
+        note,
+        { master: booklet(), products, size: A4, compaction: policy }
+      )
+    }
   }
 }
 

@@ -32,6 +32,15 @@ nothing, and it takes its `TextMeasurer` as an argument because measuring a glyp
 needs a font that the engine does not have. The browser passes a canvas
 measurement, the worker passes its own, tests pass an estimator.
 
+`direction.ts` and `compact.ts` are both here because a *renderer* needs them and there
+are four of them — the harness, `BlockPreview`, E6's Fabric layer and E9's export — and
+three are not a browser. Both were written from real catalog rows rather than from
+reasoning: `direction.ts` after every Arabic pack label printed backwards, `compact.ts`
+after a card designed at the worst case turned out to be a fifth void on the rows a real
+catalog actually holds. Neither draws anything. `compact.ts` in particular decides *how
+much* space is reclaimed and takes *where it goes* as a parameter, because that is a design
+decision and the engine does not own it.
+
 `library.ts` holds the seeded blocks. It lives here rather than beside the seed
 because two consumers need the same bytes: `packages/db` writes them into
 `blocks`, and the harness draws them. A second copy would drift, and a drifted

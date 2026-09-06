@@ -22,6 +22,7 @@
  * Fabric layer and E9's SVG export must, and neither exists yet.
  */
 
+import type { LogicalAlign } from '@souqstudio/types'
 import type { Direction } from './geometry'
 
 /**
@@ -67,4 +68,55 @@ export function textDirection(content: string, page: Direction): Direction {
   const first = LETTER.exec(content)
   if (first === null) return page
   return RTL_SCRIPT.test(first[0]) ? 'rtl' : 'ltr'
+}
+
+/**
+ * Where a line of text sits, and which way its glyphs run.
+ *
+ * **The two cannot be decided separately, and trying to is how the first fix for
+ * the bidi bug broke something else.** `textDirection` was applied to the
+ * `<text>` element while `text-anchor` was still computed from the page, and in
+ * SVG (as in CSS) `start` and `end` are resolved *against the element's own
+ * direction*. So an Arabic product name on an English page — a real row: `خردل`
+ * — was anchored at the box's left edge and then drawn right-to-left *from* it,
+ * straight out of the card and off the page. It was found by looking at a
+ * rendered page, which is the only way it could have been.
+ *
+ * So this returns all three together. The caller says where the box is and what
+ * the block asked for; this decides the physical x, the anchor that means that
+ * x under this string's direction, and the direction itself.
+ *
+ * The physical edge is the page's decision — an Arabic card right-aligns its
+ * English pack label, which is what `align: 'start'` means there. Only the
+ * anchor's *spelling* depends on the string.
+ */
+export interface TextPlacement {
+  /** For the renderer's `direction` / `dir`. */
+  direction: Direction
+  /** For SVG `text-anchor`, or a canvas `textAlign`. */
+  anchor: 'start' | 'middle' | 'end'
+  /** The physical x the anchor refers to. */
+  x: number
+}
+
+export function placeText(
+  content: string,
+  align: LogicalAlign,
+  box: { x: number; width: number },
+  page: Direction
+): TextPlacement {
+  const direction = textDirection(content, page)
+
+  if (align === 'center') {
+    return { direction, anchor: 'middle', x: box.x + box.width / 2 }
+  }
+
+  // Which physical edge the block asked for, in the page's reading order.
+  const atLeft = (align === 'start') === (page === 'ltr')
+  const x = atLeft ? box.x : box.x + box.width
+
+  // What that edge is called in this string's own direction.
+  const anchor = atLeft === (direction === 'ltr') ? 'start' : 'end'
+
+  return { direction, anchor, x }
 }

@@ -6,8 +6,8 @@ import {
   fitPolicy,
   fitText,
   layoutPriceMark,
+  placeText,
   resolveBlock,
-  textDirection,
   type Rect,
   type TextMeasurer,
 } from '@souqstudio/engine'
@@ -299,14 +299,11 @@ function Text({
     ...(policy.floor === undefined ? {} : { floor: policy.floor }),
   })
 
-  const anchor =
-    element.align === 'center' ? 'middle' : element.align === 'end' ? 'end' : 'start'
-  const x =
-    element.align === 'center'
-      ? box.x + box.width / 2
-      : (element.align === 'end') === !ctx.ar
-        ? box.x + box.width
-        : box.x
+  // Position, anchor and direction together, from the engine. They cannot be
+  // decided separately: `start` and `end` resolve against the *element's* own
+  // direction, so a Latin brand name on an Arabic artboard anchored by the
+  // page's reading order draws out through the edge of its box.
+  const { anchor, x, direction } = placeText(content, element.align, box, ctx.direction)
 
   const onTint = element.source.from === 'static' || element.source.from === 'shop'
   const fill = onTint
@@ -333,7 +330,7 @@ function Text({
           // it does not show on this preview only because `PREVIEW_PRODUCT`
           // carries a fully translated Arabic spec. A real catalog row does not:
           // 96% of the universal catalog has no `specAr` at all.
-          direction={textDirection(content, ctx.direction)}
+          direction={direction}
         >
           {line}
         </text>
