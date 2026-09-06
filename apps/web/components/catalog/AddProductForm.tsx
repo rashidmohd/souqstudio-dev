@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { FileDropzone } from '@/components/ui/file-dropzone'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import type { CatalogCategoryTile } from '@souqstudio/types'
+import type { ApiResult, CatalogCategoryTile } from '@souqstudio/types'
 
 /**
  * E5-04 — add a product the catalog does not have.
@@ -57,6 +57,9 @@ const PACK_UNITS = [
   { value: 'PIECE', label: 'Pieces' },
 ]
 
+/** Matches the catalog search box. Long enough to not fire per keystroke. */
+const BRAND_DEBOUNCE_MS = 300
+
 export function AddProductForm({
   categories,
   initialName,
@@ -72,6 +75,9 @@ export function AddProductForm({
   onDone: (productId: string) => void
   onCancel: () => void
 }) {
+  const brandListId = React.useId()
+  const [brandSuggestions, setBrandSuggestions] = React.useState<string[]>([])
+
   const [values, setValues] = React.useState<Values>({
     nameEn: initialName ?? '',
     nameAr: '',
@@ -101,6 +107,42 @@ export function AddProductForm({
       if (preview) URL.revokeObjectURL(preview)
     }
   }, [preview])
+
+  /**
+   * Brand completions, debounced on what has been typed.
+   *
+   * Failures are swallowed rather than surfaced. This is a convenience over a
+   * field that already works without it, so a network blip should leave the
+   * owner typing a brand — not reading an error about a suggestion list they
+   * did not ask for. The form's `role="alert"` banner is for the submit.
+   */
+  React.useEffect(() => {
+    const q = values.brandEn.trim()
+    if (!q) {
+      setBrandSuggestions([])
+      return
+    }
+
+    let settled = false
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/v1/catalog/brands?q=${encodeURIComponent(q)}`)
+          const result: ApiResult<{ brands: string[] }> = await res.json()
+          if (settled || result.error) return
+          setBrandSuggestions(result.data.brands)
+        } catch {
+          // Deliberately silent — see above.
+        }
+      })()
+    }, BRAND_DEBOUNCE_MS)
+
+    return () => {
+      settled = true
+      clearTimeout(timer)
+    }
+  }, [values.brandEn])
 
   function set(field: keyof Values, value: string) {
     setValues((prev) => ({ ...prev, [field]: value }))
@@ -272,13 +314,32 @@ export function AddProductForm({
         onChange={(e) => set('nameAr', e.target.value)}
       />
 
+      {/* **Suggested, never constrained.** A native `list` + `<datalist>` rather
+          than a listbox built from divs — the same call `Select` and
+          `ShopSwitcher` made, and for the same reason: on the phone a shop
+          owner is actually holding, the platform picker brings its own scroll
+          physics and accessibility tree.
+
+          It also happens to be the only version that cannot become a closed
+          vocabulary by accident. The input is an ordinary text field that
+          happens to offer completions, so a brand nobody has typed before still
+          goes in — which is E5's rule that nothing blocks an owner adding a
+          product. */}
       <Input
         label="Brand"
         name="brandEn"
         placeholder="Al Wadi"
+        list={brandListId}
+        autoComplete="off"
+        hint="Start typing to see brands already in the catalog, or enter a new one."
         value={values.brandEn}
         onChange={(e) => set('brandEn', e.target.value)}
       />
+      <datalist id={brandListId}>
+        {brandSuggestions.map((brand) => (
+          <option key={brand} value={brand} />
+        ))}
+      </datalist>
 
       <Input
         label="Variant"

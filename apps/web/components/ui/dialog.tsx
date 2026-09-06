@@ -139,7 +139,7 @@ export function Dialog({
 
         {/* Primary sits at the inline end. Logical, not right — this ships in
             Arabic and the order has to mirror with the text direction. */}
-        <div className="flex shrink-0 justify-end gap-2">
+        <div className="flex shrink-0 justify-end gap-2 px-6">
           {secondaryAction ? (
             <Button type="button" variant="ghost" onClick={secondaryAction.onClick}>
               {secondaryAction.label}

@@ -351,6 +351,73 @@ export async function listSubcategories(
   )
 }
 
+/** How many brand suggestions a datalist gets. Enough to choose from, not to read. */
+const BRAND_SUGGESTIONS = 10
+
+/**
+ * Brands already in the catalog, matched against what is being typed.
+ *
+ * **Suggestions, never a closed list.** `catalog_products.brandEn` is free text
+ * and stays free text: E5's ingest rule is that nothing blocks an owner adding
+ * a product, and a brand they cannot find is exactly the case where a required
+ * pick would stop them. This narrows the typing, it does not constrain it — the
+ * field accepts anything, including a brand nobody has entered before.
+ *
+ * Derived from the products rather than from a brand table, for the same reason
+ * `listSubcategories` derives its list: there is no brand entity in the schema,
+ * and inventing one here would make this the only place that knows about it.
+ * If a `ProductBrand` table is ever added — for logos, or to deduplicate what
+ * the Open Food Facts import produces — this is the function it replaces.
+ *
+ * `DISTINCT` on a case-insensitive match rather than `GROUP BY`: two shops that
+ * typed "Almarai" and "almarai" are one suggestion, and the one that appears is
+ * whichever the ordering picks. That inconsistency is a property of free-text
+ * brands and is the argument for the table, not something to paper over here.
+ *
+ * **Unindexed, and that is fine only while the catalog is small.**
+ * `catalog_products` carries trigram GINs on `nameEn` and `nameAr` and nothing
+ * on `brandEn`, so this is a sequential scan. At 99 rows it is free; after the
+ * Open Food Facts seed it needs `@@index([brandEn])` or a trigram GIN, the same
+ * outstanding index decision `listCategories` and `listSubcategories` carry.
+ */
+export async function suggestBrands(
+  session: VerifiedSession,
+  query: string
+): Promise<string[]> {
+  const q = query.trim()
+  if (!q) return []
+
+  const organizationId = session.user.organizationId
+
+  const rows = await prisma.$queryRaw<Array<{ brand: string }>>(
+    Prisma.sql`
+      SELECT d.brand
+      FROM (
+        SELECT DISTINCT ON (lower(p."brandEn")) p."brandEn" AS brand
+        FROM catalog_products p
+        WHERE p."brandEn" IS NOT NULL
+          AND p."brandEn" <> ''
+          AND p."brandEn" ILIKE ${`%${q}%`}
+          AND ${visibleRows(organizationId)}
+        ORDER BY lower(p."brandEn") ASC
+      ) d
+      -- **A match at the start of a word outranks one buried inside.** Typing
+      -- "al" should offer Al Alali and Almarai, not Signal and Galaxy, which a
+      -- plain substring match returns with equal standing and alphabetical
+      -- order then puts first. Interior matches are kept rather than filtered,
+      -- because "marai" finding Almarai is the other half of what makes typing
+      -- a partial brand work — they just sort last.
+      ORDER BY
+        (d.brand ILIKE ${`${q}%`}) DESC,
+        (d.brand ILIKE ${`% ${q}%`}) DESC,
+        lower(d.brand) ASC
+      LIMIT ${BRAND_SUGGESTIONS}
+    `
+  )
+
+  return rows.map((row) => row.brand)
+}
+
 export type BrowseCatalogOptions = {
   category: string
   subcategory?: string | undefined

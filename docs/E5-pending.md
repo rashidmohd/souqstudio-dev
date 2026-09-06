@@ -220,6 +220,50 @@ Four things about it worth not undoing:
 `ProductCard` renders its `ImageOff` placeholder, so the grid is honest rather than broken.
 The cutout branch of the `bg` worker still needs a real upload to be exercised.
 
+### Brand stays free text, and the field now suggests
+
+`AddProductForm`'s brand box had been a plain text input, so every owner typing
+"Almarai" was inventing the string again. It now offers what is already in the
+catalog while still accepting anything: `GET /api/v1/catalog/brands?q=` →
+`suggestBrands`, fed into a native `<datalist>`.
+
+**A native `list` rather than a listbox built from divs**, which is the call
+`Select` and `ShopSwitcher` already made — on the phone a shop owner is actually
+holding, the platform picker brings its own scroll physics and accessibility
+tree. It also cannot become a closed vocabulary by accident: the element is an
+ordinary text field that happens to complete, so a brand nobody has entered
+before still goes in. That is E5's rule that nothing blocks an owner adding a
+product, and it is why this is not a `Select`.
+
+**A match at the start of a word outranks one buried inside.** A plain substring
+match returns Signal and Galaxy for "al" with equal standing, and alphabetical
+order then puts them first. Interior matches are kept rather than filtered —
+"marai" finding Almarai is the other half of what makes a partial brand work —
+they just sort last.
+
+**There is no brand table, and the decision has a deadline.** `brandEn`/`brandAr`
+are free-text columns and E5 never modelled brands as an entity. Suggestions are
+derived from the products themselves, the same way `listSubcategories` derives
+its list. Four things a string cannot do, and each is a reason to add a
+`ProductBrand` table when it is actually wanted: a brand logo for the card's
+lockup, a browsable brand filter, EN/AR paired once rather than retyped per
+product, and deduplication.
+
+The last is the one with a clock on it. `toProduct` writes `firstValue(brands)`
+straight from the Open Food Facts export, whose brand strings are dirty at scale —
+`Almarai`, `almarai`, `AL MARAI`, `Almarai®` all land as separate values. Resolve
+brands at ingest and it is one mapping; do it afterwards and it is a retroactive
+dedup over tens of thousands of rows. **Decide before the seed runs, not after** —
+the same shape as the `Brand` entity decision in STATUS §2, and not the same
+thing: that one is the *shop's* identity and its trade licence, this one is the
+*product's* manufacturer. If the table is added, name it `ProductBrand` so the
+two never get confused.
+
+**Unindexed.** `catalog_products` carries trigram GINs on `nameEn` and `nameAr`
+and nothing on `brandEn`, so the suggestion query is a sequential scan. Free at
+99 rows, and after the seed it needs an index — the same outstanding decision
+`listCategories` and `listSubcategories` already carry in §3.
+
 ### The Open Food Facts seed — written, and not yet run
 
 `pnpm --filter @souqstudio/db catalog:import-off` streams the 1.28GB gzipped export,
