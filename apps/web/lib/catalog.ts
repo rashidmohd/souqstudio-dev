@@ -11,6 +11,7 @@ import type {
   PackUnit,
   Page,
 } from '@souqstudio/types'
+import { brandSlug, isUsableBrand } from '@souqstudio/types'
 import { formatPackSize } from '@/lib/catalog-display'
 import { publicUrl } from '@/lib/r2'
 import type { VerifiedSession } from '@/lib/session'
@@ -355,62 +356,54 @@ export async function listSubcategories(
 const BRAND_SUGGESTIONS = 10
 
 /**
- * Brands already in the catalog, matched against what is being typed.
+ * Brands, matched against what is being typed. E5-04.
  *
- * **Suggestions, never a closed list.** `catalog_products.brandEn` is free text
- * and stays free text: E5's ingest rule is that nothing blocks an owner adding
- * a product, and a brand they cannot find is exactly the case where a required
- * pick would stop them. This narrows the typing, it does not constrain it — the
- * field accepts anything, including a brand nobody has entered before.
+ * **Read from `product_brands`, not from the products.** It used to be
+ * `SELECT DISTINCT brandEn FROM catalog_products`, which was the honest answer
+ * while brands were only ever free text. Now there is a table, and reading the
+ * products instead would suggest every unnormalised spelling in the catalog —
+ * the four ways the Open Food Facts export writes Almarai included, which is
+ * precisely what the table exists to collapse.
  *
- * Derived from the products rather than from a brand table, for the same reason
- * `listSubcategories` derives its list: there is no brand entity in the schema,
- * and inventing one here would make this the only place that knows about it.
- * If a `ProductBrand` table is ever added — for logos, or to deduplicate what
- * the Open Food Facts import produces — this is the function it replaces.
+ * **Suggestions, never a closed list.** The field accepts anything typed into
+ * it: E5's ingest rule is that nothing blocks an owner adding a product, and a
+ * brand they cannot find is exactly where a required pick would stop them. An
+ * unknown brand becomes an `unreviewed` row when the product is created.
  *
- * `DISTINCT` on a case-insensitive match rather than `GROUP BY`: two shops that
- * typed "Almarai" and "almarai" are one suggestion, and the one that appears is
- * whichever the ordering picks. That inconsistency is a property of free-text
- * brands and is the argument for the table, not something to paper over here.
+ * Not scoped to the organization, and deliberately: a brand is not tenant data.
+ * Two shops selling Almarai are selling the same Almarai, and the whole point
+ * of the table is that they file it under one row.
  *
- * **Unindexed, and that is fine only while the catalog is small.**
- * `catalog_products` carries trigram GINs on `nameEn` and `nameAr` and nothing
- * on `brandEn`, so this is a sequential scan. At 99 rows it is free; after the
- * Open Food Facts seed it needs `@@index([brandEn])` or a trigram GIN, the same
- * outstanding index decision `listCategories` and `listSubcategories` carry.
+ * Ordering, in three steps:
+ *
+ * - **Canonical before unreviewed.** A brand an admin has confirmed — spelling,
+ *   Arabic, and eventually the logo — is the one an owner should land on. The
+ *   unreviewed rows are what ingest guessed.
+ * - **A match at the start before one buried inside.** Typing "al" should offer
+ *   Al Alali and Almarai, not Signal and Galaxy, which a plain substring match
+ *   returns with equal standing and alphabetical order then puts first.
+ * - **Interior matches are kept rather than filtered**, because "marai" finding
+ *   Almarai is the other half of what makes typing a partial brand work.
+ *
+ * The trigram GIN on `nameEn` is what keeps this off a sequential scan once the
+ * Open Food Facts seed has landed thousands of rows.
  */
 export async function suggestBrands(
-  session: VerifiedSession,
+  _session: VerifiedSession,
   query: string
 ): Promise<string[]> {
   const q = query.trim()
   if (!q) return []
 
-  const organizationId = session.user.organizationId
-
   const rows = await prisma.$queryRaw<Array<{ brand: string }>>(
     Prisma.sql`
-      SELECT d.brand
-      FROM (
-        SELECT DISTINCT ON (lower(p."brandEn")) p."brandEn" AS brand
-        FROM catalog_products p
-        WHERE p."brandEn" IS NOT NULL
-          AND p."brandEn" <> ''
-          AND p."brandEn" ILIKE ${`%${q}%`}
-          AND ${visibleRows(organizationId)}
-        ORDER BY lower(p."brandEn") ASC
-      ) d
-      -- **A match at the start of a word outranks one buried inside.** Typing
-      -- "al" should offer Al Alali and Almarai, not Signal and Galaxy, which a
-      -- plain substring match returns with equal standing and alphabetical
-      -- order then puts first. Interior matches are kept rather than filtered,
-      -- because "marai" finding Almarai is the other half of what makes typing
-      -- a partial brand work — they just sort last.
+      SELECT b."nameEn" AS brand
+      FROM product_brands b
+      WHERE b."nameEn" ILIKE ${`%${q}%`}
       ORDER BY
-        (d.brand ILIKE ${`${q}%`}) DESC,
-        (d.brand ILIKE ${`% ${q}%`}) DESC,
-        lower(d.brand) ASC
+        (b.status = 'canonical') DESC,
+        (b."nameEn" ILIKE ${`${q}%`}) DESC,
+        lower(b."nameEn") ASC
       LIMIT ${BRAND_SUGGESTIONS}
     `
   )
@@ -601,6 +594,34 @@ export type NewProductImage = {
 }
 
 /**
+ * One brand string to a `product_brands` id, creating the row if it is new.
+ *
+ * `upsert` on the slug rather than find-then-create: two owners adding the same
+ * unseen brand at the same moment would otherwise race, and the loser would hit
+ * the unique index. The update is a no-op that exists only to return the row.
+ *
+ * Null in, null out — a product with no brand, or one whose brand normalises to
+ * nothing usable, keeps `brandId` null and its `brandEn` text. Nothing about
+ * adding a product depends on this succeeding.
+ */
+async function resolveBrand(
+  tx: Prisma.TransactionClient,
+  brandEn: string | null
+): Promise<string | null> {
+  if (!brandEn || !isUsableBrand(brandEn)) return null
+
+  const slug = brandSlug(brandEn)
+  const brand = await tx.productBrand.upsert({
+    where: { slug },
+    update: {},
+    create: { slug, nameEn: brandEn.trim(), status: 'unreviewed' },
+    select: { id: true },
+  })
+
+  return brand.id
+}
+
+/**
  * E5-04 — a product the owner adds because the catalog did not have it.
  *
  * **It lands in the organization's collection and is usable immediately.**
@@ -628,12 +649,24 @@ export async function createOrgProduct(
   const organizationId = session.user.organizationId
 
   return prisma.$transaction(async (tx) => {
+    // The brand an owner typed becomes a `product_brands` row, or joins the one
+    // that already matches. Inside the transaction so a product is never left
+    // pointing at a brand that was rolled back.
+    //
+    // **`unreviewed`, and never promoted from here.** Whatever they typed is a
+    // guess at a name an admin has not confirmed — the spelling, the Arabic and
+    // the logo are all still open. It is usable immediately regardless, which is
+    // the same rule `product_contributions` follows for the product itself:
+    // review decides promotion, not availability.
+    const brandId = await resolveBrand(tx, product.brandEn ?? null)
+
     const created = await tx.catalogProduct.create({
       data: {
         organizationId,
         nameEn: product.nameEn,
         nameAr: product.nameAr ?? null,
         brandEn: product.brandEn ?? null,
+        brandId,
         specEn: product.specEn ?? null,
         category: product.category ?? null,
         subcategory: product.subcategory ?? null,

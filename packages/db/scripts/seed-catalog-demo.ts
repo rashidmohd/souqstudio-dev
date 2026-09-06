@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { hasValidCheckDigit } from '@souqstudio/types'
+import { brandSlug, hasValidCheckDigit, isUsableBrand } from '@souqstudio/types'
 import { CATEGORY } from '../src/catalog-categories'
 
 /**
@@ -307,6 +307,66 @@ const ORG_OWNED: DemoProduct[] = [
   { body: '200000000060', nameEn: 'Store Brand Long Life Milk', nameAr: 'حليب طويل الأمد العلامة الخاصة', category: DAIRY, subcategory: 'Milk', packSize: 1, packUnit: 'L', packCount: 4, tags: ['milk', 'حليب'] },
 ]
 
+/**
+ * Point every demo product at a `product_brands` row.
+ *
+ * Runs after the products are written, and matches on the `brandEn` string
+ * already on the row rather than on the source list — so it also repairs rows
+ * from an earlier run that predate the brand table.
+ *
+ * A brand the curated seed does not carry is created `unreviewed`, exactly as
+ * the Open Food Facts importer would create it. Nothing here promotes a brand:
+ * `canonical` is an admin's answer.
+ */
+async function linkBrands(): Promise<{ linked: number; created: number }> {
+  const products = await prisma.catalogProduct.findMany({
+    where: { source: DEMO_SOURCE, brandEn: { not: null } },
+    select: { id: true, brandEn: true },
+  })
+
+  const slugs = new Map<string, string>()
+  for (const product of products) {
+    if (product.brandEn && isUsableBrand(product.brandEn)) {
+      slugs.set(brandSlug(product.brandEn), product.brandEn.trim())
+    }
+  }
+  if (slugs.size === 0) return { linked: 0, created: 0 }
+
+  const known = await prisma.productBrand.findMany({
+    where: { slug: { in: [...slugs.keys()] } },
+    select: { id: true, slug: true },
+  })
+  const idBySlug = new Map(known.map((row) => [row.slug, row.id]))
+
+  const missing = [...slugs].filter(([slug]) => !idBySlug.has(slug))
+  if (missing.length > 0) {
+    await prisma.productBrand.createMany({
+      data: missing.map(([slug, nameEn]) => ({ slug, nameEn, status: 'unreviewed' })),
+      skipDuplicates: true,
+    })
+    const created = await prisma.productBrand.findMany({
+      where: { slug: { in: missing.map(([slug]) => slug) } },
+      select: { id: true, slug: true },
+    })
+    for (const row of created) idBySlug.set(row.slug, row.id)
+  }
+
+  let linked = 0
+  for (const [slug, id] of idBySlug) {
+    const ids = products
+      .filter((product) => product.brandEn && brandSlug(product.brandEn) === slug)
+      .map((product) => product.id)
+    if (ids.length === 0) continue
+    const result = await prisma.catalogProduct.updateMany({
+      where: { id: { in: ids } },
+      data: { brandId: id },
+    })
+    linked += result.count
+  }
+
+  return { linked, created: missing.length }
+}
+
 type Options = {
   organizationId: string | null
   clear: boolean
@@ -591,6 +651,9 @@ async function main() {
 
   const owned = await write(ORG_OWNED, organizationId, barcodes)
   console.log(`[demo] ${owned} organization products, ${shadows} of them shadowing a universal barcode`)
+
+  const { linked, created } = await linkBrands()
+  console.log(`[demo] brands: ${linked} products linked, ${created} new brands created`)
 
   if (options.images) {
     const { added, already } = await attachImages()

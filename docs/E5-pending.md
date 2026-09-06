@@ -220,49 +220,71 @@ Four things about it worth not undoing:
 `ProductCard` renders its `ImageOff` placeholder, so the grid is honest rather than broken.
 The cutout branch of the `bg` worker still needs a real upload to be exercised.
 
-### Brand stays free text, and the field now suggests
+### Brands are an entity now — `product_brands`
 
-`AddProductForm`'s brand box had been a plain text input, so every owner typing
-"Almarai" was inventing the string again. It now offers what is already in the
-catalog while still accepting anything: `GET /api/v1/catalog/brands?q=` →
-`suggestBrands`, fed into a native `<datalist>`.
+Migration `20260906113346_e5_product_brands`, additive: a `product_brands` table and a
+nullable `catalog_products.brandId`. **`brandEn`/`brandAr` stay** and are the fallback
+whenever `brandId` is null, which is what lets an owner type a brand nobody has entered
+and still save the product. A required foreign key here would break E5's rule that
+nothing blocks a shop adding one.
 
-**A native `list` rather than a listbox built from divs**, which is the call
-`Select` and `ShopSwitcher` already made — on the phone a shop owner is actually
-holding, the platform picker brings its own scroll physics and accessibility
-tree. It also cannot become a closed vocabulary by accident: the element is an
-ordinary text field that happens to complete, so a brand nobody has entered
-before still goes in. That is E5's rule that nothing blocks an owner adding a
-product, and it is why this is not a `Select`.
+**Why a table rather than the string it replaces.** E5's "Catalog Sources" budgets for the
+**top 200 UAE brands under direct permission**, and the render contract has item 0 supply
+"the brand lockup" — a lockup is a mark, and a string has nowhere to hang one. Three other
+things a string could not do: a browsable brand filter, EN and AR paired once instead of
+retyped per product, and deduplication.
 
-**A match at the start of a word outranks one buried inside.** A plain substring
-match returns Signal and Galaxy for "al" with equal standing, and alphabetical
-order then puts them first. Interior matches are kept rather than filtered —
-"marai" finding Almarai is the other half of what makes a partial brand work —
-they just sort last.
+**The slug is the whole mechanism.** `brandSlug()` in `packages/types/src/brand-slug.ts` —
+there rather than in `packages/db` for the same reason `barcode.ts` is, because three
+callers must agree: the importer, the add-a-product route and the suggestion query. It
+lowercases, strips trademark marks and punctuation, folds accents and removes whitespace.
 
-**There is no brand table, and the decision has a deadline.** `brandEn`/`brandAr`
-are free-text columns and E5 never modelled brands as an entity. Suggestions are
-derived from the products themselves, the same way `listSubcategories` derives
-its list. Four things a string cannot do, and each is a reason to add a
-`ProductBrand` table when it is actually wanted: a brand logo for the card's
-lockup, a browsable brand filter, EN/AR paired once rather than retyped per
-product, and deduplication.
+**Whitespace removal was a bug fix, not a flourish.** The first version kept spaces, so
+`Coca-Cola` slugged to `cocacola` and `Coca Cola` to `coca cola` — the same brand in two
+rows, decided by nothing but which separator someone typed. It was caught by a fixture:
+`AL MARAI` landed beside `Almarai` instead of merging. Verified after the fix: all four of
+`Almarai`, `almarai`, `AL MARAI` and `Almarai®` resolve to one row, and `Nestlé` joins the
+seeded `Nestle`. Arabic is preserved rather than stripped — an allowlist of Latin letters
+would empty every Arabic brand name and collapse them all into a single row.
 
-The last is the one with a clock on it. `toProduct` writes `firstValue(brands)`
-straight from the Open Food Facts export, whose brand strings are dirty at scale —
-`Almarai`, `almarai`, `AL MARAI`, `Almarai®` all land as separate values. Resolve
-brands at ingest and it is one mapping; do it afterwards and it is a retroactive
-dedup over tens of thousands of rows. **Decide before the seed runs, not after** —
-the same shape as the `Brand` entity decision in STATUS §2, and not the same
-thing: that one is the *shop's* identity and its trade licence, this one is the
-*product's* manufacturer. If the table is added, name it `ProductBrand` so the
-two never get confused.
+**92 curated UAE brands ship canonical**, bilingual, in `src/product-brands.ts` and seeded
+by `pnpm db:seed`. Anything the importer or an owner produces arrives `unreviewed`. Review
+decides promotion, not availability — the same sentence E5 §1 applies to product
+contributions, and an unreviewed brand is usable the moment it exists.
 
-**Unindexed.** `catalog_products` carries trigram GINs on `nameEn` and `nameAr`
-and nothing on `brandEn`, so the suggestion query is a sequential scan. Free at
-99 rows, and after the seed it needs an index — the same outstanding decision
-`listCategories` and `listSubcategories` already carry in §3.
+**No logos, and that is a licence position rather than missing work.** E5: *"Images come
+from licensed sources or direct brand permission only."* A logo is both an image and a
+trademark, so `logoKey` stays null until a permissioned asset exists and the card falls
+back to the brand name — which is what it renders today. `logoSource` is on the row so
+that when logos arrive, where each came from is recorded rather than assumed.
+
+**Resolution is three queries per batch, never one per row.** `resolveBrands` in
+`import-off.ts` collects the distinct slugs in a 500-row batch, reads the ones that exist,
+`createMany`s the rest and maps them back — the same reasoning that made the spreadsheet
+import fan out over `unnest`. `skipDuplicates` on that insert is load-bearing rather than
+defensive: two spellings in one batch normalise to one slug and the unique index would
+otherwise abort the statement. `createOrgProduct` upserts on the slug instead, inside its
+transaction, because two owners adding the same unseen brand would otherwise race.
+
+**Proven on a fixture, not on the export.** Seven hand-written rows through `--file`: four
+spellings of Almarai onto one canonical row, an accented `Nestlé` onto the seeded
+`Nestle`, an unknown brand created unreviewed, and a product with no brand left with a
+null `brandId` and no junk row. The 99 demo products backfilled — 84 linked to seeded
+brands, 9 new unreviewed created, **0 left with a brand string and no brand row**.
+
+**Suggestions read the table now.** `suggestBrands` was `SELECT DISTINCT brandEn FROM
+catalog_products`, which was honest while brands were only free text and would now suggest
+every unnormalised spelling the import produces. It orders canonical before unreviewed,
+then start-of-string before interior, then alphabetically. A trigram GIN on
+`product_brands.nameEn` ships in the same migration — declared in the model as well as in
+the SQL, because a model that does not mention an index makes `migrate dev` generate a
+DROP for it, which is the lesson `search_vector` already taught.
+
+**What is not built: the admin side.** `apps/admin` has seven route directories and zero
+`.tsx` files, so there is no screen to merge `almarai` into `Almarai`, write an Arabic
+name, attach a logo or promote a brand to canonical. That is E13 / E5-08, and it needs the
+admin auth path against `admin_users` first. Until it exists, unreviewed brands accumulate
+and nothing curates them — which is survivable, because they are usable regardless.
 
 ### The Open Food Facts seed — written, and not yet run
 

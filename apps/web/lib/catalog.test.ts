@@ -11,6 +11,7 @@ import {
   toCatalogLanguage,
 } from '@/lib/catalog-display'
 import { toTsQuery } from '@/lib/catalog'
+import { brandSlug, isUsableBrand } from '@souqstudio/types'
 
 /**
  * The pure half of the catalog: `toTsQuery` from lib/catalog.ts and everything
@@ -192,5 +193,45 @@ describe('barcodes', () => {
     expect(hasValidCheckDigit('12345')).toBe(false)
     expect(hasValidCheckDigit('')).toBe(false)
     expect(hasValidCheckDigit('basmati rice')).toBe(false)
+  })
+})
+
+describe('brandSlug', () => {
+  /**
+   * The key that decides whether two spellings are one brand. Every case here
+   * is one the Open Food Facts export or a keyboard actually produces.
+   */
+  it('folds the four ways the export writes one brand', () => {
+    for (const spelling of ['Almarai', 'almarai', 'AL MARAI', 'Almarai®']) {
+      expect(brandSlug(spelling)).toBe('almarai')
+    }
+  })
+
+  it('does not let a separator split one brand — the bug this had', () => {
+    // Stripping the hyphen but keeping the space filed `Coca-Cola` under
+    // `cocacola` and `Coca Cola` under `coca cola`: the same brand in two rows,
+    // decided by nothing but which separator someone typed. Caught by `AL
+    // MARAI` landing beside `Almarai`.
+    expect(brandSlug('Coca-Cola')).toBe('cocacola')
+    expect(brandSlug('Coca Cola')).toBe('cocacola')
+    expect(brandSlug('CocaCola')).toBe('cocacola')
+  })
+
+  it('folds accents, which a Gulf keyboard does not produce', () => {
+    expect(brandSlug('Nestlé')).toBe(brandSlug('Nestle'))
+  })
+
+  it('keeps Arabic, rather than reducing it to nothing', () => {
+    // An allowlist of Latin letters would empty every Arabic brand name and
+    // collapse all of them into one row.
+    expect(brandSlug('المراعي')).toBe('المراعي')
+  })
+
+  it('refuses what would become a junk row', () => {
+    // The first such row would go on to collect every other unnameable string.
+    expect(isUsableBrand('®')).toBe(false)
+    expect(isUsableBrand('  ')).toBe(false)
+    expect(isUsableBrand('A')).toBe(false)
+    expect(isUsableBrand('Almarai')).toBe(true)
   })
 })

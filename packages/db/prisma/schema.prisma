@@ -671,6 +671,65 @@ enum PackUnit {
   PIECE
 }
 
+/// A product brand — Almarai, Tide, Anker. E5, "Catalog Sources".
+///
+/// **A table rather than the free-text columns it replaces, because a string
+/// cannot carry a logo.** E5's render contract has item 0 supplying "the brand
+/// lockup", and a lockup is a mark. The Catalog Sources table budgets for the
+/// top 200 UAE brands under direct permission, which needs somewhere to put
+/// them.
+///
+/// The other three things a string could not do: a brand filter, EN and AR
+/// paired once instead of retyped on every product, and deduplication — the
+/// Open Food Facts export writes `Almarai`, `almarai`, `AL MARAI` and
+/// `Almarai®` as four different values.
+///
+/// **`catalog_products.brandEn`/`brandAr` stay.** They are the fallback when
+/// `brandId` is null, which is what lets an owner type a brand nobody has ever
+/// entered and still save the product. E5's rule is that nothing blocks a shop
+/// adding a product; a required foreign key here would break it.
+model ProductBrand {
+  id String @id @default(cuid())
+
+  /// The dedup key: lowercased, trademark marks and punctuation stripped,
+  /// accents folded, whitespace collapsed. `brandSlug()` in
+  /// `packages/types/src/brand-slug.ts` is the only thing that may compute it —
+  /// three callers need the same answer and a second copy would eventually
+  /// disagree, producing two rows for one brand.
+  slug   String  @unique
+  nameEn String
+  nameAr String?
+
+  /// An R2 key, never a remote URL — the same rule `image_assets` follows.
+  /// Null until a permissioned asset exists, and the card falls back to the
+  /// brand name, which is what it renders today.
+  logoKey    String?
+  /// Where that logo came from. E5: "images come from licensed sources or
+  /// direct brand permission only." A logo is both an image and a trademark,
+  /// so provenance is a column rather than something nobody recorded.
+  /// brand_portal | licensed | shop_upload
+  logoSource String?
+
+  /// `unreviewed` is anything ingest or a shop owner created. `canonical` is a
+  /// brand an admin has confirmed — name, Arabic, logo. Review decides
+  /// promotion, not availability: an unreviewed brand is usable immediately,
+  /// exactly as `product_contributions` works for products.
+  status     String    @default("unreviewed")
+  reviewedAt DateTime?
+
+  products  CatalogProduct[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([status])
+  /// Declared here as well as in the migration on purpose. A model that does
+  /// not mention an index makes `db push` and `migrate dev` generate a DROP for
+  /// it, and losing this one reads as slow suggestions rather than as a missing
+  /// index — the same lesson `search_vector` taught.
+  @@index([nameEn(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_product_brands_trgm")
+  @@map("product_brands")
+}
+
 model CatalogProduct {
   id             String  @id @default(cuid())
   /// Null = universal catalog, visible to every organization. Set = private to
@@ -685,8 +744,14 @@ model CatalogProduct {
   /// import throughput dies.
   nameEn   String
   nameAr   String?
+  /// Free text, and the fallback whenever `brandId` is null. Kept rather than
+  /// replaced: an owner typing a brand the catalog has never seen must still be
+  /// able to save the product.
   brandEn  String?
   brandAr  String?
+  /// The resolved brand, when the string matched or created one. Nullable by
+  /// design — see `ProductBrand`.
+  brandId  String?
   /// The variant line under the name: "versch. Sorten, je 200-g-Becher".
   specEn   String?
   specAr   String?
@@ -723,6 +788,7 @@ model CatalogProduct {
   archivedAt DateTime?
 
   organization  Organization?         @relation(fields: [organizationId], references: [id])
+  brand         ProductBrand?         @relation(fields: [brandId], references: [id])
   images        ImageAsset[]
   synonyms      ProductSynonym[]
   contributions ProductContribution[]
@@ -744,6 +810,7 @@ model CatalogProduct {
   @@unique([organizationId, barcode])
   @@index([organizationId])
   @@index([organizationId, archivedAt])
+  @@index([brandId])
   @@index([searchVector], type: Gin, map: "idx_catalog_fts")
   @@index([nameEn(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_catalog_trgm_en")
   @@index([nameAr(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_catalog_trgm_ar")

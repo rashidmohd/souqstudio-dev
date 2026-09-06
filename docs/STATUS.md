@@ -280,6 +280,26 @@ Pick up at `E2-pending.md` §1, which has the three steps in order. The hazard t
 rows* rather than an error — it fails closed, and a mistake looks like an empty screen in
 production rather than a stack trace.
 
+### Brands are an entity, and the admin half of it does not exist
+
+**Built 6 September.** `product_brands` (migration `20260906113346_e5_product_brands`,
+additive) with a normalised `slug` as the dedup key, 92 curated UAE brands seeded canonical
+and bilingual, resolution wired into both the Open Food Facts importer and the
+add-a-product route. `catalog_products.brandId` is nullable and `brandEn`/`brandAr` stay as
+the fallback, so an unknown brand never blocks an owner. Detail in `E5-pending.md` §1.
+
+**No logos, by licence.** E5's rule — images from licensed sources or direct brand
+permission only — covers logos, which are also trademarks. `logoKey` and `logoSource` are
+on the row and stay null until permissioned assets exist; cards fall back to the brand
+name, which is what they render today.
+
+**The curation side is unbuilt and this is where it bites.** `apps/admin` has seven route
+directories and **zero `.tsx` files** — no screen to merge two spellings, write an Arabic
+name, attach a logo, or promote a brand to canonical. Everything the importer creates
+arrives `unreviewed`, and the Open Food Facts run will create thousands of them. They are
+usable immediately, so nothing breaks; they simply accumulate uncurated until E13 / E5-08
+builds the admin auth path against `admin_users` and the screens on top of it.
+
 ### The tsvector migration is applied — full-text search is unblocked
 
 `catalog_products.search_vector`, its GIN index, the update trigger and `pg_trgm` are raw
@@ -385,13 +405,12 @@ rather than to full-text search, a search or scan that finds nothing offers to a
 product, and `/catalog/import` takes a CSV through mapping, matching and review.
 `CATALOG_BUILT` is flipped and the rail carries the item again.
 
-**The seed is ready to run.** The write path that would have killed any real run is fixed
-and proven on a fixture, the categories now resolve onto the ten, and the stream turns out
-to be far quicker than recorded — 2.39M rows in eight minutes, so the full export is tens
-of minutes rather than hours. What remains is the decision to write tens of thousands of
-rows to the shared database, and whether `ProductBrand` should exist first: OFF brand
-strings are dirty at scale and deduplicating them afterwards is far more expensive than
-resolving them at ingest. After that, E5-07 phone capture and the camera half of E5-03;
+**The seed is ready to run, and nothing structural is left in front of it.** The write path
+that would have killed any real run is fixed and proven on a fixture, the categories resolve
+onto the ten at 93.8%, brands resolve into `product_brands` three queries per batch, and the
+stream turns out to be far quicker than recorded — 2.39M rows in eight minutes, so the full
+export is tens of minutes rather than hours. What remains is only the decision to write tens
+of thousands of rows to the shared database. After that, E5-07 phone capture and the camera half of E5-03;
 XLSX is a dependency decision waiting on a human.
 
 Read `E5-pending.md` first: it carries the corrections building this produced, including

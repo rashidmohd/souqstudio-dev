@@ -8,6 +8,9 @@
 export * from './composition'
 // Pure, dependency-free, and needed on both sides of the network — see the file.
 export * from './barcode'
+// Same reasoning as barcode.ts — the importer, the add route and the suggestion
+// query must agree on when two brand spellings are one brand.
+export * from './brand-slug'
 import type { BrandColor, TextStyle, TypeScale } from './composition'
 
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'

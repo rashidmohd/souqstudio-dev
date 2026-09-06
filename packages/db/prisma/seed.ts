@@ -3,6 +3,8 @@ import { SEED_BLOCKS } from '@souqstudio/engine'
 import { DEFAULT_PROMO_TIERS } from '../src/promo-tiers'
 import { PrismaClient } from '@prisma/client'
 import { CATALOG_CATEGORIES } from '../src/catalog-categories'
+import { SEED_BRANDS } from '../src/product-brands'
+import { brandSlug } from '@souqstudio/types'
 
 /**
  * Reference data every environment needs: the five grids of E4-03 and the five
@@ -227,10 +229,37 @@ async function seedCatalogCategories() {
   console.log(`[seed] ${CATALOG_CATEGORIES.length} catalog categories`)
 }
 
+/**
+ * The curated UAE brands. E5 "Catalog Sources" — the names half of the top-200.
+ *
+ * Upserted on `slug`, which `brandSlug()` computes, so a re-run corrects the
+ * Arabic or the spelling rather than inserting a second row. `status` is forced
+ * back to `canonical` on update: if the Open Food Facts import happened to
+ * create `almarai` as unreviewed before this ran, the seed is what settles it.
+ *
+ * `logoKey` is deliberately not written, on either path. It is set when a
+ * permissioned asset exists and never by a seed.
+ */
+async function seedBrands() {
+  for (const brand of SEED_BRANDS) {
+    const slug = brandSlug(brand.nameEn)
+    const data = { nameEn: brand.nameEn, nameAr: brand.nameAr, status: 'canonical' }
+
+    await prisma.productBrand.upsert({
+      where: { slug },
+      update: data,
+      create: { slug, ...data },
+    })
+  }
+
+  console.log(`[seed] ${SEED_BRANDS.length} product brands`)
+}
+
 async function main() {
   await backfillPromoTiers()
   await seedBlocks()
   await seedCatalogCategories()
+  await seedBrands()
 
   for (const plan of PLANS) {
     await prisma.plan.upsert({

@@ -3,6 +3,7 @@ import { createGunzip } from 'node:zlib'
 import { createInterface } from 'node:readline'
 import { Readable } from 'node:stream'
 import { PrismaClient } from '@prisma/client'
+import { brandSlug, isUsableBrand } from '@souqstudio/types'
 import {
   OFF_FIELDS,
   isRelevant,
@@ -60,9 +61,11 @@ import {
  * after it would have shifted silently — which is the failure this note exists
  * to stop someone re-introducing by "improving" the parser.
  *
- * **Streaming from the URL is slow** — the static host gives up a few MB a
- * minute, so a full run over 1.28GB is measured in hours. Download once and use
- * `--file` for anything beyond a smoke test.
+ * **Streaming from the URL is quicker than this note used to claim.** A sampling
+ * pass read 2,392,046 rows in eight minutes straight from the static host, which
+ * puts the full export in the tens of minutes rather than the hours recorded
+ * here before. `--file` is still worth it for repeated runs — the download
+ * happens once instead of every time — but the stream is not the obstacle.
  */
 
 const EXPORT_URL =
@@ -125,6 +128,64 @@ async function openSource(options: Options): Promise<NodeJS.ReadableStream> {
 const prisma = new PrismaClient()
 
 /**
+ * Resolve every brand string in a batch to a `product_brands` row.
+ *
+ * **Three queries per batch, never one per row.** A five-hundred-row batch
+ * doing a lookup-or-create per brand is a thousand round trips against a hosted
+ * database, and this runs over millions of rows — the same reasoning that made
+ * the spreadsheet import fan out over `unnest` rather than iterate. Distinct
+ * slugs are collected first, so a batch where every product is Almarai costs
+ * exactly one brand lookup.
+ *
+ * **Created `unreviewed`.** An admin promotes a brand to canonical after
+ * confirming the name, the Arabic and the logo; the seeded UAE brands arrive
+ * canonical already. Availability does not wait on that — a product keeps its
+ * `brandEn` string regardless, so an unresolved or unreviewed brand never stops
+ * a row being written.
+ *
+ * `skipDuplicates` on the insert is load-bearing rather than defensive: two
+ * spellings in the same batch normalise to one slug, and the unique index would
+ * otherwise abort the whole statement.
+ */
+async function resolveBrands(batch: OffProduct[]): Promise<Map<string, string>> {
+  const slugs = new Set<string>()
+  for (const product of batch) {
+    if (product.brandEn && isUsableBrand(product.brandEn)) slugs.add(brandSlug(product.brandEn))
+  }
+  if (slugs.size === 0) return new Map()
+
+  const known = await prisma.productBrand.findMany({
+    where: { slug: { in: [...slugs] } },
+    select: { id: true, slug: true },
+  })
+  const idBySlug = new Map(known.map((row) => [row.slug, row.id]))
+
+  // The first spelling seen wins as the display name. An admin renames it; the
+  // slug it is filed under does not change.
+  const missing = new Map<string, string>()
+  for (const product of batch) {
+    if (!product.brandEn || !isUsableBrand(product.brandEn)) continue
+    const slug = brandSlug(product.brandEn)
+    if (!idBySlug.has(slug) && !missing.has(slug)) missing.set(slug, product.brandEn.trim())
+  }
+
+  if (missing.size > 0) {
+    await prisma.productBrand.createMany({
+      data: [...missing].map(([slug, nameEn]) => ({ slug, nameEn, status: 'unreviewed' })),
+      skipDuplicates: true,
+    })
+
+    const created = await prisma.productBrand.findMany({
+      where: { slug: { in: [...missing.keys()] } },
+      select: { id: true, slug: true },
+    })
+    for (const row of created) idBySlug.set(row.slug, row.id)
+  }
+
+  return idBySlug
+}
+
+/**
  * Read what already exists, then update those and create the rest.
  *
  * **`upsert` cannot be used here, and that is a property of the universal
@@ -157,6 +218,10 @@ const prisma = new PrismaClient()
 async function writeBatch(batch: OffProduct[]): Promise<number> {
   if (batch.length === 0) return 0
 
+  const brandIdBySlug = await resolveBrands(batch)
+  const brandIdFor = (brandEn: string | null): string | null =>
+    brandEn && isUsableBrand(brandEn) ? (brandIdBySlug.get(brandSlug(brandEn)) ?? null) : null
+
   const existing = await prisma.catalogProduct.findMany({
     where: { organizationId: null, barcode: { in: batch.map((product) => product.barcode) } },
     select: { id: true, barcode: true },
@@ -173,6 +238,7 @@ async function writeBatch(batch: OffProduct[]): Promise<number> {
             nameEn: product.nameEn,
             nameAr: product.nameAr,
             brandEn: product.brandEn,
+            brandId: brandIdFor(product.brandEn),
             specEn: product.specEn,
             originEn: product.originEn,
             category: product.category,
@@ -189,6 +255,7 @@ async function writeBatch(batch: OffProduct[]): Promise<number> {
           nameEn: product.nameEn,
           nameAr: product.nameAr,
           brandEn: product.brandEn,
+          brandId: brandIdFor(product.brandEn),
           specEn: product.specEn,
           originEn: product.originEn,
           category: product.category,
