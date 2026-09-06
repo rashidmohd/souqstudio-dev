@@ -41,14 +41,17 @@ import { hasValidCheckDigit } from '@souqstudio/types'
  *   because getting it wrong shows a duplicate rather than an error. It cannot be
  *   checked at all without rows on both sides of it, so this seeds both.
  *
- * **No images.** `image_assets` rows need real objects in R2, which a script
- * cannot invent; `ProductCard` already renders a placeholder when `imageUrl` is
- * null, so the grid is honest rather than broken. The cutout branch of the `bg`
- * worker still has to be exercised against a real upload.
+ * **Images are opt-in and are one placeholder repeated.** Without `--images` the
+ * rows carry none and `ProductCard` renders its `ImageOff` placeholder, which is
+ * honest rather than broken. With it, every product points at the single object
+ * described on `DEMO_IMAGE` — read the note there before drawing any conclusion
+ * from a populated grid. The cutout branch of the `bg` worker still has to be
+ * exercised against a real upload either way.
  *
  * Usage:
  *
  *   pnpm --filter @souqstudio/db catalog:seed-demo
+ *   pnpm --filter @souqstudio/db catalog:seed-demo --images
  *   pnpm --filter @souqstudio/db catalog:seed-demo --org <organizationId>
  *   pnpm --filter @souqstudio/db catalog:seed-demo --clear
  *   pnpm --filter @souqstudio/db catalog:seed-demo --dry-run
@@ -58,6 +61,35 @@ const prisma = new PrismaClient()
 
 /** The marker `--clear` deletes on. Nothing else in the schema writes it. */
 const DEMO_SOURCE = 'demo'
+
+/**
+ * One placeholder image, already in R2, attached to every demo product by
+ * `--images`.
+ *
+ * **It is the same picture on all of them, and that is a limitation to hold on
+ * to rather than forget.** It exists so the grid, the card and the export path
+ * can be looked at with an image present instead of `ProductCard`'s `ImageOff`
+ * placeholder. What it cannot be used to judge:
+ *
+ * - **Whether a page of real products reads well.** A dairy carton on
+ *   "USB-C Fast Charging Cable" is wrong on its face, and a grid of ninety
+ *   identical tiles says nothing about rhythm or variety.
+ * - **Anything about optical weight.** The layout engine scales cards by
+ *   `bboxTight`, and one image means one bbox everywhere — so the scaling looks
+ *   consistent whether or not it is correct. That is a false positive, and it is
+ *   why the rows are written as ORIGINAL with a null `bboxTight` rather than as
+ *   a CUTOUT with an invented one.
+ *
+ * The object is uploaded by hand, once, and not checked into the repo: it is
+ * third-party artwork of unclear licence, and E5's "Catalog Sources" rule is
+ * that catalog imagery comes from a licensed source or brand permission. Fine
+ * in a dev bucket; it must never become a shipped catalog image.
+ */
+const DEMO_IMAGE = {
+  key: 'demo/catalog/dairy-products.png',
+  width: 512,
+  height: 512,
+} as const
 
 type PackUnit = 'G' | 'KG' | 'ML' | 'L' | 'PIECE'
 
@@ -275,6 +307,7 @@ type Options = {
   organizationId: string | null
   clear: boolean
   dryRun: boolean
+  images: boolean
 }
 
 function parseArgs(argv: string[]): Options {
@@ -287,7 +320,47 @@ function parseArgs(argv: string[]): Options {
     organizationId: value('--org'),
     clear: argv.includes('--clear'),
     dryRun: argv.includes('--dry-run'),
+    images: argv.includes('--images'),
   }
+}
+
+/**
+ * Give every demo product the placeholder image.
+ *
+ * Written as **ORIGINAL**, not CUTOUT. `IMAGE_PICK` prefers an approved CUTOUT
+ * and falls back to whatever else is there, so an ORIGINAL is enough to make the
+ * card draw — and calling it a CUTOUT would make the `bg` worker's matte path
+ * and E5-05's review queue look exercised when neither has run. `bboxTight` and
+ * `quality` stay null for the same reason: they are measurements, and there is
+ * nothing here that measured them.
+ *
+ * `reviewState` is APPROVED so the row never surfaces in a review queue that has
+ * nothing to review.
+ *
+ * Idempotent by (product, key): a re-run adds nothing, so the flag can be passed
+ * every time.
+ */
+async function attachImages(): Promise<{ added: number; already: number }> {
+  const products = await prisma.catalogProduct.findMany({
+    where: { source: DEMO_SOURCE },
+    select: { id: true, images: { where: { r2Key: DEMO_IMAGE.key }, select: { id: true } } },
+  })
+
+  const missing = products.filter((product) => product.images.length === 0)
+  if (missing.length > 0) {
+    await prisma.imageAsset.createMany({
+      data: missing.map((product) => ({
+        productId: product.id,
+        kind: 'ORIGINAL' as const,
+        r2Key: DEMO_IMAGE.key,
+        width: DEMO_IMAGE.width,
+        height: DEMO_IMAGE.height,
+        reviewState: 'APPROVED' as const,
+      })),
+    })
+  }
+
+  return { added: missing.length, already: products.length - missing.length }
 }
 
 /**
@@ -514,6 +587,13 @@ async function main() {
 
   const owned = await write(ORG_OWNED, organizationId, barcodes)
   console.log(`[demo] ${owned} organization products, ${shadows} of them shadowing a universal barcode`)
+
+  if (options.images) {
+    const { added, already } = await attachImages()
+    console.log(
+      `[demo] images: ${added} attached, ${already} already had one — ${DEMO_IMAGE.key}`
+    )
+  }
 
   console.log(`[demo] done — remove with: pnpm --filter @souqstudio/db catalog:seed-demo --clear`)
 }

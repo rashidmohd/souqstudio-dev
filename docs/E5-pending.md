@@ -4,7 +4,8 @@ What was built, what it does not yet do, and the corrections to `docs/E5-product
 that were found by building it. The epic stays the record of what was asked for; this file
 is the record of what happened.
 
-Last updated 5 September 2026, after E5-01, E5-02, E5-03, E5-04, E5-06 and the Open Food Facts seed.
+Last updated 6 September 2026, after the demo catalog seed — which is also what turned up
+the broken write path in the Open Food Facts importer and the fuzzy-match gap in search.
 
 ---
 
@@ -24,6 +25,7 @@ Last updated 5 September 2026, after E5-01, E5-02, E5-03, E5-04, E5-06 and the O
 | Import | `lib/csv.ts`, `lib/catalog-import.ts`, four `/catalog/imports` routes, `/catalog/import` |
 | File upload | `components/ui/file-dropzone.tsx` — drag-and-drop, used by E5-04 and E5-06 |
 | Universal seed | `packages/db/src/off-mapping.ts` + `scripts/import-off.ts` — **written, not yet run** |
+| Demo rows | `packages/db/scripts/seed-catalog-demo.ts` — 99 products, run, removable |
 
 **Search is raw SQL and cannot be anything else.** `search_vector` is
 `Unsupported("tsvector")`, which Prisma excludes from the generated client, so the column
@@ -179,16 +181,85 @@ cutout polling and the brand-store writes — a larger edit than the one that wa
   information; hiding empty tiles would make the ten-category taxonomy look different for
   every account.
 
+### The demo seed — 99 rows, so the screens can be looked at
+
+`pnpm --filter @souqstudio/db catalog:seed-demo` writes 90 universal products across the
+ten seeded categories and 9 into one organization's own collection. It is **not** a
+fixture and **not** a substitute for the Open Food Facts seed: it exists because every
+reader built in E5 and every piece of the composition model had only ever been exercised
+against products constructed inside a test, and a screen cannot be judged that way.
+
+`--org <id>` picks the organization (default: the newest, which on a dev database is
+whoever signed up last), `--dry-run` writes nothing, and `--clear` removes exactly what it
+wrote.
+
+Four things about it worth not undoing:
+
+- **`source = 'demo'` is the removal handle**, which is the only reason dummy rows are safe
+  in a shared dev database. `--clear` deletes on that column — not on a name pattern, not
+  on a date window, and never a truncate, because the OFF rows and anything an owner added
+  through E5-04 live in the same table. It detaches import rows and contributions rather
+  than deleting them (both foreign keys are nullable for that reason) and refuses outright
+  if an offer references a demo product.
+- **Check digits are computed, then re-checked with `hasValidCheckDigit`.** Ninety
+  hand-typed check digits contain at least one mistake and the failure is silent: the row
+  writes fine and is simply unreachable by barcode lookup forever, because `lookupBarcode`
+  rejects a bad digit before the database is asked.
+- **Three organization rows carry a barcode the universal set also carries.** E5 §1's
+  shadowing — a private row *replaces* the universal one rather than outranking it — cannot
+  be checked without rows on both sides of it, and getting it wrong shows a duplicate
+  rather than an error. Verified: searching from that organization returns its own row and
+  only that one; the same search from a different organization returns the universal row.
+- **Every row has a real `nameAr`.** This is the one thing the Open Food Facts export
+  cannot give — its 211 columns carry no language variants — and consistency check #9 wants
+  screens rendered in Arabic with real strings, which Latin placeholder text cannot stand in
+  for. The washing-powder row is deliberately the long name that broke a card's name box in
+  the render harness.
+
+**No images.** `image_assets` rows need real objects in R2, which a script cannot invent;
+`ProductCard` renders its `ImageOff` placeholder, so the grid is honest rather than broken.
+The cutout branch of the `bg` worker still needs a real upload to be exercised.
+
 ### The Open Food Facts seed — written, and not yet run
 
 `pnpm --filter @souqstudio/db catalog:import-off` streams the 1.28GB gzipped export,
-filters for GCC relevance, and upserts into the universal collection. The mapping is pure
+filters for GCC relevance, and writes into the universal collection. The mapping is pure
 and has 19 tests; the script has been dry-run against the live export end to end.
 
-**It has never been run for real.** A full pass writes on the order of tens of thousands
-of rows to the shared database and takes hours over that host — both the user's call, not
-something to start unasked. What is proven: the fetch, the gunzip, the header check, the
-delimiter, the filter, the mapping and the counts. What is not: the write path.
+**It has never been run against the real export.** A full pass writes on the order of tens
+of thousands of rows to the shared database and takes hours over that host — both the
+user's call, not something to start unasked.
+
+**The write path was broken until 6 September, and this is why "not yet run" mattered.**
+`writeBatch` called `upsert` with
+`where: { organizationId_barcode: { organizationId: null, barcode } }`, which the client
+rejects at runtime — *"Argument `organizationId` must not be null"*. It would have failed
+on the first batch of any real run, after however long the stream took to produce 500
+mapped rows. It is not a Prisma quirk: SQL treats NULLs as distinct, so `(NULL, '628…')`
+cannot identify a row, which is the same fact that made the E5 migration carry a
+**partial** unique index (`catalog_products_universal_barcode_key`) beside the compound
+one. No Prisma `where` expression reaches a partial index, so `writeBatch` now resolves
+existing barcodes in one read, `createMany`s the new rows and updates the rest by id. The
+note on the function carries the reasoning.
+
+**The write path is now proven, on a fixture rather than on the export.** Six hand-written
+rows through `--file`: five mapped and created, one rejected for having no name; a second
+run with a name corrected upstream updated in place, left the row count at five and
+produced no duplicate universal barcode. What that does *not* prove is throughput or
+anything about the real file's content — see the four measured notes below, which still
+stand. The fixture rows were removed afterwards.
+
+Still proven only by dry run: the fetch, the gunzip, the header check, the delimiter, the
+filter, the mapping and the counts.
+
+**The categories it writes do not match the ten the app browses by**, and this is the next
+thing to settle before a real run. `toProduct` writes `firstValue(categories_en)` — a raw
+OFF taxonomy string like `Spreads`, `Beverages` or `Meals` — while `listCategories` counts
+with `p.category = c.name` against the ten rows `pnpm db:seed` publishes. Nothing errors:
+E5-02's tiles simply all read "nothing here yet" over a catalog of tens of thousands of
+products, which reads as a broken screen rather than as a missing mapping. Confirmed on
+the fixture rows above. A run without a mapping from the OFF taxonomy onto the ten
+categories fills the table and leaves the category browser empty.
 
 Four things measured rather than assumed, over the first 111,410 rows of the real export:
 
@@ -292,15 +363,31 @@ the commit; bulk "add all as new" and "leave all out" act on what is listed.
 
 ## 3. Known gaps in what *was* built
 
-### The ranking is unverified against real rows
+### The ranking now has rows to be judged against, and the fuzzy half under-matches
 
 Every query was run against the dev database and executes cleanly — syntax, the enum casts,
-the row-constructor cursor comparison, the lateral joins. **All five returned zero rows,
-because `catalog_products` is empty.** So what is proven is that the SQL is valid; what is
-*not* proven is that the ordering is any good. The two constants that decide it —
-`SYNONYM_BONUS = 0.25` and `FUZZY_WEIGHT = 0.3` — are heuristic, chosen so a strong text
-match always outranks a weak fuzzy one, and they have never been looked at against a real
-result list. Tune them the first time there is a catalog to tune against, not before.
+the row-constructor cursor comparison, the lateral joins. They returned zero rows for as
+long as `catalog_products` was empty, so what was proven was that the SQL is valid and not
+that the ordering is any good.
+
+**There are rows now.** `pnpm --filter @souqstudio/db catalog:seed-demo` writes 99 demo
+products — see §1's note on it — which is enough to look at a result list. What that turned
+up immediately:
+
+**The fuzzy branch compares whole strings, so a misspelling inside a longer name does not
+match at all.** `similarity('Sella Basmati Rice XXL', 'Basmatti')` is **0.28** against
+`pg_trgm.similarity_threshold` of 0.3 — the row is not returned. Word against word it is
+0.7, which is the figure STATUS quotes and where the impression that fuzzy matching works
+came from; every other token in a real product name dilutes it. So `p."nameEn" % q.raw`
+gets steadily weaker as names get longer and more specific, which is the direction real
+catalog names go. The fix is a decision, not a tweak: lower the threshold for this query
+with `set_limit()`/`%>`, match per word, or match against a name-plus-brand expression.
+Whichever it is, pick it against real rows.
+
+`SYNONYM_BONUS = 0.25` and `FUZZY_WEIGHT = 0.3` are still heuristic and still unlooked at —
+they only affect ordering among rows that matched, and the finding above is about rows that
+never match. Note also that `product_synonyms` is empty until the `enrich` worker lands, so
+the synonym branch of the ranking has never contributed to a score at all.
 
 ### Two queries will need an index before the catalog is large
 

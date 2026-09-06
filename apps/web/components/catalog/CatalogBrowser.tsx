@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import type {
   ApiResult,
@@ -282,6 +283,31 @@ export function CatalogBrowser({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
+        {/* The two ways to put a product into the catalog, kept next to each
+            other because they are the same decision at two sizes: one product
+            or a spreadsheet of them.
+
+            **Adding one product had no entry point of its own.** The only thing
+            that opened this form was the zero-results state, so an owner who
+            wanted to add something had to first search for it and fail — and if
+            the search happened to match a near-miss, the offer never appeared at
+            all. Import was the only always-visible way in, and a spreadsheet is
+            the wrong tool for a single product.
+
+            Both are secondary. The search box below is this screen's primary
+            action and stays the only one. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="secondary" onClick={() => setAdding(true)}>
+            Add a product
+          </Button>
+          <Link
+            href="/catalog/import"
+            className="font-ui text-body-sm text-link underline"
+          >
+            Import a spreadsheet
+          </Link>
+        </div>
+
         <Input
           label="Search the catalog"
           type="search"

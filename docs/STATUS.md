@@ -3,7 +3,8 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 5 September 2026, after the composition-model build — the layout engine, the
+Last updated 6 September 2026, after the demo catalog seed and the Open Food Facts
+importer fix. Before that, 5 September, after the composition-model build — the layout engine, the
 blocks schema, the reworked brand kit, the first renderer — and after E5-01 and E5-02, the
 catalog search and category browser.
 
@@ -18,9 +19,10 @@ most of what E7 was scoped to do. In one sentence: *a brand kit is identity, a b
 designed building block, a page is a spreadsheet of regions filled with blocks, and
 products flow through it.*
 
-**One line to remember before picking anything up: the catalog is still empty.**
-`catalog_products` and `offer_books` both hold zero rows. The *browser* over that catalog
-now exists — E5-01 search and E5-02 category browsing are built — so the screen is there
+**One line to remember before picking anything up: the real catalog is still empty.**
+`offer_books` holds zero rows, and `catalog_products` holds only the 99 demo rows
+`catalog:seed-demo` writes — enough to look at a screen, not a catalog. The *browser* over
+it exists — E5-01 search and E5-02 category browsing are built — so the screen is there
 and the rows are not. Filling it is what remains of the critical path: the ingest half of
 E5 (import, barcode, upload) and the Open Food Facts seed.
 
@@ -171,12 +173,15 @@ struck as unfillable.
 These are cross-cutting. Each one stops or degrades work in epics that have not started
 yet, so it is cheaper to clear the relevant one first than to work around it.
 
-### The catalog is empty — blocks everything downstream
+### The catalog has demo rows; the real one is still empty — blocks everything downstream
 
-`catalog_products` and `offer_books` both hold **zero rows**. The layout engine, the block
-library, the price mark, the fit ladder and the first renderer are all built and tested
-against dummy products; none of it can be seen in the app with real data because there is
-none. This is the only thing on the critical path, and it is E5.
+`offer_books` holds **zero rows**, and `catalog_products` holds **99 demo products and
+nothing else**. `pnpm --filter @souqstudio/db catalog:seed-demo` writes them and
+`--clear` takes them out again; they exist so the screens and the engine can be *looked
+at*, not as a catalog. The layout engine, the block library, the price mark, the fit
+ladder and the first renderer are all built and were tested only against products
+constructed inside a test. This is still the only thing on the critical path, and it is
+E5.
 
 **The reader over it now exists, and so does the first way in.** `/catalog` searches and
 browses both collections, looks a barcode up, and lets an owner add a product the catalog
@@ -190,15 +195,48 @@ and puts the ones it could not place with confidence in front of the owner. It c
 the catalog; carrying the sheet's prices into an offer book is E6's half, because there are
 no offer books.
 
-**The Open Food Facts seed is written and has not been run.** `pnpm --filter
-@souqstudio/db catalog:import-off` streams the 1.28GB export, filters for GCC relevance
-and upserts into the universal collection; the mapping has 19 tests and the script has
-been dry-run against the live export. Running it for real writes tens of thousands of rows
-and takes hours — a decision, not a step.
+**The Open Food Facts seed is written and has not been run against the real export**, and
+until 6 September it could not have been: `writeBatch` upserted on a compound unique key
+containing a null `organizationId`, which the client rejects at runtime, so any real run
+would have died on its first batch. That is fixed and the write path is now proven on a
+fixture — create, then re-run to update, no duplicate barcodes. Running it for real still
+writes tens of thousands of rows and takes hours: a decision, not a step.
+
+**Settle the category mapping before that run.** The importer writes raw OFF taxonomy
+strings (`Spreads`, `Beverages`, `Meals`) into `category`, and `listCategories` counts
+against the ten names `pnpm db:seed` publishes. Nothing errors — E5-02's tiles just all
+read "nothing here yet" over a full catalog. `E5-pending.md` §1 has it.
 
 What is still missing: XLSX (a dependency decision, not effort), E5-07 phone capture, and
-the camera half of E5-03. Ranking and the import's match thresholds
-are both unverified against real data; the constants are named in `E5-pending.md` §3.
+the camera half of E5-03. The import's match thresholds are unverified against real data.
+**Search ranking now has rows to be judged against, and the fuzzy branch already fails
+one**: a misspelling inside a longer product name scores under the trigram threshold and
+returns nothing at all. Both are written up in `E5-pending.md` §3.
+
+### `R2_ENDPOINT` carried the bucket name — every uploaded object landed unreachable
+
+**Found and fixed locally on 6 September**, while attaching a placeholder image to the demo
+catalog. `apps/web/.env.local` had
+`R2_ENDPOINT=https://<account>.r2.cloudflarestorage.com/souqstudio-dev` — the bucket as a
+path segment — while the code also passes `Bucket: env.R2_BUCKET_NAME`. The SDK treats the
+endpoint path as a prefix, so every write went to `souqstudio-dev/souqstudio-dev/…` and the
+public URL the app builds (`R2_PUBLIC_URL` + the key it *thinks* it wrote) could never
+resolve. `.env.example` documents the correct shape, without the bucket; the local file had
+drifted.
+
+Nothing about this is visible from the app: the upload succeeds, the PUT returns 200, and
+only the rendered image is missing. It is why "nothing about the write path has been run
+against a real upload" stayed true for so long without anyone hitting an error.
+
+**Six objects are still stranded under the doubled prefix** — the logo uploads from two
+organizations in August, `logo.png`, `logo-original.png` and `logo-upload` for each. They
+were left in place rather than moved: no `brandKit` in the database references them, so
+they are orphans either way, and deleting another account's data on a hunch is not this
+change's business. Worth a decision.
+
+`.env.local` is gitignored, so this fix is local only. **Check the Railway environment
+before deploying** — if it carries the same shape, every logo and product image uploaded in
+production is written where nothing can read it.
 
 ### A preview route with no auth check was committed — remove before deploying
 
@@ -344,10 +382,12 @@ rather than to full-text search, a search or scan that finds nothing offers to a
 product, and `/catalog/import` takes a CSV through mapping, matching and review.
 `CATALOG_BUILT` is flipped and the rail carries the item again.
 
-**Next is running the seed** — it is written, tested and dry-run, and every path into the
-catalog is built, so the catalog being empty is now one command and a few hours rather
-than a code problem. After that, E5-07 phone capture and the camera half of E5-03; XLSX is
-a dependency decision waiting on a human.
+**Next is running the seed**, and it is nearer than it was: the write path that would have
+killed any real run is fixed and proven on a fixture, and 99 demo rows now stand in so the
+screens can be judged meanwhile. Two things to settle before starting it — the OFF
+categories do not match the ten the browser counts against, and the run itself is hours
+against the shared database. After that, E5-07 phone capture and the camera half of
+E5-03; XLSX is a dependency decision waiting on a human.
 
 Read `E5-pending.md` first: it carries the corrections building this produced, including
 that `barcode` is not in `search_vector`, that `?lang=` does not exist, why the cutout job

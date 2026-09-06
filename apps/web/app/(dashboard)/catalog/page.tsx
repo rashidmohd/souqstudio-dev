@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { listCategories } from '@/lib/catalog'
 import { requireCompliantSession } from '@/lib/session'
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser'
@@ -12,6 +11,11 @@ export const metadata: Metadata = { title: 'Catalog · SouqStudio' }
  * A plain member of layout family 1, wider than the settings screens because
  * the content is a five-column grid of product tiles rather than a column of
  * fields.
+ *
+ * The two ways in — add one product, import a spreadsheet — live inside
+ * `CatalogBrowser` rather than in this header, because the add opens a dialog
+ * whose state the browser owns and a server component cannot hold. Keeping them
+ * together is the point: they are one decision at two sizes.
  *
  * The category tiles are read on the server and handed down: they are the first
  * thing on screen, they do not change while the owner is looking at them, and
@@ -29,23 +33,12 @@ export default async function CatalogPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-title text-primary">Catalog</h1>
-          <p className="font-ui text-body text-secondary">
-            Search the shared catalog and your own products. Pick one to put it in an
-            offer book.
-          </p>
-        </div>
-
-        {/* A link, not a Button. It navigates, and the search box below is the
-            screen's primary action — one per region. */}
-        <Link
-          href="/catalog/import"
-          className="font-ui text-body-sm text-link underline"
-        >
-          Import a spreadsheet
-        </Link>
+      <div className="flex flex-col gap-1">
+        <h1 className="font-display text-title text-primary">Catalog</h1>
+        <p className="font-ui text-body text-secondary">
+          Search the shared catalog and your own products. Pick one to put it in an
+          offer book.
+        </p>
       </div>
 
       {/* The interface language is hardcoded to English in app/layout.tsx and

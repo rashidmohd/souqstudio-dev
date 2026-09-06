@@ -14,7 +14,8 @@ packages/db/
 │   ├── migrations/            # Prisma migration history
 │   └── seed.ts                # Reference data: plans, blocks, catalog categories, promo tiers
 ├── scripts/
-│   └── import-off.ts          # E5 — stream the Open Food Facts export into the universal catalog
+│   ├── import-off.ts          # E5 — stream the Open Food Facts export into the universal catalog
+│   └── seed-catalog-demo.ts   # E5 — 99 hand-written demo products, so the screens can be looked at
 ├── src/
 │   ├── index.ts               # Re-exports PrismaClient singleton
 │   ├── client.ts              # PrismaClient with RLS middleware
@@ -195,6 +196,15 @@ pnpm db:studio
 # and it never touches an organization's own rows.
 pnpm catalog:import-off -- --url --dry-run --limit 500
 pnpm catalog:import-off -- --url
+
+# E5 — 99 demo products so /catalog and the engine can be looked at with rows in
+# them. NOT a substitute for the import above: `source = 'demo'` marks them and
+# `--clear` removes exactly those. `--images` points every one at a single
+# placeholder object in R2 — read the note on DEMO_IMAGE before concluding
+# anything from a populated grid.
+pnpm catalog:seed-demo
+pnpm catalog:seed-demo --images
+pnpm catalog:seed-demo --clear
 ```
 
 Never use `db:push` in production. Always use `db:migrate`.

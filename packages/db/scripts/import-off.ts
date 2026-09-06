@@ -32,11 +32,12 @@ import {
  * preference: E5's "Catalog Sources" table says images come from licensed
  * sources or direct brand permission only, and never from scraping.
  *
- * **Idempotent by barcode.** Rows are upserted against the universal partial
- * unique index, so a re-run after a failed one corrects rather than duplicates.
- * That index — `catalog_products_universal_barcode_key` — is what makes this
- * safe, and it exists because Postgres treats NULLs as distinct and every
- * universal row has a null `organizationId`.
+ * **Idempotent by barcode**, so a re-run after a failed one corrects rather than
+ * duplicates. Uniqueness rests on the universal partial unique index —
+ * `catalog_products_universal_barcode_key` — which exists because Postgres
+ * treats NULLs as distinct and every universal row has a null `organizationId`.
+ * That same fact is why `writeBatch` matches rows by hand instead of calling
+ * `upsert`; the note there has the detail.
  *
  * **It never touches an organization's own rows.** Everything written here has
  * `organizationId: null`. A shop that has corrected a public record keeps its
@@ -124,32 +125,65 @@ async function openSource(options: Options): Promise<NodeJS.ReadableStream> {
 const prisma = new PrismaClient()
 
 /**
- * Written one row at a time inside a transaction rather than with `createMany`.
+ * Read what already exists, then update those and create the rest.
  *
- * `createMany` cannot upsert, and `skipDuplicates` would silently drop the
- * corrections a re-run exists to apply — an OFF row whose name was fixed
- * upstream would never reach us. The cost is real and is the reason for the
- * batch size; correctness of a re-run is worth more than the throughput.
+ * **`upsert` cannot be used here, and that is a property of the universal
+ * collection rather than a style choice.** The obvious spelling —
+ * `where: { organizationId_barcode: { organizationId: null, barcode } }` —
+ * is rejected by the client at runtime with *"Argument `organizationId` must
+ * not be null"*. It is not a Prisma quirk: SQL treats NULLs as distinct, so
+ * `(NULL, '628…')` cannot identify a row, and a compound unique key containing
+ * one is not a key. That is the same fact the schema comment on `barcode`
+ * describes and the reason the E5 migration carries a **partial** unique index
+ * — `catalog_products_universal_barcode_key`, on `barcode` where
+ * `organizationId IS NULL` — next to the compound one. There is no Prisma
+ * `where` expression that reaches a partial index, so uniqueness here is
+ * enforced by the database and matched by hand.
+ *
+ * The shape that follows from that:
+ *
+ * - **One read per batch** resolves which barcodes are already present.
+ * - **New rows go through `createMany`**, one statement, because they are known
+ *   not to exist by the time it runs. This is the common case by a wide margin
+ *   on a first run, so a batch is two queries rather than five hundred.
+ * - **Existing rows are updated by id.** Not `createMany({ skipDuplicates })`,
+ *   which would silently drop the corrections a re-run exists to apply — an OFF
+ *   row whose name was fixed upstream would never reach us.
+ *
+ * `source` is set on create and never on update, so a row this script first
+ * wrote keeps its provenance and one that arrived another way is not relabelled
+ * by a later import.
  */
 async function writeBatch(batch: OffProduct[]): Promise<number> {
   if (batch.length === 0) return 0
 
-  await prisma.$transaction(
-    batch.map((product) =>
-      prisma.catalogProduct.upsert({
-        // The compound unique index. `organizationId: null` is the universal
-        // collection, and is what the partial index in the E5 migration covers.
-        where: { organizationId_barcode: { organizationId: null, barcode: product.barcode } },
-        update: {
-          nameEn: product.nameEn,
-          nameAr: product.nameAr,
-          brandEn: product.brandEn,
-          specEn: product.specEn,
-          originEn: product.originEn,
-          category: product.category,
-          tags: product.tags,
-        },
-        create: {
+  const existing = await prisma.catalogProduct.findMany({
+    where: { organizationId: null, barcode: { in: batch.map((product) => product.barcode) } },
+    select: { id: true, barcode: true },
+  })
+  const idByBarcode = new Map(existing.map((row) => [row.barcode, row.id]))
+
+  await prisma.$transaction([
+    ...batch
+      .filter((product) => idByBarcode.has(product.barcode))
+      .map((product) =>
+        prisma.catalogProduct.update({
+          where: { id: idByBarcode.get(product.barcode) },
+          data: {
+            nameEn: product.nameEn,
+            nameAr: product.nameAr,
+            brandEn: product.brandEn,
+            specEn: product.specEn,
+            originEn: product.originEn,
+            category: product.category,
+            tags: product.tags,
+          },
+        })
+      ),
+    prisma.catalogProduct.createMany({
+      data: batch
+        .filter((product) => !idByBarcode.has(product.barcode))
+        .map((product) => ({
           organizationId: null,
           barcode: product.barcode,
           nameEn: product.nameEn,
@@ -160,10 +194,9 @@ async function writeBatch(batch: OffProduct[]): Promise<number> {
           category: product.category,
           tags: product.tags,
           source: 'open_food_facts',
-        },
-      })
-    )
-  )
+        })),
+    }),
+  ])
 
   return batch.length
 }
