@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "catalog:import-off": "tsx scripts/import-off.ts",
-    "catalog:seed-demo": "tsx scripts/seed-catalog-demo.ts"
+    "catalog:seed-demo": "tsx scripts/seed-catalog-demo.ts",
+    "catalog:harness-export": "tsx scripts/export-harness-products.ts"
   },
   "dependencies": {
     "@souqstudio/types": "workspace:*",

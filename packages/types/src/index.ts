@@ -11,6 +11,9 @@ export * from './barcode'
 // Same reasoning as barcode.ts — the importer, the add route and the suggestion
 // query must agree on when two brand spellings are one brand.
 export * from './brand-slug'
+// The pack line — same reasoning again. The render harness composes real
+// catalog rows and must draw the string the product card draws.
+export * from './pack'
 import type { BrandColor, TextStyle, TypeScale } from './composition'
 
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'

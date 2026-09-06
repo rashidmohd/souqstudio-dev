@@ -4,8 +4,11 @@ What was built, what it does not yet do, and the corrections to `docs/E5-product
 that were found by building it. The epic stays the record of what was asked for; this file
 is the record of what happened.
 
-Last updated 6 September 2026, after the demo catalog seed — which is also what turned up
-the broken write path in the Open Food Facts importer and the fuzzy-match gap in search.
+Last updated 6 September 2026, after pointing the render harness at real catalog rows —
+which turned up a pack label printing backwards on every Arabic card and a category
+coverage figure that was four times too high. Before that, the demo catalog seed, which
+turned up the broken write path in the Open Food Facts importer and the fuzzy-match gap in
+search.
 
 ---
 
@@ -451,6 +454,96 @@ asserting no mapped product mentions one.
   changed.
 
 ---
+
+### The category mapping lands 23.4%, not 93.8% — the measurement was the wrong denominator
+
+**Found 6 September by counting the exported CSV rather than the export.** The figure
+above — *"93.8% of rows land on a tile, measured over the top 120 categories — 1,004,111
+rows"* — is correct about what it measured and wrong about what it was taken to mean. It
+was measured over the **top 120 `categories_en` values in the raw 2.39M-row export**, which
+is the well-formed, high-frequency head of a taxonomy with 14,618 distinct values. The
+keyword rules were written against that head, so measuring against it measures the rules
+against their own training set.
+
+Counting `packages/db/data/catalog-off.csv` — all 61,230 rows the GCC filter actually
+kept — gives the real figure:
+
+| | rows | share |
+| --- | --- | --- |
+| Land on a tile | 14,315 | **23.4%** |
+| No category | 46,915 | 76.6% |
+
+And the distribution across the ten seeded tiles is not ten:
+
+| Grocery | Snacks | Beverages | Dairy | Frozen | Bakery | Fresh Produce | Personal Care | Cleaning | Electronics |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 6,550 | 3,828 | 2,417 | 1,423 | 35 | 27 | 26 | 9 | **0** | **0** |
+
+Four tiles carry 99.3% of what lands. **Two of the ten get nothing at all**, and three more
+get fewer than forty rows out of sixty thousand. E5-02's tile grid over the real universal
+catalog is four tiles and six near-empty ones, and E5-02 §"A category tile with no products
+is still shown" makes that visible rather than hidden — correctly, but it was written
+expecting the empty tile to be the exception.
+
+**Why the two figures diverge so far.** The GCC-relevant subset is not a random sample of
+the export. It skews hard into the long tail: regional products carry sparser, more
+idiosyncratic `categories_en` strings than the European rows that dominate the head. So the
+population the rules were validated against and the population they run on are different
+populations, and the head measurement could not see it.
+
+**This is the third instance of the same failure in this epic**, and by now it is a pattern
+worth naming rather than a coincidence:
+
+1. The `594` barcode-prefix count estimated the Romanian contamination at 8,072; it was
+   ~29,000. Off by 3.7x.
+2. `[[:alpha:]]` reported 1,951 bad names in the clean export, every one of them Arabic.
+3. The top-120 tally reported 93.8% category coverage; it is 23.4%. Off by 4x.
+
+Each time, a proxy was measured because the real population was expensive to count, and
+each time the proxy was biased in the direction that made the answer look good. **The
+export is 4.5MB and counting it end to end takes under a second** — the expense was
+assumed, not measured.
+
+**Nothing is broken by this** and no code changed: `toCatalogCategory` returns null rather
+than a wrong answer, which is the behaviour the note above defends and still the right one.
+Unmatched rows stay searchable by name, brand and tag. What changes is the plan: category
+browsing cannot be the primary way into the universal catalog at this coverage, and the
+fix — reading the deeper `categories_en` values rather than only `firstValue`'s broadest
+level, already named above as "the obvious next improvement" — is now the difference
+between a working screen and a mostly-empty one rather than a refinement.
+
+The dev database agrees, at 26.4% over its 2,041-row sample.
+
+### Real catalog rows now go through the layout engine
+
+`pnpm --filter @souqstudio/db catalog:harness-export` writes the rows the render harness
+composes; `pnpm --filter @souqstudio/engine harness` draws them beside the dummy pages.
+Four sets — a page spanning the whole table, the longest names, the rows that carry a real
+`nameAr`, and the rows with a name and nothing else. Written up in `STATUS.md` §1.2; the
+catalog-side findings are here.
+
+**The card is mostly empty on a real page, and it is the data that makes it so.** Of 2,131
+visible rows: 58% have a brand, 33% have a spec, 4.2% have a pack size, 4.2% have an image
+and 4.2% have an Arabic name. The offer card reserves a box for each, so a typical real
+card is a short name, a grey image placeholder and a large void where the spec would go.
+Nothing about the block is wrong — it was designed against twelve products that all have
+every field. This is the strongest argument yet that the block needs an arrangement for
+sparse rows, and it is E6/E7's to answer, not E5's.
+
+**The English pack label is what an Arabic card shows**, on every row the Open Food Facts
+seed produced, because `nameAr` and `specAr` are both null there and the display helpers
+fall back — which is correct and is what an owner will see until the `enrich` worker lands.
+It is worth looking at a rendered page to understand what "English-only catalog" actually
+costs: it is not a missing line, it is a bilingual card with one Latin line in it.
+
+**A pack label reorders in an Arabic artboard.** `2 kg` rendered as `kg 2` on every card of
+the Arabic page. **The app is not affected** — `ProductCard` puts the pack line through
+`Figure`, and `[data-figure]` carries the bidi isolation that prevents exactly this. The
+artboard has no `Figure` and no equivalent, and the harness renderer had none either. Fixed
+there with a first-strong direction rule (`textDirection` in `harness/svg.ts`, which carries
+the reasoning); **E6's Fabric renderer and E9's SVG export both need the same rule**, and
+neither has it. This is the one finding that would have shipped: a printed Arabic flyer with
+every pack size backwards, in a language nobody reviewing the English edition reads.
 
 ## 2. Not built, and what it needs
 

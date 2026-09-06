@@ -172,13 +172,22 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   validation, the flow engine and the seeded block library, all tested. The tables exist
   (`blocks`, `block_versions`, `page_grids`, `book_pins`, migrated 5 September) and
   `pnpm db:seed` fills `blocks` with four published blocks — offer card, hero band, footer,
-  message. `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG from
-  **those same rows**, which is how the model is checked and is not the real renderer.
+  message. `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG from the
+  seeded blocks and both the invented products in `harness/dummy.ts` **and real catalog
+  rows** — `pnpm --filter @souqstudio/db catalog:harness-export` writes those to a
+  gitignored JSON file, which is what keeps the engine free of any database import. Prices
+  on the real pages are invented; names, brands, specs and their absences are not. This is
+  how the model is checked; it is not the real renderer. **What it found first time out: a
+  pack label printing backwards on every Arabic card** — the artboard has no equivalent of
+  chrome's `[data-figure]` bidi isolation, and E6's Fabric renderer and E9's SVG export
+  both need the `textDirection` rule now in `harness/svg.ts`.
   `/brand` draws those blocks for real — `components/blocks/BlockPreview.tsx` renders
   them in the shop's palette and typefaces through the engine, computing no geometry
   itself. What is still missing is the **editor**: Fabric for the interactive canvas,
-  and the offers to put on it. `catalog_products` and `offer_books` are both empty,
-  so E5 is the real blocker downstream of here. See `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
+  and the offers to put on it. `catalog_products` now holds 2,140 rows and 970 brands —
+  E5 is no longer the blocker — but `offer_books` is still empty and nothing in the
+  product can create one: `app/(dashboard)/editor/[id]/` is a lone `.gitkeep` and
+  `EDITOR_BUILT` is false. E6 is the frontier. See `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
   must share one implementation — two would drift, and drift means the PDF does not match
   the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be

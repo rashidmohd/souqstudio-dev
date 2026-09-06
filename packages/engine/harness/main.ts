@@ -17,7 +17,9 @@ import { dirname, join } from 'node:path'
 import type { PageGrid, Pin, Region } from '@souqstudio/types'
 import { flowBook } from '../src/index'
 import { BLOCKS, BRAND_AD, FOOTER, HERO_BAND, MESSAGE_POST, OFFER_CARD } from './blocks'
-import { FRIENDLY, WORST_CASE, type DummyProduct } from './dummy'
+import { FRIENDLY, WORST_CASE } from './dummy'
+import type { HarnessProduct } from './product'
+import { censusLine, loadRealCatalog, SET_NOTES } from './real'
 import { renderPage, type RenderContext } from './svg'
 
 const A4 = { width: 1240, height: 1754 }
@@ -124,7 +126,7 @@ function shoot(
   note: string,
   opts: {
     master: PageGrid
-    products: DummyProduct[]
+    products: HarnessProduct[]
     size: { width: number; height: number }
     direction?: 'ltr' | 'rtl'
     pins?: Pin[]
@@ -254,6 +256,37 @@ shoot(
   }
 )
 
+// ─── Real catalog rows, when someone has exported them ────────────────────────
+
+/**
+ * The same masters, the same blocks, real products.
+ *
+ * This is the half of E6 §10's question the dummies could not ask. `dummy.ts`
+ * was written to be hard — the longest Arabic names, three-decimal KWD, two-line
+ * specs — and a real catalog is hard in different places: names that are shorter
+ * on the median but longer at the tail, mixed scripts inside one English page,
+ * and above all *absences*. Nothing here is invented except the price.
+ *
+ * Absent, the harness renders the dummy pages alone and says so at the top of
+ * the index. It is not a failure: the file is a snapshot of a developer's
+ * database and is deliberately not checked in.
+ */
+const real = loadRealCatalog()
+
+if (real !== null) {
+  for (const [name, products] of Object.entries(real.sets)) {
+    const meta = SET_NOTES[name] ?? { title: `Real catalog — ${name}`, note: '' }
+    const rtl = name === 'arabic'
+
+    shoot(`real-${name}.svg`, meta.title, meta.note, {
+      master: booklet(),
+      products,
+      size: A4,
+      ...(rtl ? { direction: 'rtl' as const } : {}),
+    })
+  }
+}
+
 // ─── Output ───────────────────────────────────────────────────────────────────
 
 mkdirSync(OUT, { recursive: true })
@@ -266,15 +299,26 @@ const index = `<!doctype html>
   body { margin: 0; padding: 32px; background: #14161A; color: #E8E6E1;
          font: 14px/1.5 'Helvetica Neue', Helvetica, Arial, sans-serif; }
   h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
-  p.lede { color: #9AA0A8; margin: 0 0 32px; max-width: 60ch; }
+  p.lede { color: #9AA0A8; margin: 0 0 12px; max-width: 68ch; }
+  p.lede.warn { color: #E0C06A; margin-bottom: 32px; }
+  p.lede.warn strong { color: #F0D89A; }
   section { margin-bottom: 40px; }
   h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
   p.note { color: #9AA0A8; margin: 0 0 12px; max-width: 70ch; }
   img { max-width: 620px; width: 100%; background: #fff; border-radius: 4px; display: block; }
 </style>
 <h1>Layout engine — render harness</h1>
-<p class="lede">Hardcoded blocks, dummy products, no database. Everything below came out of
+<p class="lede">Seeded blocks, no database import. Everything below came out of
 <code>flowBook</code> with no manual positioning.</p>
+${
+  real === null
+    ? `<p class="lede warn">Dummy products only — the pages below are composed from about a dozen
+products invented in <code>harness/dummy.ts</code>. To compose real catalog rows as well, run
+<code>pnpm --filter @souqstudio/db catalog:harness-export</code> and render again.</p>`
+    : `<p class="lede warn">Real catalog pages included, exported ${real.generatedAt.slice(0, 10)}.
+${censusLine(real.counts)} <strong>Prices and promo tiers on those pages are invented</strong> — a
+catalog row has no price. Names, brands, specs and their absences are real.</p>`
+}
 ${shots
   .map(
     (shot) => `<section>
@@ -287,4 +331,10 @@ ${shots
 `
 writeFileSync(join(OUT, 'index.html'), index, 'utf8')
 
-process.stdout.write(`Rendered ${shots.length} pages to ${OUT}\nOpen ${join(OUT, 'index.html')}\n`)
+process.stdout.write(
+  `Rendered ${shots.length} pages to ${OUT}\n` +
+    (real === null
+      ? 'Dummy products only — run `pnpm --filter @souqstudio/db catalog:harness-export` for real rows.\n'
+      : `Includes ${Object.keys(real.sets).length} real-catalog pages (invented prices).\n`) +
+    `Open ${join(OUT, 'index.html')}\n`
+)

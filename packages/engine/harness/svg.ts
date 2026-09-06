@@ -20,11 +20,12 @@ import {
   type Placement,
   type Rect,
 } from '../src/index'
-import { KIT, PAGE_GROUND, SAMPLE_SCALE, type DummyProduct } from './dummy'
+import { KIT, PAGE_GROUND, SAMPLE_SCALE } from './dummy'
+import { brandFor, nameFor, specFor, type HarnessProduct } from './product'
 
 export interface RenderContext {
   blocks: Record<string, Block>
-  products: Record<string, DummyProduct>
+  products: Record<string, HarnessProduct>
   direction: 'ltr' | 'rtl'
   shopName: string
 }
@@ -73,7 +74,7 @@ function renderPlacement(placement: Placement, ctx: RenderContext): string {
 function renderElement(
   element: BlockElement,
   rect: Rect,
-  product: DummyProduct | undefined,
+  product: HarnessProduct | undefined,
   ctx: RenderContext,
   blockEdge: number
 ): string {
@@ -95,7 +96,7 @@ function renderElement(
 
 // ─── Elements ─────────────────────────────────────────────────────────────────
 
-function imagePlaceholder(rect: Rect, product: DummyProduct | undefined): string {
+function imagePlaceholder(rect: Rect, product: HarnessProduct | undefined): string {
   const inset = Math.min(rect.width, rect.height) * 0.12
   const inner = {
     x: rect.x + inset,
@@ -103,7 +104,10 @@ function imagePlaceholder(rect: Rect, product: DummyProduct | undefined): string
     width: rect.width - inset * 2,
     height: rect.height - inset * 2,
   }
-  const label = product?.brandEn ?? 'image'
+  // The brand, when there is one. Two thirds of a real catalog row set has a
+  // brand string and none has an image, so this box is what most of a real page
+  // is made of — see the note in `real.ts`.
+  const label = product === undefined || product.brandEn === null ? 'image' : product.brandEn
   const size = Math.min(inner.width * 0.22, inner.height * 0.16, 22)
 
   return [
@@ -123,7 +127,7 @@ function logoPlaceholder(rect: Rect): string {
   ].join('')
 }
 
-function chip(rect: Rect, product: DummyProduct, ctx: RenderContext): string {
+function chip(rect: Rect, product: HarnessProduct, ctx: RenderContext): string {
   const label = ctx.direction === 'rtl' ? product.tier.labelAr : product.tier.labelEn
   // Fit on both axes. Sizing from height alone is what broke the wide
   // arrangement: the same box is a tall pill in one region aspect and a flat
@@ -152,7 +156,7 @@ function fitLabel(content: string, maxWidth: number, maxSize: number, perChar: n
  * attached tab, the fit on both axes — lived in throwaway code and were checked
  * only by eye. They are in the engine now, with tests, and this just paints.
  */
-function priceMark(rect: Rect, product: DummyProduct): string {
+function priceMark(rect: Rect, product: HarnessProduct): string {
   const tint = color(product.tier.token)
   const l = layoutPriceMark(
     {
@@ -211,7 +215,7 @@ function priceMark(rect: Rect, product: DummyProduct): string {
 function text(
   element: Extract<BlockElement, { kind: 'text' }>,
   rect: Rect,
-  product: DummyProduct | undefined,
+  product: HarnessProduct | undefined,
   ctx: RenderContext,
   blockEdge: number
 ): string {
@@ -248,16 +252,56 @@ function text(
       ? KIT.inkMuted
       : inkFor(element, ctx)
 
+  // Anchoring follows the page; reordering follows the string. See `textDirection`.
+  const dir = textDirection(content, ctx.direction)
+
   return fitted.lines
     .map((line, i) => {
       const y = rect.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)
       return (
         `<text x="${x}" y="${y}" font-size="${fitted.fontSize}" font-weight="${step.weight}"` +
         ` font-family="${family}" fill="${fill}" text-anchor="${anchor}"` +
-        ` direction="${ctx.direction}">${esc(line)}</text>`
+        ` direction="${dir}" unicode-bidi="isolate">${esc(line)}</text>`
       )
     })
     .join('')
+}
+
+/**
+ * The direction a *string* reorders in, which is not the direction the page
+ * lays out in.
+ *
+ * **Found by rendering real rows.** An Arabic edition draws every text element
+ * with `direction="rtl"`, and 900 of the 2,131 catalog rows carry a pack line
+ * like `2 kg` with no Arabic translation — `specFor` falls back to the English
+ * one, correctly. In an RTL paragraph that string reorders to `kg 2`: the digit
+ * is bidi-weak, the unit is a strong LTR run, and the space between them is
+ * neutral. Every pack label on the Arabic page was printing backwards, and it
+ * is the kind of error that survives review because it still looks like text.
+ *
+ * First-strong, which is the Unicode `plaintext` heuristic and what
+ * `unicode-bidi: plaintext` would do if every renderer honoured it. A string
+ * beginning with an Arabic letter reorders RTL; one beginning with a Latin
+ * letter reorders LTR; one with no strong character at all — a bare `500` —
+ * follows the page, because there is nothing in it that can reorder anyway.
+ *
+ * `text-anchor` deliberately does *not* use this. Where the line sits in its box
+ * is a page decision — an Arabic card right-aligns its English pack label — and
+ * only the order of the glyphs within the line is the string's own business.
+ *
+ * The real renderers have to do the same thing. Fabric and the SVG export both
+ * inherit the artboard's direction, and the design system's answer in chrome is
+ * `[data-figure]` with bidi isolation; nothing equivalent exists on the artboard
+ * yet.
+ */
+function textDirection(content: string, page: 'ltr' | 'rtl'): 'ltr' | 'rtl' {
+  // Arabic, Hebrew and their supplements against the Latin/Greek/Cyrillic
+  // ranges. Not `\p{Script=Arabic}` alone: the first strong character may be
+  // Latin in a string that also contains Arabic, and that string is still LTR.
+  const strong = /[\u0041-\u005A\u0061-\u007A\u00C0-\u02AF\u0370-\u04FF]|[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u
+  const match = strong.exec(content)
+  if (match === null) return page
+  return match[0].charCodeAt(0) >= 0x0590 ? 'rtl' : 'ltr'
 }
 
 /**
@@ -272,7 +316,7 @@ const ESCALATED = '#B3261E'
 
 function resolveText(
   element: Extract<BlockElement, { kind: 'text' }>,
-  product: DummyProduct | undefined,
+  product: HarnessProduct | undefined,
   ctx: RenderContext
 ): string {
   const ar = ctx.direction === 'rtl'
@@ -283,9 +327,13 @@ function resolveText(
       return element.source.field === 'name' ? ctx.shopName : ''
     case 'product': {
       if (product === undefined) return ''
-      if (element.source.field === 'name') return ar ? product.nameAr : product.nameEn
-      if (element.source.field === 'spec') return ar ? product.specAr : product.specEn
-      if (element.source.field === 'brand') return product.brandEn
+      // The app's fallbacks, not the harness's own: an Arabic page over rows
+      // with no `nameAr` draws the English name, which is what the product
+      // does today. Drawing a blank or a placeholder here would invent a
+      // different failure from the real one.
+      if (element.source.field === 'name') return nameFor(product, ar)
+      if (element.source.field === 'spec') return specFor(product, ar)
+      if (element.source.field === 'brand') return brandFor(product)
       return ''
     }
   }

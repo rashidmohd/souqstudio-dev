@@ -53,52 +53,14 @@ export function displaySpec(
 }
 
 /**
- * `packSize` is `Decimal(10,3)`, so it arrives as a string and stays one.
+ * Re-exported, not reimplemented — the same move the barcode helpers below made,
+ * and for the same reason. The render harness composes real catalog rows into
+ * pages and must draw the pack line the product card draws; `apps/web` is not
+ * importable from `packages/`, so the rule lives in `@souqstudio/types`.
  *
- * Trailing zeros are trimmed because the column stores 500 grams as `500.000`
- * and a card reading "500.000 g" looks like a database leaked onto a screen.
- * The value stays a string rather than becoming a number: this is a figure the
- * UI renders, and rounding it through a float to display it would be the one
- * place a 0.001 discrepancy could enter pack maths.
+ * Kept re-exported from here so every existing call site reads the same.
  */
-export function formatPackSize(value: string | null): string | null {
-  if (value === null) return null
-  const trimmed = value.includes('.') ? value.replace(/\.?0+$/, '') : value
-  return trimmed === '' || trimmed === '-' ? null : trimmed
-}
-
-/**
- * Units are lower-cased against the enum rather than shown as `G` and `KG`,
- * which is how a shelf label is written and how the derived unit price of
- * E5 §4 will have to read. `PIECE` has no symbol worth printing, so a count of
- * pieces renders as the count alone.
- */
-const UNIT_LABEL: Record<NonNullable<CatalogProductSummary['packUnit']>, string> = {
-  G: 'g',
-  KG: 'kg',
-  // The millilitre abbreviation, not the `ml-` margin utility the physical-
-  // direction lint rule is looking for. It matches on the string's *value*, so
-  // there is no way to spell this that satisfies it.
-  // eslint-disable-next-line no-restricted-syntax
-  ML: 'ml',
-  L: 'l',
-  PIECE: '',
-}
-
-/** "500 g", "8 × 25 g", "1 kg" — the pack line under a product name. */
-export function packLabel(
-  product: Pick<CatalogProductSummary, 'packSize' | 'packUnit' | 'packCount'>
-): string | null {
-  if (!product.packSize) return null
-
-  const unit = product.packUnit ? UNIT_LABEL[product.packUnit] : ''
-  const size = unit ? `${product.packSize} ${unit}` : product.packSize
-
-  // The multiplication sign, not the letter x. A multipack is 8 × 25 g.
-  return product.packCount && product.packCount > 1
-    ? `${product.packCount} × ${size}`
-    : size
-}
+export { formatPackSize, packLabel, type PackFields } from '@souqstudio/types'
 
 // ─── Barcodes — E5-03 ─────────────────────────────────────────────────────────
 

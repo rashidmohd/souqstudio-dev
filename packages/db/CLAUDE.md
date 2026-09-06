@@ -15,7 +15,9 @@ packages/db/
 │   └── seed.ts                # Reference data: plans, blocks, catalog categories, promo tiers
 ├── scripts/
 │   ├── import-off.ts          # E5 — stream the Open Food Facts export into the universal catalog
-│   └── seed-catalog-demo.ts   # E5 — 99 hand-written demo products, so the screens can be looked at
+│   ├── seed-catalog-demo.ts   # E5 — 99 hand-written demo products, so the screens can be looked at
+│   └── export-harness-products.ts  # Real rows for the engine's render harness. JSON, so the
+│                              #   engine keeps its zero database imports. Prices are invented.
 ├── src/
 │   ├── index.ts               # Re-exports PrismaClient singleton
 │   ├── client.ts              # PrismaClient with RLS middleware
@@ -205,6 +207,14 @@ pnpm catalog:import-off -- --url
 pnpm catalog:seed-demo
 pnpm catalog:seed-demo --images
 pnpm catalog:seed-demo --clear
+
+# Real catalog rows for the engine's render harness — four sets: a page spanning
+# the table, the longest names, the rows with a real nameAr, and the rows with a
+# name and nothing else. Writes gitignored JSON into packages/engine/harness/,
+# because the engine must never import Prisma. Prices and promo tiers in that
+# file are INVENTED — a catalog row has no price. Then run the harness.
+pnpm catalog:harness-export
+pnpm --filter @souqstudio/engine harness
 ```
 
 Never use `db:push` in production. Always use `db:migrate`.

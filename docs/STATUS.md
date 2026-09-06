@@ -3,8 +3,9 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 6 September 2026, after the demo catalog seed and the Open Food Facts
-importer fix. Before that, 5 September, after the composition-model build — the layout engine, the
+Last updated 6 September 2026, after pointing the render harness at real catalog rows —
+which found an Arabic pack label printing backwards and a category-coverage figure four
+times too high. Before that, the demo catalog seed and the Open Food Facts importer fix. Before that, 5 September, after the composition-model build — the layout engine, the
 blocks schema, the reworked brand kit, the first renderer — and after E5-01 and E5-02, the
 catalog search and category browser.
 
@@ -98,9 +99,52 @@ share one implementation, and drift there means the PDF does not match the scree
 | `fit` | the four-rung fit ladder and what each text may suffer |
 | `library` | the four seeded blocks |
 
-**102 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG from
-the same rows the database holds — that is how the model is checked, and it is not a
-renderer anything ships.
+**102 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG —
+that is how the model is checked, and it is not a renderer anything ships. Output lands in
+`packages/engine/harness/out`; open `index.html`.
+
+**Be exact about what it draws.** The *blocks* are the seeded ones — `library.ts` is the
+single source both `pnpm db:seed` and the harness read, so a block drawn here is the block
+in the table. The *products* are the dozen literals in `harness/dummy.ts` **and, since
+6 September, real catalog rows.** `pnpm --filter @souqstudio/db catalog:harness-export`
+writes them to `harness/real-products.json`; the harness draws them if the file is there
+and says at the top of the index when it is not. The engine still has no database import
+and must not gain one — `packages/db` already depends on it, so a read the other way would
+close a cycle and pull Prisma into the PDF worker. JSON on disk is the seam. The file is
+gitignored: it is a snapshot of somebody's dev database, and a checked-in copy would go
+stale and read as a fixture.
+
+**Prices on those pages are invented, and nothing else is.** A catalog row has no price —
+that is what E6 is for — so the exporter derives a stable fake from the row id. Names,
+brands, specs, pack lines and, above all, the *absences* are real. The `WORST_CASE` dummies
+still cover the price mark better, because they carry a three-decimal currency on purpose.
+
+**What real rows found that the dummies could not**, all four of them in the first render:
+
+- **A pack label printed backwards on every Arabic card.** `2 kg` rendered as `kg 2`: the
+  digit is bidi-weak, `kg` is a strong LTR run and the space between them is neutral, so an
+  RTL paragraph reorders them. The app is safe — `ProductCard` puts the pack line through
+  `Figure`, and `[data-figure]` carries exactly this isolation — but **the artboard has no
+  `Figure` and no equivalent**. Fixed in the harness renderer with a first-strong rule
+  (`textDirection` in `harness/svg.ts`). E6's Fabric renderer and E9's SVG export both need
+  the same rule and neither has it. This is the one that would have shipped: a printed
+  Arabic flyer with every pack size reversed, in a language nobody reviewing the English
+  edition reads.
+- **The card is mostly empty, because the catalog is.** 58% of rows have a brand, 33% a
+  spec, 4.2% a pack size, 4.2% an image, 4.2% an Arabic name. The offer card reserves a box
+  per field, so a typical real card is a short name, a grey placeholder and a large void.
+  The block is not wrong; it was designed against twelve products that all have every
+  field. It needs an arrangement for sparse rows — E6/E7's call.
+- **The fit ladder escalates on real names and never did on the dummies.** Four escalations
+  across the longest-names page, zero across every dummy page including `WORST_CASE`. Real
+  names are *shorter* at the median (17 characters against the dummies' 30) and longer at
+  the tail (78), and the tail is what the ladder has to absorb.
+- **Mixed scripts inside one English page compose fine.** Turkish, French and a lone
+  Arabic-only name render correctly in an LTR booklet. That was an open question and the
+  answer is yes.
+
+The pages are `real-typical`, `real-longest`, `real-arabic` and `real-sparse` in
+`harness/out`.
 
 **Schema**, migration `20260905000000`: `blocks`, `block_versions`, `page_grids`,
 `book_pins`, `plans.maxProductsPerBook`. `grids`, `templates` and `template_versions` are
@@ -214,13 +258,25 @@ would have died on its first batch. That is fixed and the write path is now prov
 fixture — create, then re-run to update, no duplicate barcodes. Running it for real still
 writes tens of thousands of rows and takes hours: a decision, not a step.
 
-**The category mapping is done.** `toCatalogCategory` resolves the OFF taxonomy onto the
-ten names `pnpm db:seed` publishes; 93.8% of rows land on a tile, measured over the top 120
-categories. It was built against a tally of 2.39M real rows rather than a guess, which is
-what caught the largest category in the export — `Plant-based foods and beverages`,
-261,377 rows — being filed as a *drink*. `E5-pending.md` §1 has the numbers and the two
-known limits: Fresh Produce is thin because OFF is a barcoded-product database, and only
-the broadest taxonomy level is read.
+**The category mapping is done, and it lands 23.4% — not the 93.8% recorded here until
+6 September.** `toCatalogCategory` resolves the OFF taxonomy onto the ten names
+`pnpm db:seed` publishes, and it was built against a tally of 2.39M real rows rather than a
+guess, which is what caught the largest category in the export — `Plant-based foods and
+beverages`, 261,377 rows — being filed as a *drink*. But 93.8% was measured over the **top
+120 category strings**, which is the well-formed head of a 14,618-value taxonomy and the
+head the rules were written against. Counting the 61,230 rows the GCC filter actually kept
+gives 14,315 with a category: **23.4%**. Worse, four tiles carry 99.3% of them and **two of
+the ten get nothing at all** — Cleaning and Electronics are empty over the whole universal
+catalog.
+
+**Third time this epic that a proxy measured against its own head gave an answer four times
+too good** — after the `594` barcode prefix (off by 3.7x) and `[[:alpha:]]` on Arabic names.
+Counting the real file takes under a second; the expense was assumed, never measured.
+Nothing is broken and no code changed — an unmatched row returns null rather than a wrong
+category, and stays searchable by name, brand and tag. What changes is that category
+browsing cannot be the way into the universal catalog at this coverage. `E5-pending.md` §1
+has the per-tile numbers and the fix: read the deeper `categories_en` levels, not just
+`firstValue`'s broadest one.
 
 What is still missing: XLSX (a dependency decision, not effort), E5-07 phone capture, and
 the camera half of E5-03. The import's match thresholds are unverified against real data.
@@ -469,13 +525,37 @@ blocks on `/brand`. What E6 still owns:
   blocking publish on AR editions.
 
 The risk E6 §10 names — *"if the engine's output looks like a real flyer with no manual
-adjustment, the product works"* — **has been answered, and the answer is yes.** The render
-harness produces booklet pages, a cover with a hero band, merged regions and an Instagram
-carousel with a pinned message, all without a hand-placed element. That was the whole
-gamble and it is off the table.
+adjustment, the product works"* — **has been answered on invented data, and the answer was
+yes.** The harness produces booklet pages, a cover with a hero band, merged regions and an
+Instagram carousel with a pinned message, all without a hand-placed element. What it has
+not been asked is whether that holds for *real* products: the names, brands and pack sizes
+it composes are hardcoded in `harness/dummy.ts` (see §1.2), and the catalog now has 2,140
+rows it has never seen.
 
-**Needs first:** E5, for products to place. **Needs the `pdf` worker** for export, but not
-to start.
+**There is no booklet creation flow, and no partial one.** `app/(dashboard)/editor/[id]/`
+contains a single `.gitkeep`, `EDITOR_BUILT` is `false` so the rail does not offer it, and
+`offer_books` holds zero rows with nothing in the product able to create one. The only
+place a page renders is the harness, from the command above.
+
+**That cheapest next step has been taken — the harness composes real rows now.** See §1.2
+for the four findings and the commands. The short version: a page of real products **does**
+still read as a flyer, so E6 §10's gamble survives contact with the catalog; but the Arabic
+pack label was printing backwards, and the card is largely empty because 67% of rows have
+no spec and 96% have no pack size or image.
+
+**Two of those are now E6's to answer before the editor is worth building:**
+
+- **The artboard needs the `Figure` rule.** Chrome has bidi isolation through
+  `[data-figure]`; Fabric and the SVG export have nothing. `textDirection` in
+  `harness/svg.ts` is the rule, written and commented — it has to be in the real renderers,
+  not only in the throwaway one.
+- **The offer card needs a sparse arrangement.** Reserving a spec box and a pack box on a
+  catalog where a third of rows have a spec and a twenty-fifth have a pack size produces a
+  card that is half whitespace. This is a block-design decision, so it may belong to E7's
+  block designer rather than to the editor.
+
+**Needs first:** nothing else. The editor proper **needs the `pdf` worker** for export, but
+not to start.
 
 Read the canvas rules in `apps/web/CLAUDE.md` before the first line — Fabric holds visual
 state, Zustand holds logical state, and `document.fonts.load()` runs before any Fabric

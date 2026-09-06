@@ -11,30 +11,20 @@
  */
 
 import type { TokenRef, TypeScale } from '@souqstudio/types'
+import type { HarnessProduct, HarnessTier } from './product'
 
-export interface DummyTier {
-  labelEn: string
-  labelAr: string
-  token: TokenRef
-}
+/**
+ * The shape moved to `product.ts` when real catalog rows started feeding the
+ * same renderer — a real row's `nameAr`, `specEn` and `brandEn` are all
+ * routinely null, and the dummies were the only reason the fields could be
+ * required. These aliases keep this file reading as it did.
+ */
+export type DummyTier = HarnessTier
+export type DummyProduct = HarnessProduct
 
-export interface DummyProduct {
-  id: string
-  nameEn: string
-  nameAr: string
-  specEn: string
-  specAr: string
-  brandEn: string
-  major: string
-  minor: string
-  currency: string
-  comparePrice?: string
-  tier: DummyTier
-}
-
-const DEAL: DummyTier = { labelEn: 'Deal', labelAr: 'عرض', token: 'accent' }
-const HALF: DummyTier = { labelEn: 'Half price', labelAr: 'نصف السعر', token: 'primary' }
-const NEW: DummyTier = { labelEn: 'New', labelAr: 'جديد', token: 'secondary' }
+export const DEAL: DummyTier = { labelEn: 'Deal', labelAr: 'عرض', token: 'accent' }
+export const HALF: DummyTier = { labelEn: 'Half price', labelAr: 'نصف السعر', token: 'primary' }
+export const NEW: DummyTier = { labelEn: 'New', labelAr: 'جديد', token: 'secondary' }
 
 export const FRIENDLY: DummyProduct[] = [
   p('Basmati rice', 'أرز بسمتي', '5 kg', '٥ كجم', 'Tilda', '24', '50', 'AED', DEAL, '32.00'),
@@ -118,6 +108,7 @@ function p(
     minor,
     currency,
     tier,
+    origin: 'dummy',
   }
   return comparePrice === undefined ? base : { ...base, comparePrice }
 }

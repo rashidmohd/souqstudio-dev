@@ -1,2 +1,6 @@
 out/
 harness/out/
+
+# A snapshot of whoever ran `catalog:harness-export` against their dev database.
+# Regenerable, and a checked-in copy would go stale and read as a fixture.
+harness/real-products.json
