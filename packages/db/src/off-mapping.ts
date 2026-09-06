@@ -76,10 +76,41 @@ const RELEVANT_COUNTRIES = [
   'turkey',
 ]
 
+/**
+ * **Matched against the list's entries, never against the joined string.**
+ *
+ * The first version lowercased the whole of `countries_en` and asked whether it
+ * contained a relevant country. That reads as the same test and is not:
+ * `"romania".includes("oman")` is **true**, so every Romanian product in the
+ * export entered a GCC catalog. It was found part-way through the first real
+ * run, by which point Romania was the largest single origin in the table at
+ * 12.8% — a bigger share than Saudi Arabia — carrying names like
+ * "Paine Campagne Cu Maia". `Roman Empire` passed too.
+ *
+ * Splitting on the comma keeps the intent the original comment describes — a
+ * product listed for the UAE *and* France is relevant — while making the
+ * comparison exact per entry, so a country name can no longer be admitted by
+ * appearing inside a different one.
+ *
+ * Entries are normalised on both sides: a `xx:` language prefix is stripped and
+ * hyphens are read as spaces, because the export writes both
+ * `United Arab Emirates` and `en:united-arab-emirates`.
+ */
 export function isRelevant(row: OffRow): boolean {
-  const countries = (row.countries_en ?? '').toLowerCase()
-  if (!countries) return false
-  return RELEVANT_COUNTRIES.some((country) => countries.includes(country))
+  const listed = (row.countries_en ?? '')
+    .split(',')
+    .map((entry) =>
+      entry
+        .trim()
+        .replace(/^[a-z]{2}:/, '')
+        .replace(/-/g, ' ')
+        .trim()
+        .toLowerCase()
+    )
+    .filter(Boolean)
+
+  if (listed.length === 0) return false
+  return listed.some((country) => RELEVANT_COUNTRIES.includes(country))
 }
 
 /**
@@ -294,6 +325,12 @@ export function toProduct(row: OffRow): OffProduct | null {
   const nameEn = (row.product_name ?? '').trim()
   if (!nameEn || nameEn.length > 200) return null
   if (JUNK_NAMES.has(nameEn.toLowerCase())) return null
+  // **A name has to contain a letter.** `JUNK_NAMES` catches the placeholders
+  // somebody typed on purpose; this catches what a scanner or a spreadsheet
+  // left behind — a bare barcode (`0012000057502`), a date, a lone full stop.
+  // The first real import wrote 636 of them. They are unfindable by name, and
+  // on a card they print as the garbage they are.
+  if (!/\p{L}/u.test(nameEn)) return null
 
   const offCategory = firstValue(row.categories_en)
 

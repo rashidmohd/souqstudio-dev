@@ -1,4 +1,5 @@
-import { createReadStream } from 'node:fs'
+import { createReadStream, createWriteStream, mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { createGunzip } from 'node:zlib'
 import { createInterface } from 'node:readline'
 import { Readable } from 'node:stream'
@@ -20,7 +21,25 @@ import {
  * pnpm catalog:import-off -- --file off.csv.gz     # or a copy already on disk
  * pnpm catalog:import-off -- --url --limit 5000    # a smoke run
  * pnpm catalog:import-off -- --url --dry-run       # parse and count, write nothing
+ *
+ * # the full catalog to a file, and one row in 30 to the database
+ * pnpm catalog:import-off -- --url --out data/catalog.csv --sample 30
+ *
+ * # the full catalog to a file and nothing to the database at all
+ * pnpm catalog:import-off -- --url --out data/catalog.csv --dry-run
  * ```
+ *
+ * **`--out` and `--sample` exist because the full catalog does not belong in a
+ * development database.** Ninety thousand rows cost real money to host and
+ * prove nothing that nine hundred do not: the screens, the search ranking and
+ * the layout engine are all judged on whether they behave, not on row count.
+ * So the file is the artifact — it is what a production environment loads — and
+ * the database gets a sample of it.
+ *
+ * The sample is taken on every Nth *mapped* row rather than the first N,
+ * because the export is sorted by barcode: the first N is the head of the file,
+ * which is placeholder entries and a single region. Every Nth spreads the
+ * sample across every country, category and brand in the export.
  *
  * **Streamed, never loaded.** The export is 1.28GB gzipped and about 9GB open —
  * far past what fits in memory, and the reason this is a script with a pipeline
@@ -87,6 +106,10 @@ type Options = {
   source: { kind: 'url'; url: string } | { kind: 'file'; path: string }
   limit: number | null
   dryRun: boolean
+  /** Write every mapped row here as CSV. The database is a separate question. */
+  out: string | null
+  /** Write only every Nth mapped row to the database. Null writes all of them. */
+  sample: number | null
 }
 
 function parseArgs(argv: string[]): Options {
@@ -100,11 +123,47 @@ function parseArgs(argv: string[]): Options {
   const limitRaw = value('--limit')
   const limit = limitRaw ? Number(limitRaw) : null
 
+  const sampleRaw = value('--sample')
+  const sample = sampleRaw ? Number(sampleRaw) : null
+
   return {
     source: file ? { kind: 'file', path: file } : { kind: 'url', url: EXPORT_URL },
     limit: limit !== null && Number.isFinite(limit) && limit > 0 ? limit : null,
     dryRun: has('--dry-run'),
+    out: value('--out'),
+    sample: sample !== null && Number.isFinite(sample) && sample > 1 ? Math.floor(sample) : null,
   }
+}
+
+/**
+ * The columns the CSV carries — exactly `OffProduct`, nothing derived.
+ *
+ * `brandId` is absent on purpose. A brand is resolved from `brandEn` by
+ * `brandSlug()` at load time, so the importing environment builds its own
+ * `product_brands` rows rather than depending on ids that mean nothing outside
+ * the database they came from.
+ */
+const CSV_COLUMNS = [
+  'barcode',
+  'nameEn',
+  'nameAr',
+  'brandEn',
+  'specEn',
+  'originEn',
+  'category',
+  'tags',
+] as const
+
+/**
+ * RFC 4180 quoting, applied always rather than conditionally.
+ *
+ * Product names carry commas, quotes and the occasional newline — quoting every
+ * field is two bytes per field more than the minimum and removes the class of
+ * bug where one unusual name shifts every column after it. That failure is
+ * silent: the file parses, and the prices end up under the wrong products.
+ */
+function csvRow(values: string[]): string {
+  return values.map((v) => `"${v.replace(/"/g, '""')}"`).join(',') + '\n'
 }
 
 async function openSource(options: Options): Promise<NodeJS.ReadableStream> {
@@ -274,6 +333,19 @@ async function main() {
     `[off] ${options.dryRun ? 'dry run' : 'writing'}${options.limit ? `, limit ${options.limit}` : ''}`
   )
 
+  // The CSV is opened before the stream so a bad path fails immediately rather
+  // than forty minutes in.
+  let csv: import('node:fs').WriteStream | null = null
+  if (options.out) {
+    mkdirSync(dirname(options.out), { recursive: true })
+    csv = createWriteStream(options.out, { encoding: 'utf8' })
+    csv.write(csvRow([...CSV_COLUMNS]))
+    console.log(`[off] writing every mapped row to ${options.out}`)
+  }
+  if (options.sample) {
+    console.log(`[off] database gets 1 row in ${options.sample}`)
+  }
+
   const source = await openSource(options)
   const stream =
     options.source.kind === 'file' && !options.source.path.endsWith('.gz')
@@ -288,6 +360,7 @@ async function main() {
   let rejected = 0
   let mapped = 0
   let written = 0
+  let written_csv = 0
   let batch: OffProduct[] = []
 
   for await (const line of lines) {
@@ -322,7 +395,32 @@ async function main() {
     }
     mapped += 1
 
-    if (!options.dryRun) {
+    // Every mapped row reaches the CSV, whatever the database is being told.
+    // That is the point of the split: the full catalog is a file, and the dev
+    // database holds a sample of it.
+    if (csv) {
+      written_csv += 1
+      csv.write(
+        csvRow([
+          product.barcode,
+          product.nameEn,
+          product.nameAr ?? '',
+          product.brandEn ?? '',
+          product.specEn ?? '',
+          product.originEn ?? '',
+          product.category ?? '',
+          product.tags.join('|'),
+        ])
+      )
+    }
+
+    // `mapped` rather than a separate counter, so the sample is spread evenly
+    // across the whole export instead of clustering wherever writes happen to
+    // land. Taking the first N would take the head of a barcode-sorted file,
+    // which is placeholders and one region.
+    const sampled = !options.sample || mapped % options.sample === 0
+
+    if (!options.dryRun && sampled) {
       batch.push(product)
       if (batch.length >= BATCH_SIZE) {
         written += await writeBatch(batch)
@@ -335,6 +433,13 @@ async function main() {
   }
 
   if (!options.dryRun) written += await writeBatch(batch)
+
+  if (csv) {
+    await new Promise<void>((resolve, reject) => {
+      csv.end((error?: Error | null) => (error ? reject(error) : resolve()))
+    })
+    console.log(`[off] ${written_csv} rows written to ${options.out}`)
+  }
 
   console.log(
     [

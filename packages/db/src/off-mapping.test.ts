@@ -49,6 +49,30 @@ describe('isRelevant', () => {
   it('ignores case, because the export is not consistent about it', () => {
     expect(isRelevant({ countries_en: 'UNITED ARAB EMIRATES' })).toBe(true)
   })
+
+  /**
+   * The country name has to match a whole entry in the list, not appear
+   * anywhere inside the joined string.
+   *
+   * Found in the first real import run: `"romania".includes("oman")` is true,
+   * so every Romanian product in the export entered the GCC catalog. By the
+   * time it was spotted Romania was the largest single origin in the table at
+   * 12.8%, ahead of Saudi Arabia, carrying names like "Paine Campagne Cu Maia".
+   * Nothing errored — the rows looked exactly like every other row.
+   */
+  it('does not admit a country because its name contains another', () => {
+    expect(isRelevant({ countries_en: 'Romania' })).toBe(false)
+    expect(isRelevant({ countries_en: 'Romania,Hungary' })).toBe(false)
+    expect(isRelevant({ countries_en: 'Roman Empire' })).toBe(false)
+    // The ones that would break if the split were too aggressive instead.
+    expect(isRelevant({ countries_en: 'Oman' })).toBe(true)
+    expect(isRelevant({ countries_en: 'France,Oman' })).toBe(true)
+  })
+
+  it('reads both spellings the export uses for a country', () => {
+    expect(isRelevant({ countries_en: 'United Arab Emirates' })).toBe(true)
+    expect(isRelevant({ countries_en: 'en:united-arab-emirates' })).toBe(true)
+  })
 })
 
 describe('firstValue', () => {
@@ -130,6 +154,19 @@ describe('toProduct', () => {
     expect(toProduct({ ...base, product_name: 'Unknown' })).toBeNull()
     expect(toProduct({ ...base, product_name: 'n/a' })).toBeNull()
     expect(toProduct({ ...base, product_name: '-' })).toBeNull()
+  })
+
+  it('rejects a name with no letter in it', () => {
+    // What a scanner or a spreadsheet leaves behind rather than what somebody
+    // typed. The first real import wrote 636 of these — bare barcodes, dates
+    // and a lone full stop — all unfindable by name and unprintable on a card.
+    expect(toProduct({ ...base, product_name: '0012000057502' })).toBeNull()
+    expect(toProduct({ ...base, product_name: '.' })).toBeNull()
+    expect(toProduct({ ...base, product_name: '01/04/2025' })).toBeNull()
+    // Digits alongside letters are ordinary in a product name.
+    expect(toProduct({ ...base, product_name: 'Nutella 400g' })?.nameEn).toBe('Nutella 400g')
+    // And a non-Latin name is a name.
+    expect(toProduct({ ...base, product_name: 'حليب طازج' })?.nameEn).toBe('حليب طازج')
   })
 
   it('rejects an absurdly long name rather than truncating it', () => {

@@ -19,7 +19,7 @@ most of what E7 was scoped to do. In one sentence: *a brand kit is identity, a b
 designed building block, a page is a spreadsheet of regions filled with blocks, and
 products flow through it.*
 
-**One line to remember before picking anything up: the real catalog is still empty.**
+**One line to remember before picking anything up: the catalog is filled, and the offer books are not.**
 `offer_books` holds zero rows, and `catalog_products` holds only the 99 demo rows
 `catalog:seed-demo` writes — enough to look at a screen, not a catalog. The *browser* over
 it exists — E5-01 search and E5-02 category browsing are built — so the screen is there
@@ -173,10 +173,22 @@ struck as unfillable.
 These are cross-cutting. Each one stops or degrades work in epics that have not started
 yet, so it is cheaper to clear the relevant one first than to work around it.
 
-### The catalog has demo rows; the real one is still empty — blocks everything downstream
+### The catalog is filled — this no longer blocks everything downstream
 
-`offer_books` holds **zero rows**, and `catalog_products` holds **99 demo products and
-nothing else**. `pnpm --filter @souqstudio/db catalog:seed-demo` writes them and
+`offer_books` still holds **zero rows**, but `catalog_products` now holds **2,140** — 2,041
+real products sampled from the Open Food Facts run plus the 99 demo rows — against 970
+brands. **The full 61,230-product catalog lives in `packages/db/data/catalog-off.csv`**,
+deliberately not in the database: ninety thousand rows cost real money to host in dev and
+prove nothing that two thousand do not. The file is what a production environment loads.
+
+**The first run was wrong in a way no test caught**, and both defects are worth knowing
+before trusting any earlier figure in this file. `isRelevant` substring-matched the joined
+country list, so `"romania".includes("oman")` admitted every Romanian product — ~29,000
+rows, a third of the catalog. And a product name was accepted with no letter in it, giving
+636 products called things like `0012000057502`. Both are fixed with regression tests, and
+the numbers above are from the corrected run. `E5-pending.md` §1 has the detail.
+
+Historic note, kept because it shaped everything above: `pnpm --filter @souqstudio/db catalog:seed-demo` writes them and
 `--clear` takes them out again; they exist so the screens and the engine can be *looked
 at*, not as a catalog. The layout engine, the block library, the price mark, the fit
 ladder and the first renderer are all built and were tested only against products
@@ -405,7 +417,8 @@ rather than to full-text search, a search or scan that finds nothing offers to a
 product, and `/catalog/import` takes a CSV through mapping, matching and review.
 `CATALOG_BUILT` is flipped and the rail carries the item again.
 
-**The seed is ready to run, and nothing structural is left in front of it.** The write path
+**The seed has been run.** 4,535,569 rows read, 61,230 products mapped, 2,041 sampled into
+dev. What follows was written before that run and is kept for the reasoning: The write path
 that would have killed any real run is fixed and proven on a fixture, the categories resolve
 onto the ten at 93.8%, brands resolve into `product_brands` three queries per batch, and the
 stream turns out to be far quicker than recorded — 2.39M rows in eight minutes, so the full

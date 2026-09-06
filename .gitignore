@@ -43,3 +43,6 @@ coverage/
 # Playwright
 test-results/
 playwright-report/
+
+# Bulk catalog exports. Large, regenerable, and not source.
+data/

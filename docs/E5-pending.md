@@ -286,7 +286,46 @@ name, attach a logo or promote a brand to canonical. That is E13 / E5-08, and it
 admin auth path against `admin_users` first. Until it exists, unreviewed brands accumulate
 and nothing curates them — which is survivable, because they are usable regardless.
 
-### The Open Food Facts seed — written, and not yet run
+### The Open Food Facts seed — run, and what the first run cost
+
+**It has been run.** 4,535,569 rows read, 61,230 products written to
+`packages/db/data/catalog-off.csv`, 2,041 of them sampled into the dev database. Two
+defects were found by running it, both of which had been invisible to every test.
+
+**`isRelevant` admitted every Romanian product in the export, and that was a third of the
+catalog.** `"romania".includes("oman")` is true, and the filter substring-matched the whole
+joined `countries_en` string rather than its entries. The first run wrote 91,142 products;
+the fixed run writes 61,230 from the same file — **~29,000 rows, 33% of the catalog, were
+never GCC-relevant.** Nothing errored and the rows looked ordinary: correct barcodes, real
+names, resolved brands, names like "Paine Campagne Cu Maia".
+
+Worth keeping: **the barcode-prefix estimate was wrong by 3.7x.** Counting prefix `594`
+gave 8,072 and was reported as a floor; the true figure was ~29,000, because Romanian
+products also carry in-store and other prefixes. A proxy measured against the thing it is
+proxying for is the only way that gap shows up — the real number came from re-running with
+the fix and comparing totals, not from the prefix count.
+
+**A name has to contain a letter.** `JUNK_NAMES` catches the placeholders somebody typed —
+`unknown`, `n/a`. It does not catch what a scanner leaves behind, and the first run wrote
+636 products named things like `0012000057502`, `01/04/2025` and `.`. The rule is
+`/\p{L}/u` rather than an ASCII class **because an ASCII class deletes every Arabic
+name** — a check written with `[[:alpha:]]` reported 1,951 bad names in the clean export
+and every one of them was Arabic.
+
+**The full catalog does not live in the dev database.** Ninety thousand rows cost real
+money to host and prove nothing that two thousand do not. `--out <path>` writes every
+mapped row to CSV; `--sample N` writes one row in N to the database. One pass produces
+both: the file is the artifact a production environment loads, and dev holds a sample of
+it. The sample is every Nth *mapped* row rather than the first N, because the export is
+sorted by barcode and the first N is the head of the file — placeholders and one region.
+
+The CSV carries exactly the mapped fields and **no `brandId`**: a brand is resolved from
+`brandEn` through `brandSlug()` at load time, so the importing environment builds its own
+`product_brands` rows rather than depending on ids that mean nothing outside the database
+they came from. The 92 curated canonical brands travel separately, through `pnpm db:seed`.
+
+**Not built: a reader for that CSV.** The exporter exists; loading our own format back into
+a database does not. Production needs it.
 
 `pnpm --filter @souqstudio/db catalog:import-off` streams the 1.28GB gzipped export,
 filters for GCC relevance, and writes into the universal collection. The mapping is pure
