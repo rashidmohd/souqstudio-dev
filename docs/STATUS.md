@@ -273,8 +273,9 @@ would reach for to check a migration against the history.
 
 ### Three worker handlers throw — blocks E6, E8, E9
 
-`apps/worker/src/workers/` has five workers. `email` and `bg` are implemented. **`pdf`,
-`ai` and `enrich` are `throw new Error('Not yet implemented')`.**
+`apps/worker/src/workers/` has five workers. `email` and `bg` are implemented — `bg` now
+for logos *and* catalog cutouts. **`pdf`, `ai` and `enrich` are
+`throw new Error('Not yet implemented')`.**
 
 - `pdf` blocks E9 export and the E6 editor's export path.
 - `ai` blocks E8 entirely, and is where credits are actually spent — `consumeCredits()`
@@ -286,13 +287,13 @@ would reach for to check a migration against the history.
   worker lands the shared catalog is English-only and cannot back an Arabic offer book.
   A shop's own products are unaffected: E5-04 and E5-06 both take `nameAr` from the owner.
 
-`bg` is implemented for logos only. E5 §3 makes background removal an ingest stage for
-catalog images too — the payload fields are on `BgRemovePayload`, the handler branch that
-writes `image_assets` CUTOUT rows is not. **E5-04 now enqueues those jobs**, so the branch
-has real work waiting for it: the job runs, produces a cutout at its own `-cutout.png` key
-and writes no row, and the card falls back to the ORIGINAL with `imageIsFallback` set. What
-the branch owes is the row, not the image. Note that `handleBgRemove` overwrites
-`targetPath` blind — never hand it the original's key.
+**`bg` is now implemented for both.** The catalog branch of E5 §3 is written: a job
+carrying `catalogProductId` and `sourceAssetId` produces a cutout, measures it, and writes
+an `image_assets` CUTOUT row with `bboxTight` and a `quality` score, `APPROVED` above the
+threshold and `PENDING` below it. `quality` is *derived* from the alpha channel — Rembg
+reports no confidence — and `apps/worker/src/lib/matte.ts` carries the reasoning and 11
+tests. Unverified against a real image: the analysis is tested on hand-built alpha
+canvases, and no photo has been through Rembg.
 
 Guidance is in `souqstudio-technical → references/background-jobs.md` and
 `apps/worker/CLAUDE.md`. The rule that matters: **credits are deducted on completion,

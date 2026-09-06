@@ -148,9 +148,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   was struck as unfillable: `empty-catalog-search` is a *zero-results* state, and the
   system permits an illustration only on `empty`. See
   `.claude/skills/souqstudio-design/references/illustration-manifest.md`.
-- **Worker handlers** — `email` and `bg` are implemented. `pdf`, `ai` and `enrich`
-  are still stubs that throw. `bg` handles logos only; the catalog cutout branch that
-  E5 §3 makes an ingest stage is unwritten, though `BgRemovePayload` carries its fields.
+- **Worker handlers** — `email` and `bg` are implemented, `bg` now for both logos and
+  catalog cutouts. `pdf`, `ai` and `enrich` are still stubs that throw. **`enrich` is the
+  one that now bites**: the Open Food Facts export has no Arabic column, so every seeded
+  universal product has a null `nameAr`, and E5 §2 makes that a publish-time blocker for
+  Arabic editions. Until `enrich` lands the shared catalog is English-only.
 - **Brand kit fonts are pickable but not self-hosted.** `/brand` now has a picker:
   `lib/brand-fonts.ts` carries the curated catalog — ten OFL families, every one
   covering Arabic and Latin, filtered per slot — and `TypographyFields` writes

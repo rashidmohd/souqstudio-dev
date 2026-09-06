@@ -245,15 +245,25 @@ yet and adding one is a decision worth making deliberately rather than in passin
 phone this is the difference between scanning a shelf and typing thirteen digits per
 product, so it is not a cosmetic gap.
 
-### The cutout half of E5-04
+### The cutout half of E5-04 — built
 
-The product, its ORIGINAL image asset, the contribution row and the queued job all work.
-**The `bg` worker's catalog branch does not exist**, so no `image_assets` CUTOUT row is
-ever written: `BgRemovePayload` carries `catalogProductId` and `sourceAssetId`, and the
-handler ignores both. Today the job runs, produces a cutout at the right key and writes no
-row, so the card falls back to the ORIGINAL with `imageIsFallback` set — which is a
-degraded product rather than a broken one, and is the whole reason that flag exists. What
-the branch has to add is the row, not the image.
+The `bg` worker's catalog branch exists: cutout produced, measured, stored at its own key,
+and an `image_assets` CUTOUT row written with `bboxTight` and a `quality` score.
+
+**`quality` is derived, because Rembg reports none.** `apps/worker/src/lib/matte.ts` walks
+the alpha channel once and catches the three failures that actually reach a printed page —
+a matte that removed everything, one that removed nothing, and one with a wide soft halo.
+It cannot catch a clean-edged cutout of the wrong thing; that is what E5-05's queue is for,
+and the module says so.
+
+The score decays asymptotically rather than clamping to zero. A test caught why that
+matters: a linear score gave every badly haloed matte the same 0, and a review queue of
+identical zeroes cannot be worked worst-first.
+
+**Not verified against a real image.** The analysis is tested on hand-built alpha canvases
+where the expected answer is stated exactly; no photograph has been through Rembg, so the
+threshold is calibrated against geometry rather than against packshots. Expect to move it
+once real mattes exist.
 
 ### E5-05 contribution queue · E5-08 catalog admin
 

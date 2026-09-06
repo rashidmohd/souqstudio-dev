@@ -28,6 +28,7 @@ apps/worker/
 │   │   ├── env.ts            # Zod-validated env vars
 │   │   ├── redis.ts          # Upstash Redis connection
 │   │   ├── playwright.ts     # Warm browser pool (generic-pool)
+│   │   ├── matte.ts          # E5 §3 — cutout bbox + quality from the alpha channel. Pure, tested.
 │   │   └── r2.ts             # Cloudflare R2 client
 │   ├── workers/
 │   │   ├── pdf.worker.ts     # PDF generation (Playwright)
@@ -54,7 +55,8 @@ apps/worker/
 | `ai` | `ai.character` | `{ shopId, uniformImageUrl, nationality, gender, style }` |
 | `ai` | `ai.pose` | `{ characterId, poseType }` |
 | `ai` | `ai.cover` | `{ shopId, offerBookId, campaignType }` |
-| `bg` | `bg.remove` | `{ imageUrl, targetPath }` |
+| `bg` | `bg.remove` | `{ imageUrl, targetPath, shopId? \| organizationId? }` — logo |
+| `bg` | `bg.remove` | `{ imageUrl, targetPath, catalogProductId, sourceAssetId }` — catalog cutout |
 | `email` | `email.send` | `{ template, to, props }` |
 | `enrich` | `catalog.enrich` | `{ catalogProductId }` |
 
@@ -116,6 +118,34 @@ apps/worker/
 - Writes results to `product_synonyms` and updates `catalog_products.tags`
 - Retries failed enrichments up to 3 times, then flags for manual review
 - Never blocks the main queue — runs on a separate low-priority worker
+
+---
+
+## Background removal rules
+
+Two branches in one handler, told apart by the payload: `catalogProductId` plus
+`sourceAssetId` is a product cutout, anything else is a logo.
+
+- **A logo is trimmed; a product cutout is not.** A logo composites, so its transparent
+  margin is waste. A cutout is placed by the layout engine at optical weight, which needs
+  to know where the content sits inside the frame — trimming throws that away.
+- **Never write a cutout to its source key.** The handler refuses it outright. Doing so
+  leaves the `image_assets` ORIGINAL row pointing at a cutout, with nothing to re-run a
+  bad matte against. `cutoutKey()` on the web side derives a distinct `-cutout.png`.
+- **Never resize a cutout.** `bboxTight` is recorded in its own pixels and a resize
+  invalidates it silently.
+- **A low matte score is not a job failure.** The row is written `PENDING`, the card falls
+  back to the ORIGINAL with a visible flag, and a human decides. Throwing would retry into
+  the same result three times.
+- **An unavailable Rembg writes no row at all** — which is already the correct state,
+  because no cutout means the fallback. Unlike the logo branch there is no status to undo.
+
+---
+
+## Tests
+
+`pnpm --filter @souqstudio/worker test`. Covers the pure modules — the matte analysis
+today. Handlers talk to Rembg, R2 and Postgres and are checked by running them.
 
 ---
 

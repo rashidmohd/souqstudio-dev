@@ -32,7 +32,21 @@ cutout** carries `catalogProductId` and `sourceAssetId`, and the worker writes a
 `bboxTight` is the trimmed content box, and the layout engine needs it: cards are scaled to
 optical weight, so a cutout with 30% transparent padding renders visibly smaller than its
 neighbours without it. A `quality` below the review threshold leaves `reviewState` at
-`PENDING` and keeps the cutout off a printed page. **Only the logo branch is implemented.**
+`PENDING` and keeps the cutout off a printed page. **Both branches are now implemented.**
+
+Three things about the catalog branch worth knowing before changing it:
+
+- **`quality` is derived, not reported.** Rembg returns a PNG and no confidence at all, so
+  the score is computed from the alpha channel in `src/lib/matte.ts`: it catches a matte
+  that removed everything, one that removed nothing, and one with a wide soft halo. It
+  cannot catch a clean-edged cutout of the wrong thing — only the E5-05 review queue does.
+- **The score decays asymptotically rather than clamping to zero**, so badly haloed mattes
+  still sort against each other and a reviewer can work worst-first. A linear score gave
+  every bad matte the same 0.
+- **The canvas is never trimmed and never resized.** `bboxTight` is recorded in the
+  cutout's own pixels, so any resize silently invalidates it. The handler also refuses a
+  job whose `targetPath` equals its source key — writing a cutout over its own original
+  leaves the ORIGINAL row pointing at a cutout with nothing left to re-run against.
 
 AI concurrency is deliberately low. These call external image models with their own rate
 limits, and each job holds memory for the duration.
