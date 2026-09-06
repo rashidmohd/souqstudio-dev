@@ -113,8 +113,13 @@ export function Dialog({
        * a gap instead — see the note in component-inventory.md.
        */
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-        <div className="flex shrink-0 flex-col gap-1">
+      {/* **The inline padding is on each part, not on this container**, so the
+          scroll area below can run the full width of the dialog. Padding here
+          instead would end the scroll box 24px in from the edge and put the
+          scrollbar hard against the fields, with the gap on the wrong side of
+          it — and a focus ring on an input would clip against the same edge. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 py-6">
+        <div className="flex shrink-0 flex-col gap-1 px-6">
           <h2 id={titleId} className="font-display text-heading text-primary">
             {title}
           </h2>
@@ -129,7 +134,7 @@ export function Dialog({
             between the header and the buttons would double the gap on every
             confirm dialog, which is most of them. */}
         {children ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6">{children}</div>
         ) : null}
 
         {/* Primary sits at the inline end. Logical, not right — this ships in
