@@ -609,6 +609,7 @@ type DialogProps = {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
+  size?: 'default' | 'lg'          // confirm width / form width
   primaryAction: { label: string; onClick: () => void; destructive?: boolean }
   secondaryAction?: { label: string; onClick: () => void }
 }
@@ -624,6 +625,21 @@ Built on the native `<dialog>` element with `showModal()`, so focus containment,
 background inerting and Escape come from the platform rather than a
 reimplementation. `primaryAction` also accepts `loading`, added when E1-03 needed
 a confirm that waits on the server; the inventory signature is otherwise unchanged.
+
+**`size` is confirm-width or form-width, and nothing in between.** `default` is the
+one-question-two-buttons dialog the component was built for. `lg` exists because
+E5-04's "add a product" is a genuine ten-field form, and at confirm width it stacked
+into a column taller than the viewport. A dialog that would need a third width is a
+screen, not a dialog — that is the judgement the two-value union is there to force.
+
+**The body scrolls; the header and the buttons do not.** The UA stylesheet caps a
+dialog to the viewport and sets `overflow: auto`, so a long form always stayed on
+screen — but the whole element scrolled, so the title and the way out both left with
+it. The children now sit in their own scroll area. Two details worth not undoing: the
+wrapper renders only when there are children, because an empty one doubles the gap on
+every confirm dialog, and the flex display is applied through `open:` because the UA
+hides a closed dialog with `display: none` and an unconditional `flex` would show
+every mounted one.
 
 **Open gap — no scrim token.** `::backdrop` is left unstyled, so the browser
 default stands. The system defines no overlay colour: the only dark surface is

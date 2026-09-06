@@ -402,6 +402,9 @@ export function CatalogBrowser({
         onOpenChange={setAdding}
         title="Add a product"
         description="It goes into your own catalog straight away."
+        // The one dialog in the product carrying a real form. At confirm width
+        // its ten fields stack into a column taller than the screen.
+        size="lg"
         // The form owns its own submit button, so the dialog's primary is the
         // way out. Two submit buttons for one form is the thing the Dialog
         // signature's single `primaryAction` exists to prevent, and the form

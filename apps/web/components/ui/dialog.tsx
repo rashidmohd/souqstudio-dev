@@ -25,6 +25,16 @@ type DialogProps = {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string | undefined
+  /**
+   * `default` is confirm width — one question and two buttons, which is what a
+   * dialog is mostly for. `lg` is for the few that carry a *form*: at confirm
+   * width a ten-field form becomes a narrow column taller than the viewport,
+   * which is the shape E5-04's "add a product" had.
+   *
+   * Deliberately two values and not a free width. A dialog wide enough to need
+   * a third is a screen.
+   */
+  size?: 'default' | 'lg' | undefined
   primaryAction: { label: string; onClick: () => void; destructive?: boolean; loading?: boolean }
   secondaryAction?: { label: string; onClick: () => void } | undefined
   children?: React.ReactNode
@@ -35,6 +45,7 @@ export function Dialog({
   onOpenChange,
   title,
   description,
+  size = 'default',
   primaryAction,
   secondaryAction,
   children,
@@ -72,10 +83,21 @@ export function Dialog({
         if (event.target === ref.current) onOpenChange(false)
       }}
       className={cn(
-        'w-full max-w-md rounded-card border-hairline border-border-subtle bg-surface p-0',
+        'w-full rounded-card border-hairline border-border-subtle bg-surface p-0',
         'text-primary',
+        size === 'lg' ? 'max-w-2xl' : 'max-w-md',
         // The default UA centring relies on margin auto; keep it explicit.
-        'm-auto'
+        'm-auto',
+        // **The body scrolls, not the dialog.** The UA stylesheet already caps a
+        // dialog's height to the viewport and sets `overflow: auto`, so a tall
+        // form did stay on screen — but the whole element scrolled, taking the
+        // title and the buttons with it. An owner filling in a long form lost
+        // both the heading telling them what they were doing and the way out.
+        //
+        // `open:flex` rather than `flex`, because the UA hides a dialog with
+        // `display: none` until it has the `open` attribute; an unconditional
+        // display would make every mounted dialog visible.
+        'overflow-hidden open:flex open:flex-col'
       )}
       /*
        * `::backdrop` is deliberately left unstyled. The design system has no
@@ -91,8 +113,8 @@ export function Dialog({
        * a gap instead — see the note in component-inventory.md.
        */
     >
-      <div className="flex flex-col gap-4 p-6">
-        <div className="flex flex-col gap-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+        <div className="flex shrink-0 flex-col gap-1">
           <h2 id={titleId} className="font-display text-heading text-primary">
             {title}
           </h2>
@@ -103,11 +125,16 @@ export function Dialog({
           ) : null}
         </div>
 
-        {children}
+        {/* Wrapped only when there is something to wrap: an empty scroll box
+            between the header and the buttons would double the gap on every
+            confirm dialog, which is most of them. */}
+        {children ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        ) : null}
 
         {/* Primary sits at the inline end. Logical, not right — this ships in
             Arabic and the order has to mirror with the text direction. */}
-        <div className="flex justify-end gap-2">
+        <div className="flex shrink-0 justify-end gap-2">
           {secondaryAction ? (
             <Button type="button" variant="ghost" onClick={secondaryAction.onClick}>
               {secondaryAction.label}
