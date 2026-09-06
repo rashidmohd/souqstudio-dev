@@ -405,7 +405,22 @@ export function AddProductForm({
         <span className="text-critical-fg">*</span> Required
       </p>
 
-      <div className="flex items-center gap-2">
+      <p className="font-ui text-body-sm text-muted">
+        This product is yours to use straight away. We also send it for review, and if it
+        is approved every shop gets it.
+      </p>
+
+      {/* **Stuck to the bottom of the scroll area rather than moved into the
+          dialog's own footer.** The submit has to stay inside the `<form>` —
+          it is what makes Enter submit and what carries `loading` while the
+          server is working, and only this component knows either. Sticky keeps
+          it visible over a form taller than the dialog without handing the
+          buttons to a parent that cannot answer for them.
+
+          The negative inline margins let the background span the scroll area's
+          full width, so the fields pass under it rather than beside it; `-mb-4`
+          closes the gap the form's own `gap-4` would otherwise leave below. */}
+      <div className="sticky bottom-0 -mx-6 -mb-4 flex items-center gap-2 border-t-hairline border-border-subtle bg-surface px-6 py-4">
         <Button type="submit" variant="primary" loading={submitting}>
           Add product
         </Button>
@@ -413,11 +428,6 @@ export function AddProductForm({
           Cancel
         </Button>
       </div>
-
-      <p className="font-ui text-body-sm text-muted">
-        This product is yours to use straight away. We also send it for review, and if it
-        is approved every shop gets it.
-      </p>
     </form>
   )
 }

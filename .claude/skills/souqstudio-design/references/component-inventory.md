@@ -610,7 +610,7 @@ type DialogProps = {
   title: string
   description?: string
   size?: 'default' | 'lg'          // confirm width / form width
-  primaryAction: { label: string; onClick: () => void; destructive?: boolean }
+  primaryAction?: { label: string; onClick: () => void; destructive?: boolean }
   secondaryAction?: { label: string; onClick: () => void }
 }
 ```
@@ -625,6 +625,15 @@ Built on the native `<dialog>` element with `showModal()`, so focus containment,
 background inerting and Escape come from the platform rather than a
 reimplementation. `primaryAction` also accepts `loading`, added when E1-03 needed
 a confirm that waits on the server; the inventory signature is otherwise unchanged.
+
+**A close control sits in the header, and `primaryAction` is optional.** A confirm
+dialog's primary *is* the decision, so it belongs to the dialog. A form's submit does
+not: only the form knows whether it validates and whether it is mid-submit. E5-04's
+"add a product" showed what happens when the dialog is handed one anyway — a blue
+"Close" underneath the real blue "Add product", two primaries in one region, and the
+dismiss dressed as an answer. Omitting `primaryAction` now renders no action row at all,
+and the header's close button is the way out. A form dialog keeps its own buttons and
+sticks them to the bottom of the scroll area, which is what `AddProductForm` does.
 
 **`size` is confirm-width or form-width, and nothing in between.** `default` is the
 one-question-two-buttons dialog the component was built for. `lg` exists because

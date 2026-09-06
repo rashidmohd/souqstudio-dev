@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { SEED_BLOCKS } from '@souqstudio/engine'
 import { DEFAULT_PROMO_TIERS } from '../src/promo-tiers'
 import { PrismaClient } from '@prisma/client'
+import { CATALOG_CATEGORIES } from '../src/catalog-categories'
 
 /**
  * Reference data every environment needs: the five grids of E4-03 and the five
@@ -203,23 +204,9 @@ async function seedBlocks() {
  *
  * Ids are hand-written so a re-run upserts rather than inserting duplicates.
  */
-const CATALOG_CATEGORIES: Array<{
-  id: string
-  name: string
-  nameAr: string
-  displayOrder: number
-}> = [
-  { id: 'cat_grocery',       name: 'Grocery',       nameAr: 'بقالة',            displayOrder: 1 },
-  { id: 'cat_beverages',     name: 'Beverages',     nameAr: 'مشروبات',          displayOrder: 2 },
-  { id: 'cat_snacks',        name: 'Snacks',        nameAr: 'وجبات خفيفة',      displayOrder: 3 },
-  { id: 'cat_dairy',         name: 'Dairy',         nameAr: 'ألبان',            displayOrder: 4 },
-  { id: 'cat_bakery',        name: 'Bakery',        nameAr: 'مخبوزات',          displayOrder: 5 },
-  { id: 'cat_cleaning',      name: 'Cleaning',      nameAr: 'منظفات',           displayOrder: 6 },
-  { id: 'cat_personal_care', name: 'Personal Care', nameAr: 'العناية الشخصية',  displayOrder: 7 },
-  { id: 'cat_electronics',   name: 'Electronics',   nameAr: 'إلكترونيات',       displayOrder: 8 },
-  { id: 'cat_fresh_produce', name: 'Fresh Produce', nameAr: 'خضار وفواكه',      displayOrder: 9 },
-  { id: 'cat_frozen_foods',  name: 'Frozen Foods',  nameAr: 'أطعمة مجمدة',      displayOrder: 10 },
-]
+// The ten live in src/catalog-categories.ts — seed.ts publishes them, the demo
+// seed assigns them and the Open Food Facts mapping resolves onto them, and the
+// string is the join key, so there is one copy rather than three.
 
 async function seedCatalogCategories() {
   for (const category of CATALOG_CATEGORIES) {

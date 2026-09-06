@@ -1,4 +1,5 @@
 import { hasValidCheckDigit, normalizeBarcode } from '@souqstudio/types'
+import { CATEGORY, type CategoryName } from './catalog-categories'
 
 /**
  * Turning an Open Food Facts row into a universal catalog product. E5-06's
@@ -130,6 +131,140 @@ export function allValues(raw: string | undefined, limit: number): string[] {
 }
 
 /**
+ * The Open Food Facts taxonomy, resolved onto the ten categories the app browses.
+ *
+ * **Without this the seed fills the table and leaves the category browser
+ * empty.** `categories_en` carries OFF's own taxonomy — `Spreads`, `Dairies`,
+ * `Plant-based foods and beverages` — while `listCategories` counts with
+ * `p.category = c.name` against the ten rows `pnpm db:seed` publishes. Nothing
+ * errors on a mismatch: E5-02's tiles simply all read "nothing here yet" over a
+ * catalog of tens of thousands of products, which reads as a broken screen
+ * rather than as a missing mapping.
+ *
+ * **Keyword rules, not an exact-string table.** OFF has thousands of category
+ * strings and contributors add more; a lookup keyed on the whole string would
+ * match the handful someone thought to write down and drop the rest silently.
+ * Matching on words inside the string degrades instead: an unrecognised
+ * category returns null rather than a wrong answer.
+ *
+ * **First match wins, so the order is the specification.** The collisions it
+ * exists to resolve, each of which a naive alphabetical or per-category pass
+ * gets wrong:
+ *
+ * - **Frozen beats the food it is made of.** A frozen pizza belongs in Frozen
+ *   Foods, not Bakery — that is the aisle a shop actually stocks it in, and the
+ *   same is true of ice cream against Dairy.
+ * - **Non-food runs before food.** `Cleaning` and `Personal Care` carry
+ *   distinctive words and almost no rows in a food export, but putting them
+ *   after the food rules lets a broad pantry keyword swallow them.
+ * - **Snacks beats Dairy, because of `milk`.** "Milk chocolate" is a chocolate
+ *   bar. Ordering Dairy first files every chocolate bar in the export under
+ *   Dairy, which is the single biggest miscategorisation available here.
+ * - **Beverages beats Fresh Produce, because of `fruit`.** "Fruit juices" is a
+ *   drink; the produce rule would otherwise claim it.
+ * - **Grocery is last and deliberately broad.** It is the pantry catch-all, so
+ *   it must not be allowed to answer before the specific aisles have.
+ */
+/**
+ * Whole-string answers for the categories the keyword rules get wrong.
+ *
+ * **Measured, not imagined.** Tallied over 2.39 million rows of the real export
+ * — the counts below are from that pass — because the keyword rules were
+ * written against a guess at OFF's vocabulary and the guess was wrong in two
+ * places that matter more than everything else combined:
+ *
+ * - **`Plant-based foods and beverages` is the single largest category in the
+ *   export** (261,377 rows, more than the next two together) and the keyword
+ *   rules filed it under Beverages, because it contains the word. It is OFF's
+ *   umbrella for plant foods generally — grains, pulses, fruit, nuts — and
+ *   almost none of it is a drink. Left alone it would have made Beverages the
+ *   largest tile in the catalog and filled it with rice and lentils.
+ * - **`Non food products` (399) was caught by Grocery's `food`.** A negation
+ *   read as its opposite, which is the one failure a substring match cannot see.
+ *
+ * An exact match is checked before the keywords and **is allowed to answer
+ * null**, which is how a row is kept out of a category rather than falling
+ * through to a rule that would claim it.
+ */
+const CATEGORY_OVERRIDES = new Map<string, CategoryName | null>([
+  ['plant-based foods and beverages', CATEGORY.GROCERY],
+  ['non food products', null],
+  ['non-food-products', null],
+  // Present in volume and genuinely outside the ten. Null rather than a wrong
+  // shelf: supplements and medicine are not a grocery aisle.
+  ['dietary supplements', null],
+  ['supplements', null],
+  ['medicine', null],
+  // OFF's own placeholders. They are categories in the column and nothing in
+  // the world.
+  ['undefined', null],
+  ['null', null],
+])
+
+const CATEGORY_RULES: Array<{ category: CategoryName; keywords: string[] }> = [
+  // Frozen first — it beats whatever the food itself is.
+  { category: CATEGORY.FROZEN_FOODS, keywords: ['frozen', 'ice cream', 'sorbet', 'deep-frozen'] },
+
+  // Non-food next. Rare in a food export, and cheap to catch before a pantry
+  // keyword reaches them. `beauty` is here because OFF carries 2,953 rows under
+  // exactly that word.
+  { category: CATEGORY.CLEANING, keywords: ['cleaning', 'detergent', 'laundry', 'bleach', 'dishwash'] },
+  { category: CATEGORY.PERSONAL_CARE, keywords: ['beauty', 'hygiene', 'cosmetic', 'shampoo', 'toothpaste', 'deodorant', 'soap', 'skin care', 'hair care'] },
+  { category: CATEGORY.ELECTRONICS, keywords: ['electronic', 'batteries'] },
+
+  // Before Fresh Produce, so "fruit juices" is a drink.
+  { category: CATEGORY.BEVERAGES, keywords: ['beverage', 'drink', 'water', 'juice', 'soda', 'nectar', 'smoothie', 'tea', 'coffee', 'infusion', 'syrup'] },
+
+  // Before Snacks, so cakes and pastries are not confectionery. `pies` rather
+  // than `pie`, which would claim "chocolate pieces".
+  { category: CATEGORY.BAKERY, keywords: ['bread', 'baker', 'baked', 'pastr', 'cake', 'pies', 'viennoiserie', 'croissant', 'baguette', 'brioche', 'crepe', 'crêpe'] },
+
+  // Before Dairy, so "milk chocolate" is a chocolate bar.
+  { category: CATEGORY.SNACKS, keywords: ['snack', 'chocolate', 'biscuit', 'cookie', 'confectioner', 'candy', 'candies', 'crisps', 'chips', 'nuts', 'dried fruit', 'cereal bar', 'dessert', 'popcorn', 'wafer'] },
+
+  { category: CATEGORY.DAIRY, keywords: ['dairy', 'dairies', 'milk', 'cheese', 'yogurt', 'yoghurt', 'butter', 'cream', 'egg'] },
+
+  { category: CATEGORY.FRESH_PRODUCE, keywords: ['vegetable', 'fruit', 'salad', 'herb', 'mushroom', 'potatoes'] },
+
+  // The pantry catch-all. Last, so every aisle above has already answered. The
+  // second half of this list is what the 2.39M-row tally turned up sitting in
+  // the top forty with no rule to catch it: breakfasts, sweeteners, sandwiches,
+  // cooking helpers, fats, toppings.
+  { category: CATEGORY.GROCERY, keywords: ['grocer', 'cereal', 'pasta', 'rice', 'noodle', 'sauce', 'spread', 'condiment', 'canned', 'tinned', 'meal', 'oil', 'vinegar', 'spice', 'seasoning', 'sugar', 'flour', 'honey', 'jam', 'soup', 'meat', 'fish', 'seafood', 'poultry', 'legume', 'pulse', 'bean', 'lentil', 'grain', 'flake', 'baby food', 'breakfast', 'sweeten', 'sandwich', 'cooking helper', 'fats', 'topping', 'entree', 'cocoa', 'baking', 'food'] },
+]
+
+/**
+ * One OFF category string as one of the ten, or null.
+ *
+ * **Null rather than a default of Grocery.** A wrong category is worse than an
+ * absent one: it prints a confident answer nobody can tell is wrong, and it
+ * makes the tile counts lie. An uncategorised product is still searchable —
+ * name, brand and tags are all in the search vector — it simply does not appear
+ * under a tile. That is the same trade the pack-size fields make, and for the
+ * same reason.
+ *
+ * Matched on the whole string rather than word by word, because OFF categories
+ * are phrases and the signal is often in the tail: "Plant-based foods and
+ * beverages" is caught by `beverage`, "Sweet snacks" by `snack`.
+ */
+export function toCatalogCategory(raw: string | null): CategoryName | null {
+  if (!raw) return null
+
+  const value = raw.trim().toLowerCase()
+  if (!value) return null
+
+  // Exact answers first, and an override may legitimately be null — see the
+  // note on CATEGORY_OVERRIDES. `has` rather than a truthy check, because null
+  // is a decision here and not a miss.
+  if (CATEGORY_OVERRIDES.has(value)) return CATEGORY_OVERRIDES.get(value) ?? null
+
+  for (const rule of CATEGORY_RULES) {
+    if (rule.keywords.some((keyword) => value.includes(keyword))) return rule.category
+  }
+  return null
+}
+
+/**
  * One OFF row as a catalog product, or null if it is not worth having.
  *
  * A row is rejected rather than repaired when:
@@ -160,6 +295,23 @@ export function toProduct(row: OffRow): OffProduct | null {
   if (!nameEn || nameEn.length > 200) return null
   if (JUNK_NAMES.has(nameEn.toLowerCase())) return null
 
+  const offCategory = firstValue(row.categories_en)
+
+  // Tags are weight C in the search vector — the widest, cheapest recall.
+  // Capped because a handful of OFF rows carry fifty of them and the vector is
+  // rebuilt by a trigger on every write.
+  //
+  // **The OFF category is kept here even though `category` no longer holds it.**
+  // Resolving onto the ten is lossy by design — "Spreads" and "Breakfast
+  // cereals" both become Grocery — and dropping the original would take the
+  // words with it, so an owner searching "spreads" would stop finding Nutella.
+  // As a tag it stays searchable without pretending to be a browsable category.
+  const tags = allValues(row.labels_en, 7)
+  if (offCategory) {
+    const asTag = offCategory.toLowerCase()
+    if (asTag.length <= 40 && !tags.includes(asTag)) tags.push(asTag)
+  }
+
   return {
     barcode,
     nameEn,
@@ -170,10 +322,9 @@ export function toProduct(row: OffRow): OffProduct | null {
     // The variant line, kept as written. See above.
     specEn: (row.quantity ?? '').trim() || null,
     originEn: firstValue(row.origins_en),
-    category: firstValue(row.categories_en),
-    // Tags are weight C in the search vector — the widest, cheapest recall.
-    // Capped because a handful of OFF rows carry fifty of them and the vector
-    // is rebuilt by a trigger on every write.
-    tags: allValues(row.labels_en, 8),
+    // One of the ten the app browses, or null. See `toCatalogCategory` — the
+    // raw OFF string is preserved in `tags` above rather than stored here.
+    category: toCatalogCategory(offCategory),
+    tags,
   }
 }

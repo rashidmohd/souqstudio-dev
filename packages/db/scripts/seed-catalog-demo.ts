@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { hasValidCheckDigit } from '@souqstudio/types'
+import { CATEGORY } from '../src/catalog-categories'
 
 /**
  * Demo rows for the catalog. Not a fixture, not the Open Food Facts seed.
@@ -131,22 +132,25 @@ function withCheckDigit(body: string): string {
 }
 
 /**
- * Categories are the ten `pnpm db:seed` publishes, spelled exactly.
+ * Categories come from `src/catalog-categories.ts`, not from strings typed here.
  *
- * `listCategories` counts with `p.category = c.name`, so a typo here does not
- * fail — it produces a tile reading "nothing here yet" next to products that
- * exist, which reads as a broken count rather than as a broken string.
+ * `listCategories` counts with `p.category = c.name`, so the string is the join
+ * key: a typo does not fail, it produces a tile reading "nothing here yet" next
+ * to products that plainly exist. One source, so the seed, this and the Open
+ * Food Facts mapping cannot drift apart.
  */
-const GROCERY = 'Grocery'
-const BEVERAGES = 'Beverages'
-const SNACKS = 'Snacks'
-const DAIRY = 'Dairy'
-const BAKERY = 'Bakery'
-const CLEANING = 'Cleaning'
-const PERSONAL_CARE = 'Personal Care'
-const ELECTRONICS = 'Electronics'
-const FRESH_PRODUCE = 'Fresh Produce'
-const FROZEN_FOODS = 'Frozen Foods'
+const {
+  GROCERY,
+  BEVERAGES,
+  SNACKS,
+  DAIRY,
+  BAKERY,
+  CLEANING,
+  PERSONAL_CARE,
+  ELECTRONICS,
+  FRESH_PRODUCE,
+  FROZEN_FOODS,
+} = CATEGORY
 
 const INDIA = { originEn: 'India', originAr: 'الهند' }
 const KSA = { originEn: 'Saudi Arabia', originAr: 'السعودية' }

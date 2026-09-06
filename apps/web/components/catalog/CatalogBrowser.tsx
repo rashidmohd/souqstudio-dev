@@ -405,11 +405,11 @@ export function CatalogBrowser({
         // The one dialog in the product carrying a real form. At confirm width
         // its ten fields stack into a column taller than the screen.
         size="lg"
-        // The form owns its own submit button, so the dialog's primary is the
-        // way out. Two submit buttons for one form is the thing the Dialog
-        // signature's single `primaryAction` exists to prevent, and the form
-        // is the one that knows whether it is valid.
-        primaryAction={{ label: 'Close', onClick: () => setAdding(false) }}
+        // **No `primaryAction`.** The form owns Add product and Cancel — it is
+        // the only thing that knows whether it validates and whether it is
+        // mid-submit. A "Close" here put a second blue button under the real
+        // submit that did nothing but dismiss; the header's close control is
+        // the way out now.
       >
         <AddProductForm
           categories={categories}

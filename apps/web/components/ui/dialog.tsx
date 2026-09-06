@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -35,7 +36,20 @@ type DialogProps = {
    * a third is a screen.
    */
   size?: 'default' | 'lg' | undefined
-  primaryAction: { label: string; onClick: () => void; destructive?: boolean; loading?: boolean }
+  /**
+   * **Optional, because a dialog carrying a form does not have one.** A confirm
+   * dialog's primary *is* the decision, so it belongs to the dialog. A form's
+   * submit belongs to the form — only the form knows whether it validates, and
+   * only the form knows when it is mid-submit. Handing the dialog a "Close"
+   * button in that case produced two primaries: the real submit inside the
+   * body, and a blue button underneath it that did nothing but dismiss.
+   *
+   * When it is absent the action row is not rendered, and the way out is the
+   * header's close control rather than a button pretending to be an answer.
+   */
+  primaryAction?:
+    | { label: string; onClick: () => void; destructive?: boolean; loading?: boolean }
+    | undefined
   secondaryAction?: { label: string; onClick: () => void } | undefined
   children?: React.ReactNode
 }
@@ -119,15 +133,36 @@ export function Dialog({
           scrollbar hard against the fields, with the gap on the wrong side of
           it — and a focus ring on an input would clip against the same edge. */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 py-6">
-        <div className="flex shrink-0 flex-col gap-1 px-6">
-          <h2 id={titleId} className="font-display text-heading text-primary">
-            {title}
-          </h2>
-          {description ? (
-            <p id={descriptionId} className="font-ui text-body text-secondary">
-              {description}
-            </p>
-          ) : null}
+        <div className="flex shrink-0 items-start gap-4 px-6">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h2 id={titleId} className="font-display text-heading text-primary">
+              {title}
+            </h2>
+            {description ? (
+              <p id={descriptionId} className="font-ui text-body text-secondary">
+                {description}
+              </p>
+            ) : null}
+          </div>
+
+          {/* The dismiss, and the only way out of a dialog that carries a form.
+              Escape and the backdrop already close it — this is the visible
+              affordance for the same thing, which a form dialog otherwise
+              lacks entirely once its footer belongs to the form.
+
+              `-me-2` pulls it into the padding so the glyph optically aligns
+              with the edge the title starts from; a circular icon button
+              otherwise reads as inset. */}
+          <Button
+            type="button"
+            variant="ghost"
+            iconOnly
+            aria-label="Close"
+            className="-me-2 shrink-0"
+            onClick={() => onOpenChange(false)}
+          >
+            <X aria-hidden="true" className="size-icon" />
+          </Button>
         </div>
 
         {/* Wrapped only when there is something to wrap: an empty scroll box
@@ -138,23 +173,29 @@ export function Dialog({
         ) : null}
 
         {/* Primary sits at the inline end. Logical, not right — this ships in
-            Arabic and the order has to mirror with the text direction. */}
-        <div className="flex shrink-0 justify-end gap-2 px-6">
-          {secondaryAction ? (
-            <Button type="button" variant="ghost" onClick={secondaryAction.onClick}>
-              {secondaryAction.label}
+            Arabic and the order has to mirror with the text direction.
+
+            Not rendered at all when there is no `primaryAction`: a form dialog
+            owns its own buttons, and an empty row here would leave a band of
+            padding under them. */}
+        {primaryAction ? (
+          <div className="flex shrink-0 justify-end gap-2 px-6">
+            {secondaryAction ? (
+              <Button type="button" variant="ghost" onClick={secondaryAction.onClick}>
+                {secondaryAction.label}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              // Danger solid is valid here and nowhere else.
+              variant={primaryAction.destructive ? 'danger-solid' : 'primary'}
+              loading={primaryAction.loading ?? false}
+              onClick={primaryAction.onClick}
+            >
+              {primaryAction.label}
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            // Danger solid is valid here and nowhere else.
-            variant={primaryAction.destructive ? 'danger-solid' : 'primary'}
-            loading={primaryAction.loading ?? false}
-            onClick={primaryAction.onClick}
-          >
-            {primaryAction.label}
-          </Button>
-        </div>
+          </div>
+        ) : null}
       </div>
     </dialog>
   )

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { allValues, firstValue, isRelevant, toProduct, type OffRow } from './off-mapping'
+import {
+  allValues,
+  firstValue,
+  isRelevant,
+  toCatalogCategory,
+  toProduct,
+  type OffRow,
+} from './off-mapping'
 
 /**
  * The Open Food Facts mapping.
@@ -88,8 +95,10 @@ describe('toProduct', () => {
       brandEn: 'Ferrero',
       specEn: '400 g',
       originEn: null,
-      category: 'Spreads',
-      tags: [],
+      // Not `Spreads`. The OFF taxonomy string is resolved onto one of the ten
+      // the app browses by, and survives as a tag — see `toCatalogCategory`.
+      category: 'Grocery',
+      tags: ['spreads'],
     })
   })
 
@@ -146,5 +155,143 @@ describe('toProduct', () => {
     })
     expect(JSON.stringify(product)).not.toContain('image')
     expect(JSON.stringify(product)).not.toContain('openfoodfacts')
+  })
+})
+
+describe('toCatalogCategory', () => {
+  /**
+   * The ordering cases. Each of these is a category the rules would get wrong
+   * if the list were alphabetical, or grouped per category, or written in the
+   * order the ten happen to be seeded in.
+   */
+  it('files a frozen product by its aisle, not by what it is made of', () => {
+    // Bakery would claim "pizzas" on the word alone; a shop stocks it frozen.
+    expect(toCatalogCategory('Frozen pizzas')).toBe('Frozen Foods')
+    expect(toCatalogCategory('Frozen desserts')).toBe('Frozen Foods')
+  })
+
+  it('files ice cream as frozen rather than dairy', () => {
+    // `cream` is a Dairy keyword and would otherwise win.
+    expect(toCatalogCategory('Ice cream')).toBe('Frozen Foods')
+  })
+
+  it('files milk chocolate as a snack, not as dairy', () => {
+    // The single biggest miscategorisation available here: `milk` is a Dairy
+    // keyword, and Dairy running first puts every chocolate bar in the export
+    // under Dairy.
+    expect(toCatalogCategory('Milk chocolate')).toBe('Snacks')
+    expect(toCatalogCategory('Milk chocolate bars')).toBe('Snacks')
+  })
+
+  it('files fruit juice as a drink, not as produce', () => {
+    // `fruit` is a Fresh Produce keyword.
+    expect(toCatalogCategory('Fruit juices')).toBe('Beverages')
+  })
+
+  it('resolves the everyday aisles', () => {
+    expect(toCatalogCategory('Breads')).toBe('Bakery')
+    expect(toCatalogCategory('Dairies')).toBe('Dairy')
+    expect(toCatalogCategory('Cheeses')).toBe('Dairy')
+    expect(toCatalogCategory('Vegetables')).toBe('Fresh Produce')
+    expect(toCatalogCategory('Biscuits')).toBe('Snacks')
+    expect(toCatalogCategory('Cleaning products')).toBe('Cleaning')
+  })
+
+  it('falls to Grocery only after the specific aisles have not answered', () => {
+    expect(toCatalogCategory('Spreads')).toBe('Grocery')
+    expect(toCatalogCategory('Breakfast cereals')).toBe('Grocery')
+    expect(toCatalogCategory('Canned foods')).toBe('Grocery')
+  })
+
+  it('catches the compound phrases OFF actually writes', () => {
+    // The signal is often in the tail rather than the head of the phrase.
+    expect(toCatalogCategory('Sweet snacks')).toBe('Snacks')
+    expect(toCatalogCategory('Beverages and beverages preparations')).toBe('Beverages')
+    expect(toCatalogCategory('Meats and their products')).toBe('Grocery')
+  })
+
+  /**
+   * The overrides, and why each exists. Every count here was measured over 2.39
+   * million rows of the real export rather than assumed — which is the only
+   * reason the first one is right, because the keyword rules got it wrong and
+   * this test asserted the wrong answer until the tally said otherwise.
+   */
+  it('does not file the export largest category as a drink', () => {
+    // 261,377 rows — more than the next two categories together. It is OFF's
+    // umbrella for plant foods, and `beverage` in the name had it landing in
+    // Beverages, which would have made Beverages the biggest tile in the
+    // catalog and filled it with rice and lentils.
+    expect(toCatalogCategory('Plant-based foods and beverages')).toBe('Grocery')
+  })
+
+  it('reads a negation as a negation', () => {
+    // 399 rows caught by Grocery's `food` keyword — the one failure a substring
+    // match cannot see on its own.
+    expect(toCatalogCategory('Non food products')).toBeNull()
+  })
+
+  it('keeps what is genuinely outside the ten out of them', () => {
+    // Present in volume, and no shelf in a grocery is the right answer.
+    expect(toCatalogCategory('Dietary supplements')).toBeNull()
+    expect(toCatalogCategory('Medicine')).toBeNull()
+  })
+
+  it("treats OFF's own placeholders as absent", () => {
+    // 34,686 and 1,189 rows. They are values in the column and nothing in the
+    // world; a tile counting them would be counting the export gaps.
+    expect(toCatalogCategory('Undefined')).toBeNull()
+    expect(toCatalogCategory('Null')).toBeNull()
+  })
+
+  it('files the aisles the tally found had no rule at all', () => {
+    // Each of these sat in the top forty by row count and returned null until
+    // the measured pass turned them up.
+    expect(toCatalogCategory('Breakfasts')).toBe('Grocery')
+    expect(toCatalogCategory('Sweeteners')).toBe('Grocery')
+    expect(toCatalogCategory('Sandwiches')).toBe('Grocery')
+    expect(toCatalogCategory('Cooking helpers')).toBe('Grocery')
+    expect(toCatalogCategory('Fats')).toBe('Grocery')
+    expect(toCatalogCategory('beauty')).toBe('Personal Care')
+    expect(toCatalogCategory('Baked-goods')).toBe('Bakery')
+  })
+
+  it('does not let `pies` claim `pieces`', () => {
+    // `pie` as a keyword files every "Chocolate pieces" row under Bakery.
+    expect(toCatalogCategory('Chocolate pieces')).toBe('Snacks')
+    expect(toCatalogCategory('Sweet pies')).toBe('Bakery')
+  })
+
+  it('ignores case, because the export is not consistent about it', () => {
+    expect(toCatalogCategory('FROZEN PIZZAS')).toBe('Frozen Foods')
+  })
+
+  it('returns null rather than guessing', () => {
+    // A wrong category prints a confident answer nobody can tell is wrong and
+    // makes the tile counts lie. An uncategorised product is still searchable.
+    expect(toCatalogCategory('Quantum widgets')).toBeNull()
+    expect(toCatalogCategory(null)).toBeNull()
+    expect(toCatalogCategory('')).toBeNull()
+  })
+})
+
+describe('toProduct — categories', () => {
+  it('stores one of the ten rather than the OFF taxonomy string', () => {
+    // `listCategories` counts with `p.category = c.name`, so a raw OFF string
+    // here means a tile reading "nothing here yet" over products that exist.
+    expect(toProduct(base)?.category).toBe('Grocery')
+  })
+
+  it('keeps the OFF category as a tag, so the words are not lost', () => {
+    // Resolving onto the ten is lossy: "Spreads" and "Breakfast cereals" are
+    // both Grocery. Without this an owner searching "spreads" stops finding
+    // Nutella.
+    expect(toProduct(base)?.tags).toContain('spreads')
+  })
+
+  it('leaves category null when nothing matches, without dropping the row', () => {
+    const product = toProduct({ ...base, categories_en: 'Quantum widgets' })
+    expect(product).not.toBeNull()
+    expect(product?.category).toBeNull()
+    expect(product?.tags).toContain('quantum widgets')
   })
 })

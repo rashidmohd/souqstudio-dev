@@ -202,10 +202,13 @@ would have died on its first batch. That is fixed and the write path is now prov
 fixture — create, then re-run to update, no duplicate barcodes. Running it for real still
 writes tens of thousands of rows and takes hours: a decision, not a step.
 
-**Settle the category mapping before that run.** The importer writes raw OFF taxonomy
-strings (`Spreads`, `Beverages`, `Meals`) into `category`, and `listCategories` counts
-against the ten names `pnpm db:seed` publishes. Nothing errors — E5-02's tiles just all
-read "nothing here yet" over a full catalog. `E5-pending.md` §1 has it.
+**The category mapping is done.** `toCatalogCategory` resolves the OFF taxonomy onto the
+ten names `pnpm db:seed` publishes; 93.8% of rows land on a tile, measured over the top 120
+categories. It was built against a tally of 2.39M real rows rather than a guess, which is
+what caught the largest category in the export — `Plant-based foods and beverages`,
+261,377 rows — being filed as a *drink*. `E5-pending.md` §1 has the numbers and the two
+known limits: Fresh Produce is thin because OFF is a barcoded-product database, and only
+the broadest taxonomy level is read.
 
 What is still missing: XLSX (a dependency decision, not effort), E5-07 phone capture, and
 the camera half of E5-03. The import's match thresholds are unverified against real data.
@@ -382,12 +385,14 @@ rather than to full-text search, a search or scan that finds nothing offers to a
 product, and `/catalog/import` takes a CSV through mapping, matching and review.
 `CATALOG_BUILT` is flipped and the rail carries the item again.
 
-**Next is running the seed**, and it is nearer than it was: the write path that would have
-killed any real run is fixed and proven on a fixture, and 99 demo rows now stand in so the
-screens can be judged meanwhile. Two things to settle before starting it — the OFF
-categories do not match the ten the browser counts against, and the run itself is hours
-against the shared database. After that, E5-07 phone capture and the camera half of
-E5-03; XLSX is a dependency decision waiting on a human.
+**The seed is ready to run.** The write path that would have killed any real run is fixed
+and proven on a fixture, the categories now resolve onto the ten, and the stream turns out
+to be far quicker than recorded — 2.39M rows in eight minutes, so the full export is tens
+of minutes rather than hours. What remains is the decision to write tens of thousands of
+rows to the shared database, and whether `ProductBrand` should exist first: OFF brand
+strings are dirty at scale and deduplicating them afterwards is far more expensive than
+resolving them at ingest. After that, E5-07 phone capture and the camera half of E5-03;
+XLSX is a dependency decision waiting on a human.
 
 Read `E5-pending.md` first: it carries the corrections building this produced, including
 that `barcode` is not in `search_vector`, that `?lang=` does not exist, why the cutout job

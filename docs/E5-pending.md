@@ -296,14 +296,52 @@ stand. The fixture rows were removed afterwards.
 Still proven only by dry run: the fetch, the gunzip, the header check, the delimiter, the
 filter, the mapping and the counts.
 
-**The categories it writes do not match the ten the app browses by**, and this is the next
-thing to settle before a real run. `toProduct` writes `firstValue(categories_en)` — a raw
-OFF taxonomy string like `Spreads`, `Beverages` or `Meals` — while `listCategories` counts
-with `p.category = c.name` against the ten rows `pnpm db:seed` publishes. Nothing errors:
-E5-02's tiles simply all read "nothing here yet" over a catalog of tens of thousands of
-products, which reads as a broken screen rather than as a missing mapping. Confirmed on
-the fixture rows above. A run without a mapping from the OFF taxonomy onto the ten
-categories fills the table and leaves the category browser empty.
+**The categories are now mapped onto the ten** — `toCatalogCategory` in `off-mapping.ts`.
+Before it, `toProduct` wrote `firstValue(categories_en)` straight through, so
+`listCategories` (which counts with `p.category = c.name`) would have matched nothing and
+E5-02's tiles would all have read "nothing here yet" over a catalog of tens of thousands
+of products. Keyword rules over the string rather than an exact-string table, because OFF
+has 14,618 distinct categories in the sample below and contributors add more; an
+unrecognised one returns null rather than a wrong answer.
+
+**93.8% of rows land on a tile**, measured over the top 120 categories — 1,004,111 rows.
+The 6.2% that do not are almost all correct refusals: `Undefined` (34,686) and `Null`
+(1,189) are OFF's own placeholders, `Dietary supplements` (11,850) and `Medicine` have no
+shelf in a grocery. They stay searchable by name, brand and tag; they just get no tile.
+
+**The rules were written from a guess and the guess was wrong — the sample is what caught
+it.** Tallying `categories_en` over 2.39 million rows of the real export turned up two
+errors that would each have been visible on the first screen:
+
+- **`Plant-based foods and beverages` is the largest category in the export** — 261,377
+  rows, more than the next two together — and the keyword rules filed it under *Beverages*,
+  because the phrase contains the word. It is OFF's umbrella for plant foods: grains,
+  pulses, fruit, nuts. Left alone it would have made Beverages the biggest tile in the
+  catalog and filled it with rice and lentils.
+- **`Non food products` was caught by Grocery's `food` keyword.** A negation read as its
+  opposite, which is the one failure a substring match cannot see by itself.
+
+Both are handled by `CATEGORY_OVERRIDES`, an exact-string map checked before the keywords
+and allowed to answer *null* — that is how a row is kept out of a category rather than
+falling through to a rule that would claim it. The tally also turned up seven aisles
+sitting in the top forty with no rule at all: breakfasts, sweeteners, sandwiches, cooking
+helpers, fats, toppings and `beauty` (2,953 rows, and Personal Care is the right home).
+
+**Fresh Produce lands only 796 rows, and that is the data rather than the mapping.** OFF
+is a barcoded-product database and loose fruit and vegetables mostly have no barcode; what
+produce it does carry sits inside the plant-based umbrella above. A GCC flyer leans on
+fresh produce, so that aisle will have to come from a shop's own products or another
+source — not from this seed.
+
+**Only the first taxonomy value is read.** `firstValue` takes the head of the
+comma-separated list, which is OFF's broadest level; the more specific values sit behind
+it. Reading the tail would sharpen the mapping — the plant-based umbrella splits into
+cereals, pulses and produce there — and is the obvious next improvement if the
+distribution proves too Grocery-heavy in practice.
+
+**The raw OFF category survives as a tag.** Resolving onto the ten is lossy — `Spreads` and
+`Breakfast cereals` are both Grocery — so the original string is appended to `tags`, weight
+C in the search vector. Without it an owner searching "spreads" would stop finding Nutella.
 
 Four things measured rather than assumed, over the first 111,410 rows of the real export:
 
@@ -316,8 +354,11 @@ Four things measured rather than assumed, over the first 111,410 rows of the rea
 - **Line-based splitting is safe**, checked rather than assumed: not one row in 111,410
   had a field count other than the header's, so nothing contains an embedded newline or
   tab. Had any done so, every column after it would have shifted silently.
-- **Streaming from the static host is slow** — a few MB a minute, so a full run is hours.
-  Download once and use `--file`.
+- **Streaming is far faster than the earlier note claimed.** The category sampling pass
+  read **2,392,046 rows in eight minutes** straight from the static host, which puts the
+  full export in the tens of minutes rather than the hours recorded here before. Downloading
+  once and using `--file` is still worth it for repeated runs, but the stream is not the
+  obstacle it was written up as.
 
 **The export has no Arabic column at all.** This was caught by the script's own header
 check on the first run, which is what that check is for. The CSV carries `product_name`,
