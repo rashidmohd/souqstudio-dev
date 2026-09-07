@@ -197,12 +197,25 @@ describe('dismissal and visibility', () => {
 describe('destinations that do not exist yet', () => {
   it('gives no href, and says why, rather than pointing at a 404', async () => {
     const state = await read()
-    for (const id of ['first_book', 'share_book', 'connect_instagram']) {
+    for (const id of ['share_book', 'connect_instagram']) {
       const item = idOf(state, id)
       // These are all gated on lib/features.ts flags that are false today.
       expect(item?.href).toBeNull()
       expect(item?.unavailableReason).toBeTruthy()
     }
+  })
+
+  it('links first_book now that E6 built /editor/new', async () => {
+    // `first_book` was in the list above until BOOK_CREATION_BUILT flipped. Kept
+    // here rather than deleted for the same reason as `invite_team` below: the
+    // pairing is the thing worth protecting, and this item has now been wrong in
+    // *both* directions within one epic — it pointed at a 404 when
+    // `EDITOR_BUILT` turned on for the artboard while `/editor/new` still did
+    // not exist, and it would be a dead control if the flag had been left off
+    // after the route landed.
+    const item = idOf(await read(), 'first_book')
+    expect(item?.href).toBe('/editor/new')
+    expect(item?.unavailableReason).toBeFalsy()
   })
 
   it('links invite_team now that E2 built /settings/team', async () => {

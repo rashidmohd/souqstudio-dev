@@ -269,13 +269,55 @@ the seeded offer card and footer, real catalog names.
   Substituting the literals put the red back. **Both work in a browser and neither works in
   the PDF pipeline**, which is §6's open question arriving early — E9 will hit exactly this.
 
+### Creating a book — `/editor/new`
+
+Built 7 September, and `BOOK_CREATION_BUILT` is now true. A title, a format, a language and
+a catalog search that adds products in the order they are picked; `POST /api/v1/offer-books`
+creates the book and the owner lands on the artboard.
+
+**It is not the offer tray, and the difference matters.** The tray lives inside the editor
+beside the artboard and does more: reorder by dragging, group two products under one offer
+with a connector, add to a book that already exists. This is only the step before it —
+choosing what a book *starts* with — and it exists because otherwise nothing in the product
+could create a book and the artboard had nothing to open.
+
+**It keeps the dashboard shell**, unlike `editor/[id]`. The design skill's second layout
+family escapes the shell because a canvas needs the width; a screen with no canvas on it
+has no such claim, and leaving the rail means an owner who changes their mind is one click
+from where they were.
+
+**Prices are deliberately not asked for.** Setting eleven of them in a form before seeing a
+single card is the wrong order — E6-03 puts them beside the artboard where the owner can
+see what they are pricing. Every offer starts at zero and carries `no-price`.
+
+**The same test failed twice in two days, in opposite directions.** `checklist.test.ts`
+asserts that an item never links to a route that does not exist. Flipping `EDITOR_BUILT` for
+the artboard pointed `first_book` at `/editor/new` before it existed; building
+`/editor/new` then made the *assertion* stale, because the item now correctly links. Both
+were caught immediately. The item has moved to the paired "links now that it is built" test
+beside `invite_team`.
+
 ### Still not built
 
-1. **The offer tray** — E6-02. It is what unblocks `BOOK_CREATION_BUILT`.
-2. **The properties panel** — E6-03. Prices, tiers, connectors. Until it exists every book
-   is priced at zero.
-3. **Selection, drag-to-reorder, undo, autosave** — E6-04 through E6-08.
-4. **Fabric**, for any of that which needs direct manipulation.
+1. **The offer tray inside the editor** — E6-02's other half: reorder, group with a
+   connector, add to an existing book.
+2. **The properties panel** — E6-03. Prices, tiers, unit price, chips, footnotes. **Until it
+   exists every book is priced at zero and none can publish**, which is the most valuable
+   thing left in this epic.
+3. **Selection, undo, autosave** — E6-04 through E6-08.
+4. **Fabric**, for whatever of that needs direct manipulation. Nothing so far has.
+5. **Duplicating a book** — the control the design skill expects to be the most-used in the
+   product. It needs a copy path that clones offers and items, and neither exists.
+
+### Editing or creating a *block* is not E6 at all
+
+Worth stating because it is the first thing an owner looks for after seeing an offer card
+they want to change. `blocks.organizationId` is nullable and null is what makes a block
+seeded, so the schema anticipates owner-authored blocks — but there is no designer.
+`/brand` renders the four seeded blocks read-only and `app/(dashboard)/card-designer/
+[templateId]/` is an empty directory. That is **E7**, which `docs/STATUS.md` §3 says should
+be rewritten against `docs/composition-model.md` §3 before it is started, because the
+templates and grids it was scoped around no longer exist.
 
 ### One gap in the design system, raised rather than answered
 

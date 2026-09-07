@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Plus, CopyPlus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,9 +27,11 @@ type OfferBookSummary = {
   updatedAt: string
 }
 
-const NOT_YET = 'Choosing products for a new book is not built yet.'
+const NOT_YET = 'Duplicating a book is not built yet.'
 
 export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
+  const router = useRouter()
+
   if (books.length === 0) {
     return (
       <EmptyState
@@ -39,6 +42,7 @@ export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
           label: 'Create your first offer book',
           disabled: !BOOK_CREATION_BUILT,
           disabledReason: BOOK_CREATION_BUILT ? undefined : NOT_YET,
+          onClick: BOOK_CREATION_BUILT ? () => router.push('/editor/new') : undefined,
         }}
         illustration="empty-offer-books"
       />
@@ -48,17 +52,24 @@ export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="primary" disabled={!BOOK_CREATION_BUILT}>
+        <Button
+          type="button"
+          variant="primary"
+          disabled={!BOOK_CREATION_BUILT}
+          onClick={BOOK_CREATION_BUILT ? () => router.push('/editor/new') : undefined}
+        >
           <Plus className="size-4" aria-hidden="true" />
           New offer book
         </Button>
-        <Button type="button" variant="secondary" disabled={!BOOK_CREATION_BUILT}>
+        {/* Still disabled, and for its own reason: duplicating needs a book to
+            copy *and* a copy path, and neither the route nor the offer-cloning
+            exists. Left visible because the design skill expects it to be the
+            most-used control in the product once it works. */}
+        <Button type="button" variant="secondary" disabled>
           <CopyPlus className="size-4" aria-hidden="true" />
           Duplicate last week
         </Button>
-        {BOOK_CREATION_BUILT ? null : (
-          <span className="font-ui text-body-sm text-muted">{NOT_YET}</span>
-        )}
+        <span className="font-ui text-body-sm text-muted">{NOT_YET}</span>
       </div>
 
       <ul className="flex flex-col gap-2">

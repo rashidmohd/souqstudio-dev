@@ -34,8 +34,12 @@ export const EDITOR_BUILT = true
  *
  * Keeping one flag would have forced a choice between a New button that 404s
  * and a book list whose rows do not open — both worse than saying so.
+ *
+ * **Now true**: `/editor/new` picks products from the catalog and creates the
+ * book. What is still not built is the tray *inside* the editor — reordering,
+ * grouping two products under one offer, adding to a book that already exists.
  */
-export const BOOK_CREATION_BUILT = false
+export const BOOK_CREATION_BUILT = true
 
 /** E5 — the product catalog browser at /catalog. Built: search and browsing. */
 export const CATALOG_BUILT = true
