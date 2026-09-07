@@ -48,6 +48,12 @@ type Props = {
   direction: 'ltr' | 'rtl'
   /** Where a card's unused height goes. See `compactBlock`. */
   compaction?: CompactionPolicy
+  /** The offer whose card carries the selection ring, if it is on this page. */
+  selectedOfferId?: string | null
+  /** Selecting a card. Absent on a read-only surface — a page with no handler
+   *  renders no hit targets at all rather than pressable-looking cards that do
+   *  nothing. */
+  onSelectOffer?: (offerId: string) => void
   className?: string
 }
 
@@ -60,6 +66,8 @@ export function BookPage({
   shopName,
   direction,
   compaction = 'balance',
+  selectedOfferId = null,
+  onSelectOffer,
   className,
 }: Props) {
   const palette = resolvePalette(kit)
@@ -121,6 +129,9 @@ export function BookPage({
           compaction
         )
 
+        const selectable = onSelectOffer !== undefined && placement.offerId !== null
+        const selected = placement.offerId !== null && placement.offerId === selectedOfferId
+
         return (
           <React.Fragment key={`${placement.blockId}-${index}`}>
             {compacted.elements.map(({ element, rect }, elementIndex) => (
@@ -128,12 +139,59 @@ export function BookPage({
                 {drawElement(element, rect, ctx)}
               </React.Fragment>
             ))}
+
+            {selected ? (
+              // Drawn after the card so the ring is never covered by an element
+              // that overhangs its box — a tier chip anchored TOP_START does
+              // exactly that, by design.
+              <rect
+                {...rectAttrs(placement.rect)}
+                rx={3}
+                fill="none"
+                stroke="var(--sq-ui-selected-ring)"
+                strokeWidth={Math.max(2, placement.rect.width * 0.006)}
+                pointerEvents="none"
+              />
+            ) : null}
+
+            {selectable ? (
+              // A transparent hit target over the whole cell rather than
+              // handlers on each element: the gaps between a card's elements are
+              // part of the card, and an owner tapping the whitespace beside a
+              // price expects to select it.
+              //
+              // A `<button>` inside SVG would need a foreignObject; a rect with
+              // a role and a key handler is what SVG gives us, and it keeps the
+              // tab order in document order — which is page order.
+              <rect
+                {...rectAttrs(placement.rect)}
+                fill="transparent"
+                role="button"
+                tabIndex={0}
+                aria-label={offer ? offer.name : 'Offer'}
+                aria-pressed={selected}
+                className="cursor-pointer outline-none"
+                onClick={() => onSelectOffer(placement.offerId as string)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onSelectOffer(placement.offerId as string)
+                }}
+              />
+            ) : null}
           </React.Fragment>
         )
       })}
     </svg>
   )
 }
+
+const rectAttrs = (r: { x: number; y: number; width: number; height: number }) => ({
+  x: r.x,
+  y: r.y,
+  width: r.width,
+  height: r.height,
+})
 
 /**
  * How much of its box an element's content actually needs.

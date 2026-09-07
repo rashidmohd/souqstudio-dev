@@ -1,5 +1,5 @@
 import type { Connector, Currency, PageGrid, PriceMark, Region } from '@souqstudio/types'
-import { toPriceMark } from '@souqstudio/engine'
+import { minorDigits, toPriceMark } from '@souqstudio/engine'
 
 /**
  * Turning the rows of an offer book into what the engine and a renderer need.
@@ -180,12 +180,31 @@ export function composeOffer(
     brand: pick(lead.product.brandAr, lead.product.brandEn, edition),
     imageUrl: lead.product.imageUrl,
     priceMark: toPriceMark(offer.price, offer.currency as Currency, tier.id, {
-      ...(offer.comparePrice === null ? {} : { comparePrice: offer.comparePrice }),
+      ...(offer.comparePrice === null
+        ? {}
+        : { comparePrice: formatMoney(offer.comparePrice, offer.currency as Currency) }),
     }),
     tierLabel: pick(tier.labelAr, tier.labelEn, edition) ?? tier.labelEn,
     tierToken: tier.tokenRef,
     flags: flagsFor(offer, items, edition),
   }
+}
+
+/**
+ * A was-price, to the currency's own number of decimals.
+ *
+ * **`PriceMark.comparePrice` is documented as already formatted, and Prisma does
+ * not format.** `Decimal.toString()` drops trailing zeros, so a `32.00` column
+ * arrives as `32` and the struck-through price on the card reads `32` beside a
+ * `24.50` — which looks like a typo on a printed flyer, and is the kind of thing
+ * nobody notices until it is in a customer's hand. The offer price is unaffected
+ * because `splitAmount` does its own `toFixed`; only this one passes through.
+ *
+ * `minorDigits` rather than a constant 2: KWD, OMR and BHD carry three.
+ */
+function formatMoney(value: string, currency: Currency): string {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed.toFixed(minorDigits(currency)) : value
 }
 
 function nameFor(item: ItemRow, edition: Edition): string {

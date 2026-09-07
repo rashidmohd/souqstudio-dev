@@ -216,6 +216,24 @@ describe('composeOffer', () => {
       expect(out.priceMark.comparePrice).toBe('32.00')
     })
 
+    it('formats a was-price whose trailing zeros Prisma dropped', () => {
+      // `Decimal(10,2)` holding 32.00 arrives from Prisma as the string `32`,
+      // and `PriceMark.comparePrice` is documented as already formatted. Left
+      // alone it prints `32` struck through beside `24.50`, which reads as a
+      // typo on a flyer. Found by running a real book, not by a test.
+      const out = composeOffer(offer([item(RICE)], { comparePrice: '32' }), TIER, 'en')
+      expect(out.priceMark.comparePrice).toBe('32.00')
+    })
+
+    it('gives a three-decimal currency three digits on the was-price too', () => {
+      const out = composeOffer(
+        offer([item(RICE)], { price: '12.750', currency: 'KWD', comparePrice: '25.5' }),
+        TIER,
+        'en'
+      )
+      expect(out.priceMark.comparePrice).toBe('25.500')
+    })
+
     it('gives a three-decimal currency three minor digits', () => {
       const out = composeOffer(
         offer([item(RICE)], { price: '12.750', currency: 'KWD' }),

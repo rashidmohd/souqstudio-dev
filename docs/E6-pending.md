@@ -297,14 +297,46 @@ the artboard pointed `first_book` at `/editor/new` before it existed; building
 were caught immediately. The item has moved to the paired "links now that it is built" test
 beside `invite_team`.
 
+### Pricing — E6-03, the half that unblocks publishing
+
+Built 7 September. `PATCH /api/v1/offer-books/[id]/offers/[offerId]` sets price, was-price
+and tier; `components/editor/OfferProperties.tsx` is the panel; `stores/editor-store.ts`
+holds selection and the optimistic copy of each offer; cards on the artboard are selectable.
+
+- **Money is a string end to end.** The route validates the *text* — `^\d{1,8}(\.\d{1,2})?$`
+  — rather than taking a number, so `12.345` is refused instead of silently rounded and
+  nothing routes through a float on its way to a `Decimal(10,2)`.
+- **The tier is the only control on the price mark**, per E6 §3. No font size, no badge
+  text. Owners given those produce hundreds of inconsistent price treatments in a month.
+- **A tier is checked against the organization** before it is written. `offers.promoTierId`
+  has no tenant column of its own, so without that check an owner could point an offer at
+  another organization's badge.
+- **Optimistic, and a failure reverts one field rather than the batch.** The design system
+  is explicit: an owner changing eleven prices must not wait on a round trip per field. The
+  store carries a `failed` *set* rather than a single id, because two of eleven can fail and
+  reporting only the most recent hides the other.
+- **The flag count comes from the store**, so it drops as prices are entered rather than
+  waiting for a reload.
+- **The panel stubs nothing.** Unit price, chips, footnotes and legal lines are all E6-03
+  and are absent rather than drawn empty — an empty "Chips" section that does nothing reads
+  as broken, where its absence reads as unbuilt.
+
+**A real bug, found by running it and not by a test.** `Decimal.toString()` drops trailing
+zeros, so a `comparePrice` column holding `32.00` arrived as `32` — and `PriceMark.comparePrice`
+is documented as *already formatted*, so it printed `32` struck through beside `24.50`. On a
+flyer that reads as a typo. The offer price was never affected because `splitAmount` does its
+own `toFixed`; only the was-price passes through. `formatMoney` now applies `minorDigits`,
+which is also what gets KWD its three decimals. Two tests.
+
 ### Still not built
 
 1. **The offer tray inside the editor** — E6-02's other half: reorder, group with a
    connector, add to an existing book.
-2. **The properties panel** — E6-03. Prices, tiers, unit price, chips, footnotes. **Until it
-   exists every book is priced at zero and none can publish**, which is the most valuable
-   thing left in this epic.
-3. **Selection, undo, autosave** — E6-04 through E6-08.
+2. **The rest of E6-03** — unit price, chips, footnotes, legal lines, per-item name
+   overrides.
+3. **Slot adjustment, undo, autosave** — E6-04 and E6-06 through E6-08. Selection exists;
+   nudging within a slot, an undo stack and debounced autosave do not. Saving today is
+   per-field on blur, which is not the same thing.
 4. **Fabric**, for whatever of that needs direct manipulation. Nothing so far has.
 5. **Duplicating a book** — the control the design skill expects to be the most-used in the
    product. It needs a copy path that clones offers and items, and neither exists.
