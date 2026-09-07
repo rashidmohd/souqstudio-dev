@@ -25,7 +25,7 @@ export type Edition = 'en' | 'ar'
  * comes from the fit ladder and is therefore a property of a *rendered* card at
  * a particular size, not of the offer — it is added by the renderer.
  */
-export type OfferFlag = 'missing-name-ar' | 'fallback-image' | 'no-image'
+export type OfferFlag = 'missing-name-ar' | 'fallback-image' | 'no-image' | 'no-price'
 
 /** One offer, as an artboard draws it. */
 export interface ComposedOffer {
@@ -184,7 +184,7 @@ export function composeOffer(
     }),
     tierLabel: pick(tier.labelAr, tier.labelEn, edition) ?? tier.labelEn,
     tierToken: tier.tokenRef,
-    flags: flagsFor(items, edition),
+    flags: flagsFor(offer, items, edition),
   }
 }
 
@@ -203,9 +203,16 @@ function nameFor(item: ItemRow, edition: Edition): string {
  * product has no Arabic name still cannot publish to an AR edition, and flagging
  * only the one that supplies the image would pass it.
  */
-function flagsFor(items: ItemRow[], edition: Edition): OfferFlag[] {
+function flagsFor(offer: OfferRow, items: ItemRow[], edition: Edition): OfferFlag[] {
   const flags: OfferFlag[] = []
   const lead = items[0]
+
+  // **A price of zero is unset, not free.** `offers.price` is NOT NULL, so a book
+  // built from catalog products — which carry no price, because a price belongs
+  // to an offer — has to write *something*, and zero is the only honest
+  // placeholder. It must never reach a customer: a flyer printing `AED 0.00`
+  // beside a real product is worse than one missing the product entirely.
+  if (Number(offer.price) === 0) flags.push('no-price')
 
   if (edition === 'ar') {
     const missing = items.some(

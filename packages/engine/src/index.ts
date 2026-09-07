@@ -57,4 +57,4 @@ export {
   type Placement,
 } from './flow'
 
-export { SEED_BLOCKS, type SeedBlock } from './library'
+export { SEED_BLOCKS, bookletGrid, type SeedBlock } from './library'

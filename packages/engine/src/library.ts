@@ -1,4 +1,4 @@
-import type { Arrangement, BlockElement, TypeLevel } from '@souqstudio/types'
+import type { Arrangement, BlockElement, PageGrid, Region, TypeLevel } from '@souqstudio/types'
 
 /**
  * The seeded block library — the building blocks every shop starts with.
@@ -250,3 +250,65 @@ export const SEED_BLOCKS: SeedBlock[] = [
     arrangements: MESSAGE_ARRANGEMENTS,
   },
 ]
+
+/** Named so `bookletGrid` references the same ids the seed publishes. */
+const OFFER_CARD = SEED_BLOCKS[0]!
+const FOOTER = SEED_BLOCKS[2]!
+
+// ─── Seeded grids ─────────────────────────────────────────────────────────────
+
+/**
+ * The master grid a new book starts from.
+ *
+ * **Here rather than in whichever caller needed it first, for the same reason
+ * `SEED_BLOCKS` is here:** two consumers need the same bytes. The render harness
+ * has drawn this grid since the engine existed and `createBook` writes it into
+ * `page_grids`, so a second copy would mean the layout that was checked and the
+ * layout that ships are different objects that merely look alike.
+ *
+ * `perRow` across, `bodyRows` down, plus a short merged footer row. The footer's
+ * 0.34 is a fraction of a body row rather than a page fraction — a footer that
+ * scales with the cards above it stays a footer at every page size, and one
+ * pinned to the page grows into a band on A3.
+ *
+ * **Not a density setting.** E6 §5's density profiles are gone: density is the
+ * consequence of track count at a given page size, and two controls that can
+ * disagree is one too many. A denser book is more tracks.
+ */
+export function bookletGrid(options: { perRow?: number; bodyRows?: number } = {}): PageGrid {
+  const perRow = options.perRow ?? 3
+  const bodyRows = options.bodyRows ?? 3
+
+  const regions: Region[] = []
+  for (let row = 0; row < bodyRows; row += 1) {
+    for (let col = 0; col < perRow; col += 1) {
+      regions.push({
+        id: `r${row}c${col}`,
+        colStart: col,
+        colEnd: col,
+        rowStart: row,
+        rowEnd: row,
+        blockId: OFFER_CARD.id,
+        fill: 'flow',
+      })
+    }
+  }
+
+  regions.push({
+    id: 'footer',
+    colStart: 0,
+    colEnd: perRow - 1,
+    rowStart: bodyRows,
+    rowEnd: bodyRows,
+    blockId: FOOTER.id,
+    fill: 'static',
+  })
+
+  return {
+    cols: Array.from({ length: perRow }, () => 1),
+    rows: [...Array.from({ length: bodyRows }, () => 1), 0.34],
+    gap: 0.022,
+    margin: 0.04,
+    regions,
+  }
+}

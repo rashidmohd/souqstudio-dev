@@ -163,12 +163,60 @@ Four decisions in there worth not undoing:
 - **A grid problem is returned, never thrown.** An overlapping region is an authoring
   mistake the owner can see and fix; refusing to open the book leaves them no way to.
 
+**`createBook(input, organizationId)`** — creates the book, its master grid from
+`bookletGrid`, and one offer per catalog product, in one transaction.
+
+- **Every product becomes its own single-item offer.** Grouping two under one price is a
+  deliberate authoring action — E6-02's connector — and guessing it at creation produces
+  cards nobody asked for.
+- **Prices start at zero and are flagged.** `offers.price` is NOT NULL and a catalog
+  product carries no price, because a price belongs to an offer. Zero is the only honest
+  placeholder; `no-price` is what has to block publishing. A seeded "sensible" price would
+  print a number nobody chose.
+- **Products are filtered to what this organization can see** — its own rows plus the
+  universal catalog — before anything is written. Without it a caller could name another
+  tenant's private product and have it rendered into their book.
+- **`bookletGrid` lives in the engine**, beside `SEED_BLOCKS`, because the harness draws it
+  and `createBook` writes it. A local copy in either would drift, and the drift would be
+  invisible: both still render, just not the same page.
+
+### Run against the real database, and what that found
+
+`createBook` + `loadBook` were exercised against the dev database with 11 bilingual catalog
+products: 11 offers, **2 pages** (9 cells and a footer on page 0, 2 offers on page 1), no
+grid problems, both blocks resolved. Cross-tenant `loadBook` returned null. The AR edition
+of the same rows returned the Arabic name. The book was deleted afterwards; `offer_books`
+is back to zero.
+
+**The first version could not have survived a real book.** It created one offer at a time
+with its item nested, and eleven products took 5,174ms against a 5,000ms interactive
+transaction timeout — it failed on the *first* run, at eleven rows. A real book is
+hundreds. `createManyAndReturn` plus one `createMany` makes it two statements rather than
+one-plus-N. **This is the third time this codebase has learned the same lesson**: the
+spreadsheet import fans out over `unnest`, and the Open Food Facts importer resolves brands
+three queries per batch. It is worth treating "a loop containing an await on the database"
+as a defect on sight.
+
+The returned offers are keyed back to their products **by position, not by the order the
+database returned them**. Postgres does return `createManyAndReturn` rows in insertion
+order today; relying on it would mean a silently mispaired offer printing the wrong price
+against the wrong product if that ever changed — the same failure the CSV parser's paired
+arrays guard against.
+
+**A CLI script that imports `@souqstudio/db` never exits.** The package index re-exports
+`queue-client`, which constructs BullMQ queues at module load, and ioredis retries a
+missing Redis forever. With stdout piped this looks exactly like a hang: the work finishes,
+the output sits in the pipe buffer, and nothing is ever flushed. It cost most of an hour.
+The existing scripts avoid it by importing `PrismaClient` from `@prisma/client` directly —
+which is *why* they work and also quietly contradicts the root `CLAUDE.md` rule against
+that import. Worth either splitting the queue exports out of the index or writing the
+exception down.
+
 ### Not built yet, in order
 
-1. **Creating a book.** `createBook` does not exist. Until it does `offer_books` stays
-   empty and `loadBook` has never been run against a real row — every test above is
-   against literals, which is exactly the gap this epic is supposed to close.
-2. **Rendering it server-side**, the `BlockPreview` way: inline SVG, no Fabric.
+1. **Rendering a book server-side**, the `BlockPreview` way: inline SVG, no Fabric. The
+   pages exist as `Placement[]` now; nothing draws them.
+2. **A way in.** `createBook` has no route and no screen — it was called from a script.
 3. **Then the editor.**
 
 ---

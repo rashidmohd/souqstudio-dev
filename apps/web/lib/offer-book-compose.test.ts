@@ -177,6 +177,18 @@ describe('composeOffer', () => {
       expect(flags).not.toContain('no-image')
     })
 
+    it('flags an unset price, because zero is not free', () => {
+      // A book built from catalog rows has no prices to write — a price belongs
+      // to an offer, and `offers.price` is NOT NULL. Zero is the placeholder and
+      // it must never print.
+      expect(composeOffer(offer([item(RICE)], { price: '0.00' }), TIER, 'en').flags).toContain(
+        'no-price'
+      )
+      expect(composeOffer(offer([item(RICE)], { price: '0' }), TIER, 'en').flags).toContain(
+        'no-price'
+      )
+    })
+
     it('flags nothing on a complete row', () => {
       expect(composeOffer(offer([item(RICE)]), TIER, 'ar').flags).toEqual([])
     })

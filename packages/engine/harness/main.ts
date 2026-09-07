@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { PageGrid, Pin, Region } from '@souqstudio/types'
-import { flowBook, type CompactionPolicy } from '../src/index'
+import { bookletGrid, flowBook, type CompactionPolicy } from '../src/index'
 import { BLOCKS, BRAND_AD, FOOTER, HERO_BAND, MESSAGE_POST, OFFER_CARD } from './blocks'
 import { FRIENDLY, WORST_CASE } from './dummy'
 import type { HarnessProduct } from './product'
@@ -38,23 +38,16 @@ const cell = (col: number, row: number, id: string): Region => ({
   fill: 'flow',
 })
 
-/** Three across, three rows of cards, and a short merged footer row. */
-function booklet(): PageGrid {
-  const regions: Region[] = []
-  for (let row = 0; row < 3; row += 1) {
-    for (let col = 0; col < 3; col += 1) regions.push(cell(col, row, `r${row}c${col}`))
-  }
-  regions.push({
-    id: 'footer',
-    colStart: 0,
-    colEnd: 2,
-    rowStart: 3,
-    rowEnd: 3,
-    blockId: FOOTER.id,
-    fill: 'static',
-  })
-  return { cols: [1, 1, 1], rows: [1, 1, 1, 0.34], gap: 0.022, margin: 0.04, regions }
-}
+/**
+ * Three across, three rows of cards, and a short merged footer row.
+ *
+ * **From the engine, not from a copy here.** `bookletGrid` is what `createBook`
+ * writes into `page_grids`, so the grid the harness draws and the grid a real
+ * book carries are the same bytes — the same reason `library.ts` holds the
+ * seeded blocks. A local copy would drift, and the drift would be invisible:
+ * both would still render, just not the same page.
+ */
+const booklet = (): PageGrid => bookletGrid()
 
 /**
  * The merge case, as an owner would build it: a full-width banner across the

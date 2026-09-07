@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@souqstudio/db'
-import { flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
+import { bookletGrid, flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
 import type { Block, Pin } from '@souqstudio/types'
 import {
   composeOffer,
@@ -10,6 +10,7 @@ import {
   type Edition,
 } from '@/lib/offer-book-compose'
 import { publicUrl } from '@/lib/r2'
+import { randomBytes } from 'node:crypto'
 
 /**
  * Reading an offer book and composing its pages. E6.
@@ -297,4 +298,189 @@ async function loadBlocks(
     }
   }
   return blocks
+}
+
+
+// ─── Creating a book ──────────────────────────────────────────────────────────
+
+export interface CreateBookInput {
+  shopId: string
+  title: string
+  /** One of `OfferBookFormat`. Decides the artboard rectangle, nothing else. */
+  format: string
+  language: 'en' | 'ar'
+  /** Catalog products, in the order they should appear. One offer each. */
+  productIds: string[]
+  perRow?: number
+  bodyRows?: number
+}
+
+/**
+ * Create a book, its master grid and one offer per product, in one transaction.
+ *
+ * **The first write path in E6, and the thing every other part of it waits on.**
+ * `offer_books` has held zero rows since the table was migrated, so the
+ * composition model has only ever been checked against literals.
+ *
+ * **Every product becomes its own single-item offer.** Grouping two products
+ * under one price is a deliberate authoring action — E6-02's connector — and
+ * guessing it at creation would produce cards nobody asked for. The owner
+ * combines them in the tray afterwards.
+ *
+ * **Prices start at zero and are flagged, not defaulted to something plausible.**
+ * `offers.price` is NOT NULL and a catalog product carries no price, because a
+ * price belongs to an offer. Zero is the only honest placeholder; `composeOffer`
+ * raises `no-price` for it, and that flag is what has to block publishing. A
+ * seeded "sensible" price would print a number nobody chose.
+ */
+export async function createBook(
+  input: CreateBookInput,
+  organizationId: string
+): Promise<{ id: string } | null> {
+  const shop = await prisma.shop.findFirst({
+    where: { id: input.shopId, organizationId },
+    select: { id: true },
+  })
+  // Same rule as `loadBook`: the tenant is a filter, never a comparison made
+  // after the rows are already in hand.
+  if (shop === null) return null
+
+  // `offers.promoTierId` is NOT NULL, and an organization with no tiers cannot
+  // hold an offer at all — the defect `seedPromoTiers` was written to close.
+  // Failing here with a sentence beats a foreign-key violation.
+  const tier = await prisma.promoTier.findFirst({
+    where: { organizationId },
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    select: { id: true },
+  })
+  if (tier === null) {
+    throw new Error(
+      `createBook: organization "${organizationId}" has no promo tiers — run \`pnpm db:seed\``
+    )
+  }
+
+  // Products are read before the transaction and filtered to what this
+  // organization can actually see: its own rows plus the universal catalog.
+  // Without it a caller could name another tenant's private product and have it
+  // rendered into their book.
+  const visible = await prisma.catalogProduct.findMany({
+    where: {
+      id: { in: input.productIds },
+      archivedAt: null,
+      OR: [{ organizationId: null }, { organizationId }],
+    },
+    select: { id: true },
+  })
+  const allowed = new Set(visible.map((product) => product.id))
+  // The caller's order is the book's order — `offers.position` is what the
+  // engine paginates from — so this filters the input rather than using the
+  // query's own ordering.
+  const ordered = input.productIds.filter((id) => allowed.has(id))
+
+  const gridOptions = {
+    ...(input.perRow === undefined ? {} : { perRow: input.perRow }),
+    ...(input.bodyRows === undefined ? {} : { bodyRows: input.bodyRows }),
+  }
+  const master = bookletGrid(gridOptions)
+
+  const book = await prisma.$transaction(async (tx) => {
+    const created = await tx.offerBook.create({
+      data: {
+        shopId: shop.id,
+        title: input.title,
+        format: input.format,
+        language: input.language,
+        shortCode: await uniqueShortCode(tx),
+        grids: {
+          create: {
+            role: 'master',
+            cols: master.cols,
+            rows: master.rows,
+            gap: master.gap,
+            // Optional on the engine's PageGrid — a social post is full bleed —
+            // and NOT NULL with a default in the column. Zero is the right
+            // reading of "unset": full bleed, which is what the type means.
+            margin: master.margin ?? 0,
+            // `Region[]` as written by the engine. The column is Json and
+            // Prisma cannot type it, which is the same seam `page_grids`
+            // documents by carrying no relation to `blocks`.
+            regions: master.regions as unknown as object[],
+          },
+        },
+      },
+      select: { id: true },
+    })
+
+    // **Two statements, not two per product.** The first version created one
+    // offer at a time with its item nested, and it did not survive contact with
+    // eleven products: a round trip per offer against a hosted database took
+    // 5,174ms and the interactive transaction closes at 5,000. A real book is
+    // hundreds of offers. This is the third time the same lesson has been
+    // learned in this codebase — the spreadsheet import fans out over `unnest`
+    // and the Open Food Facts importer resolves brands three queries per batch,
+    // both for exactly this reason.
+    //
+    // `createManyAndReturn` is what makes it two rather than one-plus-N:
+    // `createMany` alone cannot give back the ids the items need.
+    const offers = await tx.offer.createManyAndReturn({
+      data: ordered.map((_, position) => ({
+        bookId: created.id,
+        position,
+        price: 0,
+        currency: 'AED',
+        promoTierId: tier.id,
+      })),
+      select: { id: true, position: true },
+    })
+
+    // Keyed by position rather than trusting the returned order. Postgres does
+    // return them in insertion order today; relying on it would make the item
+    // that belongs to one product silently attach to another if that ever
+    // changed, and a mispaired offer prints the wrong price against the wrong
+    // product — the same class of silent failure the CSV parser's paired arrays
+    // guard against.
+    const byPosition = new Map(offers.map((offer) => [offer.position, offer.id]))
+
+    await tx.offerItem.createMany({
+      data: ordered.flatMap((productId, position) => {
+        const offerId = byPosition.get(position)
+        return offerId === undefined ? [] : [{ offerId, catalogProductId: productId, position: 0 }]
+      }),
+    })
+
+    return created
+  })
+
+  return book
+}
+
+/**
+ * A public short code, checked for collision rather than assumed unique.
+ *
+ * `offer_books.shortCode` is the public viewer's whole address — `/o/:code` —
+ * so it is guessing-resistant rather than sequential, and it is read by people
+ * typing it off a printed flyer. Base32 without the characters that get
+ * misread: no `0`/`O`, no `1`/`I`/`L`, no `U` (which people hear as `V`).
+ *
+ * Eight characters over a 27-character alphabet is ~10^11 codes. The retry loop
+ * is not about exhausting that; it is that a unique index will reject a
+ * duplicate and a shop owner should never see it.
+ */
+const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+async function uniqueShortCode(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const bytes = randomBytes(8)
+    let code = ''
+    for (const byte of bytes) code += CODE_ALPHABET[byte % CODE_ALPHABET.length]
+
+    const taken = await tx.offerBook.findUnique({
+      where: { shortCode: code },
+      select: { id: true },
+    })
+    if (taken === null) return code
+  }
+  throw new Error('createBook: could not allocate a unique short code')
 }
