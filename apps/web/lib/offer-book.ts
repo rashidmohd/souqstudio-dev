@@ -115,6 +115,7 @@ export async function loadBook(
           items: {
             orderBy: { position: 'asc' },
             select: {
+              id: true,
               position: true,
               connector: true,
               nameOverrideEn: true,
@@ -175,6 +176,7 @@ export async function loadBook(
         items: offer.items.map((item) => {
           const image = item.product.images[0]
           return {
+            id: item.id,
             position: item.position,
             connector: item.connector,
             nameOverrideEn: item.nameOverrideEn,

@@ -1,6 +1,9 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
+import { X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { useEditorStore } from '@/stores/editor-store'
@@ -52,6 +55,8 @@ export function OfferProperties({ bookId, tiers, currency }: Props) {
         ) : null}
       </div>
 
+      <Items bookId={bookId} offer={offer} />
+
       <PriceFields bookId={bookId} offer={offer} currency={currency} />
 
       <TierField bookId={bookId} offer={offer} tiers={tiers} />
@@ -73,6 +78,86 @@ export function OfferProperties({ bookId, tiers, currency }: Props) {
             ))}
           </ul>
         </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * The products behind the card.
+ *
+ * **Only shown once there are two.** A single-product offer is the ordinary
+ * case, its one item is already the heading above, and listing it under a
+ * "Products" label would imply a decision the owner has not made.
+ *
+ * Removing the last one is refused by the route rather than hidden here: an
+ * offer with no product is a price attached to nothing, and removing it is
+ * *deleting the offer* — a different action, with its own control in the tray.
+ */
+function Items({ bookId, offer }: { bookId: string; offer: ComposedOffer }) {
+  const router = useRouter()
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  if (offer.items.length < 2) return null
+
+  async function remove(itemId: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(
+        `/api/v1/offer-books/${bookId}/offers/${offer.id}/items/${itemId}`,
+        { method: 'DELETE' }
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        setError(body?.error?.message ?? 'That did not save. Try again.')
+        return
+      }
+      // Not optimistic: removing item 0 hands the packshot and the brand lockup
+      // to whatever was second, and the connectors shift. That is the server
+      // recomposing the card, not a field the client can predict.
+      router.refresh()
+    } catch {
+      setError('That did not save. Check your connection and try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-ui text-label font-medium text-primary">Products on this offer</span>
+      <ul className="flex flex-col">
+        {offer.items.map((item, index) => (
+          <li key={item.id} className="flex min-h-row items-center justify-between gap-2">
+            <span className="min-w-0 truncate font-ui text-body-sm text-secondary">
+              {item.connector ? (
+                <span className="text-muted">{item.connector === 'OR' ? 'or ' : 'and '}</span>
+              ) : null}
+              {item.name}
+              {index === 0 ? (
+                // Item 0 supplies the packshot and the brand lockup — worth
+                // saying, because removing it moves both.
+                <span className="text-muted"> · photo</span>
+              ) : null}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={`Remove ${item.name} from this offer`}
+              disabled={busy}
+              onClick={() => void remove(item.id)}
+            >
+              <X className="size-4" aria-hidden="true" strokeWidth={2} />
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {error ? (
+        <p className="font-ui text-body-sm text-critical-fg" role="alert">
+          {error}
+        </p>
       ) : null}
     </div>
   )

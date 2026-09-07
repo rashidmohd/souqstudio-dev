@@ -52,13 +52,26 @@ export const useEditorStore = create<EditorState>((set) => ({
   failed: [],
 
   hydrate: ({ bookId, offers }) =>
-    set({
-      bookId,
-      offers: Object.fromEntries(offers.map((offer) => [offer.id, offer])),
-      order: offers.map((offer) => offer.id),
-      selectedOfferId: null,
-      save: 'idle',
-      failed: [],
+    set((state) => {
+      const next = Object.fromEntries(offers.map((offer) => [offer.id, offer]))
+      // **Selection survives a reload of the same book.** Adding, removing or
+      // reordering re-renders the server component and re-hydrates this store;
+      // clearing the selection each time would close the properties panel under
+      // an owner who had just moved the card they were pricing. It clears only
+      // when the selected offer is gone — removed, or a different book.
+      const keep =
+        state.bookId === bookId &&
+        state.selectedOfferId !== null &&
+        next[state.selectedOfferId] !== undefined
+
+      return {
+        bookId,
+        offers: next,
+        order: offers.map((offer) => offer.id),
+        selectedOfferId: keep ? state.selectedOfferId : null,
+        save: 'idle',
+        failed: state.bookId === bookId ? state.failed.filter((id) => next[id]) : [],
+      }
     }),
 
   select: (offerId) => set({ selectedOfferId: offerId }),

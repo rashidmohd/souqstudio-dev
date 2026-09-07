@@ -328,12 +328,93 @@ flyer that reads as a typo. The offer price was never affected because `splitAmo
 own `toFixed`; only the was-price passes through. `formatMoney` now applies `minorDigits`,
 which is also what gets KWD its three decimals. Two tests.
 
+### The offer tray — E6-02, and the three panes are up
+
+Built 7 September. `components/editor/OfferTray.tsx` in the start pane: catalog search that
+adds a product to an existing book, remove, and reorder. `POST` and `PATCH` on
+`/api/v1/offer-books/[id]/offers`, `DELETE` on `.../offers/[offerId]`.
+
+**`@@unique([bookId, position])` is what makes reordering hard, and it is worth keeping** —
+without it two offers can claim the same slot and which page each lands on is decided by
+whatever `orderBy` does with a tie. Two consequences:
+
+- **Reorder writes in two passes.** Writing the new positions directly collides the moment
+  any offer moves into a slot another still holds, which is every reorder that is not a
+  no-op. The first pass parks every row at `-position - 1` — negative numbers are safe
+  because `position` is a non-negative index everywhere else, so nothing legitimate can be
+  sitting there — and the second writes the real order. Both are single statements: the
+  second fans out over `unnest` with paired arrays, the same shape the spreadsheet import
+  uses.
+- **Delete closes the gap it leaves**, in the same transaction and in one statement. Every
+  later row moves *down* into a slot the row before it has already vacated, so this one
+  needs no parking pass — Postgres checks a unique constraint at statement end, not per
+  row. `position` therefore keeps meaning "nth in the book" rather than "some increasing
+  number".
+
+**Verified against the real constraint**, not reasoned about: moving the last offer of
+eleven to the front (which collides on every single position), then deleting a middle offer
+and checking the result is dense 0..n-1.
+
+**The whole order is sent, not a move.** A `{from, to}` request has to be applied to the
+order the server currently holds, and two tabs reordering the same book would interleave
+into something neither owner asked for. Sending the full list makes the last write win,
+which is at least an order somebody chose — and a list that does not match the book's
+current offers is refused with a 409 rather than half-applied.
+
+**Reordering is not optimistic, and prices are.** A price is independent of every other
+offer, so a failure reverts one field. A move changes what every *other* offer's position
+means, and a failed optimistic reorder would leave the tray and the artboard describing
+different books. So a move goes to the server and the page re-renders.
+
+**Reordering is buttons, not drag** — the epic says drag, the design system says every
+hover-revealed affordance needs a persistent equivalent because the editor ships on tablet,
+and that long-press drag is unreliable on iPad. Buttons are that equivalent, and keyboard-
+operable for free. **Drag is still owed.**
+
+**Selection now survives a re-hydrate** of the same book, so adding or moving a card does
+not close the properties panel under an owner who was pricing it.
+
+### Multi-item offers — *"Pesto Rosso **or** Pasta Sauce Basilico"*
+
+Built 7 September. `POST` and `DELETE` on
+`/api/v1/offer-books/[id]/offers/[offerId]/items`; the tray joins a search result onto the
+selected offer with `or` or `and`, and the properties panel lists the products and removes
+one. `composeOffer` has rendered this since the compose path was written — nothing could
+author it until now.
+
+**`ComposedOffer` now carries `items` as well as `name`.** The artboard draws one string
+because a multi-item offer is *one card*; the panel needs them apart to remove one. Two
+shapes of the same fact, and the card's is the derived one.
+
+**Removing item 0 is allowed, and it is the case that needed care.** Item 0 supplies the
+brand lockup and the packshot — that is what item 0 *means*, not a property of a particular
+row — so removing it hands both to whatever was second. Three things happen in one
+transaction: the row goes, the positions close up, and **the new item 0 has its connector
+set to null**. Without that last statement the card prints a leading `or Frozen Shrimp
+Peeled`, because a connector renders *before* its item. Verified by doing it against the
+database and reading the composed name back.
+
+**Removing the last item is refused**, with a sentence. `composeOffer` throws on an offer
+with no items and rightly: an offer with no product is a price attached to nothing.
+Removing the last product is *deleting the offer*, a different action with its own control
+in the tray, and quietly turning one into the other is worse than saying so.
+
+**Four products per offer.** `plans.maxProductsPerBook` bounds a book; this bounds the
+*card*. Past a handful of names joined by "or" the card stops being a card and the fit
+ladder is shrinking type to fit a paragraph.
+
+**Two words, not a dropdown.** The connector choice is binary, and naming both costs less
+than a control that has to be opened to find out what is inside it.
+
 ### Still not built
 
-1. **The offer tray inside the editor** — E6-02's other half: reorder, group with a
-   connector, add to an existing book.
-2. **The rest of E6-03** — unit price, chips, footnotes, legal lines, per-item name
-   overrides.
+1. **Drag to reorder**, and drag-from-catalog-to-cell with its tap-then-tap equivalent.
+2. **Changing a connector** after the fact, and reordering items within an offer. Adding
+   and removing exist; the `OR`/`AND` on an existing item is fixed at the moment it is
+   added.
+3. **The rest of E6-03** — unit price, chips, footnotes, legal lines, per-item name and
+   spec overrides. The override columns exist on `offer_items` and `composeOffer` reads
+   them; nothing writes them.
 3. **Slot adjustment, undo, autosave** — E6-04 and E6-06 through E6-08. Selection exists;
    nudging within a slot, an undo stack and debounced autosave do not. Saving today is
    per-field on blur, which is not the same thing.

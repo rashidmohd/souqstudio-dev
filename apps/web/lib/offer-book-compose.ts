@@ -55,6 +55,24 @@ export interface ComposedOffer {
    */
   tierToken: string
   flags: OfferFlag[]
+  /**
+   * The products behind the card, in reading order.
+   *
+   * The artboard draws `name` — one string, connectors folded in — because a
+   * multi-item offer is *one card*. The properties panel needs them apart, to
+   * remove one or change its connector. Two shapes of the same fact, and the
+   * card's is the derived one.
+   */
+  items: ComposedItem[]
+}
+
+export interface ComposedItem {
+  id: string
+  /** The item's own name in the edition, overrides applied. */
+  name: string
+  /** Rendered before this item's name. Null on item 0 — there is nothing to
+   *  join it to, which is what the schema's null means. */
+  connector: Connector | null
 }
 
 // ─── The rows this module is given ────────────────────────────────────────────
@@ -74,6 +92,7 @@ export interface ProductRow {
 
 /** The subset of `offer_items`, in `position` order. */
 export interface ItemRow {
+  id: string
   position: number
   connector: Connector | null
   nameOverrideEn: string | null
@@ -187,6 +206,11 @@ export function composeOffer(
     tierLabel: pick(tier.labelAr, tier.labelEn, edition) ?? tier.labelEn,
     tierToken: tier.tokenRef,
     flags: flagsFor(offer, items, edition),
+    items: items.map((item) => ({
+      id: item.id,
+      name: nameFor(item, edition),
+      connector: item.connector,
+    })),
   }
 }
 

@@ -109,3 +109,51 @@ export async function PATCH(
     promoTierId: updated.promoTierId,
   })
 }
+
+/**
+ * Remove an offer from a book.
+ *
+ * **The gap it leaves is closed in the same transaction.** `position` is a dense
+ * index — `flowBook` walks the list in order and the unique constraint assumes
+ * nothing about density, but a hole means the next append computes its position
+ * from a `max` that no longer matches the count, and every later reorder has to
+ * reason about it. Closing it here keeps `position` meaning "nth in the book"
+ * rather than "some increasing number".
+ *
+ * **Delete rather than archive, and that is a real difference from the
+ * catalog.** A catalog product is archived because a published book references
+ * it; an offer *is* the reference, and removing it from a draft is the owner
+ * saying it does not belong. `offer_items` and the rest cascade from the row.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string; offerId: string } }
+) {
+  const { session, response } = await requireApiSession({ requireVerifiedEmail: true })
+  if (!session) return response
+
+  const offer = await prisma.offer.findFirst({
+    where: {
+      id: params.offerId,
+      bookId: params.id,
+      book: { shop: { organizationId: session.user.organizationId } },
+    },
+    select: { id: true, position: true },
+  })
+  if (offer === null) {
+    return fail('not_found', 'That offer does not exist.', 404)
+  }
+
+  await prisma.$transaction([
+    prisma.offer.delete({ where: { id: offer.id } }),
+    // One statement for the shift, not one per row. Safe against the unique
+    // index without parking: every row moves *down* into a slot the row before
+    // it has already vacated, and Postgres checks the constraint at statement
+    // end rather than per row.
+    prisma.$executeRaw`
+      UPDATE offers SET position = position - 1
+      WHERE "bookId" = ${params.id} AND position > ${offer.position}`,
+  ])
+
+  return ok({ id: offer.id })
+}

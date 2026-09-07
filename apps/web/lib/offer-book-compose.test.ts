@@ -39,7 +39,9 @@ const CREPES: ProductRow = {
 
 const TIER: TierRow = { id: 'tier_deal', labelEn: 'Deal', labelAr: 'عرض', tokenRef: 'accent' }
 
+let itemSeq = 0
 const item = (product: ProductRow, overrides: Partial<ItemRow> = {}): ItemRow => ({
+  id: `itm_${(itemSeq += 1)}`,
   position: 0,
   connector: null,
   nameOverrideEn: null,
@@ -141,6 +143,21 @@ describe('composeOffer', () => {
       // Rather than inventing an "or" nobody chose.
       const out = composeOffer(offer([item(RICE), item(OIL, { position: 1 })]), TIER, 'en')
       expect(out.name).toBe('Sella Basmati Rice Olive oil')
+    })
+
+    it('exposes the items apart as well as joined', () => {
+      // The card draws one string; the properties panel needs them separate to
+      // remove one or change its connector.
+      const out = composeOffer(
+        offer([item(RICE), item(OIL, { position: 1, connector: 'OR' })]),
+        TIER,
+        'en'
+      )
+      expect(out.name).toBe('Sella Basmati Rice or Olive oil')
+      expect(out.items.map((i) => [i.name, i.connector])).toEqual([
+        ['Sella Basmati Rice', null],
+        ['Olive oil', 'OR'],
+      ])
     })
 
     it('refuses an offer with no items rather than drawing an empty card', () => {

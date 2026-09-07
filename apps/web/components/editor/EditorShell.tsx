@@ -7,6 +7,7 @@ import type { Block, BrandKit } from '@souqstudio/types'
 import type { FlowPage } from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
+import { OfferTray } from '@/components/editor/OfferTray'
 import {
   OfferProperties,
   SaveStatus,
@@ -18,14 +19,14 @@ import type { ComposedOffer } from '@/lib/offer-book-compose'
 /**
  * The editor's client shell. E6-01.
  *
- * **Two of the three panes, and the missing one is named rather than stubbed.**
- * The design skill's editor family is offer tray (start), artboard (centre),
- * properties (end). The tray is E6-02's other half — reorder, group two products
- * under one offer, add to an existing book — and drawing an empty pane where it
- * goes would claim it exists.
+ * **All three panes**: offer tray (start), artboard (centre), properties (end),
+ * per the design skill's editor family. Below 1024px the side panes stack rather
+ * than compress the artboard — a squeezed canvas makes the whole product feel
+ * cramped, and that rule is why they stack instead of shrinking.
  *
  * **The artboard is not a drawing surface.** Selecting a card sets logical state;
- * the engine still decides every rectangle. Nothing here positions anything.
+ * the engine still decides every rectangle. Nothing here positions anything, and
+ * the tray decides only *which* offers are in the book and in what sequence.
  */
 type Props = {
   bookId: string
@@ -131,10 +132,11 @@ export function EditorShell({
         </p>
       ) : null}
 
-      {/* Below 1024px the panel stacks under the artboard rather than
-          compressing it — the design skill's rule is that side panels overlay or
-          stack, never squeeze the canvas. */}
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+        <aside className="w-full shrink-0 overflow-auto border-b-hairline border-border-subtle bg-surface p-4 lg:order-first lg:w-72 lg:border-b-0 lg:border-e-hairline">
+          <OfferTray bookId={bookId} />
+        </aside>
+
         <div className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
           {pages.map((flowPage) => (
             <figure key={flowPage.index} className="flex w-full max-w-3xl flex-col items-center gap-2">
