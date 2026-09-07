@@ -5,7 +5,7 @@ import type { BrandKit } from '@souqstudio/types'
 import { isBrandSetupComplete } from '@/lib/brand-kit'
 import {
   BRAND_KIT_BUILT,
-  EDITOR_BUILT,
+  BOOK_CREATION_BUILT,
   SHARING_BUILT,
   TEAM_BUILT,
   INSTAGRAM_BUILT,
@@ -108,7 +108,12 @@ export async function readChecklist(input: {
       label: 'Create your first offer book',
       done: Boolean(firstBook),
       optional: false,
-      ...link(EDITOR_BUILT, '/editor/new'),
+      // `BOOK_CREATION_BUILT`, not `EDITOR_BUILT`. The artboard at
+      // /editor/[id] exists; /editor/new does not, because choosing the products
+      // a book starts from is the offer tray's job. Reading the wrong flag here
+      // pointed this item at a 404 the moment the artboard shipped, and the test
+      // below is what caught it.
+      ...link(BOOK_CREATION_BUILT, '/editor/new'),
     },
     {
       id: 'share_book',

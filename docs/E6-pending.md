@@ -212,16 +212,81 @@ which is *why* they work and also quietly contradicts the root `CLAUDE.md` rule 
 that import. Worth either splitting the queue exports out of the index or writing the
 exception down.
 
-### Not built yet, in order
+## 5. The artboard, and a way in
 
-1. **Rendering a book server-side**, the `BlockPreview` way: inline SVG, no Fabric. The
-   pages exist as `Placement[]` now; nothing draws them.
-2. **A way in.** `createBook` has no route and no screen — it was called from a script.
-3. **Then the editor.**
+Built 7 September. A book can now be created over HTTP and looked at in a browser.
+
+**Routes.** `POST /api/v1/offer-books` creates from catalog product ids;
+`GET /api/v1/offer-books` lists the active shop's; `GET /api/v1/offer-books/[id]` returns
+the book **composed into pages** rather than as rows — a client re-implementing the
+composition is the one thing `packages/engine` exists to prevent. The editor screen does
+not call that route: it is a server component and reads `loadBook` directly, the way
+`/catalog` reads `lib/catalog.ts`.
+
+**`components/blocks/draw.tsx`** — painting one block element, extracted from
+`BlockPreview` at the moment a second surface needed it. `packages/engine` is one
+implementation of *where things go*; this is the matching rule for *how they are painted*,
+and E9's export worker will be its third caller. `BlockPreview` is now a thin caller that
+adapts `PREVIEW_PRODUCT` into the same `ArtboardOffer` shape a real offer arrives in — a
+second product type there is how a preview and a real artboard start disagreeing about
+what a card shows.
+
+**`components/editor/BookPage.tsx`** — one page, drawn. Inline SVG rather than Fabric, and
+that is not a shortcut: Fabric is the editor's renderer, where dragging needs an object
+model, and it would drag in `document.fonts.load()` for every family and weight before a
+single text object on a screen that has nothing to drag yet.
+
+**`app/(dashboard)/editor/[id]/page.tsx`** — the artboard on `--sq-ui-canvas-surround`,
+escaping the shell. It is **the artboard half of E6 and nothing else**: no offer tray, no
+properties panel, no selection, no undo, no autosave. Those are deliberately not
+scaffolded — an empty tray beside an empty panel would claim the screen was built.
+
+### Two flags, because they became true at different times
+
+`EDITOR_BUILT` is now true and a book row on home opens the artboard. `BOOK_CREATION_BUILT`
+is new and false: there is no way to *make* a book from the interface, because choosing
+products is the offer tray's job. One flag would have forced a choice between a New button
+that 404s and a list whose rows do not open, and both are worse than saying so.
+
+**A test caught the consequence immediately.** `lib/checklist.ts` read `EDITOR_BUILT` to
+decide whether its "Create your first offer book" item could link to `/editor/new` — a
+route that does not exist. Flipping the flag pointed the checklist at a 404, and
+`checklist.test.ts` failed on exactly the rule it was written for.
+
+### What the render found
+
+Verified by rendering `BookPage` to static SVG against a real book — 11 offers, 2 pages,
+the seeded offer card and footer, real catalog names.
+
+- **`compactBlock` earns its place on real rows.** Cards with no spec close up; cards with
+  one carry it. `balance` is wired as the default, per the comparison in STATUS §1.2.
+- **Every price reads `AED 0.00` and every card is flagged.** Correct, and the point:
+  `createBook` writes zero because a catalog product has no price, and `no-price` is what
+  has to stop it publishing.
+- **Two rendering facts that are not defects.** The rasterizer used to look at the output
+  (librsvg, through sharp) neither fetches remote `<image>` hrefs nor resolves CSS custom
+  properties, so packshots came out blank and every `--sq-tpl-*` fill came out black.
+  Substituting the literals put the red back. **Both work in a browser and neither works in
+  the PDF pipeline**, which is §6's open question arriving early — E9 will hit exactly this.
+
+### Still not built
+
+1. **The offer tray** — E6-02. It is what unblocks `BOOK_CREATION_BUILT`.
+2. **The properties panel** — E6-03. Prices, tiers, connectors. Until it exists every book
+   is priced at zero.
+3. **Selection, drag-to-reorder, undo, autosave** — E6-04 through E6-08.
+4. **Fabric**, for any of that which needs direct manipulation.
+
+### One gap in the design system, raised rather than answered
+
+**There is no ink token for `--sq-ui-canvas-surround`.** It is the one dark surface in the
+product and the system defines no text colour that sits on it. The page caption is on a
+light chip rather than directly on the surround, which uses only tokens that exist. A real
+answer is a token decision, not an inline one.
 
 ---
 
-## 5. A promo tier's colour is not a block's colour, and nothing maps between them
+## 6. A promo tier's colour is not a block's colour, and nothing maps between them
 
 Found while writing `composeOffer`, and it typechecks in the wrong direction, which is why
 it is worth writing down.
@@ -250,7 +315,7 @@ pipeline, which has no stylesheet.
 
 ---
 
-## 6. Corrections to the epic
+## 7. Corrections to the epic
 
 Recorded here rather than edited into `docs/E6-offer-book-editor.md`.
 

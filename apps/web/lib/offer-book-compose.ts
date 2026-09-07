@@ -51,7 +51,7 @@ export interface ComposedOffer {
    *
    * The two vocabularies do not overlap and nothing maps between them. Casting
    * one to the other typechecks and produces a colour no palette contains — see
-   * `docs/E6-pending.md` §5.
+   * `docs/E6-pending.md` §6.
    */
   tierToken: string
   flags: OfferFlag[]

@@ -15,8 +15,27 @@
  * a different question and belongs with the plan, not here.
  */
 
-/** E6 — the offer book editor at /editor/[id]. */
-export const EDITOR_BUILT = false
+/**
+ * E6 — the offer book artboard at /editor/[id]. Built: a book loads, composes
+ * through the layout engine and draws. Not built: the offer tray, the properties
+ * panel, selection, undo, autosave.
+ */
+export const EDITOR_BUILT = true
+
+/**
+ * E6-02 — creating an offer book from the interface.
+ *
+ * **Separate from `EDITOR_BUILT` because the two became true at different
+ * times**, which is exactly the case a single flag per screen cannot express.
+ * The artboard exists and a book that already has offers opens in it; there is
+ * no way to *make* one, because choosing products is the offer tray's job and
+ * the tray is not built. `POST /api/v1/offer-books` works and is what created
+ * the books you can open.
+ *
+ * Keeping one flag would have forced a choice between a New button that 404s
+ * and a book list whose rows do not open — both worse than saying so.
+ */
+export const BOOK_CREATION_BUILT = false
 
 /** E5 — the product catalog browser at /catalog. Built: search and browsing. */
 export const CATALOG_BUILT = true
