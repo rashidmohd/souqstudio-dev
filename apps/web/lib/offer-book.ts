@@ -486,3 +486,176 @@ async function uniqueShortCode(
   }
   throw new Error('createBook: could not allocate a unique short code')
 }
+
+// ─── Starting a book from a spreadsheet ───────────────────────────────────────
+
+export interface ImportSummary {
+  id: string
+  filename: string
+  /** Rows that resolved to a catalog product and can become offers. */
+  usableRows: number
+  /** How many of those carry a price from the sheet. */
+  pricedRows: number
+  createdAt: Date
+}
+
+/**
+ * Committed imports this organization could start a book from.
+ *
+ * **`ImportRowStatus.MATCHED` and `CREATED` only.** An `AMBIGUOUS` row is one the
+ * owner never resolved and `UNMATCHED` never found a product at all — neither
+ * has a `catalogProductId`, so neither can become an offer. `SKIPPED` is the
+ * owner saying no. Counting them here would promise offers the book cannot
+ * contain.
+ */
+export async function listImportsForBook(organizationId: string): Promise<ImportSummary[]> {
+  const imports = await prisma.catalogImport.findMany({
+    where: { organizationId, status: 'COMMITTED' },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    select: {
+      id: true,
+      filename: true,
+      createdAt: true,
+      rows: {
+        where: { status: { in: ['MATCHED', 'CREATED'] }, catalogProductId: { not: null } },
+        select: { price: true },
+      },
+    },
+  })
+
+  return imports
+    .map((row) => ({
+      id: row.id,
+      filename: row.filename,
+      usableRows: row.rows.length,
+      pricedRows: row.rows.filter((r) => r.price !== null).length,
+      createdAt: row.createdAt,
+    }))
+    .filter((summary) => summary.usableRows > 0)
+}
+
+/**
+ * Create a book from a committed spreadsheet import.
+ *
+ * **This is the half E5-06 deliberately left open.** That epic ends at "offers
+ * created in the book, prices carried from the sheet", and it stopped short
+ * because there were no offer books and nothing could make one — so the prices
+ * stayed on `catalog_import_rows.price`, which is where the schema already puts
+ * them. `CatalogImport.committedAt` is documented as *"set when the owner
+ * commits the reviewed import into an offer book"*. This is that read.
+ *
+ * **A book made this way arrives priced**, which is the whole point: the
+ * search-and-pick path writes zero and flags every offer, because a catalog
+ * product has no price. A sheet has one per row.
+ *
+ * Rows with no price still become offers at zero and carry the flag. Dropping
+ * them would silently shorten a book the owner assembled in a spreadsheet, and
+ * a missing price is exactly what the flag exists to surface.
+ */
+export async function createBookFromImport(
+  input: {
+    shopId: string
+    title: string
+    format: string
+    language: 'en' | 'ar'
+    importId: string
+    perRow?: number
+    bodyRows?: number
+  },
+  organizationId: string
+): Promise<{ id: string; offers: number } | null> {
+  const shop = await prisma.shop.findFirst({
+    where: { id: input.shopId, organizationId },
+    select: { id: true },
+  })
+  if (shop === null) return null
+
+  // The import is scoped to the organization in the same predicate, so another
+  // tenant's sheet cannot be read into this book.
+  const source = await prisma.catalogImport.findFirst({
+    where: { id: input.importId, organizationId, status: 'COMMITTED' },
+    select: {
+      id: true,
+      rows: {
+        where: { status: { in: ['MATCHED', 'CREATED'] }, catalogProductId: { not: null } },
+        // Sheet order is the book's order. An owner who arranged their
+        // spreadsheet by aisle expects the flyer to follow it.
+        orderBy: { rowIndex: 'asc' },
+        select: { catalogProductId: true, price: true },
+      },
+    },
+  })
+  if (source === null || source.rows.length === 0) return null
+
+  const tier = await prisma.promoTier.findFirst({
+    where: { organizationId },
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    select: { id: true },
+  })
+  if (tier === null) {
+    throw new Error(`createBookFromImport: organization "${organizationId}" has no promo tiers`)
+  }
+
+  const gridOptions = {
+    ...(input.perRow === undefined ? {} : { perRow: input.perRow }),
+    ...(input.bodyRows === undefined ? {} : { bodyRows: input.bodyRows }),
+  }
+  const master = bookletGrid(gridOptions)
+
+  const rows = source.rows.filter(
+    (row): row is { catalogProductId: string; price: typeof row.price } =>
+      row.catalogProductId !== null
+  )
+
+  const book = await prisma.$transaction(async (tx) => {
+    const created = await tx.offerBook.create({
+      data: {
+        shopId: shop.id,
+        title: input.title,
+        format: input.format,
+        language: input.language,
+        shortCode: await uniqueShortCode(tx),
+        grids: {
+          create: {
+            role: 'master',
+            cols: master.cols,
+            rows: master.rows,
+            gap: master.gap,
+            margin: master.margin ?? 0,
+            regions: master.regions as unknown as object[],
+          },
+        },
+      },
+      select: { id: true },
+    })
+
+    // Two statements, not two per row — the same reason `createBook` fans out.
+    const offers = await tx.offer.createManyAndReturn({
+      data: rows.map((row, position) => ({
+        bookId: created.id,
+        position,
+        // The sheet's price, as text. Prisma's Decimal takes a string and never
+        // sees a float — the same care the import took reading it.
+        price: row.price === null ? 0 : row.price.toString(),
+        currency: 'AED',
+        promoTierId: tier.id,
+      })),
+      select: { id: true, position: true },
+    })
+
+    const byPosition = new Map(offers.map((offer) => [offer.position, offer.id]))
+    await tx.offerItem.createMany({
+      data: rows.flatMap((row, position) => {
+        const offerId = byPosition.get(position)
+        return offerId === undefined
+          ? []
+          : [{ offerId, catalogProductId: row.catalogProductId, position: 0 }]
+      }),
+    })
+
+    return created
+  })
+
+  return { id: book.id, offers: rows.length }
+}

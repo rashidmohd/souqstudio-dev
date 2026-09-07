@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { getActiveShop } from '@/lib/active-shop'
-import { createBook } from '@/lib/offer-book'
+import { createBook, createBookFromImport } from '@/lib/offer-book'
 
 /**
  * E6 — creating an offer book, and listing the ones a shop has.
@@ -19,7 +19,17 @@ import { createBook } from '@/lib/offer-book'
  * E6-03. This route exists so there is something for the editor to open.
  */
 
-const createSchema = z.object({
+/**
+ * Two ways to start a book, and they are a union rather than two optional
+ * fields.
+ *
+ * `productIds` is the search-and-pick path and writes zero prices. `importId`
+ * reads a committed spreadsheet and **carries its prices** — the half E5-06
+ * stopped short of because there were no offer books to carry them into. A body
+ * with both would be a client that has not decided, and a body with neither has
+ * nothing to create.
+ */
+const baseSchema = z.object({
   title: z.string().trim().min(1).max(160),
   // The formats `OfferBookFormat` names. Anything else has no page size and
   // would silently fall back to A4, which is a wrong flyer rather than an error.
@@ -33,20 +43,26 @@ const createSchema = z.object({
     'print',
   ]),
   language: z.enum(['en', 'ar']).default('en'),
-  /**
-   * Catalog product ids, in the order they should appear. Order is the book's
-   * order — `offers.position` is what the engine paginates from.
-   *
-   * Bounded at 200 because `plans.maxProductsPerBook` exists and this route does
-   * not read it yet; an unbounded array is a request that can write for minutes.
-   * The plan check belongs here once the editor has a way to surface the limit.
-   */
-  productIds: z.array(z.string().min(1)).min(1).max(200),
   /** Cards across a page. More tracks is what density means now — E6 §5's
    *  density profiles are gone, see `docs/composition-model.md`. */
   perRow: z.number().int().min(1).max(6).optional(),
   bodyRows: z.number().int().min(1).max(8).optional(),
 })
+
+const createSchema = z.union([
+  baseSchema.extend({
+    /**
+     * Catalog product ids, in the order they should appear — `offers.position`
+     * is what the engine paginates from.
+     *
+     * Bounded at 200 because `plans.maxProductsPerBook` exists and this route
+     * does not read it yet; an unbounded array is a request that can write for
+     * minutes. The plan check belongs here once the editor can surface the limit.
+     */
+    productIds: z.array(z.string().min(1)).min(1).max(200),
+  }),
+  baseSchema.extend({ importId: z.string().min(1) }),
+])
 
 export async function POST(request: NextRequest) {
   const { session, response } = await requireApiSession({ requireVerifiedEmail: true })
@@ -63,18 +79,34 @@ export async function POST(request: NextRequest) {
     return fail('invalid_request', 'Check the title, format and products, then try again.')
   }
 
-  // `organizationId` from the session, never from the body — and `createBook`
-  // filters the products against it rather than trusting the ids it was handed.
+  // `organizationId` from the session, never from the body — and both creators
+  // filter what they were handed against it rather than trusting it.
+  const common = {
+    shopId: shop.id,
+    title: parsed.data.title,
+    format: parsed.data.format,
+    language: parsed.data.language,
+    ...(parsed.data.perRow === undefined ? {} : { perRow: parsed.data.perRow }),
+    ...(parsed.data.bodyRows === undefined ? {} : { bodyRows: parsed.data.bodyRows }),
+  }
+
+  if ('importId' in parsed.data) {
+    const book = await createBookFromImport(
+      { ...common, importId: parsed.data.importId },
+      session.user.organizationId
+    )
+    if (book === null) {
+      return fail(
+        'import_unusable',
+        'That import has no products that resolved to your catalog.',
+        422
+      )
+    }
+    return ok(book, 201)
+  }
+
   const book = await createBook(
-    {
-      shopId: shop.id,
-      title: parsed.data.title,
-      format: parsed.data.format,
-      language: parsed.data.language,
-      productIds: parsed.data.productIds,
-      ...(parsed.data.perRow === undefined ? {} : { perRow: parsed.data.perRow }),
-      ...(parsed.data.bodyRows === undefined ? {} : { bodyRows: parsed.data.bodyRows }),
-    },
+    { ...common, productIds: parsed.data.productIds },
     session.user.organizationId
   )
 

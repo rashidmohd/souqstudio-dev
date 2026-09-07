@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, X } from 'lucide-react'
+import { FileSpreadsheet, Plus, Search, X } from 'lucide-react'
 import type { CatalogSearchHit } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -31,6 +31,17 @@ type Props = {
   /** Whether there is an active shop to create against. A book belongs to a
    *  shop, and the form cannot invent one. */
   hasShop: boolean
+  /** Committed spreadsheet imports this organization could start from. Empty is
+   *  the ordinary case — most shops have never uploaded one — and the choice is
+   *  hidden entirely rather than offered and disabled. */
+  imports: ImportOption[]
+}
+
+export type ImportOption = {
+  id: string
+  filename: string
+  usableRows: number
+  pricedRows: number
 }
 
 const FORMATS = [
@@ -52,9 +63,11 @@ const LANGUAGES = [
  *  request is refused, not after. */
 const MAX_PRODUCTS = 200
 
-export function NewBookForm({ hasShop }: Props) {
+export function NewBookForm({ hasShop, imports }: Props) {
   const router = useRouter()
 
+  const [source, setSource] = React.useState<'catalog' | 'import'>('catalog')
+  const [importId, setImportId] = React.useState(imports[0]?.id ?? '')
   const [title, setTitle] = React.useState('')
   const [format, setFormat] = React.useState('leaflet')
   const [language, setLanguage] = React.useState('en')
@@ -116,7 +129,12 @@ export function NewBookForm({ hasShop }: Props) {
     // Never disable submit to enforce validation — a disabled button with no
     // explanation is a dead end. Submit, then say what is missing.
     if (title.trim() === '') return setError('Give the book a title.')
-    if (picked.length === 0) return setError('Add at least one product.')
+    if (source === 'catalog' && picked.length === 0) {
+      return setError('Add at least one product.')
+    }
+    if (source === 'import' && importId === '') {
+      return setError('Choose a spreadsheet.')
+    }
 
     setSubmitting(true)
     try {
@@ -127,7 +145,11 @@ export function NewBookForm({ hasShop }: Props) {
           title: title.trim(),
           format,
           language,
-          productIds: picked.map((product) => product.id),
+          // A union on the wire, not two optional fields: sending both would be
+          // a client that has not decided which it meant.
+          ...(source === 'import'
+            ? { importId }
+            : { productIds: picked.map((product) => product.id) }),
         }),
       })
       const body = await res.json()
@@ -178,6 +200,44 @@ export function NewBookForm({ hasShop }: Props) {
         />
       </div>
 
+      {imports.length > 0 ? (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="font-ui text-label font-medium text-primary">
+            Where the products come from
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            <SourceChoice
+              checked={source === 'catalog'}
+              onSelect={() => setSource('catalog')}
+              icon={<Search className="size-4" aria-hidden="true" strokeWidth={1.75} />}
+              title="Pick from the catalog"
+              body="Search and add them one at a time. Prices are set afterwards."
+            />
+            <SourceChoice
+              checked={source === 'import'}
+              onSelect={() => setSource('import')}
+              icon={<FileSpreadsheet className="size-4" aria-hidden="true" strokeWidth={1.75} />}
+              title="From a spreadsheet"
+              body="A CSV you already imported — the book arrives with its prices."
+            />
+          </div>
+        </fieldset>
+      ) : null}
+
+      {source === 'import' ? (
+        <Select
+          label="Spreadsheet"
+          required
+          options={imports.map((option) => ({
+            value: option.id,
+            label: `${option.filename} — ${option.usableRows} products, ${option.pricedRows} priced`,
+          }))}
+          value={importId}
+          onChange={(event) => setImportId(event.target.value)}
+          hint="Rows that matched a product become offers, in the sheet's order."
+        />
+      ) : (
+        <>
       <div className="flex flex-col gap-2">
         <Input
           label="Add products"
@@ -271,6 +331,8 @@ export function NewBookForm({ hasShop }: Props) {
           </ul>
         )}
       </div>
+        </>
+      )}
 
       {error ? (
         <p className="font-ui text-body-sm text-critical-fg" role="alert">
@@ -283,9 +345,55 @@ export function NewBookForm({ hasShop }: Props) {
           Create offer book
         </Button>
         <span className="font-ui text-body-sm text-muted">
-          Prices are set on the next screen.
+          {source === 'import'
+            ? "Prices come from the sheet. You can change them on the next screen."
+            : 'Prices are set on the next screen.'}
         </span>
       </div>
     </form>
+  )
+}
+
+/**
+ * One of the two ways to start.
+ *
+ * A radio in substance — one of a set, and the browser's own grouping is what
+ * makes arrow keys work between them — with the label as the target rather than
+ * a dot beside it, so the whole card is tappable at 44px on a phone.
+ */
+function SourceChoice({
+  checked,
+  onSelect,
+  icon,
+  title,
+  body,
+}: {
+  checked: boolean
+  onSelect: () => void
+  icon: React.ReactNode
+  title: string
+  body: string
+}) {
+  return (
+    <label
+      className={
+        checked
+          ? 'flex max-w-sm flex-1 cursor-pointer items-start gap-2 rounded-card border-hairline border-border-focus bg-selected-bg p-3'
+          : 'flex max-w-sm flex-1 cursor-pointer items-start gap-2 rounded-card border-hairline border-border-subtle p-3 hover:bg-stone-100'
+      }
+    >
+      <input
+        type="radio"
+        name="book-source"
+        checked={checked}
+        onChange={onSelect}
+        className="sr-only"
+      />
+      <span className="mt-px text-secondary">{icon}</span>
+      <span className="flex flex-col">
+        <span className="font-ui text-body font-medium text-primary">{title}</span>
+        <span className="font-ui text-body-sm text-muted">{body}</span>
+      </span>
+    </label>
   )
 }

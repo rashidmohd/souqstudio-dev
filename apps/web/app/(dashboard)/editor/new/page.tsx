@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
+import { listImportsForBook } from '@/lib/offer-book'
 import { NewBookForm } from '@/components/offer-book/NewBookForm'
 
 export const metadata: Metadata = { title: 'New offer book · SouqStudio' }
@@ -23,10 +24,20 @@ export const metadata: Metadata = { title: 'New offer book · SouqStudio' }
  */
 export default async function NewBookPage() {
   const session = await requireCompliantSession()
-  const shop = await getActiveShop(session)
+  const [shop, imports] = await Promise.all([
+    getActiveShop(session),
+    // Empty for most shops, and then the choice is not offered at all. E5-06
+    // committed these into the catalog and stopped; carrying their prices into
+    // a book is the half it left to E6.
+    listImportsForBook(session.user.organizationId),
+  ])
 
   return (
-    <div className="flex flex-col gap-6">
+    // The dashboard's content measure, the same one `/catalog` and the settings
+    // screens use. Without it the form fields stretch to the full width of the
+    // viewport — a title input a metre wide on a desktop monitor, which is what
+    // this screen shipped as until someone looked at it.
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">New offer book</h1>
         <p className="font-ui text-body text-secondary">
@@ -34,7 +45,7 @@ export default async function NewBookPage() {
         </p>
       </div>
 
-      <NewBookForm hasShop={shop !== null} />
+      <NewBookForm hasShop={shop !== null} imports={imports} />
     </div>
   )
 }
