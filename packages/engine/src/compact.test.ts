@@ -18,14 +18,27 @@ const CARD_HEIGHT = 600
 const el = (kind: BlockElement['kind'], y: number, height: number): ResolvedElement => ({
   element:
     kind === 'text'
-      ? { kind: 'text', box: ZERO, source: { from: 'product', field: 'name' }, level: 'h3', align: 'start' }
+      ? {
+          id: 'name',
+          kind: 'text',
+          box: ZERO,
+          source: { from: 'product', field: 'name' },
+          level: 'h3',
+          align: 'start',
+        }
       : kind === 'image'
-        ? { kind: 'image', box: ZERO, source: { from: 'product' } }
+        ? { id: 'photo', kind: 'image', box: ZERO, source: { from: 'product' } }
         : kind === 'priceMark'
-          ? { kind: 'priceMark', box: ZERO }
+          ? { id: 'price', kind: 'priceMark', box: ZERO }
           : kind === 'chip'
-            ? { kind: 'chip', box: ZERO, anchor: 'TOP_START' }
-            : { kind: 'shape', box: ZERO, surface: 'surface', radius: 3 },
+            ? { id: 'chip', kind: 'chip', box: ZERO, anchor: 'TOP_START' }
+            : {
+                id: 'surface',
+                kind: 'shape',
+                box: ZERO,
+                fill: { from: 'role', ref: 'surface' },
+                radius: 3,
+              },
   rect: { x: 32, y, width: 336, height },
 })
 

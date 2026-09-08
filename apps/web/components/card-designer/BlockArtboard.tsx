@@ -1,12 +1,14 @@
 'use client'
 
 import * as React from 'react'
-import type { BlockElement, BrandKit } from '@souqstudio/types'
+import type { BlockElement, BrandColor } from '@souqstudio/types'
 import {
   isBound,
   moveBox,
   resizeBox,
   resolveBlock,
+  snapBox,
+  type Guides,
   type Handle,
   type Rect,
 } from '@souqstudio/engine'
@@ -19,6 +21,7 @@ import {
   type ArtboardOffer,
   type DrawContext,
 } from '@/components/blocks/draw'
+import type { BrandKit } from '@souqstudio/types'
 
 /**
  * The block designer's canvas. E7.
@@ -26,18 +29,15 @@ import {
  * **The same painter as the editor and `/brand`, with handles over the top.**
  * Canvas parity is a hard requirement in the design system — an owner moving
  * between designing a card and building a book must not feel they changed
- * application — and the cheapest way to guarantee it is to have one
- * implementation of a card rather than two that look alike.
+ * application — and the cheapest way to guarantee it is one implementation of a
+ * card rather than two that look alike.
  *
- * **Still no Fabric, and this is the surface that was supposed to need it.** The
- * argument for an object model is direct manipulation, which is exactly what
- * this does; what direct manipulation actually needs is a hit target, a delta
- * and somewhere to put the result, and the engine already owns the arithmetic
- * (`moveBox`, `resizeBox`). Adding Fabric here would mean a *second* painter —
- * Fabric objects built from the same elements — and the first thing that would
- * drift is the thing that matters most, which is whether the card the owner
- * designed is the card the PDF prints. E6 found the same and recorded it; this
- * is the harder case and the answer holds.
+ * **Still no Fabric, and this is the surface that was supposed to need it.**
+ * Direct manipulation needs a hit target, a delta and somewhere to put the
+ * result; the engine owns the arithmetic (`moveBox`, `resizeBox`, `snapBox`) in
+ * block fractions. Adding Fabric would mean a *second painter* — Fabric objects
+ * built from the same elements — and the first thing to drift would be whether
+ * the card the owner designed is the card the PDF prints.
  *
  * **Deltas are in block fractions, computed from the rendered rectangle.** The
  * artboard scales with its container, so a pointer delta in CSS pixels means
@@ -56,32 +56,35 @@ type Props = {
   direction: 'ltr' | 'rtl'
   offer: ArtboardOffer | undefined
   shopName: string
-  selected?: number | null
-  onSelect?: ((index: number | null) => void) | undefined
+  /** Artwork the owner uploaded, by asset id. */
+  asset?: ((assetId: string) => string | null) | undefined
+  selectedIds?: readonly string[]
+  /** `additive` is a shift-click: add to the selection rather than replace it. */
+  onSelect?: ((ids: string[], additive?: boolean) => void) | undefined
   /** Called on every pointer move. A drag is one undo step, so it never commits. */
   onChange?: ((elements: BlockElement[]) => void) | undefined
   /** Push an undo step. Called once, as a drag begins. */
   onCheckpoint?: (() => void) | undefined
-  /** Bound elements carry a persistent mark. Off for a preview that cannot be
-   *  edited, where the distinction has nothing to act on. */
+  /** Bound elements carry a persistent mark. Off for a preview. */
   markBound?: boolean
   className?: string
   ariaLabel?: string
 }
 
-type DragBase = {
-  index: number
+type DragIntent =
+  | { kind: 'move' }
+  | { kind: 'resize'; handle: Handle }
+  | { kind: 'rotate' }
+  | { kind: 'marquee' }
+
+type Drag = DragIntent & {
   startX: number
   startY: number
-  origin: BlockElement
-  /** The element holding the pointer capture, so the release goes to the same
-   *  one that took it — `releasePointerCapture` on an element that never
-   *  captured throws, and the svg is not the element that did. */
+  /** Every element as it was when the drag began. Deltas apply to these, so a
+   *  drag never accumulates its own rounding. */
+  origin: BlockElement[]
   captured: Element
 }
-
-type DragIntent = { kind: 'move' } | { kind: 'resize'; handle: Handle }
-type Drag = DragIntent & DragBase
 
 export function BlockArtboard({
   elements,
@@ -91,7 +94,8 @@ export function BlockArtboard({
   direction,
   offer,
   shopName,
-  selected = null,
+  asset,
+  selectedIds = [],
   onSelect,
   onChange,
   onCheckpoint,
@@ -99,7 +103,7 @@ export function BlockArtboard({
   className,
   ariaLabel = 'Block',
 }: Props) {
-  const palette = resolvePalette(kit)
+  const palette: readonly BrandColor[] = resolvePalette(kit)
   const scale = resolveScale(kit)
   const blockSize = Math.sqrt(width * height)
   const interactive = onChange !== undefined && onSelect !== undefined
@@ -112,9 +116,12 @@ export function BlockArtboard({
 
   const svgRef = React.useRef<SVGSVGElement | null>(null)
   const drag = React.useRef<Drag | null>(null)
+  const [guides, setGuides] = React.useState<Guides>({ x: [], y: [] })
+  const [marquee, setMarquee] = React.useState<Rect | null>(null)
 
   const ctx: DrawContext = {
     token: (ref) => resolveToken(palette, ref),
+    palette,
     scale,
     blockSize,
     ar: direction === 'rtl',
@@ -122,6 +129,7 @@ export function BlockArtboard({
     measure: mounted ? measureText : estimateWidth,
     offer,
     shopName,
+    asset,
   }
 
   const { elements: resolved } = resolveBlock(
@@ -139,56 +147,140 @@ export function BlockArtboard({
 
   /** Client pixels to block fractions, with RTL's one sign flip. */
   function delta(event: React.PointerEvent, from: { startX: number; startY: number }) {
-    const box = svgRef.current?.getBoundingClientRect()
-    if (box === undefined || box.width === 0 || box.height === 0) return { dStart: 0, dTop: 0 }
+    const rect = svgRef.current?.getBoundingClientRect()
+    if (rect === undefined || rect.width === 0 || rect.height === 0) return { dStart: 0, dTop: 0 }
 
-    const dx = (event.clientX - from.startX) / box.width
+    const dx = (event.clientX - from.startX) / rect.width
     return {
       dStart: direction === 'rtl' ? -dx : dx,
-      dTop: (event.clientY - from.startY) / box.height,
+      dTop: (event.clientY - from.startY) / rect.height,
     }
+  }
+
+  /** Where the pointer is, in block fractions. Used by the marquee. */
+  function pointAt(event: React.PointerEvent) {
+    const rect = svgRef.current?.getBoundingClientRect()
+    if (rect === undefined || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 }
+    const x = (event.clientX - rect.left) / rect.width
+    return { x: direction === 'rtl' ? 1 - x : x, y: (event.clientY - rect.top) / rect.height }
   }
 
   function onPointerMove(event: React.PointerEvent) {
     const active = drag.current
     if (active === null || onChange === undefined) return
 
-    const { dStart, dTop } = delta(event, active)
-    const next =
-      active.kind === 'move'
-        ? { ...active.origin, box: moveBox(active.origin.box, dStart, dTop) }
-        : { ...active.origin, box: resizeBox(active.origin.box, active.handle, dStart, dTop) }
+    if (active.kind === 'marquee') {
+      const from = pointAt({ ...event, clientX: active.startX, clientY: active.startY } as React.PointerEvent)
+      const to = pointAt(event)
+      setMarquee({
+        x: Math.min(from.x, to.x) * width,
+        y: Math.min(from.y, to.y) * height,
+        width: Math.abs(to.x - from.x) * width,
+        height: Math.abs(to.y - from.y) * height,
+      })
+      return
+    }
 
-    // One undo step per drag, not one per pointer move: the step was pushed on
-    // pointer down, before anything had changed.
+    const { dStart, dTop } = delta(event, active)
+    const moving = new Set(selectedIds)
+
+    if (active.kind === 'rotate') {
+      // A drag to the side turns the element. Vertical movement is ignored:
+      // a rotation handle that responds to both axes spins wildly as soon as
+      // the pointer crosses the centre.
+      const turn = Math.round(dStart * 180)
+      onChange(
+        active.origin.map((element) =>
+          moving.has(element.id)
+            ? { ...element, rotation: clampTurn((element.rotation ?? 0) + turn) }
+            : element
+        )
+      )
+      return
+    }
+
+    if (active.kind === 'resize') {
+      const handle = active.handle
+      onChange(
+        active.origin.map((element) =>
+          moving.has(element.id)
+            ? { ...element, box: resizeBox(element.box, handle, dStart, dTop) }
+            : element
+        )
+      )
+      return
+    }
+
+    // Move. **The snap is computed for the primary element and applied to all
+    // of them**, so a group keeps its internal spacing: snapping each element
+    // separately would pull a selection apart the first time two of them found
+    // different guides.
+    const primaryId = selectedIds[0]
+    const primary = active.origin.find((element) => element.id === primaryId)
+    if (primary === undefined) return
+
+    const others = active.origin
+      .filter((element) => !moving.has(element.id))
+      .map((element) => element.box)
+
+    const dragged = moveBox(primary.box, dStart, dTop)
+    const snapped = snapBox(dragged, others)
+    setGuides(snapped.guides)
+
+    const adjustStart = snapped.box.start - dragged.start
+    const adjustTop = snapped.box.top - dragged.top
+
     onChange(
-      elements.map((element, index) => (index === active.index ? (next as BlockElement) : element))
+      active.origin.map((element) => {
+        if (!moving.has(element.id)) return element
+        const moved = moveBox(element.box, dStart, dTop)
+        return {
+          ...element,
+          box: { ...moved, start: moved.start + adjustStart, top: moved.top + adjustTop },
+        }
+      })
     )
   }
 
   function endDrag(event: React.PointerEvent) {
     const active = drag.current
     if (active === null) return
+
+    if (active.kind === 'marquee' && marquee !== null && onSelect !== undefined) {
+      // Anything the rubber band touches, not only what it encloses: a band
+      // that must swallow an element whole is one an owner has to draw twice.
+      const hit = resolved
+        .filter(({ rect }) => intersects(rect, marquee))
+        .map(({ element }) => element.id)
+      onSelect(hit)
+    }
+
     drag.current = null
+    setMarquee(null)
+    setGuides({ x: [], y: [] })
     if (active.captured.hasPointerCapture?.(event.pointerId)) {
       active.captured.releasePointerCapture(event.pointerId)
     }
   }
 
-  function startDrag(event: React.PointerEvent, next: DragIntent & Omit<DragBase, 'captured'>) {
+  function startDrag(event: React.PointerEvent, intent: DragIntent) {
     if (!interactive) return
     event.preventDefault()
     event.stopPropagation()
-    // The undo step is the document *before* the drag, taken once here.
-    onCheckpoint?.()
+    if (intent.kind !== 'marquee') onCheckpoint?.()
 
-    // Captured on the element the pointer went down on, so a fast drag that
-    // leaves the artboard keeps sending moves instead of dropping the element
-    // wherever it happened to be when the pointer crossed the edge.
     const captured = event.currentTarget as Element
     captured.setPointerCapture?.(event.pointerId)
-    drag.current = { ...next, captured }
+    drag.current = {
+      ...intent,
+      startX: event.clientX,
+      startY: event.clientY,
+      origin: elements,
+      captured,
+    }
   }
+
+  const selectionRects = resolved.filter(({ element }) => selectedIds.includes(element.id))
 
   return (
     <svg
@@ -201,62 +293,34 @@ export function BlockArtboard({
       onPointerMove={interactive ? onPointerMove : undefined}
       onPointerUp={interactive ? endDrag : undefined}
       onPointerCancel={interactive ? endDrag : undefined}
-      onClick={interactive ? () => onSelect?.(null) : undefined}
+      onPointerDown={
+        interactive
+          ? (event) => {
+              // On the ground rather than on an element: clear, then rubber-band.
+              onSelect?.([])
+              startDrag(event, { kind: 'marquee' })
+            }
+          : undefined
+      }
     >
       {/* The paper, in the offer book's own token set. A block's own `shape`
           element usually covers it; this is what shows where it does not. */}
       <rect width={width} height={height} fill="var(--sq-tpl-paper)" />
 
-      {resolved.map(({ element, rect }, index) => (
-        <React.Fragment key={index}>{drawElement(element, rect, ctx)}</React.Fragment>
+      {resolved.map(({ element, rect }) => (
+        <React.Fragment key={element.id}>{drawElement(element, rect, ctx)}</React.Fragment>
       ))}
-
-      {interactive
-        ? resolved.map(({ rect }, index) => (
-            <rect
-              key={`hit-${index}`}
-              {...xywh(rect)}
-              fill="transparent"
-              className="cursor-move outline-none"
-              role="button"
-              tabIndex={0}
-              aria-label={describe(elements[index])}
-              aria-pressed={selected === index}
-              onPointerDown={(event) => {
-                onSelect?.(index)
-                const origin = elements[index]
-                if (origin === undefined) return
-                startDrag(event, {
-                  kind: 'move',
-                  index,
-                  startX: event.clientX,
-                  startY: event.clientY,
-                  origin,
-                })
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-                onSelect?.(index)
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                event.preventDefault()
-                onSelect?.(index)
-              }}
-            />
-          ))
-        : null}
 
       {/* **Bound elements are marked whether or not anything is selected.** The
           design system requires the distinction in three places — here, the
           layer list and the palette — because a shop that cannot tell which
           elements move with the catalog cannot predict what their card does
-          across twelve products. Dashed, so the solid ring stays selection. */}
+          across twelve products. */}
       {markBound
-        ? resolved.map(({ element, rect }, index) =>
+        ? resolved.map(({ element, rect }) =>
             isBound(element) ? (
               <rect
-                key={`bound-${index}`}
+                key={`bound-${element.id}`}
                 {...xywh(rect)}
                 fill="none"
                 stroke="var(--sq-ui-selected-ring)"
@@ -269,25 +333,82 @@ export function BlockArtboard({
           )
         : null}
 
-      {/* Drawn last so nothing paints over the selection — a chip anchored
-          TOP_START overhangs its box by design and would otherwise cover it. */}
-      {selected !== null && resolved[selected] !== undefined ? (
+      {interactive
+        ? resolved.map(({ element, rect }) => (
+            <rect
+              key={`hit-${element.id}`}
+              {...xywh(rect)}
+              fill="transparent"
+              className={element.locked === true ? 'outline-none' : 'cursor-move outline-none'}
+              role="button"
+              tabIndex={0}
+              aria-label={describe(element)}
+              aria-pressed={selectedIds.includes(element.id)}
+              onPointerDown={(event) => {
+                if (element.locked === true) return
+                const additive = event.shiftKey || event.metaKey
+                if (additive) onSelect?.([element.id], true)
+                else if (!selectedIds.includes(element.id)) onSelect?.(groupOf(elements, element))
+                startDrag(event, { kind: 'move' })
+              }}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                onSelect?.([element.id])
+              }}
+            />
+          ))
+        : null}
+
+      {/* Guides, then the selection, then the marquee — each drawn over what it
+          describes. A chip anchored TOP_START overhangs its box by design and
+          would otherwise cover the ring. */}
+      {guides.x.map((x) => (
+        <line
+          key={`gx-${x}`}
+          x1={(direction === 'rtl' ? 1 - x : x) * width}
+          y1={0}
+          x2={(direction === 'rtl' ? 1 - x : x) * width}
+          y2={height}
+          stroke="var(--sq-ui-selected-ring)"
+          strokeWidth={1}
+          strokeDasharray="4 4"
+          pointerEvents="none"
+        />
+      ))}
+      {guides.y.map((y) => (
+        <line
+          key={`gy-${y}`}
+          x1={0}
+          y1={y * height}
+          x2={width}
+          y2={y * height}
+          stroke="var(--sq-ui-selected-ring)"
+          strokeWidth={1}
+          strokeDasharray="4 4"
+          pointerEvents="none"
+        />
+      ))}
+
+      {selectionRects.length > 0 ? (
         <Selection
-          rect={resolved[selected].rect}
+          rects={selectionRects.map(({ rect }) => rect)}
           scale={Math.max(width, height)}
           interactive={interactive}
-          onHandle={(handle, event) => {
-            const origin = elements[selected]
-            if (origin === undefined) return
-            startDrag(event, {
-              kind: 'resize',
-              index: selected,
-              handle,
-              startX: event.clientX,
-              startY: event.clientY,
-              origin,
-            })
-          }}
+          onHandle={(handle, event) => startDrag(event, { kind: 'resize', handle })}
+          onRotate={(event) => startDrag(event, { kind: 'rotate' })}
+        />
+      ) : null}
+
+      {marquee !== null ? (
+        <rect
+          {...xywh(marquee)}
+          fill="var(--sq-ui-selected-ring)"
+          fillOpacity={0.12}
+          stroke="var(--sq-ui-selected-ring)"
+          strokeWidth={1}
+          pointerEvents="none"
         />
       ) : null}
     </svg>
@@ -295,6 +416,25 @@ export function BlockArtboard({
 }
 
 const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.height })
+
+const clampTurn = (value: number) => Math.min(180, Math.max(-180, value))
+
+const intersects = (a: Rect, b: Rect) =>
+  a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+
+/**
+ * What clicking one element selects.
+ *
+ * A grouped element brings its group. That is the whole of what a group is here
+ * — "these move together" — and it is why grouping is a shared id rather than a
+ * tree: nothing about the geometry changes, only what a click means.
+ */
+function groupOf(elements: readonly BlockElement[], element: BlockElement): string[] {
+  if (element.groupId === undefined) return [element.id]
+  return elements
+    .filter((entry) => entry.groupId === element.groupId)
+    .map((entry) => entry.id)
+}
 
 /** Logical handle names, so a drag means the same thing in both directions. */
 const HANDLES: { handle: Handle; fx: number; fy: number; cursor: string }[] = [
@@ -308,17 +448,43 @@ const HANDLES: { handle: Handle; fx: number; fy: number; cursor: string }[] = [
   { handle: 'end-bottom', fx: 1, fy: 1, cursor: 'nwse-resize' },
 ]
 
+/**
+ * The selection, and its handles.
+ *
+ * **One outline per element, one set of handles for the lot.** Handles on every
+ * element of a multi-selection is eight times the furniture and answers a
+ * question nobody asked — resizing several elements means resizing the group,
+ * and the outlines are what say which ones are in it.
+ */
 function Selection({
-  rect,
+  rects,
   scale,
   interactive,
   onHandle,
+  onRotate,
 }: {
-  rect: Rect
+  rects: Rect[]
   scale: number
   interactive: boolean
   onHandle: (handle: Handle, event: React.PointerEvent) => void
+  onRotate: (event: React.PointerEvent) => void
 }) {
+  const bounds = rects.reduce(
+    (acc, rect) => ({
+      x: Math.min(acc.x, rect.x),
+      y: Math.min(acc.y, rect.y),
+      right: Math.max(acc.right, rect.x + rect.width),
+      bottom: Math.max(acc.bottom, rect.y + rect.height),
+    }),
+    { x: Infinity, y: Infinity, right: -Infinity, bottom: -Infinity }
+  )
+  const box: Rect = {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.right - bounds.x,
+    height: bounds.bottom - bounds.y,
+  }
+
   // Handles size with the artboard rather than with the element: a handle on a
   // 4%-tall caption has to stay big enough to grab, and one on a full-bleed
   // shape must not become a slab.
@@ -327,19 +493,44 @@ function Selection({
 
   return (
     <>
-      <rect
-        {...xywh(rect)}
-        fill="none"
-        stroke="var(--sq-ui-selected-ring)"
-        strokeWidth={stroke}
-        pointerEvents="none"
-      />
-      {interactive
-        ? HANDLES.map(({ handle, fx, fy, cursor }) => (
+      {rects.map((rect, index) => (
+        <rect
+          key={index}
+          {...xywh(rect)}
+          fill="none"
+          stroke="var(--sq-ui-selected-ring)"
+          strokeWidth={stroke}
+          pointerEvents="none"
+        />
+      ))}
+
+      {interactive ? (
+        <>
+          <line
+            x1={box.x + box.width / 2}
+            y1={box.y}
+            x2={box.x + box.width / 2}
+            y2={box.y - size * 1.6}
+            stroke="var(--sq-ui-selected-ring)"
+            strokeWidth={stroke}
+            pointerEvents="none"
+          />
+          <circle
+            cx={box.x + box.width / 2}
+            cy={box.y - size * 1.6}
+            r={size * 0.55}
+            fill="var(--sq-ui-surface)"
+            stroke="var(--sq-ui-selected-ring)"
+            strokeWidth={stroke}
+            style={{ cursor: 'grab' }}
+            onPointerDown={onRotate}
+          />
+
+          {HANDLES.map(({ handle, fx, fy, cursor }) => (
             <rect
               key={handle}
-              x={rect.x + rect.width * fx - size / 2}
-              y={rect.y + rect.height * fy - size / 2}
+              x={box.x + box.width * fx - size / 2}
+              y={box.y + box.height * fy - size / 2}
               width={size}
               height={size}
               rx={size * 0.25}
@@ -349,15 +540,15 @@ function Selection({
               style={{ cursor }}
               onPointerDown={(event) => onHandle(handle, event)}
             />
-          ))
-        : null}
+          ))}
+        </>
+      ) : null}
     </>
   )
 }
 
 /** What a screen reader is told an element is. Its binding, where it has one. */
-function describe(element: BlockElement | undefined): string {
-  if (element === undefined) return 'Element'
+function describe(element: BlockElement): string {
   switch (element.kind) {
     case 'text':
       return element.source.from === 'product'
@@ -366,7 +557,7 @@ function describe(element: BlockElement | undefined): string {
           ? `Shop ${element.source.field}`
           : 'Fixed text'
     case 'image':
-      return element.source.from === 'product' ? 'Product image' : 'Image'
+      return element.source.from === 'product' ? 'Product image' : 'Artwork'
     case 'priceMark':
       return 'Price'
     case 'chip':
@@ -374,6 +565,6 @@ function describe(element: BlockElement | undefined): string {
     case 'logo':
       return 'Logo'
     case 'shape':
-      return 'Shape'
+      return element.variant === 'line' ? 'Line' : element.variant === 'ellipse' ? 'Circle' : 'Shape'
   }
 }

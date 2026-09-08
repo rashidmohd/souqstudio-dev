@@ -249,3 +249,52 @@ describe('maxLines', () => {
     expect(capped).toEqual(plain)
   })
 })
+
+describe('a size the owner set by hand', () => {
+  const free = (over: Partial<Parameters<typeof fitText>[0]> = {}) =>
+    fitText(req({ size: 0.12, ...over }))
+
+  it('uses it instead of the level', () => {
+    // 0.12 of a 400px block is 48px, where h3 would have given about 27.
+    expect(free().fontSize).toBeCloseTo(48)
+  })
+
+  it('still tightens the leading before it shrinks anything', () => {
+    // Two lines at 48px need 110 with h3's leading and 97 with it tightened.
+    const tight = free({ text: 'Golden basmati rice', box: { width: 300, height: 100 } })
+    expect(tight.fontSize).toBeCloseTo(48)
+    expect(tight.lineHeight).toBeLessThan(SCALE.levels.h3.lineHeight)
+  })
+
+  it('shrinks by ratio when there is no scale step to fall to', () => {
+    const long = 'Automatic laundry detergent powder with lemon fragrance for front loaders'
+    const fitted = fitText(req({ text: long, size: 0.12, box: { width: 300, height: 200 } }))
+    expect(fitted.fontSize).toBeLessThan(48)
+    // Never past the floor, which is 60% of what was asked for.
+    expect(fitted.fontSize).toBeGreaterThanOrEqual(48 * 0.6 - 0.001)
+  })
+
+  it('escalates rather than cutting a name that will not fit', () => {
+    const long = 'Automatic laundry detergent powder with lemon fragrance for front loaders'
+    const fitted = fitText(req({ text: long, size: 0.2, box: { width: 60, height: 40 } }))
+    expect(fitted.escalated).toBe(true)
+    expect(fitted.truncated).toBe(false)
+  })
+
+  it('cuts text that may be cut', () => {
+    const long = 'Automatic laundry detergent powder with lemon fragrance for front loaders'
+    const fitted = fitText(
+      req({ text: long, size: 0.2, box: { width: 60, height: 40 }, truncatable: true })
+    )
+    expect(fitted.truncated).toBe(true)
+    expect(fitted.lines[fitted.lines.length - 1]?.endsWith('…')).toBe(true)
+  })
+
+  it('honours a clamp on the line count', () => {
+    const long = 'Golden basmati rice from the Punjab, aged twelve months'
+    const fitted = fitText(
+      req({ text: long, size: 0.05, maxLines: 2, truncatable: true, box: { width: 300, height: 400 } })
+    )
+    expect(fitted.lines.length).toBeLessThanOrEqual(2)
+  })
+})

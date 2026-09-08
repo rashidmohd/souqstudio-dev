@@ -46,10 +46,28 @@ export {
 // Which way a *string* reorders, which is not which way the page lays out.
 // Every renderer needs it; see the file for what happens when one does not.
 export { placeText, textDirection, type TextPlacement } from './direction'
+export { resolveColor, roleColor } from './color'
 export { resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
+// The one place an owner may disagree with the engine, and it is bounded by
+// construction — E6 §1. See the file.
+export {
+  applyOverride,
+  clampOverride,
+  findOverride,
+  isEmptyOverride,
+} from './override'
 export { validateGrid, type GridProblem, type GridProblemCode } from './validate'
 // Editing a block, which is arithmetic over fractions and therefore the engine's
 // rather than a component's — E7. See the file.
+// Snapping and alignment — the arithmetic that turns "close enough" into "the
+// same", and it is the engine's for the same reason every other rectangle is.
+export {
+  SNAP_RANGE,
+  snapBox,
+  alignBoxes,
+  type Guides,
+  type Alignment,
+} from './snap'
 export {
   MIN_ELEMENT,
   SNAP,

@@ -5,7 +5,13 @@ building the parts underneath it produced. The epic stays the record of what was
 for; this file is the record of what happened.
 
 Started 6 September 2026, at the point where both things blocking the editor were cleared
-and nothing in the epic itself had been built.
+and nothing in the epic itself had been built. **Finished on 8 September**, when the last
+of the epic's feature list landed — see §8, which is the section to read if you are picking
+this up now.
+
+**§2 below is stale on purpose.** It describes the state on 6 September, when the editor
+did not exist, and it is kept because the order it argues for is the order that worked. §5
+and §8 are the current record.
 
 **Read `docs/composition-model.md` before this file, and before E6 §2 or §5.** Those two
 sections describe a page-type grammar that no longer exists. The doc's own banner says
@@ -52,7 +58,11 @@ was not worth building until they were:
 
 ---
 
-## 2. Not built — everything in the epic's feature list
+## 2. Not built — everything in the epic's feature list *(written 6 September; superseded)*
+
+**All of this is now built.** Kept because the argument in "the first slice is not the
+editor" is what the build actually followed, and because the reasoning about *why* the
+canvas came last is still the reason there is no Fabric anywhere.
 
 `app/(dashboard)/editor/[id]/` contains a single `.gitkeep`. `EDITOR_BUILT` is `false`, so
 the left rail does not offer the destination. `offer_books` holds **zero rows** and nothing
@@ -406,7 +416,7 @@ ladder is shrinking type to fit a paragraph.
 **Two words, not a dropdown.** The connector choice is binary, and naming both costs less
 than a control that has to be opened to find out what is inside it.
 
-### Still not built
+### Still not built *(as of 7 September — every numbered item was built on 8 September)*
 
 1. **Drag to reorder**, and drag-from-catalog-to-cell with its tap-then-tap equivalent.
 2. **Changing a connector** after the fact, and reordering items within an offer. Adding
@@ -422,15 +432,23 @@ than a control that has to be opened to find out what is inside it.
 5. **Duplicating a book** — the control the design skill expects to be the most-used in the
    product. It needs a copy path that clones offers and items, and neither exists.
 
-### Editing or creating a *block* is not E6 at all
+**Read §8 for what happened to each of them.** Item 4 is the one that did not: nothing has
+needed Fabric yet, including the block designer, which was the surface that was supposed to
+settle it.
+
+### Editing or creating a *block* is not E6 at all — and E7 built it
 
 Worth stating because it is the first thing an owner looks for after seeing an offer card
 they want to change. `blocks.organizationId` is nullable and null is what makes a block
-seeded, so the schema anticipates owner-authored blocks — but there is no designer.
-`/brand` renders the four seeded blocks read-only and `app/(dashboard)/card-designer/
-[templateId]/` is an empty directory. That is **E7**, which `docs/STATUS.md` §3 says should
-be rewritten against `docs/composition-model.md` §3 before it is started, because the
-templates and grids it was scoped around no longer exist.
+seeded, so the schema always anticipated owner-authored blocks.
+
+**Built on 7 September as E7**: `/brand/blocks` is the library and
+`/card-designer/[blockId]` is the designer. The epic was rewritten against
+`docs/composition-model.md` §3 first — the templates and grids it was scoped around no
+longer exist — and the rewrite is `docs/E7-pending.md` §1. Two things from it land back
+here: an owner can now design the block their offer cards use, and `TextOverflow` means a
+block can declare what an overlong name may suffer rather than leaving it to `fitPolicy`'s
+default.
 
 ### One gap in the design system, raised rather than answered
 
@@ -484,3 +502,155 @@ Recorded here rather than edited into `docs/E6-offer-book-editor.md`.
 - **Step 1's "everything else renders around it" held.** It is worth keeping: the price
   mark was built first and every arrangement in the seeded library is laid out around its
   box.
+
+---
+
+## 8. Closing the list — 8 September
+
+Everything §5's "still not built" enumerated, except Fabric, which still has no reason to
+exist. What follows is what each one turned into, and the three decisions inside them worth
+not reversing.
+
+### E6-03 is complete
+
+The panel was price, was-price and tier. It is now also:
+
+- **Unit price**, `AUTO` / `MANUAL` / `HIDDEN`. `deriveUnitPrice` in `@souqstudio/types`
+  does the pack maths — `price ÷ (packSize × packCount)`, normalised to kilograms, litres
+  or pieces — and `MANUAL` reads the value frozen on the offer, which is what E5 §4
+  requires so a reprint reproduces the number that was printed rather than recomputing
+  against pack data since corrected. **It says so when it cannot answer**: 4.2% of the
+  catalog carries a pack size, so "no line" is the ordinary outcome and an owner deserves
+  to know it is the product that is missing one rather than the control that is broken.
+- **Chips** — `Limit 2`, `Product of UAE` — with kind, both languages and an anchor.
+- **Footnotes**, with `PAGE` / `BOOK` scope and **no marker number stored**, per E6 §8.
+- **Legal lines** — deposits and service fees, under the card rather than as footnotes,
+  because they are part of the price rather than a caveat about it.
+- **Per-item name and spec overrides**, both languages, writing to `offer_items` and never
+  back to the catalog. An empty box clears the override and restores the catalog's own
+  name — not an override to the empty string, which is a card with no name on it.
+- **Changing a connector** after the fact, and reordering the products on a card.
+
+**The connector belongs to the slot, not to the product**, and that is the rule that made
+reordering answerable. "Pesto Rosso **or** Pasta Sauce" reordered is "Pasta Sauce **or**
+Pesto Rosso": the joining word describes the relationship between neighbours, so it stays
+where it is while the names move through it. Carrying it with the item leaves the new lead
+holding an "or" and the new second holding nothing, and the only way out is to invent a
+word the owner never chose.
+
+### Two of those controls produce data nothing can draw yet, and one does
+
+This is the finding worth carrying, because it is an E7 question rather than an E6 one.
+
+A card is drawn from a **block**, and a block's elements are the fixed vocabulary in
+`docs/composition-model.md` §3.1: image, text, priceMark, chip, logo, shape. So:
+
+- **Chips draw**, because a block already carries a `chip` element and it is an anchor. The
+  tier draws in the box the block gave it and authored chips stack below, one box height
+  apart, aligned to the slot's start or end by their own anchor. **That stacking is a
+  rendering decision taken here**, not something the model states; the alternative is a
+  `chipStack` element kind, which is the block designer's question.
+- **The unit price line and footnote markers do not draw**, because there is no element to
+  put them in. Both are stored, both are shown in the panel, and neither reaches the
+  artboard. Inventing a place for them on the card would be inventing block geometry from
+  inside the editor, which is exactly the layering the composition model exists to prevent.
+
+**The recommendation, for whoever picks this up:** two new element kinds in `BlockElement` —
+`unitPrice` and `footnotes` — placed in the block designer like any other. That is a change
+to `packages/types`, the painter, the zod mirror in `lib/block-document.ts` and the E7
+palette, and it is an architecture decision rather than a fix, so it is raised rather than
+taken.
+
+### E6-04 — bounded overrides, and the key that survives next week
+
+`packages/engine/src/override.ts`, 16 tests. `SlotOverride` is **rekeyed to `regionId` +
+`offerId`**, as `docs/composition-model.md` §10 said it should be, and the panel has four
+arrows, an image scale and "put it back where the layout puts it".
+
+The bound is the feature. E6 §1: unbounded free positioning is what turns week 33 into a
+rebuild, because a hand-placed card cannot survive the list changing under it. A *delta*
+can — it is re-applied to whatever the engine produces next week, and it matches on both
+halves of the key or not at all. **A nudge is never inherited by whatever moves into that
+region**, which is the single test that says why the key carries the offer.
+
+Three smaller decisions inside it:
+
+- **The offset moves the whole card, not its elements.** An owner nudging means "this one
+  sits low in its cell", not "the price has moved relative to the name" — and a per-element
+  offset *is* the unbounded positioning the epic refuses.
+- **The image scales about its own centre.** Scaling from the origin drags the packshot
+  into the corner, which is what the owner reaching for the control was trying to fix.
+- **Applied last, after compaction**, on the rectangles something is about to draw.
+  Compaction changes the boxes; an override applied before it would be measured against
+  boxes that no longer exist.
+
+Everything is clamped twice — once by the route and once on the way out of storage. Storage
+is not a trust boundary: a row written before a limit changed must not be able to move a
+card out of its region.
+
+### E6-06 and E6-08 — undo, redo, autosave
+
+Fifty steps, Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z, two buttons, and "Saved 14:32" in the header.
+
+**The stack holds logical operations, not object diffs.** The epic said so when the editor
+was expected to be a Fabric canvas, and the reason outlived Fabric: what an owner wants
+back is *the price I just changed*, not a rectangle. A step carries the patch that puts it
+back, and undoing re-issues it through the route the edit went out on — so the server ends
+up in the state the artboard is already showing rather than in one only the client believes
+in. Undoing selects the card it changed, which is most of what makes it legible.
+
+Two details that are easy to get wrong and are tested:
+
+- **The stack survives a re-hydration of the same book.** The editor re-hydrates whenever
+  the server component re-renders — after adding an offer, after a reorder — and clearing
+  history there would take away the undo for the price typed thirty seconds ago. It clears
+  on a different book, and drops steps whose offer is gone.
+- **The keyboard shortcut is ignored inside a text field**, where the browser's own undo is
+  what the keystroke means.
+
+Autosave is debounced two seconds and only ever commits a *valid* value, so `12.` on the
+way to `12.50` never lands as an error nobody asked for. Blur still commits immediately.
+
+### The rest
+
+- **Drag to reorder in the tray**, with the up/down buttons kept — they are not a fallback,
+  they are the tablet path the design system asks for, and long-press drag is unreliable on
+  an iPad. HTML5 DnD gives the drag image, autoscroll and escape-to-cancel for nothing.
+  The whole order is sent, never a `{from, to}`: two tabs reordering against different
+  starting states interleave into an order neither owner chose.
+- **Duplicating a book.** The copy takes the grids, pins, page rows with their nudges, and
+  every offer with its items, chips, notes, legal lines and prices. It takes **nothing that
+  makes a book public** — a fresh short code, no link, no password, no expiry, no views,
+  and the status back to `draft`. Two books at one public address is a defect that ends with
+  the wrong flyer behind the QR code on a shop door.
+- **`fit-escalated`.** The other three flags are decidable from the rows; this one is a
+  property of a *rendered* card at a particular size, so `BookPage` reports it and the store
+  merges it in. It runs **the same `fitTextElement` the painter runs, on the same boxes**,
+  which is why the flag and the drawn card cannot disagree — a second ladder beside the
+  first would be two answers about one card.
+- **The master grid is editable**, which is E6-07's density switch in its current form:
+  cards across and rows down, with the page count under it as feedback rather than as a
+  setting. Density is not a control — a 2×2 page *is* showcase — so there is one input and
+  the density follows.
+- **Pins.** `book_pins` finally has a writer. The form asks for a page and a *shape* — a
+  band, half a row, the whole page — rather than four coordinates, because the composition
+  model is explicit that owners should not be asked for columns and rows as numbers. Only a
+  block that does not repeat may be pinned: a repeating block reads the offer it was given,
+  and a pin has none.
+
+### What is left, and it is smaller than what went
+
+1. **Merging cells on the artboard**, and dragging track edges. The engine has done merges
+   since it existed — `spanRect` and `validateGrid` handle them — and nothing authors one.
+   This is the last piece of composition model step 4, and it is a real canvas interaction
+   rather than a form.
+2. **Detaching a page from the master**, §5's "customize this page only". Pins retire most
+   of the need for it, which is why it went last and may not be needed at all.
+3. **Drag from the catalog onto a cell.** Adding is a button; the cell is not a drop target.
+4. **The two element kinds above**, without which the unit price and footnotes are stored
+   and not printed.
+5. **`ImageAsset` swapping** — E6-04 lists "swap to another image on the same product", and
+   `SlotOverride.imageAssetId` carries it. The panel has no picker, because a product with
+   several approved variants is not something the catalog produces yet.
+6. **Fabric**, still. Nothing has needed it: the block designer does direct manipulation
+   over the same painter, and a second painter is how the PDF stops matching the screen.

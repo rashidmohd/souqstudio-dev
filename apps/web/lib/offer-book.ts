@@ -2,13 +2,15 @@ import 'server-only'
 
 import { prisma } from '@souqstudio/db'
 import { bookletGrid, flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
-import type { Block, Pin } from '@souqstudio/types'
+import type { Block, Pin, SlotOverride } from '@souqstudio/types'
 import {
   composeOffer,
+  pageSizeFor,
   toMasterGrid,
   type ComposedOffer,
   type Edition,
 } from '@/lib/offer-book-compose'
+import { readOverrides } from '@/lib/offer-book-overrides'
 import { publicUrl } from '@/lib/r2'
 import { randomBytes } from 'node:crypto'
 
@@ -31,20 +33,6 @@ import { randomBytes } from 'node:crypto'
  * the note there.
  */
 
-/** Page sizes, in px at 150dpi. A book's format decides its artboard, and the
- *  engine takes a rectangle rather than a paper name. */
-const PAGE_SIZE: Record<string, { width: number; height: number }> = {
-  leaflet: { width: 1240, height: 1754 },
-  catalog: { width: 1240, height: 1754 },
-  print: { width: 1240, height: 1754 },
-  a3: { width: 1754, height: 2480 },
-  instagram_post: { width: 1080, height: 1080 },
-  story: { width: 1080, height: 1920 },
-  whatsapp: { width: 1080, height: 1080 },
-}
-
-const DEFAULT_PAGE = { width: 1240, height: 1754 }
-
 export interface ComposedBook {
   id: string
   title: string
@@ -57,6 +45,21 @@ export interface ComposedBook {
    *  it — the same seam `page_grids` uses by not carrying a relation. */
   blocks: Record<string, Block>
   pages: FlowPage[]
+  /** The pinned panels, as the engine received them. Composition model §6. */
+  pins: Pin[]
+  /**
+   * The master's track counts, which is what "density" now means — §4.3. The
+   * last row is the footer band, so the body rows are one short of the total.
+   */
+  layout: { perRow: number; bodyRows: number }
+  /**
+   * The bounded nudges an owner has made, by page index. E6-04.
+   *
+   * Read here rather than applied here: the engine's output is what the export
+   * worker and the editor both start from, and a book whose stored geometry
+   * already had the deltas baked in could never have them reset.
+   */
+  overrides: Record<number, SlotOverride[]>
   /** Authoring problems in the master grid. Never thrown: an overlapping region
    *  is something an owner can see and fix, and refusing to open the book would
    *  leave them no way to. */
@@ -89,6 +92,7 @@ export async function loadBook(
         select: { cols: true, rows: true, gap: true, margin: true, regions: true },
         take: 1,
       },
+      pages: { select: { index: true, slotOverrides: true } },
       pins: {
         select: {
           id: true,
@@ -109,8 +113,20 @@ export async function loadBook(
           comparePrice: true,
           currency: true,
           promoTierId: true,
+          unitPriceMode: true,
+          unitPriceValue: true,
+          unitPriceUnit: true,
+          legalLines: true,
           promoTier: {
             select: { id: true, labelEn: true, labelAr: true, tokenRef: true },
+          },
+          chips: {
+            orderBy: { id: 'asc' },
+            select: { id: true, labelEn: true, labelAr: true, anchor: true },
+          },
+          footnotes: {
+            orderBy: { id: 'asc' },
+            select: { id: true, textEn: true, textAr: true, scope: true },
           },
           items: {
             orderBy: { position: 'asc' },
@@ -130,6 +146,10 @@ export async function loadBook(
                   specAr: true,
                   brandEn: true,
                   brandAr: true,
+                  // The three pack columns, for the derived unit price. E5 §4.
+                  packSize: true,
+                  packUnit: true,
+                  packCount: true,
                   images: {
                     // An approved CUTOUT first, then anything else. Same
                     // precedence as `IMAGE_PICK` in `lib/catalog.ts`, expressed
@@ -159,7 +179,7 @@ export async function loadBook(
 
   const edition: Edition = book.language === 'ar' ? 'ar' : 'en'
   const master = toMasterGrid(gridRow)
-  const page = PAGE_SIZE[book.format] ?? DEFAULT_PAGE
+  const page = pageSizeFor(book.format)
 
   const offers = book.offers.map((offer) =>
     composeOffer(
@@ -173,6 +193,14 @@ export async function loadBook(
         comparePrice: offer.comparePrice === null ? null : offer.comparePrice.toString(),
         currency: offer.currency,
         promoTierId: offer.promoTierId,
+        unitPriceMode: offer.unitPriceMode,
+        // Decimal(10,3) arrives as a Decimal; the rate stays text the whole way
+        // to the card, exactly as the price does.
+        unitPriceValue: offer.unitPriceValue === null ? null : offer.unitPriceValue.toString(),
+        unitPriceUnit: offer.unitPriceUnit,
+        legalLines: offer.legalLines,
+        chips: offer.chips,
+        footnotes: offer.footnotes,
         items: offer.items.map((item) => {
           const image = item.product.images[0]
           return {
@@ -190,6 +218,9 @@ export async function loadBook(
               specAr: item.product.specAr,
               brandEn: item.product.brandEn,
               brandAr: item.product.brandAr,
+              packSize: item.product.packSize === null ? null : item.product.packSize.toString(),
+              packUnit: item.product.packUnit,
+              packCount: item.product.packCount,
               imageUrl: image ? publicUrl(image.r2Key) : null,
               imageIsFallback: image !== undefined && image.kind !== 'CUTOUT',
             },
@@ -232,6 +263,11 @@ export async function loadBook(
     offers,
     blocks: await loadBlocks(master, pins),
     pages: flow.pages,
+    pins,
+    layout: { perRow: master.cols.length, bodyRows: Math.max(1, master.rows.length - 1) },
+    overrides: Object.fromEntries(
+      book.pages.map((page) => [page.index, readOverrides(page.slotOverrides)])
+    ),
     gridProblems: validateGrid(master),
   }
 }
@@ -658,4 +694,218 @@ export async function createBookFromImport(
   })
 
   return { id: book.id, offers: rows.length }
+}
+
+// ─── Duplicating a book ───────────────────────────────────────────────────────
+
+/**
+ * Copy a book, everything on it, and nothing about its reach.
+ *
+ * **This is the weekly reissue**, and it is the control the design skill expects
+ * to be the most-used in the product. It is cheap precisely because of the flow
+ * model: a region binds to a *position* in the product list, so the copy's
+ * merges, footers and pins already fit whatever the owner swaps in.
+ *
+ * What is copied: the grids (master, cover, back), the pins, the page rows with
+ * their `slotOverrides`, and every offer with its items, chips, footnotes, legal
+ * lines and unit-price settings.
+ *
+ * **What is deliberately not copied is everything that makes a book public.**
+ * `shortCode` is allocated fresh — two books at one public address is a defect
+ * that ends with the wrong flyer behind a QR code on a shop door — and
+ * `shareableLink`, `passwordHash`, `expiresAt` and `linkActive` all reset,
+ * along with the status, which returns to `draft`. Views, clicks, export jobs
+ * and social posts belong to the book that earned them.
+ *
+ * Ids are not preserved and cannot be: `slotOverrides` keys by `regionId` +
+ * `offerId`, and the region ids live inside the grid document, which *is*
+ * copied verbatim — so a nudge survives only where its region does. Offer ids
+ * change, which is the honest outcome: the copy's offers are different offers,
+ * and next week's price belongs to them.
+ */
+export async function duplicateBook(
+  bookId: string,
+  organizationId: string,
+  options: { title?: string } = {}
+): Promise<{ id: string; title: string; offers: number } | null> {
+  const source = await prisma.offerBook.findFirst({
+    where: { id: bookId, shop: { organizationId } },
+    select: {
+      id: true,
+      shopId: true,
+      title: true,
+      format: true,
+      language: true,
+      grids: {
+        select: {
+          role: true,
+          cols: true,
+          rows: true,
+          gap: true,
+          margin: true,
+          regions: true,
+        },
+      },
+      pins: {
+        select: {
+          pageIndex: true,
+          blockId: true,
+          colStart: true,
+          colEnd: true,
+          rowStart: true,
+          rowEnd: true,
+          content: true,
+        },
+      },
+      pages: { select: { index: true, slotOverrides: true } },
+      offers: {
+        orderBy: { position: 'asc' },
+        select: {
+          position: true,
+          price: true,
+          priceMode: true,
+          comparePrice: true,
+          currency: true,
+          promoTierId: true,
+          unitPriceMode: true,
+          unitPriceValue: true,
+          unitPriceUnit: true,
+          legalLines: true,
+          items: {
+            orderBy: { position: 'asc' },
+            select: {
+              catalogProductId: true,
+              position: true,
+              connector: true,
+              nameOverrideEn: true,
+              nameOverrideAr: true,
+              specOverrideEn: true,
+              specOverrideAr: true,
+              imageAssetId: true,
+            },
+          },
+          chips: {
+            select: { kind: true, labelEn: true, labelAr: true, value: true, anchor: true },
+          },
+          footnotes: { select: { textEn: true, textAr: true, scope: true } },
+        },
+      },
+    },
+  })
+
+  if (source === null) return null
+
+  const title = options.title ?? `${source.title} copy`
+
+  const created = await prisma.$transaction(async (tx) => {
+    const book = await tx.offerBook.create({
+      data: {
+        shopId: source.shopId,
+        title,
+        format: source.format,
+        language: source.language,
+        // A copy is always a draft, whatever the original's status. Duplicating
+        // a published book must not publish anything.
+        status: 'draft',
+        shortCode: await uniqueShortCode(tx),
+        grids: {
+          create: source.grids.map((grid) => ({
+            role: grid.role,
+            cols: grid.cols,
+            rows: grid.rows,
+            gap: grid.gap,
+            margin: grid.margin,
+            regions: grid.regions as unknown as object[],
+          })),
+        },
+        pins: {
+          create: source.pins.map((pin) => ({
+            pageIndex: pin.pageIndex,
+            blockId: pin.blockId,
+            colStart: pin.colStart,
+            colEnd: pin.colEnd,
+            rowStart: pin.rowStart,
+            rowEnd: pin.rowEnd,
+            ...(pin.content === null ? {} : { content: pin.content as object }),
+          })),
+        },
+        pages: {
+          create: source.pages.map((page) => ({
+            index: page.index,
+            ...(page.slotOverrides === null
+              ? {}
+              : { slotOverrides: page.slotOverrides as object }),
+          })),
+        },
+      },
+      select: { id: true },
+    })
+
+    // Two statements for the offers, then two more for what hangs off them —
+    // never one round trip per offer. `createBook` learned this by blowing the
+    // 5s interactive transaction limit at eleven products, and a book being
+    // duplicated is a book that already has a hundred.
+    const offers = await tx.offer.createManyAndReturn({
+      data: source.offers.map((offer) => ({
+        bookId: book.id,
+        position: offer.position,
+        price: offer.price,
+        priceMode: offer.priceMode,
+        comparePrice: offer.comparePrice,
+        currency: offer.currency,
+        promoTierId: offer.promoTierId,
+        unitPriceMode: offer.unitPriceMode,
+        unitPriceValue: offer.unitPriceValue,
+        unitPriceUnit: offer.unitPriceUnit,
+        legalLines: offer.legalLines,
+      })),
+      select: { id: true, position: true },
+    })
+
+    // Keyed by position rather than trusting the returned order — the same
+    // guard `createBook` states, and the failure it prevents is worse here:
+    // a mispaired item would attach one product's name to another's price in a
+    // book the owner believes is last week's, checked once and printed.
+    const byPosition = new Map(offers.map((offer) => [offer.position, offer.id]))
+
+    await tx.offerItem.createMany({
+      data: source.offers.flatMap((offer) => {
+        const offerId = byPosition.get(offer.position)
+        return offerId === undefined
+          ? []
+          : offer.items.map((item) => ({ ...item, offerId }))
+      }),
+    })
+
+    const chips = source.offers.flatMap((offer) => {
+      const offerId = byPosition.get(offer.position)
+      return offerId === undefined
+        ? []
+        : offer.chips.map((chip) => ({
+            offerId,
+            kind: chip.kind,
+            labelEn: chip.labelEn,
+            labelAr: chip.labelAr,
+            // Spread rather than passed as possibly-undefined: Prisma's JSON
+            // input type has no `undefined` member under
+            // exactOptionalPropertyTypes, and a null `value` means the chip
+            // kind carries no payload.
+            ...(chip.value === null ? {} : { value: chip.value as object }),
+            anchor: chip.anchor,
+          }))
+    })
+    if (chips.length > 0) await tx.offerChip.createMany({ data: chips })
+
+    const footnotes = source.offers.flatMap((offer) => {
+      const offerId = byPosition.get(offer.position)
+      return offerId === undefined
+        ? []
+        : offer.footnotes.map((note) => ({ offerId, ...note }))
+    })
+    if (footnotes.length > 0) await tx.offerFootnote.createMany({ data: footnotes })
+
+    return book
+  })
+
+  return { id: created.id, title, offers: source.offers.length }
 }

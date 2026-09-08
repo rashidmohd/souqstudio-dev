@@ -195,6 +195,7 @@ export type BlockProblemCode =
   | 'duplicate-price-mark'
   | 'product-binding-on-static-block'
   | 'no-price-mark'
+  | 'duplicate-element-id'
 
 export interface BlockProblem {
   code: BlockProblemCode
@@ -266,9 +267,25 @@ function arrangementProblems(
   }
 
   let priceMarks = 0
+  const ids = new Set<string>()
 
   arrangement.elements.forEach((element, elementIndex) => {
     const { box } = element
+
+    // Selection, grouping and z-order all name an element by id, so two
+    // elements sharing one is a document where clicking the second selects the
+    // first. The designer mints ids that cannot collide; a hand-written seed
+    // can, and this is where that is caught.
+    if (ids.has(element.id)) {
+      problems.push({
+        code: 'duplicate-element-id',
+        message: 'Two elements on this layout share an id, so only one of them can be selected',
+        arrangementIndex: index,
+        elementIndex,
+        severity: 'error',
+      })
+    }
+    ids.add(element.id)
 
     if (!(box.width > 0) || !(box.height > 0)) {
       problems.push({
@@ -359,7 +376,14 @@ function coverageProblems(arrangements: readonly Arrangement[]): BlockProblem[] 
     const current = sorted[i]
     if (previous === undefined || current === undefined) continue
 
-    if (current.arrangement.aspectMin <= previous.arrangement.aspectMax) {
+    // **A shared endpoint is a touch, not an overlap.** The seeded offer card's
+    // four ranges meet exactly — 0.35–0.85, 0.85–1.35, and so on — which is how
+    // a set of ranges covers the line without a hole in it. Reading that as an
+    // overlap put three warnings on the block every shop starts from, which is
+    // how owners learn to ignore warnings. Found by reading the real rows back
+    // out of the database, not by a test: the test asserted the absence of a
+    // *gap* and never looked at what else was reported.
+    if (current.arrangement.aspectMin < previous.arrangement.aspectMax - 1e-6) {
       problems.push({
         code: 'overlapping-aspects',
         message: 'Two arrangements claim the same shape. The first one listed wins',

@@ -6,17 +6,19 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { OfferDetails } from '@/components/editor/OfferDetails'
+import { SlotAdjust } from '@/components/editor/SlotAdjust'
 import { useEditorStore } from '@/stores/editor-store'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 
 /**
- * The properties of the selected offer. E6-03, the price half of it.
+ * The properties of the selected offer. E6-03.
  *
- * **Price, was-price and tier, and nothing else yet.** The epic also puts unit
- * price, chips, footnotes, legal lines and per-item name overrides here. Those
- * are stubbed nowhere rather than half-drawn: an empty "Chips" section that does
- * nothing tells an owner the feature is broken, where its absence tells them it
- * is not built.
+ * **Price, was-price and tier first, and they stay at the top.** They are what
+ * an owner opens the panel for, and they were built first because until a price
+ * exists no book can publish. Unit price, chips, footnotes, extra charges and
+ * the per-product names live below in `OfferDetails` — the second visit, not
+ * the first.
  *
  * **The tier is the only control on the price mark.** E6 §3 is explicit — owners
  * given a font-size dropdown for a price produce hundreds of inconsistent
@@ -29,9 +31,11 @@ type Props = {
   bookId: string
   tiers: Tier[]
   currency: string
+  /** The **book's** direction, so a logical nudge means the right edge. */
+  direction: 'ltr' | 'rtl'
 }
 
-export function OfferProperties({ bookId, tiers, currency }: Props) {
+export function OfferProperties({ bookId, tiers, currency, direction }: Props) {
   const selectedId = useEditorStore((state) => state.selectedOfferId)
   const offer = useEditorStore((state) =>
     state.selectedOfferId === null ? undefined : state.offers[state.selectedOfferId]
@@ -60,6 +64,10 @@ export function OfferProperties({ bookId, tiers, currency }: Props) {
       <PriceFields bookId={bookId} offer={offer} currency={currency} />
 
       <TierField bookId={bookId} offer={offer} tiers={tiers} />
+
+      <SlotAdjust bookId={bookId} offerId={offer.id} direction={direction} />
+
+      <OfferDetails bookId={bookId} offer={offer} />
 
       {failed.includes(offer.id) ? (
         <p className="font-ui text-body-sm text-critical-fg" role="alert">
@@ -169,6 +177,8 @@ const FLAG_TEXT: Record<ComposedOffer['flags'][number], string> = {
   'missing-name-ar': 'This product has no Arabic name, so it cannot publish in Arabic.',
   'no-image': 'This product has no photo.',
   'fallback-image': 'This photo still has its background — the cutout is not ready.',
+  'fit-escalated':
+    'The text on this card does not fit, even at its smallest. Shorten a name, or give it more room.',
 }
 
 /**
@@ -191,6 +201,7 @@ function PriceFields({
   const applyLocal = useEditorStore((state) => state.applyLocal)
   const setSave = useEditorStore((state) => state.setSave)
   const settle = useEditorStore((state) => state.settle)
+  const push = useEditorStore((state) => state.push)
 
   // Seeded from the composed mark rather than kept in the store: the store holds
   // what the card draws, and a half-typed `12.` is not something to draw.
@@ -235,10 +246,24 @@ function PriceFields({
     setError(null)
 
     const previous = offer.priceMark
+    const wasPrice = `${previous.major}.${previous.minor ?? '00'}`
+    // Nothing to record, and nothing to save: an owner tabbing through a field
+    // they did not change must not fill the undo stack with no-ops.
+    if (Number(wasPrice) === Number(value)) return
+
     const [major = '0', minor = '00'] = Number(value).toFixed(2).split('.')
-    applyLocal(offer.id, {
+    const after = {
       priceMark: { ...offer.priceMark, major, minor },
       flags: offer.flags.filter((flag) => flag !== 'no-price'),
+    }
+    applyLocal(offer.id, after)
+    push({
+      offerId: offer.id,
+      label: 'the price',
+      undo: { price: wasPrice },
+      redo: { price: value },
+      before: { priceMark: previous, flags: offer.flags },
+      after,
     })
     void persist({ price: value }, () => applyLocal(offer.id, { priceMark: previous }))
   }
@@ -252,6 +277,21 @@ function PriceFields({
     setError(null)
 
     const previous = offer.priceMark
+    if ((previous.comparePrice ?? '') === value) return
+
+    push({
+      offerId: offer.id,
+      label: 'the was-price',
+      undo: { comparePrice: previous.comparePrice ?? null },
+      redo: { comparePrice: value === '' ? null : value },
+      before: { priceMark: previous },
+      after: {
+        priceMark: {
+          ...previous,
+          ...(value === '' ? { comparePrice: undefined } : { comparePrice: value }),
+        },
+      },
+    })
     applyLocal(offer.id, {
       priceMark: {
         ...offer.priceMark,
@@ -262,6 +302,23 @@ function PriceFields({
       applyLocal(offer.id, { priceMark: previous })
     )
   }
+
+  // **E6-08 — debounced two seconds after the last change.** Blur still commits
+  // immediately; this is for the owner who types a price and moves on to the
+  // artboard without leaving the field. Only a *valid* value auto-commits, so
+  // `12.` on the way to `12.50` never lands as an error the owner did not ask
+  // for — the blur path is what names a genuinely bad one.
+  React.useEffect(() => {
+    const value = price.trim()
+    if (!/^\d{1,8}(\.\d{1,2})?$/.test(value)) return
+    if (Number(value) === Number(composed)) return
+
+    const timer = setTimeout(commitPrice, 2000)
+    return () => clearTimeout(timer)
+    // `commitPrice` closes over this render's values, which is what makes the
+    // timer save what was typed rather than what is there two seconds later.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [price, composed])
 
   return (
     <div className="flex flex-col gap-3">
@@ -300,15 +357,25 @@ function TierField({
   const applyLocal = useEditorStore((state) => state.applyLocal)
   const setSave = useEditorStore((state) => state.setSave)
   const settle = useEditorStore((state) => state.settle)
+  const push = useEditorStore((state) => state.push)
 
   async function change(tierId: string) {
     const tier = tiers.find((candidate) => candidate.id === tierId)
     if (tier === undefined) return
 
     const previous = { tierLabel: offer.tierLabel, priceMark: offer.priceMark }
-    applyLocal(offer.id, {
+    const after = {
       tierLabel: tier.labelEn,
       priceMark: { ...offer.priceMark, tierId },
+    }
+    applyLocal(offer.id, after)
+    push({
+      offerId: offer.id,
+      label: 'the promo tier',
+      undo: { promoTierId: previous.priceMark.tierId },
+      redo: { promoTierId: tierId },
+      before: previous,
+      after,
     })
 
     setSave('saving')
@@ -343,10 +410,23 @@ function TierField({
  *  save, and never a Save button implying work is lost without it. */
 export function SaveStatus() {
   const save = useEditorStore((state) => state.save)
+  const savedAt = useEditorStore((state) => state.savedAt)
   if (save === 'idle') return null
 
+  // "Saved [time]", per E6-08. The time matters more than the word: an owner
+  // who has been pricing for ten minutes wants to know the last one landed, not
+  // that something once did.
   const text =
-    save === 'saving' ? 'Saving…' : save === 'saved' ? 'Saved' : 'Not saved'
+    save === 'saving'
+      ? 'Saving…'
+      : save === 'saved'
+        ? savedAt === null
+          ? 'Saved'
+          : `Saved ${new Date(savedAt).toLocaleTimeString('en-GB', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}`
+        : 'Not saved'
 
   return (
     <span

@@ -3,14 +3,13 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Copy, Plus, Redo2, TriangleAlert, Undo2 } from 'lucide-react'
+import type { Alignment, BlockProblem } from '@souqstudio/engine'
 import type { Arrangement, BlockElement, BrandKit } from '@souqstudio/types'
-import {
-  addElement,
-  removeElement,
-  reorderElement,
-  validateBlock,
-  type BlockProblem,
-} from '@souqstudio/engine'
+import { addElement, alignBoxes, reorderElement, validateBlock } from '@souqstudio/engine'
+import { resolvePalette, resolveToken } from '@/lib/brand-palette'
+import { FREE_ELEMENTS } from '@/lib/block-elements'
+import { assetResolver } from '@/lib/block-assets'
+import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
 import { Button } from '@/components/ui/button'
 import { BlockArtboard } from '@/components/card-designer/BlockArtboard'
 import { BlockProperties } from '@/components/card-designer/BlockProperties'
@@ -21,6 +20,7 @@ import { StressPreview } from '@/components/card-designer/StressPreview'
 import { toArtboardOffer } from '@/lib/preview-offer'
 import { TYPICAL_PRODUCT } from '@/lib/preview-product'
 import { useDesignerStore, useElements, useSelectedElement } from '@/stores/designer-store'
+import { useDesignerKeys } from '@/components/card-designer/useDesignerKeys'
 
 /**
  * The block designer. E7, and layout family 3 in the design skill.
@@ -52,10 +52,48 @@ type Props = {
   arrangements: Arrangement[]
   kit: BrandKit
   shopName: string
+  /** Where uploaded artwork is served from. A prop rather than a public env
+   *  variable — see `lib/block-assets.ts`. */
+  assetBaseUrl: string
 }
 
 /** The artboard's drawn size. Fractions resolve against it; nothing here is px. */
 const CANVAS_EDGE = 720
+
+/**
+ * The shapes an owner designs a one-off panel at.
+ *
+ * Named after what they are for rather than by their numbers — an owner is
+ * designing "a cover" or "a story", not a 0.71 aspect. Every one of them is a
+ * shape a book actually produces: the page formats `pageSizeFor` knows, plus the
+ * two bands a merged region makes.
+ */
+type PageShape = 'a4' | 'square' | 'story' | 'band' | 'half'
+
+const PAGE_SHAPES: Record<PageShape, { label: string; aspect: number }> = {
+  a4: { label: 'A4 page', aspect: 1240 / 1754 },
+  square: { label: 'Square post', aspect: 1 },
+  story: { label: 'Story', aspect: 1080 / 1920 },
+  band: { label: 'Band across a page', aspect: 3.2 },
+  half: { label: 'Half a page', aspect: 1.4 },
+}
+
+/**
+ * What a block opens at, read from the shape it was drawn for.
+ *
+ * A footer or a hero band is wide and should not open as a portrait page; a
+ * message block is roughly square. Guessing from the elements would be reading
+ * tea leaves, so this reads the arrangement's own range and picks the nearest
+ * named shape — which for the seeded blocks' open range lands on the page.
+ */
+function defaultShape(arrangement: Arrangement | undefined): PageShape {
+  if (arrangement === undefined) return 'a4'
+  const middle = Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)
+  if (middle > 6) return 'band'
+  if (middle > 1.2) return 'half'
+  if (middle > 0.85) return 'square'
+  return 'a4'
+}
 
 export function DesignerShell({
   blockId,
@@ -66,6 +104,7 @@ export function DesignerShell({
   arrangements: initialArrangements,
   kit,
   shopName,
+  assetBaseUrl,
 }: Props) {
   const hydrate = useDesignerStore((state) => state.hydrate)
   const store = useDesignerStore()
@@ -86,14 +125,36 @@ export function DesignerShell({
   const arrangement = store.arrangements[store.arrangementIndex]
   const direction = store.direction
 
-  // The shape this layout is drawn at: the geometric mean of the range it
-  // claims, which is the middle of what it will actually meet. Showing it at one
-  // end would be designing for the edge case and eyeballing the rest.
-  const aspect = clamp(
-    Math.sqrt(Math.max(arrangement?.aspectMin ?? 1, 0.05) * Math.max(arrangement?.aspectMax ?? 1, 0.05)),
-    0.3,
-    4
+  /**
+   * The shape the canvas is drawn at, and the two kinds of block answer it
+   * differently.
+   *
+   * **A repeating card is drawn at the middle of the range its layout claims** —
+   * the geometric mean, which is the shape it will actually meet most often.
+   * Showing it at one end would be designing for the edge case and eyeballing
+   * the rest.
+   *
+   * **A block placed once is drawn at whatever the owner is designing for**, and
+   * that is the whole of what "design a page rather than a card" needs: a cover,
+   * a full-page brand panel and a footer band are the same kind of object at
+   * three shapes, and the aspect range stays open because a static block
+   * letterboxes into anything close. The picker changes the *canvas*, never the
+   * document.
+   */
+  const [pageShape, setPageShape] = React.useState<PageShape>(() =>
+    repeats ? 'a4' : defaultShape(initialArrangements[0])
   )
+
+  const aspect = repeats
+    ? clamp(
+        Math.sqrt(
+          Math.max(arrangement?.aspectMin ?? 1, 0.05) * Math.max(arrangement?.aspectMax ?? 1, 0.05)
+        ),
+        0.3,
+        4
+      )
+    : PAGE_SHAPES[pageShape].aspect
+
   const width = aspect >= 1 ? CANVAS_EDGE : CANVAS_EDGE * aspect
   const height = aspect >= 1 ? CANVAS_EDGE / aspect : CANVAS_EDGE
 
@@ -105,6 +166,67 @@ export function DesignerShell({
   )
 
   useAutosave(blockId, editable)
+  useDesignerKeys(editable)
+
+  const palette = React.useMemo(() => resolvePalette(kit), [kit])
+  const token = React.useCallback(
+    (ref: Parameters<typeof resolveToken>[1]) => resolveToken(palette, ref),
+    [palette]
+  )
+  const asset = React.useMemo(() => assetResolver(assetBaseUrl), [assetBaseUrl])
+  const [uploading, setUploading] = React.useState(false)
+  const fileInput = React.useRef<HTMLInputElement | null>(null)
+
+  /**
+   * Upload artwork, then place it.
+   *
+   * The bytes go straight to R2 from the browser on a presigned URL — the same
+   * path the logo takes, and for the same reason: proxying a file this size
+   * through a serverless function fails on the platform's own body limit rather
+   * than on anything the owner did.
+   */
+  async function upload(file: File) {
+    setUploading(true)
+    try {
+      const authorise = await fetch('/api/v1/blocks/artwork', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contentType: file.type, contentLength: file.size }),
+      })
+      const body = (await authorise.json()) as {
+        data: { uploadUrl: string; assetId: string } | null
+      }
+      if (body.data === null) return
+
+      const put = await fetch(body.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': file.type },
+        body: file,
+      })
+      if (!put.ok) return
+
+      const element = FREE_ELEMENTS.artwork(body.data.assetId)
+      store.setElements(addElement(elements, element))
+      store.select([element.id])
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function align(how: Alignment) {
+    const picked = elements.filter((element) => store.selectedIds.includes(element.id))
+    const boxes = alignBoxes(
+      picked.map((element) => element.box),
+      how
+    )
+    const moved = new Map(picked.map((element, index) => [element.id, boxes[index]]))
+    store.setElements(
+      elements.map((element) => {
+        const box = moved.get(element.id)
+        return box === undefined ? element : { ...element, box }
+      })
+    )
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas-surround">
@@ -195,9 +317,26 @@ export function DesignerShell({
             <ElementPalette
               repeats={repeats}
               disabled={!editable}
+              uploading={uploading}
+              onUpload={editable ? () => fileInput.current?.click() : undefined}
               onAdd={(element) => {
                 store.setElements(addElement(elements, element))
-                store.select(elements.length)
+                store.select([element.id])
+              }}
+            />
+
+            {/* Hidden, and driven by the palette's own button: a bare file input
+                is the one control in the product nobody can style, and the
+                palette entry has to look like every other entry beside it. */}
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (file !== undefined) void upload(file)
               }}
             />
 
@@ -207,16 +346,23 @@ export function DesignerShell({
               </h2>
               <LayerList
                 elements={elements}
-                selected={store.selected}
+                selectedIds={store.selectedIds}
                 disabled={!editable}
-                onSelect={store.select}
+                onSelect={(ids, additive) => {
+                  if (additive === true && ids[0] !== undefined) store.toggleSelect(ids[0])
+                  else store.select(ids)
+                }}
                 onReorder={(from, to) => {
                   store.setElements(reorderElement(elements, from, to))
-                  store.select(to)
                 }}
-                onRemove={(index) => {
-                  store.setElements(removeElement(elements, index))
-                  store.select(null)
+                onRemove={(id) => {
+                  store.select([id])
+                  store.removeSelected()
+                }}
+                onToggleLock={(id) => {
+                  const element = elements.find((entry) => entry.id === id)
+                  if (element === undefined) return
+                  store.setElement(id, { ...element, locked: !(element.locked ?? false) })
                 }}
               />
             </section>
@@ -224,9 +370,52 @@ export function DesignerShell({
         </aside>
 
         <div className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
-          <ArrangementTabs />
+          {repeats ? (
+            <ArrangementTabs />
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-ui text-body-sm text-inverse">Designing for</span>
+              <div role="tablist" aria-label="Canvas shape" className="flex flex-wrap gap-1">
+                {(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => (
+                  <button
+                    key={shape}
+                    role="tab"
+                    type="button"
+                    aria-selected={pageShape === shape}
+                    onClick={() => setPageShape(shape)}
+                    className={
+                      pageShape === shape
+                        ? 'rounded-pill bg-surface px-3 py-1 font-ui text-body-sm text-primary'
+                        : 'rounded-pill px-3 py-1 font-ui text-body-sm text-inverse hover:bg-stone-800'
+                    }
+                  >
+                    {PAGE_SHAPES[shape].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-          <figure className="flex w-full max-w-2xl flex-col items-center gap-2">
+          {editable ? (
+            <CanvasToolbar
+              count={store.selectedIds.length}
+              zoom={store.zoom}
+              disabled={!editable}
+              onAlign={align}
+              onGroup={store.groupSelected}
+              onUngroup={store.ungroupSelected}
+              onZoom={store.setZoom}
+            />
+          ) : null}
+
+          <figure
+            className="flex w-full flex-col items-center gap-2"
+            // Zoom scales the pane the artboard fills rather than transforming
+            // the SVG: a transform would scale the selection handles and the
+            // guides with it, and a handle that shrinks as you zoom out is one
+            // you cannot grab at the moment you most need to.
+            style={{ maxWidth: `${Math.round(store.zoom * 100)}%` }}
+          >
             <BlockArtboard
               elements={elements}
               kit={kit}
@@ -235,31 +424,48 @@ export function DesignerShell({
               direction={direction}
               offer={offer}
               shopName={shopName}
+              asset={asset}
               markBound
-              selected={store.selected}
-              onSelect={editable ? store.select : undefined}
+              selectedIds={store.selectedIds}
+              onSelect={
+                editable
+                  ? (ids, additive) => {
+                      if (additive === true && ids[0] !== undefined) store.toggleSelect(ids[0])
+                      else store.select(ids)
+                    }
+                  : undefined
+              }
               onChange={editable ? (next) => store.setElements(next, false) : undefined}
               onCheckpoint={editable ? store.checkpoint : undefined}
               ariaLabel="The card you are designing"
               className="rounded-artboard"
             />
             <figcaption className="rounded-pill bg-surface px-3 py-1 font-ui text-body-sm text-secondary">
-              A typical product
+              {repeats ? 'A typical product' : 'This panel, at that shape'}
             </figcaption>
           </figure>
 
           {/* Persistent, never behind a tab, and at the same scale as the canvas
-              above it — the comparison is the point. */}
-          <div className="w-full max-w-2xl">
-            <StressPreview
-              elements={elements}
-              kit={kit}
-              width={width}
-              height={height}
-              direction={direction}
-              shopName={shopName}
-            />
-          </div>
+              above it — the comparison is the point.
+
+              **Only for a block that repeats.** The worst case is a *product*:
+              the longest Arabic name in the catalog against a three-decimal
+              price. A panel placed once has no product in scope, so a second
+              copy of it beside the first would show the same picture twice and
+              teach nothing. */}
+          {repeats ? (
+            <div className="w-full max-w-2xl">
+              <StressPreview
+                elements={elements}
+                kit={kit}
+                width={width}
+                height={height}
+                direction={direction}
+                shopName={shopName}
+                asset={asset}
+              />
+            </div>
+          ) : null}
         </div>
 
         <aside className="w-full shrink-0 overflow-auto border-t-hairline border-border-subtle bg-surface p-4 lg:w-80 lg:border-s-hairline lg:border-t-0">
@@ -282,10 +488,9 @@ export function DesignerShell({
               element={selectedElement}
               repeats={repeats}
               disabled={!editable}
-              onChange={(element) => {
-                if (store.selected === null) return
-                store.setElement(store.selected, element)
-              }}
+              palette={palette}
+              token={token}
+              onChange={(element) => store.setElement(element.id, element)}
             />
           )}
         </aside>
@@ -313,7 +518,7 @@ export function DesignerShell({
     useDesignerStore.setState({
       arrangements: next,
       arrangementIndex: Math.max(0, store.arrangementIndex - 1),
-      selected: null,
+      selectedIds: [],
       past: [...store.past, store.arrangements].slice(-50),
       future: [],
       save: 'dirty',
@@ -346,7 +551,7 @@ function ArrangementTabs() {
     useDesignerStore.setState((state) => ({
       arrangements: [...state.arrangements, copy],
       arrangementIndex: state.arrangements.length,
-      selected: null,
+      selectedIds: [],
       past: [...state.past, state.arrangements].slice(-50),
       future: [],
       save: 'dirty',

@@ -113,6 +113,17 @@ moment the catalog corrects itself.
 
 ### 3.2 Every colour and font is a role reference, never a hex
 
+> **Amended 8 September, and the amendment is narrow.** This holds for a block
+> *we* ship: one loaded by every account has to name a colour before it has met
+> any of them. It does not hold for a block a shop authored — theirs may name a
+> palette entry by id or a literal outright, because a designer that can only
+> offer six slots is one an owner cannot express their own brand in. `ColorValue`
+> in `@souqstudio/types` carries all three forms; `usesOnlyRoles` in
+> `apps/web/lib/block-document.ts` is what holds seeded blocks to the first.
+> Type sizes went the same way: the scale is the default and a hand-set size is
+> allowed, with the level still deciding where the fit ladder stops.
+> `docs/E7-pending.md` §8.
+
 A shop's palette is **open-ended and unlabelled by use** — a list of named colours, the
 way a printed brand guideline states them, not three slots that dictate placement. A block
 still needs to name a colour before it has ever met a shop, so it names a *slot*; the kit

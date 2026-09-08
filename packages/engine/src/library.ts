@@ -24,14 +24,34 @@ const box = (start: number, top: number, width: number, height: number) => ({
   height,
 })
 
+/**
+ * Every seeded element names a colour by **role**, never by value, and that is
+ * the one rule a seeded block cannot break: a block shipped before it has met a
+ * shop has to name something the shop's kit can resolve. An owner's own block
+ * may use their palette or a literal — see `ColorValue`.
+ */
+const role = (ref: 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted') =>
+  ({ from: 'role', ref }) as const
+
+/**
+ * Ids are stable and hand-written here rather than generated.
+ *
+ * They are what selection, grouping and z-order operate on, and a seeded block
+ * is a document people read: `photo` and `name` say what moved when a design
+ * changes, where `e3` says nothing. They repeat across arrangements on purpose —
+ * the tall layout's `name` and the wide layout's `name` are the same element in
+ * two shapes.
+ */
 const surface: BlockElement = {
+  id: 'surface',
   kind: 'shape',
   box: box(0, 0, 1, 1),
-  surface: 'surface',
+  fill: role('surface'),
   radius: 3,
 }
 
 const productImage = (b: ReturnType<typeof box>): BlockElement => ({
+  id: 'photo',
   kind: 'image',
   box: b,
   source: { from: 'product' },
@@ -42,6 +62,7 @@ const productText = (
   field: 'name' | 'spec',
   level: TypeLevel
 ): BlockElement => ({
+  id: field,
   kind: 'text',
   box: b,
   source: { from: 'product', field },
@@ -50,12 +71,17 @@ const productText = (
 })
 
 const tierChip = (b: ReturnType<typeof box>): BlockElement => ({
+  id: 'chip',
   kind: 'chip',
   box: b,
   anchor: 'TOP_START',
 })
 
-const price = (b: ReturnType<typeof box>): BlockElement => ({ kind: 'priceMark', box: b })
+const price = (b: ReturnType<typeof box>): BlockElement => ({
+  id: 'price',
+  kind: 'priceMark',
+  box: b,
+})
 
 /**
  * The repeating offer card, in four arrangements.
@@ -131,9 +157,10 @@ const HERO_BAND_ARRANGEMENTS: Arrangement[] = [
   {
     ...OPEN,
     elements: [
-      { kind: 'shape', box: box(0, 0, 1, 1), surface: 'primary', radius: 3 },
-      { kind: 'logo', box: box(0.04, 0.12, 0.08, 0.2) },
+      { id: 'ground', kind: 'shape', box: box(0, 0, 1, 1), fill: role('primary'), radius: 3 },
+      { id: 'logo', kind: 'logo', box: box(0.04, 0.12, 0.08, 0.2) },
       {
+        id: 'headline',
         kind: 'text',
         box: box(0.04, 0.4, 0.56, 0.3),
         source: { from: 'static', textEn: 'Your headline', textAr: 'العنوان الرئيسي' },
@@ -143,6 +170,7 @@ const HERO_BAND_ARRANGEMENTS: Arrangement[] = [
         align: 'start',
       },
       {
+        id: 'support',
         kind: 'text',
         box: box(0.04, 0.74, 0.56, 0.14),
         source: { from: 'static', textEn: 'Supporting line', textAr: 'سطر داعم' },
@@ -150,6 +178,7 @@ const HERO_BAND_ARRANGEMENTS: Arrangement[] = [
         align: 'start',
       },
       {
+        id: 'flash',
         kind: 'text',
         box: box(0.66, 0.4, 0.3, 0.3),
         source: { from: 'static', textEn: 'This week only', textAr: 'هذا الأسبوع فقط' },
@@ -164,9 +193,10 @@ const FOOTER_ARRANGEMENTS: Arrangement[] = [
   {
     ...OPEN,
     elements: [
-      { kind: 'shape', box: box(0, 0, 1, 1), surface: 'secondary', radius: 3 },
-      { kind: 'logo', box: box(0.02, 0.2, 0.1, 0.6) },
+      { id: 'ground', kind: 'shape', box: box(0, 0, 1, 1), fill: role('secondary'), radius: 3 },
+      { id: 'logo', kind: 'logo', box: box(0.02, 0.2, 0.1, 0.6) },
       {
+        id: 'shop-name',
         kind: 'text',
         box: box(0.14, 0.24, 0.3, 0.5),
         source: { from: 'shop', field: 'name' },
@@ -174,6 +204,7 @@ const FOOTER_ARRANGEMENTS: Arrangement[] = [
         align: 'start',
       },
       {
+        id: 'small-print',
         kind: 'text',
         box: box(0.5, 0.3, 0.48, 0.4),
         source: {
@@ -192,9 +223,10 @@ const MESSAGE_ARRANGEMENTS: Arrangement[] = [
   {
     ...OPEN,
     elements: [
-      { kind: 'shape', box: box(0, 0, 1, 1), surface: 'primary', radius: 3 },
-      { kind: 'logo', box: box(0.38, 0.12, 0.24, 0.16) },
+      { id: 'ground', kind: 'shape', box: box(0, 0, 1, 1), fill: role('primary'), radius: 3 },
+      { id: 'logo', kind: 'logo', box: box(0.38, 0.12, 0.24, 0.16) },
       {
+        id: 'message',
         kind: 'text',
         box: box(0.1, 0.36, 0.8, 0.2),
         source: { from: 'static', textEn: 'Your message', textAr: 'رسالتك' },
@@ -202,6 +234,7 @@ const MESSAGE_ARRANGEMENTS: Arrangement[] = [
         align: 'center',
       },
       {
+        id: 'second-line',
         kind: 'text',
         box: box(0.1, 0.6, 0.8, 0.16),
         source: { from: 'static', textEn: 'A second line', textAr: 'سطر ثانٍ' },

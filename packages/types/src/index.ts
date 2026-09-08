@@ -378,17 +378,32 @@ export interface PriceMark {
 // ─── Editor overrides — E6 §1 ─────────────────────────────────────────────────
 
 /**
- * A bounded delta against the engine's output for one slot. Stored as an array
+ * A bounded delta against the engine's output for one card. Stored as an array
  * on `offer_book_pages.slotOverrides`.
  *
  * Every field is clamped, and that is the point: re-running the engine — an
  * offer added, a shop variant switched, a language toggled — preserves entries
- * by `slotId` and discards orphans. Unbounded free positioning cannot survive a
- * re-run, which is what makes a weekly reissue cheap rather than a rebuild.
+ * whose key still exists and discards orphans. Unbounded free positioning
+ * cannot survive a re-run, which is what makes a weekly reissue cheap rather
+ * than a rebuild.
+ *
+ * A bounded delta against the engine's output, for one card on one page.
+ *
+ * **Keyed by region and offer, never by grid position** — the change the
+ * composition model made, and the reason is the weekly reissue: swap four
+ * products for next week's and every surviving card keeps its nudge, because
+ * both halves of the key survive the repack. A position-derived id could not.
+ *
+ * Bounded on purpose. E6 §1: unbounded free positioning is what turns week 33
+ * into a rebuild, so an owner may nudge a card within its region and may not
+ * move it out of one.
  */
 export interface SlotOverride {
-  slotId: string
-  /** Clamped to ±8% of slot width. */
+  /** `Region.id`, which is also `Placement.sourceId`. */
+  regionId: string
+  /** The offer on that card. A static region's override has none. */
+  offerId: string | null
+  /** Clamped to ±8% of region width. */
   offsetX?: number | undefined
   offsetY?: number | undefined
   /** Clamped to 0.8..1.25. */

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ArrowDown, ArrowUp, Link2, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Link2, Lock, LockOpen, Trash2 } from 'lucide-react'
 import type { BlockElement } from '@souqstudio/types'
 import { isBound } from '@souqstudio/engine'
 
@@ -21,14 +21,23 @@ import { isBound } from '@souqstudio/engine'
 
 type Props = {
   elements: BlockElement[]
-  selected: number | null
+  selectedIds: readonly string[]
   disabled: boolean
-  onSelect: (index: number) => void
+  onSelect: (ids: string[], additive?: boolean) => void
   onReorder: (from: number, to: number) => void
-  onRemove: (index: number) => void
+  onRemove: (id: string) => void
+  onToggleLock: (id: string) => void
 }
 
-export function LayerList({ elements, selected, disabled, onSelect, onReorder, onRemove }: Props) {
+export function LayerList({
+  elements,
+  selectedIds,
+  disabled,
+  onSelect,
+  onReorder,
+  onRemove,
+  onToggleLock,
+}: Props) {
   if (elements.length === 0) {
     return (
       <p className="font-ui text-body-sm text-muted">
@@ -41,18 +50,26 @@ export function LayerList({ elements, selected, disabled, onSelect, onReorder, o
     <ul className="flex flex-col gap-1">
       {elements.map((element, index) => {
         const bound = isBound(element)
+        const selected = selectedIds.includes(element.id)
+        const locked = element.locked === true
+
         return (
           <li
-            key={index}
+            key={element.id}
             className={
-              index === selected
+              selected
                 ? 'flex items-center gap-1 rounded-control bg-selected-bg p-1'
                 : 'flex items-center gap-1 rounded-control p-1'
             }
           >
             <button
               type="button"
-              onClick={() => onSelect(index)}
+              // Shift and cmd add to the selection, exactly as on the canvas —
+              // two ways of doing the same thing that behaved differently would
+              // be worse than one.
+              onClick={(event) =>
+                onSelect([element.id], event.shiftKey || event.metaKey)
+              }
               className="flex min-w-0 flex-1 items-center gap-2 text-start"
             >
               {/* The mark, not a colour alone: a link glyph for bound, a rule
@@ -65,9 +82,26 @@ export function LayerList({ elements, selected, disabled, onSelect, onReorder, o
               <span className="truncate font-ui text-body-sm text-primary">
                 {describe(element)}
               </span>
+              {element.groupId !== undefined ? (
+                <span className="shrink-0 font-ui text-eyebrow uppercase text-muted">grouped</span>
+              ) : null}
               <span className="sr-only">{bound ? 'From the catalog' : 'Fixed'}</span>
             </button>
 
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onToggleLock(element.id)}
+              aria-label={locked ? `Unlock ${describe(element)}` : `Lock ${describe(element)}`}
+              aria-pressed={locked}
+              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-40"
+            >
+              {locked ? (
+                <Lock className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <LockOpen className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              )}
+            </button>
             <button
               type="button"
               disabled={disabled || index === 0}
@@ -89,7 +123,7 @@ export function LayerList({ elements, selected, disabled, onSelect, onReorder, o
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onRemove(index)}
+              onClick={() => onRemove(element.id)}
               aria-label={`Remove ${describe(element)}`}
               className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-40"
             >
@@ -116,7 +150,7 @@ export function describe(element: BlockElement): string {
       if (element.source.from === 'shop') return `Shop ${element.source.field}`
       return element.source.textEn === '' ? 'Fixed text' : `“${element.source.textEn}”`
     case 'image':
-      return element.source.from === 'product' ? 'Product image' : 'Image'
+      return element.source.from === 'product' ? 'Product image' : 'Artwork'
     case 'priceMark':
       return 'Price'
     case 'chip':
@@ -124,6 +158,8 @@ export function describe(element: BlockElement): string {
     case 'logo':
       return 'Logo'
     case 'shape':
-      return 'Shape'
+      if (element.variant === 'line') return 'Line'
+      if (element.variant === 'ellipse') return 'Circle'
+      return element.box.width === 1 && element.box.height === 1 ? 'Background' : 'Shape'
   }
 }

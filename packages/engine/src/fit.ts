@@ -58,6 +58,17 @@ export interface FitRequest {
   /** May this text be cut? A spec may. A name may not. */
   truncatable?: boolean | undefined
   /**
+   * A size the owner set by hand, as a fraction of `blockSize` — the same unit
+   * `scale.base` uses. Overrides what `level` would have chosen.
+   *
+   * **The ladder still runs, it just has no rungs to name.** With a level there
+   * is a next step on the scale to drop to; with a free size there is only a
+   * ratio, so this branch shrinks by a fixed factor down to a floor of 60% of
+   * what was asked for. An owner who sized a headline by eye still gets a card
+   * that degrades rather than one that overflows.
+   */
+  size?: number | undefined
+  /**
    * A ceiling on line count, independent of the height the box allows.
    *
    * The box already caps lines by arithmetic; this caps them by *decision*. A
@@ -124,6 +135,8 @@ export function fitText(request: FitRequest): FitResult {
   const { text, box, scale, blockSize, measure } = request
   const style = scale.levels[request.level]
   const family = scale.families[style.family]
+
+  if (request.size !== undefined) return fitFreeSize(request, style.lineHeight, family)
 
   const steps = stepsDescending(scale)
   const floorIndex =
@@ -195,6 +208,72 @@ export function fitText(request: FitRequest): FitResult {
     fontSize: floorSize,
     lineHeight: floorLeading,
     level: floorLevel,
+    truncated: false,
+    escalated: true,
+  }
+}
+
+/**
+ * The ladder for text the owner sized by hand.
+ *
+ * Same four rungs, and the same two things that never happen: a name is never
+ * cut and never shrunk past its floor. What differs is rung 2 — there is no
+ * next step on the scale to fall to, so it falls by a ratio. The floor is a
+ * proportion of what was asked for rather than a named level, because the owner
+ * asked for a size and "no smaller than 60% of that" is the honest reading of
+ * a floor when there is no scale in play.
+ */
+function fitFreeSize(request: FitRequest, lineHeight: number, family: string): FitResult {
+  const { text, box, blockSize, measure } = request
+  const asked = (request.size ?? 0) * blockSize
+  const floor = asked * 0.6
+  const lineCap = request.maxLines === undefined ? Infinity : Math.max(1, request.maxLines)
+
+  const attempt = (fontSize: number, leading: number) => {
+    const lines = wrapText(text, box.width, fontSize, family, measure)
+    return {
+      fontSize,
+      lineHeight: leading,
+      lines,
+      level: request.level,
+      fits: lines.length * fontSize * leading <= box.height && lines.length <= lineCap,
+    }
+  }
+
+  const asDesigned = attempt(asked, lineHeight)
+  if (asDesigned.fits) return { ...asDesigned, truncated: false, escalated: false }
+
+  const tightened = attempt(asked, Math.max(MIN_LINE_HEIGHT, lineHeight * 0.88))
+  if (tightened.fits) return { ...tightened, truncated: false, escalated: false }
+
+  const leading = Math.max(MIN_LINE_HEIGHT, lineHeight * 0.88)
+  for (let size = asked * 0.92; size >= floor; size *= 0.92) {
+    const stepped = attempt(size, leading)
+    if (stepped.fits) return { ...stepped, truncated: false, escalated: false }
+  }
+
+  const lines = wrapText(text, box.width, floor, family, measure)
+  const maxLines = Math.max(1, Math.min(Math.floor(box.height / (floor * leading)), lineCap))
+
+  if (request.truncatable === true && lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines)
+    const last = kept[maxLines - 1]
+    if (last !== undefined) kept[maxLines - 1] = `${last.replace(/[\s.,;:]+$/, '')}…`
+    return {
+      lines: kept,
+      fontSize: floor,
+      lineHeight: leading,
+      level: request.level,
+      truncated: true,
+      escalated: false,
+    }
+  }
+
+  return {
+    lines,
+    fontSize: floor,
+    lineHeight: leading,
+    level: request.level,
     truncated: false,
     escalated: true,
   }

@@ -1,7 +1,14 @@
 # E7 — working notes
 
-What E7 is now, what was built on 7 September 2026, and the corrections to
+What E7 is now, what was built on 7 and 8 September 2026, and the corrections to
 `docs/E7-template-grid-management.md` that follow from the composition model.
+
+**Read §8 first if you are picking this up.** The designer described in §2 was
+built on 7 September and the owner's verdict on it the next day was that it was
+fundamentally not what they wanted — too constrained to design in. §8 is what
+changed, which constraints turned out to be load-bearing, and which were only
+caution. Everything in §2 still describes the shape of the thing; §8 describes
+what an owner can now do inside it.
 
 Read `docs/composition-model.md` §3 before anything here. The epic as written is
 about templates, grids and seasonal presets; **two of those three tables no
@@ -285,3 +292,141 @@ and `components/card-designer/**` from the template-token rule, because both dra
 offer book content in `--sq-tpl-*`. The components were first written under
 `components/designer/` and the artboard's `--sq-tpl-paper` failed lint on the
 spot — which is the rule working, and the reason the directory is named as it is.
+
+---
+
+## 8. The designer was too tight, and what changed — 8 September
+
+**The owner's verdict on §2's designer: "fundamentally not what I want. I want
+something like a small Figma or Illustrator — the user designs their own
+template. Right now the user is too stuck with us, or we have to give hundreds of
+templates."**
+
+That is a fair reading of what was built, and "ship a hundred templates" is the
+wrong answer to it. What follows is the analysis that separated the constraints
+doing real work from the ones that were only caution, and what happened to each.
+
+### The bounds that are load-bearing, and stay
+
+All three exist because of what an offer book *is*, not because of taste:
+
+- **Product text is bound, never typed.** A typed-in name cannot reflow, cannot
+  translate, and is wrong the moment the catalog corrects itself.
+- **Coordinates are fractions of the block.** One design serves 1080×1080 for a
+  carousel post and a third of an A4 column in a booklet. A pixel would be right
+  in exactly one of them.
+- **The repeating card reflows rather than being hand-placed.** A `flow` region
+  binds to a position in the product list, so next week's hundred products fill
+  the same layout untouched. Free-positioning that card is the five-minute
+  promise gone — E6 §1 has said so since before any of this was built.
+
+### The bounds that were only caution, and went
+
+| Was | Is |
+| --- | --- |
+| Six colour slots, no picker | The shop's palette as swatches, the three page mechanics, and **any colour** as a literal — `ColorValue` |
+| Sizes from an eight-step scale | The scale by default, **any size** when the owner sets one — and the fit ladder still runs |
+| No weight, italic, letter-spacing, case, face | All five, per element |
+| Rectangles only | Rectangles, circles, **lines**, and a stroke on any of them |
+| Product photo and logo only | Plus **uploaded artwork**, full-bleed or inset, `cover` or `contain` |
+| No rotation, no opacity | Both, on every element |
+| One element at a time | **Multi-select**, marquee, group, align, distribute, snap with guides, copy, paste, duplicate, lock |
+| No keyboard | Arrows nudge, shift-arrow nudges further, ⌘C/V/D/G/A, delete, escape |
+| The price mark was opaque | Its **colour, ground, frame and badge** are the shop's; only the composition stays ours |
+| One card, always | A block placed once is designed **at a page shape** — A4, square, story, band |
+
+### Two rules that replaced the old blanket ones
+
+**"No hex, ever" became "no hex in a block we ship."** A seeded block is loaded
+by every account and has to name a colour before it has met any of them, so it
+names a role the kit fills — that rule is now enforced rather than assumed, by
+`usesOnlyRoles` in `lib/block-document.ts`. A block the shop authored *has* met
+them, and an owner with a Ramadan gold in their hand and no way to type it is an
+owner who leaves.
+
+**"Snap to the brand scale" became a default rather than a law.** A level is
+still what a text element carries and still what the fit ladder steps down; a
+hand-set size overrides what it draws at and keeps what it degrades to. Text
+sized by eye therefore still shrinks rather than overflowing — `fitFreeSize` in
+`packages/engine/src/fit.ts`, which falls by ratio to 60% of what was asked for
+because there is no scale step to fall to.
+
+### Where the work went
+
+| File | What it owns |
+| --- | --- |
+| `packages/types/src/composition.ts` | `ColorValue`, `Stroke`, `ElementBase` (id, rotation, opacity, group, lock), `PriceMarkStyle`, and the freed-up text element |
+| `packages/engine/src/color.ts` | Resolving a colour, one way, for both renderers |
+| `packages/engine/src/snap.ts` | Snapping and alignment. **21 tests** |
+| `packages/engine/src/fit.ts` | The ladder for a hand-set size |
+| `apps/web/components/blocks/draw.tsx` | Rotation, opacity, strokes, circles, lines, `cover`/`contain`, artwork, free typography, price-mark styling |
+| `apps/web/components/card-designer/*` | The canvas, the toolbar, the colour control, the keyboard |
+| `apps/web/lib/block-elements.ts` | Minting elements, and the ids everything else selects by |
+| `apps/web/app/api/v1/blocks/artwork` | Presigned uploads |
+
+### Three things this deliberately did not do
+
+1. **It did not make the repeating card free-form.** See above; that is the
+   reflow promise, and the owner's own answer to the question chose the option
+   that keeps it.
+2. **It did not add a `cover` / `back` page role to the editor.** A page-shaped
+   panel is designed here and reaches a book as a **pin**, which already
+   displaces products rather than consuming them. A first-class cover is a book
+   decision rather than a designer one.
+3. **It did not build an asset table.** `ImageSource.assetId` holds the R2 object
+   key for owner artwork, resolved by `lib/block-assets.ts`. `image_assets`
+   exists but every row on it hangs off a catalog product, and a table for block
+   artwork is a schema decision rather than an upload route's business.
+
+### What is still owed
+
+1. **Text on a path, gradients, shadows, blend modes.** None of them are in the
+   model. Gradients are the one most likely to be asked for next, and they are a
+   `ColorValue` variant rather than a rewrite.
+2. **A seeded gallery.** The owner's own option list raised this: fifteen to
+   twenty-five real designs — seasonal, grocery, pharmacy, electronics — so a
+   shop starts from something good. That is design work rather than engineering,
+   and it is what stops a blank canvas feeling worse than the default.
+3. ~~**`pnpm db:seed` must be re-run.**~~ **Done**, and it found something. See
+   below.
+4. **Nothing has been opened in a browser.** Typecheck, lint, 216 engine tests,
+   415 web tests, `pnpm build` and the render harness all pass; the canvas
+   interactions — marquee, snap guides, rotation handle, upload — have not been
+   used by a person. That is the check that has repeatedly found what the others
+   could not, and it is the one still outstanding.
+
+### The reseed, and what reading real rows back found
+
+The dev database held five blocks in the old shape — the four seeded ones and
+one organization's `Footer copy` — every element of all five without an id and
+with `surface` where `fill` now goes. They were deleted and written back:
+`pnpm db:seed` recreates the seeded four **at the same ids**, which is what the
+page grids of four live books name inside their `regions` JSON; the shop's own
+copy was made again from the new seeded footer, keeping its id and its name so
+their library did not quietly lose a row.
+
+Two things came out of reading the result back through the real parser rather
+than trusting the write:
+
+- **The seeded offer card reported three overlapping-aspect warnings, and every
+  one was wrong.** Its four ranges *meet* — 0.35–0.85, 0.85–1.35, 1.35–2.6,
+  2.6–12 — which is how a set of ranges covers the line without leaving a hole,
+  and `coverageProblems` was reading a shared endpoint as an overlap. Three
+  warnings on the block every shop starts from is how owners learn to ignore
+  warnings. Fixed, with the boundary case now asserted.
+
+  **The existing test did not catch it and could not have**: it asserted the
+  absence of an `aspect-gap` on touching ranges and never looked at what else
+  was reported. This is rule #7 again — the answer came from looking at the
+  output, not from the suite.
+
+- **Nothing enforced that two elements on one layout have different ids**, which
+  the designer now depends on for selection, grouping and z-order. The designer
+  mints ids that cannot collide, but a hand-written seed can, and a document
+  where clicking one element selects another is unfixable from inside the tool.
+  `duplicate-element-id` is now an error.
+
+Verified after the fact: all five rows parse under the strict schema, carry
+distinct ids within every arrangement, use roles only where they must, and raise
+no errors and no warnings; and all four books still resolve `Offer card` and
+`Footer` from their master grids.

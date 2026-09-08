@@ -3,7 +3,17 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 7 September 2026, after E7 gave a shop owner a block designer: a seeded block
+Last updated 8 September 2026. The block designer was rebuilt into an actual
+design tool — any colour, any size, shapes, uploaded artwork, rotation, opacity,
+multi-select, group, align, distribute, snap guides, a keyboard, and a price mark
+whose styling is finally the shop's. The owner's verdict on the first version was
+that it was fundamentally not what they wanted, and `docs/E7-pending.md` §8 is
+the record of which constraints were load-bearing and which were only caution.
+Earlier the same day, E6's feature list was closed out: the properties panel
+carries everything E6-03 asks for, cards nudge within bounded limits, undo and autosave
+work, the tray drags, the master grid is editable, panels can be pinned, and a book can be
+duplicated. What is left of E6 is merging cells on the artboard. Before that, 7 September,
+E7 gave a shop owner a block designer: a seeded block
 can be duplicated, its elements moved, resized and re-bound, its overflow declared, and the
 result saved with undo and version history. Earlier the same day, E6 went from nothing to a
 working editor: a book can be created, drawn, priced, reordered and edited. Before that,
@@ -28,9 +38,10 @@ create an offer book from the catalog or from a spreadsheet, see it drawn, price
 it and edit it — `/editor/new` to `/editor/[id]`. The dev database holds real books, offers
 and items written through that path rather than through a script.
 
-**What that leaves on the critical path is E9, not E6.** A book can be made and cannot yet
-leave the product: the `pdf` worker still throws, so there is no export, and E10's share
-paths do not exist. Nothing an owner builds can reach a customer.
+**What that leaves on the critical path is E9, and nothing else is close.** A book can be
+made, priced, adjusted, laid out, duplicated and designed for — and it cannot leave the
+product: the `pdf` worker still throws, so there is no export, and E10's share paths do not
+exist. Nothing an owner builds can reach a customer.
 
 ---
 
@@ -42,8 +53,8 @@ paths do not exist. Nothing an owner builds can reach a customer.
 | **E2** Organization management | Built. Org settings, shops (add, deactivate, archive), team and invites, per-shop access, brand inheritance. See `E2-pending.md`. |
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
-| **E6** Offer book editor | **Mostly built.** Create a book from the catalog or from a committed CSV import, draw it, price it, set tiers, reorder, add and remove offers, join two products with an `or`/`and`. Not written: drag-to-reorder, `SlotOverride` nudging, undo, autosave, and the rest of the properties panel — unit price, chips, footnotes. No Fabric yet; the artboard is inline SVG and has not needed one. See `E6-pending.md`. |
-| **E7** Block designer | **Mostly built.** `/brand/blocks` is the library — the shop's own blocks and the four seeded ones — and `/card-designer/[blockId]` is the designer: drag and resize, bind to a product field, declare an overflow policy, undo, autosave, version history, a persistent worst-case preview. Not written: dragging a *new* element from the palette, seasonal scheduling, the overlay asset library. See `E7-pending.md`. |
+| **E6** Offer book editor | **Built.** Create a book from the catalog or from a committed CSV import, draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, pin a panel, and duplicate the whole book. Not written: merging cells on the artboard, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-pending.md` §8. |
+| **E7** Block designer | **Mostly built, and rebuilt on 8 September into a real design tool.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer: multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork as a background or a decoration, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. Not written: gradients, a seeded gallery, seasonal scheduling. See `E7-pending.md` §8. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
@@ -569,34 +580,59 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   content did not use at `balance`, and `components/blocks/draw` paints. `/brand` uses the
   same painter, so a card cannot look one way there and another here.
 - **Price it** — price, was-price and promo tier in the properties panel, optimistic, saved
-  per field on blur. The tier is the only control on the price mark, per E6 §3.
-- **Change what is in it** — search and add, remove, reorder, and join a second product to
-  an offer with `or`/`and`.
+  per field on blur *and* autosaved two seconds after the last keystroke. The tier is the
+  only control on the price mark, per E6 §3.
+- **Change what is in it** — search and add, remove, reorder by dragging, and join a second
+  product to an offer with `or`/`and`.
 
 `EDITOR_BUILT` and `BOOK_CREATION_BUILT` are both true. `stores/editor-store.ts` exists.
 
+**The feature list was closed out on 8 September.** Also built, all of it detailed in
+`E6-pending.md` §8:
+
+- **The rest of E6-03** — unit price (`AUTO` from pack maths, `MANUAL` frozen at publish,
+  `HIDDEN`), chips, footnotes, extra charges, per-item name and spec overrides in both
+  languages, and changing a connector or reordering the products on a card.
+- **E6-04 bounded overrides.** `SlotOverride` is rekeyed to `regionId` + `offerId`,
+  `packages/engine/src/override.ts` applies and clamps it, and the panel nudges, scales the
+  photo and resets. **A nudge is never inherited by whatever moves into that region** next
+  week — which is the whole reason the key carries the offer.
+- **E6-06 undo and redo**, fifty logical steps, Cmd/Ctrl+Z, surviving a re-hydration of the
+  same book; **E6-08 autosave**, debounced two seconds, with "Saved 14:32" in the header.
+- **Drag to reorder** in the tray, with the up/down buttons kept as the tablet path.
+- **The master grid**, editable — cards across and rows down, with the page count under it
+  as feedback rather than as a second control. Density is derived, never chosen.
+- **Pins.** `book_pins` has a writer: pick a panel, a page and a shape rather than four
+  coordinates. Only a block that does not repeat may be pinned.
+- **Duplicating a book** — the control the design skill expects to be the most-used in the
+  product. It copies everything except what makes a book public: fresh short code, no link,
+  no views, status back to draft.
+- **`fit-escalated`**, reported by the page that drew the card, through the same
+  `fitTextElement` the painter runs — so the flag and the card cannot disagree.
+
 **What E6 still owns:**
 
-- **Drag** — to reorder in the tray, and from catalog to cell. Reordering is up/down
-  buttons today: the design system requires a persistent equivalent for tablet and says
-  long-press drag is unreliable on iPad, so the equivalent was built first. Drag is owed.
-- **`SlotOverride` handling**, keyed by `regionId` + `offerId` rather than grid position,
-  which is what lets a nudge survive next week's product swap. Nothing nudges yet.
-- **Master and instances**, and **pins**. The engine models both; nothing authors them.
-- **Undo, and autosave.** Saving today is per-field on blur, which is not the same thing.
-- **The rest of the properties panel** — unit price, chips, footnotes, legal lines,
-  per-item name and spec overrides. Those columns exist and `composeOffer` reads them;
-  nothing writes them.
-- **`fit-escalated`** as a quality flag. The other three — missing price, missing `nameAr`,
-  missing or fallback image — are surfaced per offer and counted in the header.
+- **Merging cells on the artboard**, and dragging track edges. The engine has handled merges
+  since it existed and nothing authors one. This is the last piece of composition model
+  step 4, and it is a canvas interaction rather than a form.
+- **Drag from the catalog onto a cell.** Adding is a button; a cell is not a drop target.
+- **Two block element kinds.** The unit-price line and footnote markers are stored, shown in
+  the panel, and **cannot be printed**, because a block's element vocabulary has no place to
+  put them. Chips draw — a block already carries a `chip` element, and authored chips stack
+  from it. The recommendation is `unitPrice` and `footnotes` element kinds in the block
+  designer; it is an architecture decision, so it is raised rather than taken.
+  `E6-pending.md` §8 has the write-up.
 
-**No Fabric, and that is a finding rather than an omission.** The epic assumes a canvas
-object model; nothing built so far has needed one, because the engine decides every
-rectangle and the artboard only paints them. Fabric earns its place when direct
-manipulation does — dragging and nudging — and not before. When it lands, two rules from
-`apps/web/CLAUDE.md` bite immediately: `document.fonts.load()` for every family *and*
-weight before a single text object, and `placeText` per text object, because a canvas text
-object takes its own direction and does not inherit the artboard's.
+**No Fabric, and that is now a settled finding rather than a pending one.** The epic
+assumes a canvas object model. Nothing has needed one — including dragging and nudging,
+which were the two things named as the point at which it would earn its place, and
+including E7's block designer, which does direct manipulation over the same painter through
+`moveBox` and `resizeBox` in the engine. What Fabric would add is a **second painter**, and
+the first thing to drift would be whether the card the owner designed is the card the PDF
+prints. If it ever lands, two rules from `apps/web/CLAUDE.md` bite immediately:
+`document.fonts.load()` for every family *and* weight before a single text object, and
+`placeText` per text object, because a canvas text object takes its own direction and does
+not inherit the artboard's.
 
 **The risk E6 §10 names has been answered twice.** *"If the engine's output looks like a
 real flyer with no manual adjustment, the product works."* Yes on invented data, and yes
@@ -649,7 +685,30 @@ notification UI and no `stores/notification-store.ts`.
 Admin auth is a separate path against `admin_users` with its own session secret — never
 the shop-owner session layer.
 
-### E7 — Block designer — built, 7 September
+### E7 — Block designer — built 7 September, opened up 8 September
+
+**The first version was too tight, and the owner said so.** It was a form with a
+canvas attached: six colour slots and no picker, sizes from a fixed scale, no
+shapes beyond a rectangle, no uploads, no rotation, one element selected at a
+time. The verdict — *"fundamentally not what I want; the user is too stuck with
+us, or we have to give hundreds of templates"* — was right, and "ship a hundred
+templates" is the wrong answer to it.
+
+What came out of separating the constraints that do real work from the ones that
+were only caution is in `docs/E7-pending.md` §8. **Three rules stayed**: product
+text is bound rather than typed, coordinates are fractions of the block, and the
+*repeating* card reflows rather than being hand-placed — that last one is the
+five-minute weekly reissue, and giving it up would be giving up the product.
+**Everything else opened**: any colour, any size, circles and lines and strokes,
+uploaded artwork, rotation and opacity, multi-select with marquee, group, align,
+distribute, snapping with guides, a full keyboard, and a price mark whose colour,
+ground and frame are the shop's — only its composition is still ours.
+
+"No hex, ever" became "no hex in a block *we* ship", which is now enforced rather
+than assumed. A block placed once — a cover, a brand panel, a message — is
+designed at a page shape rather than at a card's, which is the "design a page,
+not a card" half of the answer; it reaches a book as a pin.
+
 
 **The epic was rewritten before it was built**, against `docs/composition-model.md` §3, and
 the rewrite is `docs/E7-pending.md` §1. Templates and grids are not objects any more, so

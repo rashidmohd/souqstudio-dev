@@ -192,8 +192,21 @@ module.exports = {
     // violation — the same blind spot the manual checklist calls out for an
     // icon on sky — so the distinction is drawn by path, narrowly, and nowhere
     // else. Chrome typography is still covered everywhere it lives.
+    //
+    // The block painter and the block designer's own properties panel joined
+    // the list when E7 gave owners a real design tool: `italic` and a colour
+    // there are fields on the *shop's* block, chosen by the shop, and the
+    // painter draws offer book content rather than chrome. The artboard files
+    // are already exempt from the template-token rule above for the same
+    // reason, and the exemption is drawn by path, narrowly, and nowhere else.
     {
-      files: ['**/lib/brand-typography.ts', '**/components/brand/TypographyFields.tsx'],
+      files: [
+        '**/lib/brand-typography.ts',
+        '**/components/brand/TypographyFields.tsx',
+        '**/components/blocks/draw.tsx',
+        '**/components/card-designer/ElementProperties.tsx',
+        '**/components/card-designer/ColorControl.tsx',
+      ],
       rules: {
         'no-restricted-syntax': 'off',
       },

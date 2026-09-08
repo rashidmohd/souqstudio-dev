@@ -43,6 +43,18 @@ export function OfferTray({ bookId }: Props) {
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
+  /**
+   * Drag state. **HTML5 drag-and-drop, and the up/down buttons stay.**
+   *
+   * The design system says long-press drag is unreliable on an iPad and asks for
+   * a persistent equivalent, so the buttons were built first and are not a
+   * fallback — they are the tablet path. This is the pointer one, and HTML5 DnD
+   * is what gives it the browser's own drag image, autoscroll and escape-to-
+   * cancel for nothing.
+   */
+  const [dragging, setDragging] = React.useState<string | null>(null)
+  const [over, setOver] = React.useState<string | null>(null)
+
   async function mutate(request: () => Promise<Response>) {
     setBusy(true)
     setError(null)
@@ -73,6 +85,34 @@ export function OfferTray({ bookId }: Props) {
     if (moved === undefined) return
     next.splice(to, 0, moved)
 
+    void mutate(() =>
+      fetch(`/api/v1/offer-books/${bookId}/offers`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ offerIds: next }),
+      })
+    )
+  }
+
+  /** Drop `dragged` where `target` currently sits, and send the whole order. */
+  function dropOn(target: string) {
+    const source = dragging
+    setDragging(null)
+    setOver(null)
+    if (source === null || source === target) return
+
+    const from = order.indexOf(source)
+    const to = order.indexOf(target)
+    if (from === -1 || to === -1) return
+
+    const next = [...order]
+    const [moved] = next.splice(from, 1)
+    if (moved === undefined) return
+    next.splice(to, 0, moved)
+
+    // The whole order, not a move: two tabs sending `{from, to}` against
+    // different starting states interleave into an order neither owner chose.
+    // The route refuses a partial list for the same reason.
     void mutate(() =>
       fetch(`/api/v1/offer-books/${bookId}/offers`, {
         method: 'PATCH',
@@ -141,13 +181,49 @@ export function OfferTray({ bookId }: Props) {
               const selected = offerId === selectedOfferId
 
               return (
-                <li key={offerId}>
+                <li
+                  key={offerId}
+                  draggable={!busy}
+                  onDragStart={(event) => {
+                    setDragging(offerId)
+                    // Move, not copy — the cursor says which one this is, and a
+                    // copy cursor on a reorder reads as "this will duplicate".
+                    event.dataTransfer.effectAllowed = 'move'
+                    // Firefox starts no drag at all without payload.
+                    event.dataTransfer.setData('text/plain', offerId)
+                  }}
+                  onDragEnd={() => {
+                    setDragging(null)
+                    setOver(null)
+                  }}
+                  onDragOver={(event) => {
+                    if (dragging === null) return
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
+                    setOver(offerId)
+                  }}
+                  onDragLeave={() => setOver((current) => (current === offerId ? null : current))}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    dropOn(offerId)
+                  }}
+                  className={
+                    // The drop target, marked with the same outline the system
+                    // uses for focus rather than a colour of its own.
+                    over === offerId && dragging !== offerId
+                      ? 'rounded-control outline outline-2 outline-offset-2 outline-border-focus'
+                      : undefined
+                  }
+                >
                   <div
-                    className={
+                    className={[
                       selected
                         ? 'flex items-center gap-1 rounded-control bg-selected-bg p-1'
-                        : 'flex items-center gap-1 rounded-control p-1 hover:bg-stone-100'
-                    }
+                        : 'flex items-center gap-1 rounded-control p-1 hover:bg-stone-100',
+                      dragging === offerId ? 'opacity-50' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                   >
                     <button
                       type="button"

@@ -24,6 +24,9 @@ const RICE: ProductRow = {
   brandAr: 'أبو كاس',
   imageUrl: 'https://cdn.example/rice-cutout.png',
   imageIsFallback: false,
+  packSize: '5.000',
+  packUnit: 'KG',
+  packCount: null,
 }
 
 const CREPES: ProductRow = {
@@ -35,6 +38,11 @@ const CREPES: ProductRow = {
   brandAr: null,
   imageUrl: null,
   imageIsFallback: false,
+  // 4.2% of the catalog carries a pack size, so the ordinary row has none and
+  // the unit price line has nothing to derive from.
+  packSize: null,
+  packUnit: null,
+  packCount: null,
 }
 
 const TIER: TierRow = { id: 'tier_deal', labelEn: 'Deal', labelAr: 'عرض', tokenRef: 'accent' }
@@ -59,6 +67,12 @@ const offer = (items: ItemRow[], overrides: Partial<OfferRow> = {}): OfferRow =>
   comparePrice: null,
   currency: 'AED',
   promoTierId: TIER.id,
+  unitPriceMode: 'AUTO',
+  unitPriceValue: null,
+  unitPriceUnit: null,
+  legalLines: [],
+  chips: [],
+  footnotes: [],
   items,
   ...overrides,
 })
@@ -282,5 +296,85 @@ describe('toMasterGrid', () => {
     // not a list is a corrupt row, and there is nothing an owner can do with it.
     expect(() => toMasterGrid({ ...ROW, regions: null })).toThrow(/not an array/)
     expect(() => toMasterGrid({ ...ROW, regions: { id: 'r0' } })).toThrow(/not an array/)
+  })
+})
+
+describe('the unit price line — E5 §4', () => {
+  it('derives from the lead item’s pack under AUTO', () => {
+    // 24.50 for a 5 kg sack is 4.900 per kilo.
+    expect(composeOffer(offer([item(RICE)]), TIER, 'en').unitPrice).toBe('1 kg = 4.900')
+  })
+
+  it('normalises grams to kilograms, so two packs are comparable', () => {
+    const grams = { ...RICE, packSize: '500.000', packUnit: 'G' as const }
+    const out = composeOffer(offer([item(grams)], { price: '6.00' }), TIER, 'en')
+    expect(out.unitPrice).toBe('1 kg = 12.000')
+  })
+
+  it('multiplies a multipack out', () => {
+    const multipack = { ...RICE, packSize: '25.000', packUnit: 'G' as const, packCount: 8 }
+    const out = composeOffer(offer([item(multipack)], { price: '4.00' }), TIER, 'en')
+    expect(out.unitPrice).toBe('1 kg = 20.000')
+  })
+
+  it('draws no line at all when the pack cannot answer', () => {
+    // Not a zero, and not a guess: E5 §4 says a null reads as no line, because
+    // a wrong rate on a printed page is worse than a missing one.
+    expect(composeOffer(offer([item(CREPES)]), TIER, 'en').unitPrice).toBeNull()
+  })
+
+  it('draws no line for an unpriced offer', () => {
+    // Zero is `createBook`'s placeholder for "not set yet", not a free product.
+    expect(composeOffer(offer([item(RICE)], { price: '0' }), TIER, 'en').unitPrice).toBeNull()
+  })
+
+  it('reads the frozen value under MANUAL rather than recomputing', () => {
+    // The whole point of freezing it: a reprint reproduces what was printed,
+    // even after the pack data behind it was corrected.
+    const out = composeOffer(
+      offer([item(RICE)], {
+        unitPriceMode: 'MANUAL',
+        unitPriceValue: '3.250',
+        unitPriceUnit: 'KG',
+      }),
+      TIER,
+      'en'
+    )
+    expect(out.unitPrice).toBe('1 kg = 3.250')
+  })
+
+  it('draws nothing under HIDDEN, even with a pack that could answer', () => {
+    const out = composeOffer(offer([item(RICE)], { unitPriceMode: 'HIDDEN' }), TIER, 'en')
+    expect(out.unitPrice).toBeNull()
+  })
+})
+
+describe('chips, footnotes and legal lines', () => {
+  it('takes the edition’s label and falls back to the other language', () => {
+    const chips = [
+      { id: 'chip_1', labelEn: 'Limit 2', labelAr: 'حد ٢', anchor: 'TOP_START' as const },
+      { id: 'chip_2', labelEn: 'Halal', labelAr: null, anchor: 'TOP_END' as const },
+    ]
+    const out = composeOffer(offer([item(RICE)], { chips }), TIER, 'ar')
+    expect(out.chips.map((chip) => chip.label)).toEqual(['حد ٢', 'Halal'])
+  })
+
+  it('carries footnotes without a marker number', () => {
+    // E6 §8: markers are assigned at render time in reading order, so an AR
+    // edition numbers right-to-left from the same rows. Storing one would give
+    // two answers that can disagree.
+    const footnotes = [
+      { id: 'fn_1', textEn: 'While stocks last', textAr: null, scope: 'PAGE' as const },
+    ]
+    const out = composeOffer(offer([item(RICE)], { footnotes }), TIER, 'en')
+    expect(out.footnotes).toEqual([
+      { id: 'fn_1', text: 'While stocks last', scope: 'PAGE' },
+    ])
+    expect(JSON.stringify(out.footnotes)).not.toContain('marker')
+  })
+
+  it('passes legal lines through untouched', () => {
+    const out = composeOffer(offer([item(RICE)], { legalLines: ['Plus 0.50 deposit'] }), TIER, 'en')
+    expect(out.legalLines).toEqual(['Plus 0.50 deposit'])
   })
 })

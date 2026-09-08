@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, CopyPlus } from 'lucide-react'
@@ -11,13 +12,15 @@ import { BOOK_CREATION_BUILT, EDITOR_BUILT } from '@/lib/features'
 /**
  * The offer books list — home. E1-05 needs this route to exist; E6 fills it in.
  *
- * The New button and "Duplicate last week" are the two controls the design
- * skill says belong here, the second expected to be the most-used in the
- * product. **Both still disabled, and for a narrower reason than before:** the
- * artboard at `/editor/[id]` is built, so a row opens — but choosing the
- * products a new book starts from is the offer tray's job and the tray is not
- * built. Two flags rather than one, because the two became true at different
- * times. See `lib/features.ts`.
+ * The New button and "Duplicate last week" are the two controls the design skill
+ * says belong here, the second expected to be the most-used in the product.
+ * **Both work now.** Duplicating copies the most recently updated book — its
+ * grids, pins, offers, items, chips, notes and prices — and copies none of its
+ * reach: the copy is a draft with its own short code, no link and no views.
+ *
+ * That is the weekly reissue, and it is cheap because a `flow` region binds to a
+ * *position* in the product list rather than to a product. Last week's layout
+ * with this week's prices is a copy plus some typing.
  */
 type OfferBookSummary = {
   id: string
@@ -27,10 +30,42 @@ type OfferBookSummary = {
   updatedAt: string
 }
 
-const NOT_YET = 'Duplicating a book is not built yet.'
+const NOT_YET = 'Creating an offer book is not built yet.'
 
 export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
   const router = useRouter()
+  const [duplicating, setDuplicating] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  // The most recently updated book, which is what "last week" means to a shop
+  // that makes one a week. Sorted by `updatedAt` on the server, so it is the
+  // first row.
+  const latest = books[0]
+
+  async function duplicateLatest() {
+    if (latest === undefined) return
+    setDuplicating(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/v1/offer-books/${latest.id}/duplicate`, { method: 'POST' })
+      const body = (await res.json()) as {
+        data: { id: string } | null
+        error: { message: string } | null
+      }
+      if (body.data === null) {
+        setError(body.error?.message ?? 'That book could not be duplicated.')
+        return
+      }
+      // Straight into the copy: the next thing an owner does is change the
+      // prices, and landing back on a list to find the row they just made is a
+      // step that teaches nothing.
+      router.push(`/editor/${body.data.id}`)
+    } catch {
+      setError('That book could not be duplicated. Check your connection.')
+    } finally {
+      setDuplicating(false)
+    }
+  }
 
   if (books.length === 0) {
     return (
@@ -61,16 +96,22 @@ export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
           <Plus className="size-4" aria-hidden="true" />
           New offer book
         </Button>
-        {/* Still disabled, and for its own reason: duplicating needs a book to
-            copy *and* a copy path, and neither the route nor the offer-cloning
-            exists. Left visible because the design skill expects it to be the
-            most-used control in the product once it works. */}
-        <Button type="button" variant="secondary" disabled>
+        <Button
+          type="button"
+          variant="secondary"
+          loading={duplicating}
+          onClick={() => void duplicateLatest()}
+        >
           <CopyPlus className="size-4" aria-hidden="true" />
           Duplicate last week
         </Button>
-        <span className="font-ui text-body-sm text-muted">{NOT_YET}</span>
       </div>
+
+      {error ? (
+        <p className="font-ui text-body-sm text-critical-fg" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <ul className="flex flex-col gap-2">
         {books.map((book) => (

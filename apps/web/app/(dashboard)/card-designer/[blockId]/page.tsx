@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { prisma } from '@souqstudio/db'
+import { env } from '@/lib/env'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
@@ -68,6 +69,10 @@ export default async function CardDesignerPage({ params }: { params: { blockId: 
       arrangements={block.arrangements}
       kit={brand.brandKit}
       shopName={shop.name}
+      // Passed down rather than made public: `R2_PUBLIC_URL` is a server
+      // variable, and making it public to save a prop would put a deployment
+      // detail into the browser bundle for the life of the app.
+      assetBaseUrl={env.R2_PUBLIC_URL}
     />
   )
 }

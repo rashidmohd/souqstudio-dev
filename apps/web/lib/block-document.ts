@@ -44,6 +44,27 @@ const tokenRefSchema = z.enum(['primary', 'secondary', 'accent', 'surface', 'ink
 // the values are `TYPE_LEVELS` itself, so the two cannot drift.
 const typeLevelSchema = z.enum(TYPE_LEVELS as unknown as [TypeLevel, ...TypeLevel[]])
 const alignSchema = z.enum(['start', 'center', 'end'])
+const familySchema = z.enum(['headline', 'display', 'price', 'body'])
+
+/**
+ * A colour, in one of the three ways a block may name one.
+ *
+ * **Six hex digits, not three, and not eight.** Shorthand is a convenience for
+ * people typing CSS and this value is written by a colour picker; alpha belongs
+ * to the element's `opacity`, where it is one control an owner can find rather
+ * than two ways of saying the same thing that disagree.
+ */
+const colorSchema = z.discriminatedUnion('from', [
+  z.object({ from: z.literal('role'), ref: tokenRefSchema }),
+  z.object({ from: z.literal('palette'), id: z.string().min(1).max(64) }),
+  z.object({ from: z.literal('hex'), hex: z.string().regex(/^#[0-9a-fA-F]{6}$/) }),
+])
+
+const strokeSchema = z.object({
+  color: colorSchema,
+  /** A fraction of the block's geometric mean, like every other size here. */
+  width: z.number().min(0).max(0.2),
+})
 
 const textSourceSchema = z.discriminatedUnion('from', [
   z.object({
@@ -68,35 +89,92 @@ const overflowSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('truncate') }),
 ])
 
+/**
+ * What every element carries.
+ *
+ * `id` is **required here and filled in before parsing** — see `withIds`.
+ * Documents written before the designer could select more than one element at a
+ * time do not carry one, and refusing to read them would be losing a shop's
+ * work over a field they never saw. Doing the repair before the schema rather
+ * than making the field optional keeps this file an exact mirror of the type,
+ * which is the thing that stops the two drifting.
+ */
+const baseSchema = {
+  id: z.string().min(1).max(64),
+  box: boxSchema,
+  rotation: z.number().min(-180).max(180).optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  groupId: z.string().min(1).max(64).optional(),
+  locked: z.boolean().optional(),
+}
+
+/**
+ * **Strict, so an unknown field is refused rather than dropped.**
+ *
+ * Zod strips what it does not recognise, which is the safe default for a form
+ * body and the wrong one for a design document: an owner's work silently
+ * disappearing on save is worse than a save that says no. It is also the check
+ * that catches a client running ahead of the deploy it is talking to.
+ */
+const priceMarkStyleSchema = z.strictObject({
+  tint: colorSchema.optional(),
+  ink: colorSchema.optional(),
+  surface: colorSchema.optional(),
+  frame: z.enum(['tag', 'plain']).optional(),
+  tab: z.enum(['attached', 'none']).optional(),
+})
+
 const elementSchema = z.discriminatedUnion('kind', [
-  z.object({
+  z.strictObject({
+    ...baseSchema,
     kind: z.literal('image'),
-    box: boxSchema,
     source: z.discriminatedUnion('from', [
       z.object({ from: z.literal('product') }),
       z.object({ from: z.literal('asset'), assetId: z.string().min(1).max(64) }),
     ]),
+    fit: z.enum(['contain', 'cover']).optional(),
+    radius: z.number().min(0).max(64).optional(),
+    stroke: strokeSchema.optional(),
   }),
-  z.object({
+  z.strictObject({
+    ...baseSchema,
     kind: z.literal('text'),
-    box: boxSchema,
     source: textSourceSchema,
     level: typeLevelSchema,
     align: alignSchema,
     overflow: overflowSchema.optional(),
+    /**
+     * A fraction of the block's geometric mean. Bounded well above anything
+     * legible and well below the whole block: a "size" of 2 is not a headline,
+     * it is a document that will render one glyph across a page.
+     */
+    size: z.number().min(0.005).max(1).optional(),
+    weight: z.number().int().min(100).max(900).optional(),
+    italic: z.boolean().optional(),
+    letterSpacing: z.number().min(-0.2).max(1).optional(),
+    transform: z.enum(['none', 'uppercase']).optional(),
+    family: familySchema.optional(),
+    color: colorSchema.optional(),
   }),
-  z.object({ kind: z.literal('priceMark'), box: boxSchema }),
-  z.object({
+  z.strictObject({
+    ...baseSchema,
+    kind: z.literal('priceMark'),
+    style: priceMarkStyleSchema.optional(),
+  }),
+  z.strictObject({
+    ...baseSchema,
     kind: z.literal('chip'),
-    box: boxSchema,
     anchor: z.enum(['TOP_START', 'TOP_END', 'INLINE']),
+    fill: colorSchema.optional(),
   }),
-  z.object({ kind: z.literal('logo'), box: boxSchema }),
-  z.object({
+  z.strictObject({ ...baseSchema, kind: z.literal('logo') }),
+  z.strictObject({
+    ...baseSchema,
     kind: z.literal('shape'),
-    box: boxSchema,
-    surface: tokenRefSchema,
+    fill: colorSchema,
+    variant: z.enum(['rect', 'ellipse', 'line']).optional(),
     radius: z.number().min(0).max(64),
+    stroke: strokeSchema.optional(),
   }),
 ])
 
@@ -121,10 +199,69 @@ const arrangementSchema = z
 
 export const arrangementsSchema = z.array(arrangementSchema).min(1).max(MAX_ARRANGEMENTS)
 
+/**
+ * Ids for elements written before elements had ids.
+ *
+ * Deterministic — position within its arrangement — so the same stored document
+ * always yields the same ids and a nudge or a selection keyed to one does not
+ * move between reads. Nothing else is repaired: a document that is wrong in any
+ * other way is refused, because every other field was written by something that
+ * knew the schema.
+ */
+function withIds(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+
+  return value.map((arrangement) => {
+    if (typeof arrangement !== 'object' || arrangement === null) return arrangement
+    const row = arrangement as { elements?: unknown }
+    if (!Array.isArray(row.elements)) return arrangement
+
+    return {
+      ...row,
+      elements: row.elements.map((element, index) => {
+        if (typeof element !== 'object' || element === null) return element
+        const entry = element as { id?: unknown }
+        return typeof entry.id === 'string' && entry.id !== ''
+          ? element
+          : { ...entry, id: `e${index}` }
+      }),
+    }
+  })
+}
+
 /** The parsed document, or null if it is not a block. */
 export function toArrangements(value: unknown): Arrangement[] | null {
-  const parsed = arrangementsSchema.safeParse(value)
+  const parsed = arrangementsSchema.safeParse(withIds(value))
   return parsed.success ? parsed.data : null
+}
+
+/**
+ * Whether a document is one a **seeded** block may hold.
+ *
+ * Seeded blocks are the library every account composes with, and one of them has
+ * to name a colour before it has ever met a shop — so it names a role the kit
+ * fills, and never a palette entry (which is one shop's) or a literal (which is
+ * nobody's). An owner's own block has met them and may use all three.
+ *
+ * Enforced here rather than in the type, because the same interface describes
+ * both and the difference is whose block it is.
+ */
+export function usesOnlyRoles(arrangements: readonly Arrangement[]): boolean {
+  const ok = (value: { from: string } | undefined) => value === undefined || value.from === 'role'
+
+  return arrangements.every((arrangement) =>
+    arrangement.elements.every((element) => {
+      if (element.kind === 'shape') return ok(element.fill) && ok(element.stroke?.color)
+      if (element.kind === 'text') return ok(element.color)
+      if (element.kind === 'chip') return ok(element.fill)
+      if (element.kind === 'image') return ok(element.stroke?.color)
+      if (element.kind === 'priceMark') {
+        const style = element.style
+        return ok(style?.tint) && ok(style?.ink) && ok(style?.surface)
+      }
+      return true
+    })
+  )
 }
 
 /**

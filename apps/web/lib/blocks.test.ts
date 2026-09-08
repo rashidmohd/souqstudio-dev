@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Arrangement } from '@souqstudio/types'
 import { SEED_BLOCKS } from '@souqstudio/engine'
 import { MAX_ELEMENTS, arrangementsSchema, toArrangements } from '@/lib/block-document'
+import { usesOnlyRoles } from '@/lib/block-document'
 import { blockErrorMessage, blockErrors, blockUpdateSchema } from '@/lib/block-write'
 import { copyName, planReaches } from '@/lib/blocks'
 
@@ -16,15 +17,22 @@ const card: Arrangement[] = [
     aspectMin: 0.5,
     aspectMax: 1.5,
     elements: [
-      { kind: 'shape', box: { start: 0, top: 0, width: 1, height: 1 }, surface: 'surface', radius: 3 },
       {
+        id: 'surface',
+        kind: 'shape',
+        box: { start: 0, top: 0, width: 1, height: 1 },
+        fill: { from: 'role', ref: 'surface' },
+        radius: 3,
+      },
+      {
+        id: 'name',
         kind: 'text',
         box: { start: 0.08, top: 0.4, width: 0.84, height: 0.2 },
         source: { from: 'product', field: 'name' },
         level: 'h3',
         align: 'start',
       },
-      { kind: 'priceMark', box: { start: 0.08, top: 0.7, width: 0.84, height: 0.2 } },
+      { id: 'price', kind: 'priceMark', box: { start: 0.08, top: 0.7, width: 0.84, height: 0.2 } },
     ],
   },
 ]
@@ -43,12 +51,20 @@ describe('the block document', () => {
     expect(toArrangements(card)).toEqual(card)
   })
 
-  it('refuses a colour that is not a role', () => {
+  it('refuses a bare string where a colour belongs', () => {
+    // A colour is `{ from, … }` now — a role, a palette entry or a literal —
+    // and a naked hex is a document written against the old shape.
     const hex = [
       {
         ...card[0],
         elements: [
-          { kind: 'shape', box: { start: 0, top: 0, width: 1, height: 1 }, surface: '#143CD2', radius: 3 },
+          {
+            id: 'ground',
+            kind: 'shape',
+            box: { start: 0, top: 0, width: 1, height: 1 },
+            fill: '#143CD2',
+            radius: 3,
+          },
         ],
       },
     ]
@@ -61,6 +77,7 @@ describe('the block document', () => {
         ...card[0],
         elements: [
           {
+            id: 'headline',
             kind: 'text',
             box: { start: 0, top: 0, width: 1, height: 0.2 },
             source: { from: 'static', textEn: 'Ramadan Kareem' },
@@ -74,7 +91,12 @@ describe('the block document', () => {
   })
 
   it('refuses an unknown element kind rather than dropping it', () => {
-    const alien = [{ ...card[0], elements: [{ kind: 'video', box: { start: 0, top: 0, width: 1, height: 1 } }] }]
+    const alien = [
+      {
+        ...card[0],
+        elements: [{ id: 'v', kind: 'video', box: { start: 0, top: 0, width: 1, height: 1 } }],
+      },
+    ]
     expect(toArrangements(alien)).toBeNull()
   })
 
@@ -90,7 +112,8 @@ describe('the block document', () => {
     const many = [
       {
         ...card[0],
-        elements: Array.from({ length: MAX_ELEMENTS + 1 }, () => ({
+        elements: Array.from({ length: MAX_ELEMENTS + 1 }, (_, index) => ({
+          id: `l${index}`,
           kind: 'logo' as const,
           box: { start: 0, top: 0, width: 0.1, height: 0.1 },
         })),
@@ -105,6 +128,7 @@ describe('the block document', () => {
         ...card[0],
         elements: [
           {
+            id: 'name',
             kind: 'text',
             box: { start: 0, top: 0, width: 1, height: 0.2 },
             source: { from: 'product', field: 'name' },
@@ -125,6 +149,7 @@ describe('the block document', () => {
         ...card[0],
         elements: [
           {
+            id: 'name',
             kind: 'text',
             box: { start: 0, top: 0, width: 1, height: 0.2 },
             source: { from: 'product', field: 'name' },
@@ -213,5 +238,147 @@ describe('copyName', () => {
   it('numbers the second one rather than colliding', () => {
     expect(copyName('Offer card', ['Offer card copy'])).toBe('Offer card copy 2')
     expect(copyName('Offer card', ['Offer card copy', 'Offer card copy 2'])).toBe('Offer card copy 3')
+  })
+})
+
+describe('colours, and who may use which', () => {
+  const withFill = (fill: unknown): unknown => [
+    {
+      aspectMin: 0.5,
+      aspectMax: 1.5,
+      elements: [
+        { id: 'ground', kind: 'shape', box: { start: 0, top: 0, width: 1, height: 1 }, fill, radius: 3 },
+      ],
+    },
+  ]
+
+  it('takes a role, a palette entry or a literal', () => {
+    expect(toArrangements(withFill({ from: 'role', ref: 'primary' }))).not.toBeNull()
+    expect(toArrangements(withFill({ from: 'palette', id: 'col_1' }))).not.toBeNull()
+    expect(toArrangements(withFill({ from: 'hex', hex: '#143CD2' }))).not.toBeNull()
+  })
+
+  it('refuses shorthand and alpha', () => {
+    // The picker writes six digits; alpha belongs to the element's own opacity,
+    // where it is one control an owner can find rather than two that disagree.
+    expect(toArrangements(withFill({ from: 'hex', hex: '#f0a' }))).toBeNull()
+    expect(toArrangements(withFill({ from: 'hex', hex: '#143CD2FF' }))).toBeNull()
+  })
+
+  it('holds a seeded block to roles alone', () => {
+    // A block shipped before it has met a shop cannot name that shop's palette
+    // entry, and must not name a literal — it would stop looking like whichever
+    // account loaded it.
+    const roles = toArrangements(withFill({ from: 'role', ref: 'primary' }))
+    const literal = toArrangements(withFill({ from: 'hex', hex: '#143CD2' }))
+    expect(usesOnlyRoles(roles!)).toBe(true)
+    expect(usesOnlyRoles(literal!)).toBe(false)
+  })
+
+  it('lets every seeded block through its own rule', () => {
+    for (const block of SEED_BLOCKS) {
+      expect(usesOnlyRoles(block.arrangements)).toBe(true)
+    }
+  })
+})
+
+describe('element ids', () => {
+  it('fills them in for a document written before elements had them', () => {
+    // Refusing to read one would be losing a shop's work over a field they
+    // never saw. Deterministic by position, so the same document always yields
+    // the same ids and a selection does not move between reads.
+    const legacy = [
+      {
+        aspectMin: 0.5,
+        aspectMax: 1.5,
+        elements: [
+          { kind: 'logo', box: { start: 0, top: 0, width: 0.2, height: 0.2 } },
+          { kind: 'priceMark', box: { start: 0, top: 0.5, width: 0.5, height: 0.2 } },
+        ],
+      },
+    ]
+    const parsed = toArrangements(legacy)
+    expect(parsed?.[0]?.elements.map((element) => element.id)).toEqual(['e0', 'e1'])
+    expect(toArrangements(legacy)).toEqual(parsed)
+  })
+
+  it('leaves an id that is already there alone', () => {
+    expect(toArrangements(card)?.[0]?.elements[0]?.id).toBe('surface')
+  })
+})
+
+describe('the freedoms the designer needs', () => {
+  const textWith = (extra: Record<string, unknown>): unknown => [
+    {
+      aspectMin: 0.5,
+      aspectMax: 1.5,
+      elements: [
+        {
+          id: 'headline',
+          kind: 'text',
+          box: { start: 0, top: 0, width: 1, height: 0.2 },
+          source: { from: 'static', textEn: 'Sale', textAr: 'تخفيض' },
+          level: 'h1',
+          align: 'start',
+          ...extra,
+        },
+      ],
+    },
+  ]
+
+  it('takes a size set by hand, a weight, italics and letter spacing', () => {
+    const parsed = toArrangements(
+      textWith({ size: 0.09, weight: 700, italic: true, letterSpacing: 0.02 })
+    )
+    expect(parsed?.[0]?.elements[0]).toMatchObject({ size: 0.09, weight: 700, italic: true })
+  })
+
+  it('refuses a size that would print one glyph across a page', () => {
+    expect(toArrangements(textWith({ size: 4 }))).toBeNull()
+  })
+
+  it('takes rotation and opacity on anything', () => {
+    const parsed = toArrangements(textWith({ rotation: -12, opacity: 0.4 }))
+    expect(parsed?.[0]?.elements[0]).toMatchObject({ rotation: -12, opacity: 0.4 })
+  })
+
+  it('refuses a rotation that is not a rotation', () => {
+    expect(toArrangements(textWith({ rotation: 900 }))).toBeNull()
+  })
+
+  it('takes a price mark styled but not composed', () => {
+    // Colour, ground and frame are the shop's. What the digits do is not, and
+    // there is nowhere in the schema to say otherwise.
+    const styled = [
+      {
+        aspectMin: 0.5,
+        aspectMax: 1.5,
+        elements: [
+          {
+            id: 'price',
+            kind: 'priceMark',
+            box: { start: 0, top: 0, width: 1, height: 0.3 },
+            style: { tint: { from: 'hex', hex: '#143CD2' }, frame: 'plain', tab: 'none' },
+          },
+        ],
+      },
+    ]
+    expect(toArrangements(styled)).not.toBeNull()
+
+    const composed = [
+      {
+        aspectMin: 0.5,
+        aspectMax: 1.5,
+        elements: [
+          {
+            id: 'price',
+            kind: 'priceMark',
+            box: { start: 0, top: 0, width: 1, height: 0.3 },
+            style: { minorSize: 0.5 },
+          },
+        ],
+      },
+    ]
+    expect(toArrangements(composed)).toBeNull()
   })
 })

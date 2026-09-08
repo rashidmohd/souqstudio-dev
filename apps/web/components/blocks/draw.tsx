@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import type { BlockElement, TokenRef } from '@souqstudio/types'
+import type { BlockElement, BrandColor, ColorValue, TokenRef, TypeStep } from '@souqstudio/types'
 import {
   fitPolicy,
   fitText,
   layoutPriceMark,
   placeText,
+  resolveColor,
   type Rect,
   type TextMeasurer,
 } from '@souqstudio/engine'
@@ -41,12 +42,23 @@ import type { ComposedOffer } from '@/lib/offer-book-compose'
  */
 export type ArtboardOffer = Pick<
   ComposedOffer,
-  'name' | 'spec' | 'brand' | 'imageUrl' | 'priceMark' | 'tierLabel' | 'tierToken'
+  'name' | 'spec' | 'brand' | 'imageUrl' | 'priceMark' | 'tierLabel' | 'tierToken' | 'chips'
 >
 
 export type DrawContext = {
   /** A brand-kit slot — `primary`, `accent`, `ink` — resolved to the shop's colour. */
   token: (ref: TokenRef) => string
+  /**
+   * The shop's own palette, for elements that name a colour by id rather than
+   * by role. Empty is fine: a seeded block never names one.
+   */
+  palette?: readonly BrandColor[]
+  /**
+   * Artwork the owner uploaded, by `image_assets` id. Absent on a surface that
+   * has not loaded them — the element then draws nothing rather than a
+   * placeholder, because "no photograph" is a fact about a *product*.
+   */
+  asset?: ((assetId: string) => string | null) | undefined
   scale: ReturnType<typeof resolveScale>
   blockSize: number
   ar: boolean
@@ -58,25 +70,109 @@ export type DrawContext = {
   shopName: string
 }
 
+/** A colour the element named, in whichever of the three ways it named it. */
+export const paint = (ctx: DrawContext, value: ColorValue): string =>
+  resolveColor(value, ctx.token, ctx.palette ?? [])
+
+/**
+ * One element, painted.
+ *
+ * **Rotation and opacity are applied here, once, around whatever the kind
+ * draws.** Doing it per kind would be six places to forget it, and an element
+ * that ignores its own rotation in one renderer and honours it in another is the
+ * drift `packages/engine` exists to prevent. Rotation is about the element's own
+ * centre, which is what an owner means by "turn it".
+ */
 export function drawElement(
   element: BlockElement,
   box: Rect,
   ctx: DrawContext
 ): React.ReactNode {
+  const inner = drawInner(element, box, ctx)
+  const rotation = element.rotation ?? 0
+  const opacity = element.opacity ?? 1
+  if (rotation === 0 && opacity === 1) return inner
+
+  return (
+    <g
+      {...(rotation === 0
+        ? {}
+        : { transform: `rotate(${rotation} ${box.x + box.width / 2} ${box.y + box.height / 2})` })}
+      {...(opacity === 1 ? {} : { opacity })}
+    >
+      {inner}
+    </g>
+  )
+}
+
+function drawInner(element: BlockElement, box: Rect, ctx: DrawContext): React.ReactNode {
   switch (element.kind) {
     case 'shape':
-      return <rect {...xywh(box)} rx={element.radius} fill={ctx.token(element.surface)} />
+      return <Shape element={element} box={box} ctx={ctx} />
     case 'image':
-      return <Packshot box={box} ctx={ctx} />
+      return <Packshot element={element} box={box} ctx={ctx} />
     case 'logo':
       return <rect {...xywh(box)} rx={3} fill={ARTBOARD_PLACEHOLDER.onTint} />
     case 'chip':
-      return <Chip box={box} ctx={ctx} />
+      return <Chip element={element} box={box} ctx={ctx} />
     case 'priceMark':
-      return <PriceMark box={box} ctx={ctx} />
+      return <PriceMark element={element} box={box} ctx={ctx} />
     case 'text':
       return <Text element={element} box={box} ctx={ctx} />
   }
+}
+
+/**
+ * A ground, a panel, a rule.
+ *
+ * Three variants rather than three element kinds, because they are the same
+ * thing to everything downstream: a box with a fill. A line is the degenerate
+ * case — it draws its stroke along its own middle and no fill at all, which is
+ * what an owner dragging a divider expects.
+ */
+function Shape({
+  element,
+  box,
+  ctx,
+}: {
+  element: Extract<BlockElement, { kind: 'shape' }>
+  box: Rect
+  ctx: DrawContext
+}) {
+  const stroke = element.stroke
+  const strokeProps =
+    stroke === undefined
+      ? {}
+      : { stroke: paint(ctx, stroke.color), strokeWidth: stroke.width * ctx.blockSize }
+
+  if (element.variant === 'line') {
+    return (
+      <line
+        x1={box.x}
+        y1={box.y + box.height / 2}
+        x2={box.x + box.width}
+        y2={box.y + box.height / 2}
+        stroke={paint(ctx, element.fill)}
+        strokeWidth={Math.max(1, (stroke?.width ?? 0.004) * ctx.blockSize)}
+        strokeLinecap="round"
+      />
+    )
+  }
+
+  if (element.variant === 'ellipse') {
+    return (
+      <ellipse
+        cx={box.x + box.width / 2}
+        cy={box.y + box.height / 2}
+        rx={box.width / 2}
+        ry={box.height / 2}
+        fill={paint(ctx, element.fill)}
+        {...strokeProps}
+      />
+    )
+  }
+
+  return <rect {...xywh(box)} rx={element.radius} fill={paint(ctx, element.fill)} {...strokeProps} />
 }
 
 export const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.height })
@@ -93,21 +189,58 @@ export const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.he
  * loses the top of the bottle, and the whole point of the CUTOUT variant is that
  * the product is the whole subject.
  */
-function Packshot({ box, ctx }: { box: Rect; ctx: DrawContext }) {
-  const inset = Math.min(box.width, box.height) * 0.12
+function Packshot({
+  element,
+  box,
+  ctx,
+}: {
+  element: Extract<BlockElement, { kind: 'image' }>
+  box: Rect
+  ctx: DrawContext
+}) {
+  // **Artwork the owner placed fills its box; a product photo is inset.** A
+  // background image or a decorative panel is *meant* to reach the edges, and
+  // the 12% breathing room that keeps a packshot off its card's border would
+  // read as a mistake on both.
+  const source = element.source
+  const artwork = source.from === 'asset'
+  const url = artwork
+    ? (ctx.asset?.(source.assetId) ?? null)
+    : (ctx.offer?.imageUrl ?? null)
+  const inset = artwork ? 0 : Math.min(box.width, box.height) * 0.12
+  const cover = element.fit === 'cover'
 
-  if (ctx.offer?.imageUrl) {
+  if (url !== null) {
+    const clip = `clip-${element.id}`
     return (
-      <image
-        x={box.x + inset}
-        y={box.y + inset}
-        width={box.width - inset * 2}
-        height={box.height - inset * 2}
-        href={ctx.offer.imageUrl}
-        preserveAspectRatio="xMidYMid meet"
-      />
+      <>
+        {/* `cover` crops, so it has to be clipped to its own box or the
+            overflow paints across the card. `contain` cannot overflow. */}
+        {cover ? (
+          <defs>
+            <clipPath id={clip}>
+              <rect {...xywh(box)} rx={element.radius ?? 0} />
+            </clipPath>
+          </defs>
+        ) : null}
+        <image
+          x={box.x + inset}
+          y={box.y + inset}
+          width={box.width - inset * 2}
+          height={box.height - inset * 2}
+          href={url}
+          preserveAspectRatio={cover ? 'xMidYMid slice' : 'xMidYMid meet'}
+          {...(cover ? { clipPath: `url(#${clip})` } : {})}
+        />
+      </>
     )
   }
+
+  // Artwork that has not loaded draws nothing rather than a grey box: the
+  // placeholder below says "this product has no photograph", which is a fact
+  // about the catalog, and saying it about a background the owner chose would
+  // be wrong.
+  if (artwork) return null
 
   return (
     <>
@@ -136,27 +269,100 @@ function Packshot({ box, ctx }: { box: Rect; ctx: DrawContext }) {
  * **That works in a browser and will not work in the PDF pipeline**, which has
  * no stylesheet. `docs/E6-pending.md` §6 carries the decision that is still open.
  */
-function Chip({ box, ctx }: { box: Rect; ctx: DrawContext }) {
-  const label = ctx.offer?.tierLabel ?? ''
-  if (label === '') return null
+function Chip({
+  element,
+  box,
+  ctx,
+}: {
+  element: Extract<BlockElement, { kind: 'chip' }>
+  box: Rect
+  ctx: DrawContext
+}) {
+  const tier = ctx.offer?.tierLabel ?? ''
+  const extra = ctx.offer?.chips ?? []
+  if (tier === '' && extra.length === 0) return null
 
-  const size = Math.min(box.height * 0.52, (box.width * 0.86) / (label.length * 0.56))
-  const fill = ctx.offer?.tierToken ? `var(${ctx.offer.tierToken})` : ctx.token('accent')
+  // **The block's chip element is a slot, and the stack grows from it.** A block
+  // carries one chip element; an offer may carry the tier plus up to four
+  // authored chips, and E6 §7 puts all of them at the top of the z-order. So the
+  // tier draws in the box the block gave it and the rest stack below, one box
+  // height apart.
+  //
+  // This is a rendering decision rather than something the model states, and the
+  // alternative is a `chipStack` element kind in the block designer — see
+  // `docs/E6-pending.md`. Stacking downward is direction-neutral: the box itself
+  // has already been mirrored by `resolveBlock`, so an Arabic edition puts the
+  // whole stack on the correct corner with no second rule.
+  const gap = box.height * 0.25
+  const rows: { key: string; label: string; fill: string; align: 'start' | 'end' }[] = []
+
+  if (tier !== '') {
+    rows.push({
+      key: 'tier',
+      label: tier,
+      // The element's own fill wins over the tier's colour: an owner who
+      // picked one has said what they want, and the tier token is the default
+      // for a block that has never met this shop.
+      fill:
+        element.fill !== undefined
+          ? paint(ctx, element.fill)
+          : ctx.offer?.tierToken
+            ? `var(${ctx.offer.tierToken})`
+            : ctx.token('accent'),
+      align: 'start',
+    })
+  }
+
+  for (const chip of extra) {
+    rows.push({
+      key: chip.id,
+      label: chip.label,
+      // Not the tier's colour. A "Half price" flash and a "Limit 2" note are
+      // different kinds of statement, and giving them one colour makes the
+      // discount look like small print.
+      fill: ctx.token('secondary'),
+      align: chip.anchor === 'TOP_END' ? 'end' : 'start',
+    })
+  }
 
   return (
     <>
-      <rect {...xywh(box)} rx={box.height / 2} fill={fill} />
-      <text
-        x={box.x + box.width / 2}
-        y={box.y + box.height / 2}
-        fontSize={size}
-        fontWeight={700}
-        fill={ctx.token('surface')}
-        textAnchor="middle"
-        dominantBaseline="middle"
-      >
-        {label}
-      </text>
+      {rows.map((row, index) => {
+        const y = box.y + index * (box.height + gap)
+        // Sized to its own label rather than to the slot: "Limit 2 per customer"
+        // and "Halal" are not the same width, and a stack of identical pills
+        // padded to the longest reads as a table.
+        const size = Math.min(box.height * 0.52, (box.width * 0.86) / (row.label.length * 0.56))
+        const width = Math.min(
+          box.width * 2,
+          Math.max(box.width * 0.5, ctx.measure(row.label, size, '') + size * 1.6)
+        )
+        const x = row.align === 'end' ? box.x + box.width - width : box.x
+
+        return (
+          <React.Fragment key={row.key}>
+            <rect
+              x={x}
+              y={y}
+              width={width}
+              height={box.height}
+              rx={box.height / 2}
+              fill={row.fill}
+            />
+            <text
+              x={x + width / 2}
+              y={y + box.height / 2}
+              fontSize={size}
+              fontWeight={700}
+              fill={ctx.token('surface')}
+              textAnchor="middle"
+              dominantBaseline="middle"
+            >
+              {row.label}
+            </text>
+          </React.Fragment>
+        )
+      })}
     </>
   )
 }
@@ -165,10 +371,38 @@ function Chip({ box, ctx }: { box: Rect; ctx: DrawContext }) {
  * Drawn from `layoutPriceMark`. The raised minor, the attached tab and the LTR
  * ordering that survives an Arabic edition are all decided there, not here.
  */
-function PriceMark({ box, ctx }: { box: Rect; ctx: DrawContext }) {
+/**
+ * The price mark.
+ *
+ * **What is drawn here is styling; what is decided in `layoutPriceMark` is
+ * composition, and the split is the whole point.** The raised minor, the
+ * attached tab, the three-decimal branch and the LTR ordering that survives an
+ * Arabic edition are the engine's and are not open to an owner — E6 §3. The
+ * colour of the tab, the ground it sits on, whether there is a frame at all:
+ * those are the shop's brand, and refusing them is what made the mark feel like
+ * somebody else's component sitting in the middle of their card.
+ */
+function PriceMark({
+  element,
+  box,
+  ctx,
+}: {
+  element: Extract<BlockElement, { kind: 'priceMark' }>
+  box: Rect
+  ctx: DrawContext
+}) {
   if (ctx.offer === undefined) return null
 
-  const tint = ctx.offer.tierToken ? `var(${ctx.offer.tierToken})` : ctx.token('accent')
+  const style = element.style ?? {}
+  const tint =
+    style.tint !== undefined
+      ? paint(ctx, style.tint)
+      : ctx.offer.tierToken
+        ? `var(${ctx.offer.tierToken})`
+        : ctx.token('accent')
+  const ink = style.ink === undefined ? ctx.token('ink') : paint(ctx, style.ink)
+  const ground = style.surface === undefined ? ctx.token('surface') : paint(ctx, style.surface)
+  const framed = style.frame !== 'plain'
   const family = fontStack(ctx.scale.families.price)
 
   const l = layoutPriceMark(ctx.offer.priceMark, box, {
@@ -177,7 +411,7 @@ function PriceMark({ box, ctx }: { box: Rect; ctx: DrawContext }) {
 
   return (
     <>
-      {l.tab ? (
+      {l.tab && style.tab !== 'none' ? (
         <>
           <rect {...xywh(l.tab.rect)} rx={l.tab.rect.height / 2} fill={tint} />
           <text
@@ -185,7 +419,7 @@ function PriceMark({ box, ctx }: { box: Rect; ctx: DrawContext }) {
             y={l.tab.rect.y + l.tab.rect.height / 2}
             fontSize={l.tab.fontSize}
             fontWeight={700}
-            fill={ctx.token('surface')}
+            fill={ground}
             textAnchor="middle"
             dominantBaseline="middle"
           >
@@ -194,14 +428,18 @@ function PriceMark({ box, ctx }: { box: Rect; ctx: DrawContext }) {
         </>
       ) : null}
 
-      <rect {...xywh(l.mark)} rx={3} fill={ctx.token('surface')} />
-      <rect
-        {...xywh(l.mark)}
-        rx={3}
-        fill="none"
-        stroke={tint}
-        strokeWidth={Math.max(1, l.mark.height * 0.035)}
-      />
+      {framed ? (
+        <>
+          <rect {...xywh(l.mark)} rx={3} fill={ground} />
+          <rect
+            {...xywh(l.mark)}
+            rx={3}
+            fill="none"
+            stroke={tint}
+            strokeWidth={Math.max(1, l.mark.height * 0.035)}
+          />
+        </>
+      ) : null}
 
       {/* Western numerals, LTR, in an Arabic edition too. E6 §6. */}
       <text
@@ -221,7 +459,7 @@ function PriceMark({ box, ctx }: { box: Rect; ctx: DrawContext }) {
         fontSize={l.major.fontSize}
         fontWeight={800}
         fontFamily={family}
-        fill={ctx.token('ink')}
+        fill={ink}
         direction="ltr"
       >
         {l.major.text}
@@ -233,7 +471,7 @@ function PriceMark({ box, ctx }: { box: Rect; ctx: DrawContext }) {
           fontSize={l.minor.fontSize}
           fontWeight={800}
           fontFamily={family}
-          fill={ctx.token('ink')}
+          fill={ink}
           direction="ltr"
         >
           {l.minor.text}
@@ -256,20 +494,37 @@ function PriceMark({ box, ctx }: { box: Rect; ctx: DrawContext }) {
   )
 }
 
-function Text({
-  element,
-  box,
-  ctx,
-}: {
-  element: Extract<BlockElement, { kind: 'text' }>
-  box: Rect
+/**
+ * The fit this element gets, or null when it draws nothing.
+ *
+ * **Exported because the editor has to know what the ladder *did*, not only
+ * what it produced.** `fit-escalated` is a quality flag an owner must see
+ * before a book prints, and it is a property of a rendered card at a particular
+ * size rather than of the offer. It cannot be read back out of the painted
+ * output, and a second ladder beside this one would be two answers that can
+ * disagree — so the caller runs this one.
+ */
+export function fitTextElement(
+  element: Extract<BlockElement, { kind: 'text' }>,
+  box: Rect,
   ctx: DrawContext
-}) {
+): { content: string; fitted: ReturnType<typeof fitText>; step: TypeStep } | null {
   const content = contentFor(element, ctx)
   if (content === '') return null
 
-  const step = ctx.scale.levels[element.level]
-  const family = fontStack(ctx.scale.families[step.family])
+  const level = ctx.scale.levels[element.level]
+  // **The element's own typography wins over the level's**, per field rather
+  // than all-or-nothing: an owner who set a weight has not thereby chosen a
+  // face, and a size set by hand still steps down the ladder when the string is
+  // long. Setting none of them is what "snap to the brand scale" means.
+  const step: TypeStep = {
+    ...level,
+    ...(element.family === undefined ? {} : { family: element.family }),
+    ...(element.weight === undefined ? {} : { weight: element.weight }),
+    ...(element.letterSpacing === undefined ? {} : { letterSpacing: element.letterSpacing }),
+    ...(element.transform === undefined ? {} : { transform: element.transform }),
+  }
+
   // The block's declared policy wins over the derived one. It is what the
   // designer's overflow control writes, and it travels in the block so every
   // renderer reads the same answer.
@@ -283,9 +538,28 @@ function Text({
     blockSize: ctx.blockSize,
     measure: ctx.measure,
     truncatable: policy.truncatable,
+    ...(element.size === undefined ? {} : { size: element.size }),
     ...(policy.floor === undefined ? {} : { floor: policy.floor }),
     ...(policy.maxLines === undefined ? {} : { maxLines: policy.maxLines }),
   })
+
+  return { content, fitted, step }
+}
+
+function Text({
+  element,
+  box,
+  ctx,
+}: {
+  element: Extract<BlockElement, { kind: 'text' }>
+  box: Rect
+  ctx: DrawContext
+}) {
+  const measured = fitTextElement(element, box, ctx)
+  if (measured === null) return null
+
+  const { content, fitted, step } = measured
+  const family = fontStack(ctx.scale.families[step.family])
 
   // Position, anchor and direction together, from the engine. They cannot be
   // decided separately: `start` and `end` resolve against the *element's* own
@@ -293,12 +567,18 @@ function Text({
   // page's reading order draws out through the edge of its box.
   const { anchor, x, direction } = placeText(content, element.align, box, ctx.direction)
 
+  // A colour the owner picked wins outright. Otherwise the old rule stands:
+  // static and shop text sits on a tinted band and reads in the surface colour,
+  // a caption is muted, everything else is ink.
   const onTint = element.source.from === 'static' || element.source.from === 'shop'
-  const fill = onTint
-    ? ctx.token('surface')
-    : element.level === 'caption'
-      ? ctx.token('inkMuted')
-      : ctx.token('ink')
+  const fill =
+    element.color !== undefined
+      ? paint(ctx, element.color)
+      : onTint
+        ? ctx.token('surface')
+        : element.level === 'caption'
+          ? ctx.token('inkMuted')
+          : ctx.token('ink')
 
   return (
     <>
@@ -313,6 +593,10 @@ function Text({
           fill={fill}
           textAnchor={anchor}
           direction={direction}
+          {...(element.italic === true ? { fontStyle: 'italic' } : {})}
+          {...(step.letterSpacing === undefined
+            ? {}
+            : { letterSpacing: step.letterSpacing * fitted.fontSize })}
         >
           {line}
         </text>

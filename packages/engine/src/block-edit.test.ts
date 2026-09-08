@@ -20,8 +20,10 @@ const box = (start: number, top: number, width: number, height: number): Box => 
   height,
 })
 
+let seq = 0
 const text = (source: TextSource) =>
   ({
+    id: `t${(seq += 1)}`,
     kind: 'text',
     box: box(0.1, 0.1, 0.5, 0.2),
     source,
@@ -29,8 +31,14 @@ const text = (source: TextSource) =>
     align: 'start',
   }) satisfies BlockElement
 
-const priceMark: BlockElement = { kind: 'priceMark', box: box(0.1, 0.6, 0.8, 0.3) }
-const surface: BlockElement = { kind: 'shape', box: box(0, 0, 1, 1), surface: 'surface', radius: 3 }
+const priceMark: BlockElement = { id: 'price', kind: 'priceMark', box: box(0.1, 0.6, 0.8, 0.3) }
+const surface: BlockElement = {
+  id: 'surface',
+  kind: 'shape',
+  box: box(0, 0, 1, 1),
+  fill: { from: 'role', ref: 'surface' },
+  radius: 3,
+}
 
 const arrangement = (elements: BlockElement[], min = 0.5, max = 2): Arrangement => ({
   aspectMin: min,
@@ -191,7 +199,12 @@ describe('validateBlock', () => {
   })
 
   it('lets a chip overhang and does not let anything else', () => {
-    const chip: BlockElement = { kind: 'chip', box: box(-0.06, 0.02, 0.3, 0.1), anchor: 'TOP_START' }
+    const chip: BlockElement = {
+      id: 'chip',
+      kind: 'chip',
+      box: box(-0.06, 0.02, 0.3, 0.1),
+      anchor: 'TOP_START',
+    }
     const overhanging = validateBlock({
       repeats: true,
       arrangements: [arrangement([chip, priceMark])],
@@ -236,5 +249,34 @@ describe('validateBlock', () => {
       ],
     })
     expect(codes(problems)).not.toContain('aspect-gap')
+  })
+})
+
+describe('validateBlock — the seeded library is the case that matters', () => {
+  const range = (min: number, max: number): Arrangement =>
+    arrangement([surface, priceMark], min, max)
+
+  it('does not call touching ranges an overlap', () => {
+    // The seeded offer card's four ranges meet exactly, which is how a set of
+    // ranges covers the line without a hole. Reading that as an overlap put
+    // three warnings on the block every shop starts from.
+    const problems = validateBlock({
+      repeats: true,
+      arrangements: [range(0.35, 0.85), range(0.85, 1.35), range(1.35, 2.6), range(2.6, 12)],
+    })
+    expect(problems).toEqual([])
+  })
+
+  it('still reports a real overlap', () => {
+    const problems = validateBlock({ repeats: true, arrangements: [range(0.5, 1.5), range(1, 2)] })
+    expect(problems.map((problem) => problem.code)).toContain('overlapping-aspects')
+  })
+
+  it('refuses two elements sharing an id', () => {
+    const problems = validateBlock({
+      repeats: true,
+      arrangements: [arrangement([surface, { ...priceMark, id: 'surface' }])],
+    })
+    expect(problems.map((problem) => problem.code)).toContain('duplicate-element-id')
   })
 })

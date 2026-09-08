@@ -154,7 +154,11 @@ design skill. Conflating any two causes trouble later.
 - Canvas coordinates stay LTR always. Never let UI direction affect canvas maths.
 - `canvas.toDataURL()` for social image export (client-side, instant).
 - `canvas.toSVG()` to send to the worker for PDF generation (server-side).
-- Auto-save: debounced 2 seconds. Patch `PATCH /api/v1/offer-books/:id`. No manual save button.
+- Auto-save: debounced 2 seconds, no manual save button. **Per resource, not per book**:
+  a price patches `PATCH /api/v1/offer-books/:id/offers/:offerId`, a nudge patches
+  `PATCH /api/v1/offer-books/:id/pages/:index/overrides`, a block patches
+  `PATCH /api/v1/blocks/:id`. There is no whole-book patch, and there should not be — a
+  partial write of one is a book that is half one version and half another.
 
 **Canvas parity is a hard requirement.** Both artboards use identical padding, zoom
 controls, selection outline and handle treatment. A shop moving between designing a

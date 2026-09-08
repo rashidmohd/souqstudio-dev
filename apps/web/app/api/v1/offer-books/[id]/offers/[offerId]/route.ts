@@ -33,6 +33,9 @@ import { requireApiSession } from '@/lib/api-session'
  */
 const MONEY = /^\d{1,8}(\.\d{1,2})?$/
 
+/** A rate, to the three decimals the column carries. */
+const RATE = /^\d{1,7}(\.\d{1,3})?$/
+
 const schema = z
   .object({
     price: z.string().trim().regex(MONEY).optional(),
@@ -42,6 +45,24 @@ const schema = z
     promoTierId: z.string().min(1).optional(),
     priceMode: z.enum(['FIXED', 'FROM', 'PER_UNIT']).optional(),
     unitPriceMode: z.enum(['AUTO', 'MANUAL', 'HIDDEN']).optional(),
+    /**
+     * The unit price an owner typed, when they have taken it off `AUTO`.
+     *
+     * Three decimals, not two: the column is `Decimal(10,3)` because a unit
+     * price is a *rate* — `AED 1.765 per 100 g` — and rounding a rate to the
+     * currency's own precision is how a shelf-edge figure stops matching the
+     * pack it is on.
+     */
+    unitPriceValue: z.string().trim().regex(RATE).nullable().optional(),
+    unitPriceUnit: z.enum(['G', 'KG', 'ML', 'L', 'PIECE']).nullable().optional(),
+    /**
+     * Deposit lines and service fees, rendered under the card rather than as
+     * footnotes — they are part of the price, not a caveat about it.
+     *
+     * Bounded at four because a card that needs five is a card with no room
+     * left for the product.
+     */
+    legalLines: z.array(z.string().trim().min(1).max(120)).max(4).optional(),
   })
   // An empty patch is a client bug, not a no-op to be absorbed quietly.
   .refine((body) => Object.keys(body).length > 0, { message: 'nothing to change' })
@@ -88,7 +109,16 @@ export async function PATCH(
     }
   }
 
-  const { price, comparePrice, promoTierId, priceMode, unitPriceMode } = parsed.data
+  const {
+    price,
+    comparePrice,
+    promoTierId,
+    priceMode,
+    unitPriceMode,
+    unitPriceValue,
+    unitPriceUnit,
+    legalLines,
+  } = parsed.data
 
   const updated = await prisma.offer.update({
     where: { id: offer.id },
@@ -98,8 +128,22 @@ export async function PATCH(
       ...(promoTierId === undefined ? {} : { promoTierId }),
       ...(priceMode === undefined ? {} : { priceMode }),
       ...(unitPriceMode === undefined ? {} : { unitPriceMode }),
+      ...(unitPriceValue === undefined ? {} : { unitPriceValue }),
+      ...(unitPriceUnit === undefined ? {} : { unitPriceUnit }),
+      // Replaced whole, not appended to. The panel edits the list and sends it,
+      // which is the only shape that can express a removal.
+      ...(legalLines === undefined ? {} : { legalLines }),
     },
-    select: { id: true, price: true, comparePrice: true, promoTierId: true },
+    select: {
+      id: true,
+      price: true,
+      comparePrice: true,
+      promoTierId: true,
+      unitPriceMode: true,
+      unitPriceValue: true,
+      unitPriceUnit: true,
+      legalLines: true,
+    },
   })
 
   return ok({
@@ -107,6 +151,10 @@ export async function PATCH(
     price: updated.price.toString(),
     comparePrice: updated.comparePrice?.toString() ?? null,
     promoTierId: updated.promoTierId,
+    unitPriceMode: updated.unitPriceMode,
+    unitPriceValue: updated.unitPriceValue?.toString() ?? null,
+    unitPriceUnit: updated.unitPriceUnit,
+    legalLines: updated.legalLines,
   })
 }
 

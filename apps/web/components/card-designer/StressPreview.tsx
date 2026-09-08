@@ -33,6 +33,7 @@ type Props = {
   height: number
   direction: 'ltr' | 'rtl'
   shopName: string
+  asset?: ((assetId: string) => string | null) | undefined
   /** Text elements the fit ladder could not place. Counted by the caller, which
    *  already runs the ladder to draw. */
   escalated?: number
@@ -45,6 +46,7 @@ export function StressPreview({
   height,
   direction,
   shopName,
+  asset,
   escalated = 0,
 }: Props) {
   const offer = React.useMemo(() => toArtboardOffer(PREVIEW_PRODUCT, direction === 'rtl'), [direction])
@@ -69,6 +71,7 @@ export function StressPreview({
         direction={direction}
         offer={offer}
         shopName={shopName}
+        asset={asset}
         ariaLabel="The same card under the longest product in the catalog"
         className="rounded-artboard"
       />

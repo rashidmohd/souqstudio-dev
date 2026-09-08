@@ -3,11 +3,13 @@ import type { Block, BlockElement } from '@souqstudio/types'
 import { resolveBlock } from './render'
 
 const image: BlockElement = {
+  id: 'photo',
   kind: 'image',
   box: { start: 0, top: 0, width: 1, height: 0.5 },
   source: { from: 'product' },
 }
 const name: BlockElement = {
+  id: 'name',
   kind: 'text',
   box: { start: 0.05, top: 0.55, width: 0.9, height: 0.2 },
   source: { from: 'product', field: 'name' },
@@ -73,7 +75,12 @@ describe('resolveBlock', () => {
           aspectMin: 0,
           aspectMax: 10,
           elements: [
-            { kind: 'chip', box: { start: -0.1, top: -0.05, width: 0.3, height: 0.1 }, anchor: 'TOP_START' },
+            {
+              id: 'chip',
+              kind: 'chip',
+              box: { start: -0.1, top: -0.05, width: 0.3, height: 0.1 },
+              anchor: 'TOP_START',
+            },
           ],
         },
       ],

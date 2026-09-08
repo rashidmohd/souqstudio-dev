@@ -4,6 +4,7 @@ import { prisma } from '@souqstudio/db'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
+import { listBlocks } from '@/lib/blocks'
 import { loadBook } from '@/lib/offer-book'
 import { EditorShell } from '@/components/editor/EditorShell'
 
@@ -37,7 +38,12 @@ export default async function EditorPage({ params }: { params: { id: string } })
   const shop = await getActiveShop(session)
   if (shop === null) notFound()
 
-  const [brand, tiers] = await Promise.all([
+  const organization = await prisma.organization.findUnique({
+    where: { id: session.user.organizationId },
+    select: { planId: true },
+  })
+
+  const [brand, tiers, blocks] = await Promise.all([
     // The shop's *effective* kit, not its own row: a branch that inherits the
     // organization's brand has an empty `brandKit` of its own, and drawing the
     // book from that would render every colour as a fallback.
@@ -54,6 +60,10 @@ export default async function EditorPage({ params }: { params: { id: string } })
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
       select: { id: true, labelEn: true },
     }),
+    // Only what this shop may pin: a repeating block reads the offer it was
+    // given, and a pin has none, so pinning one would draw a blank card where
+    // the owner put a brand panel.
+    listBlocks(session.user.organizationId, organization?.planId ?? null),
   ])
 
   return (
@@ -73,6 +83,12 @@ export default async function EditorPage({ params }: { params: { id: string } })
       // offer's, and the per-offer column is what a multi-country group will
       // need later. The fallback matches the column default.
       currency={book.offers[0]?.priceMark.currency ?? 'AED'}
+      overrides={book.overrides}
+      pins={book.pins}
+      layout={book.layout}
+      pinnable={blocks
+        .filter((block) => !block.repeats && !block.locked && block.status !== 'archived')
+        .map((block) => ({ id: block.id, name: block.name }))}
       gridProblems={book.gridProblems}
     />
   )

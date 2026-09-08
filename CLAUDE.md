@@ -50,7 +50,10 @@ These apply everywhere and are not negotiable per-task.
 
 - **TypeScript strict.** No `any`. No type assertion without a comment explaining why.
 - **No raw hex values in component code.** Tokens only, from
-  `.claude/skills/souqstudio-design/assets/souqstudio-tokens.css`.
+  `.claude/skills/souqstudio-design/assets/souqstudio-tokens.css`. **A colour a
+  shop owner picked is not component code** — it is data on their block or their
+  brand kit, and E7's designer stores it as a `ColorValue`. The rule governs our
+  chrome; it never governed what a shop produces.
 - **`--sq-ui-*` is app chrome. `--sq-tpl-*` is offer book content.** They never cross. If
   you reach for `--sq-tpl-offer-red` in a component, you want `--sq-critical-fg`.
 - **No shadows anywhere in chrome.** Separation is hairline borders and surface tone.
@@ -204,14 +207,19 @@ Tracked, not forgotten. Raise rather than inventing an answer.
 - **`global-error.tsx` does not exist.** `app/error.tsx` and `app/not-found.tsx` now do,
   but an exception thrown by the root layout itself escapes both — that needs a boundary
   shipping its own `<html>` and `<body>`.
-- ~~**Card designer** — a fifth layout family with no epic covering it.~~ **Built,
-  7 September**, as E7: `/brand/blocks` is the library and `/card-designer/[blockId]`
-  is the designer. The epic was rewritten first — templates and grids are not
-  objects any more — and the rewrite is `docs/E7-pending.md` §1. Still no Fabric:
-  direct manipulation goes through `moveBox`/`resizeBox` in the engine and the
-  same painter as the editor, because a second painter is how the PDF stops
-  matching the screen. What is owed is dragging a *new* element from the palette,
-  and E7-03's seasonal scheduling.
+- ~~**Card designer** — a fifth layout family with no epic covering it.~~ **Built
+  7 September and opened up on the 8th**, as E7: `/brand/blocks` is the library
+  and `/card-designer/[blockId]` is the designer. The first version was a form
+  with a canvas attached and the owner rejected it; what changed, and which
+  constraints turned out to be load-bearing, is `docs/E7-pending.md` §8.
+  **Three rules survive and are not negotiable**: product text is bound rather
+  than typed, coordinates are fractions of the block, and the *repeating* card
+  reflows rather than being hand-placed. Everything else — colour, size, shapes,
+  uploads, rotation, multi-select, the price mark's styling — is the shop's.
+  Still no Fabric: direct manipulation goes through `moveBox`, `resizeBox` and
+  `snapBox` in the engine and the same painter as the editor, because a second
+  painter is how the PDF stops matching the screen. What is owed is gradients, a
+  seeded gallery of real designs, and E7-03's seasonal scheduling.
 - **Rate limiting** — unspecified, including on public tracking endpoints. `POST
   /api/v1/auth/2fa/enroll` runs bcrypt unthrottled behind a valid session.
 - **Token encryption key management** — undecided. Blocks E10. Also decides

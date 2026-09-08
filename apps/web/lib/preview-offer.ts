@@ -50,5 +50,9 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     }),
     tierLabel: ar ? product.tierLabelAr : product.tierLabelEn,
     tierToken: '',
+    // A sample has no chips. The tier flash is the one every card carries, and
+    // inventing a "Limit 2" beside it would show a block preview that no real
+    // offer produces until an owner asks for it.
+    chips: [],
   }
 }

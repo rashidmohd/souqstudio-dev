@@ -13,6 +13,7 @@
 import type { Block, BlockElement, Currency, TokenRef } from '@souqstudio/types'
 import {
   fitPolicy,
+  resolveColor,
   fitText,
   compactBlock,
   layoutPriceMark,
@@ -119,7 +120,7 @@ function renderElement(
 ): string {
   switch (element.kind) {
     case 'shape':
-      return rounded(rect, color(element.surface), element.radius)
+      return rounded(rect, resolveColor(element.fill, color), element.radius)
     case 'image':
       return imagePlaceholder(rect, product)
     case 'logo':

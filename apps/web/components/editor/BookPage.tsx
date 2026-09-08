@@ -1,13 +1,21 @@
 'use client'
 
 import * as React from 'react'
-import type { Block, BrandKit } from '@souqstudio/types'
-import { compactBlock, resolveBlock, type CompactionPolicy, type FlowPage } from '@souqstudio/engine'
+import type { Block, BrandKit, SlotOverride } from '@souqstudio/types'
+import {
+  applyOverride,
+  compactBlock,
+  findOverride,
+  resolveBlock,
+  type CompactionPolicy,
+  type FlowPage,
+} from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { resolveScale } from '@/lib/brand-fonts'
 import {
   drawElement,
   estimateWidth,
+  fitTextElement,
   measureText,
   type DrawContext,
 } from '@/components/blocks/draw'
@@ -48,12 +56,31 @@ type Props = {
   direction: 'ltr' | 'rtl'
   /** Where a card's unused height goes. See `compactBlock`. */
   compaction?: CompactionPolicy
+  /**
+   * This page's bounded nudges. E6-04.
+   *
+   * **Applied after compaction, last of all.** Compaction reclaims the space a
+   * card's content did not use, which changes the rectangles; an override
+   * applied before it would be measured against boxes that no longer exist. A
+   * nudge is the owner's word on the finished card.
+   */
+  overrides?: readonly SlotOverride[]
   /** The offer whose card carries the selection ring, if it is on this page. */
   selectedOfferId?: string | null
   /** Selecting a card. Absent on a read-only surface — a page with no handler
    *  renders no hit targets at all rather than pressable-looking cards that do
    *  nothing. */
   onSelectOffer?: (offerId: string) => void
+  /**
+   * Which offers on this page ran out of rungs on the fit ladder.
+   *
+   * **Reported rather than returned, because it is only knowable here.** E6-01
+   * makes `fit-escalated` a quality flag the owner sees before publishing, and
+   * unlike the other three it is not decidable from the rows: it depends on the
+   * box the card landed in and on the type scale the shop chose. The page is
+   * the only place that knows both.
+   */
+  onEscalated?: (offerIds: string[]) => void
   className?: string
 }
 
@@ -66,8 +93,10 @@ export function BookPage({
   shopName,
   direction,
   compaction = 'balance',
+  overrides = [],
   selectedOfferId = null,
   onSelectOffer,
+  onEscalated,
   className,
 }: Props) {
   const palette = resolvePalette(kit)
@@ -79,6 +108,22 @@ export function BookPage({
   const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => setMounted(true), [])
   const measure = mounted ? measureText : estimateWidth
+
+  // Collected during render into a plain array — no state is written here — and
+  // reported from an effect below. The alternative, a second pass over the same
+  // blocks in a separate module, would be a second implementation of the two-
+  // pass compaction this component already performs.
+  const escalated: string[] = []
+
+  const report = React.useRef(onEscalated)
+  report.current = onEscalated
+  const escalatedKey = escalated.join(',')
+  React.useEffect(() => {
+    // Only once the real measurer is in play: the server estimate breaks lines
+    // differently, and flagging a card on it would show a warning that
+    // disappears a frame later.
+    if (mounted) report.current?.(escalatedKey === '' ? [] : escalatedKey.split(','))
+  }, [escalatedKey, mounted])
 
   return (
     <svg
@@ -129,12 +174,31 @@ export function BookPage({
           compaction
         )
 
+        const nudged = applyOverride(
+          compacted,
+          placement.rect,
+          findOverride(overrides, placement.sourceId, placement.offerId)
+        )
+
+        // The same ladder the painter runs, on the same boxes, so the flag and
+        // the drawn card can never disagree about whether the text fitted.
+        if (placement.offerId !== null) {
+          for (const { element, rect } of nudged.elements) {
+            if (element.kind !== 'text') continue
+            const measured = fitTextElement(element, rect, ctx)
+            if (measured?.fitted.escalated === true) {
+              if (!escalated.includes(placement.offerId)) escalated.push(placement.offerId)
+              break
+            }
+          }
+        }
+
         const selectable = onSelectOffer !== undefined && placement.offerId !== null
         const selected = placement.offerId !== null && placement.offerId === selectedOfferId
 
         return (
           <React.Fragment key={`${placement.blockId}-${index}`}>
-            {compacted.elements.map(({ element, rect }, elementIndex) => (
+            {nudged.elements.map(({ element, rect }, elementIndex) => (
               <React.Fragment key={elementIndex}>
                 {drawElement(element, rect, ctx)}
               </React.Fragment>

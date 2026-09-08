@@ -172,6 +172,44 @@ export interface TypeScale {
 /** Logical, so an AR edition mirrors without a second layout. */
 export type LogicalAlign = 'start' | 'center' | 'end'
 
+/**
+ * A colour on an artboard, and the one place this codebase lets a literal
+ * colour through.
+ *
+ * **The rule changed, and it changed for a reason.** Everything a block
+ * referenced used to be a `TokenRef` — a slot the shop's kit resolves — which is
+ * what makes a *seeded* block look like whichever shop loaded it. That rule
+ * still holds for seeded blocks and always will: a block shipped before it has
+ * met a shop cannot name a colour that shop has not chosen.
+ *
+ * It does not hold for a block the shop authored. Their block has met them. A
+ * designer that can only offer six slots is a designer an owner cannot express
+ * a Ramadan gold in, and "pick from our six" is exactly the boxed-in feeling
+ * that made owners ask for a real design tool rather than a form.
+ *
+ * So three sources, in order of how tied they are to the shop:
+ *
+ *   role     a binding slot — `primary`, `surface`, `ink`. What a seeded block
+ *            uses, and the only kind it may use.
+ *   palette  a `BrandColor.id` from the shop's own palette. Renaming or
+ *            re-picking that colour updates every block that references it,
+ *            which is the point of a palette.
+ *   hex      a literal. The escape hatch, and it does not follow the brand.
+ *
+ * The zod mirror in the web app is what enforces "seeded blocks are roles
+ * only"; the type cannot, because the same interface describes both.
+ */
+export type ColorValue =
+  | { from: 'role'; ref: TokenRef }
+  | { from: 'palette'; id: string }
+  | { from: 'hex'; hex: string }
+
+/** An outline. Width is a fraction of the block's geometric mean, never px. */
+export interface Stroke {
+  color: ColorValue
+  width: number
+}
+
 // ─── Blocks ───────────────────────────────────────────────────────────────────
 
 /**
@@ -238,21 +276,120 @@ export type TextOverflow =
  * element that decides whether output reads as a real offer book. The owner's
  * one control is the tier, which lives on the offer.
  */
+/**
+ * What every element carries, whatever it draws.
+ *
+ * `id` is stable for the life of the element and is what multi-select, grouping
+ * and z-order operate on. It was an index until owners could select more than
+ * one thing at a time, at which point an index stops identifying anything: two
+ * elements swap places and every selection, group and override points at the
+ * wrong one.
+ *
+ * `rotation` and `opacity` are here rather than per kind because an owner does
+ * not think of them as belonging to a rectangle — they belong to *the thing*,
+ * and a control that appears for a shape and vanishes for a photo reads as a
+ * bug.
+ */
+export interface ElementBase {
+  id: string
+  box: Box
+  /** Degrees, clockwise, about the element's own centre. */
+  rotation?: number | undefined
+  /** 0..1. */
+  opacity?: number | undefined
+  /**
+   * Elements dragged, aligned and moved together. A flat id rather than a tree:
+   * a group in an offer card is "these four move as one", never a nested
+   * coordinate space, and a tree would make every rectangle depend on its
+   * ancestors' transforms for no expressive gain.
+   */
+  groupId?: string | undefined
+  /** Kept out of the way of a stray click. Still exports. */
+  locked?: boolean | undefined
+}
+
 export type BlockElement =
-  | { kind: 'image'; box: Box; source: ImageSource }
-  | {
+  | (ElementBase & {
+      kind: 'image'
+      source: ImageSource
+      /** `contain` letterboxes, `cover` crops. A packshot is `contain`; a
+       *  background photograph is `cover`. */
+      fit?: 'contain' | 'cover' | undefined
+      radius?: number | undefined
+      stroke?: Stroke | undefined
+    })
+  | (ElementBase & {
       kind: 'text'
-      box: Box
       source: TextSource
+      /**
+       * The step on the brand's scale this text starts from — and the ladder
+       * it steps down. Still required, because a block that names no level has
+       * nothing to fall back to when the string is long.
+       */
       level: TypeLevel
       align: LogicalAlign
       /** Declared rather than discovered. Omitted means the source's default. */
       overflow?: TextOverflow | undefined
-    }
-  | { kind: 'priceMark'; box: Box }
-  | { kind: 'chip'; box: Box; anchor: ChipAnchorRef }
-  | { kind: 'logo'; box: Box }
-  | { kind: 'shape'; box: Box; surface: TokenRef; radius: number }
+      /**
+       * A size the owner set by hand, as a fraction of the block's geometric
+       * mean — the same unit `TypeScale.base` uses, so it means the same thing
+       * at 1080 square and in an A4 column.
+       *
+       * **Set it and the level stops deciding the size**, though it still
+       * decides where the fit ladder stops. "Snap to the brand scale" is the
+       * default rather than the law: an owner sizing a headline by eye against
+       * their own artwork is doing design, not breaking a system.
+       */
+      size?: number | undefined
+      weight?: number | undefined
+      italic?: boolean | undefined
+      letterSpacing?: number | undefined
+      transform?: 'none' | 'uppercase' | undefined
+      /** Overrides the face the level binds to. */
+      family?: TypeFamily | undefined
+      /** Overrides the automatic ink. */
+      color?: ColorValue | undefined
+    })
+  | (ElementBase & { kind: 'priceMark'; style?: PriceMarkStyle | undefined })
+  | (ElementBase & { kind: 'chip'; anchor: ChipAnchorRef; fill?: ColorValue | undefined })
+  | (ElementBase & { kind: 'logo' })
+  | (ElementBase & {
+      kind: 'shape'
+      fill: ColorValue
+      /** Rectangle unless it says otherwise. A line draws its stroke only. */
+      variant?: 'rect' | 'ellipse' | 'line' | undefined
+      radius: number
+      stroke?: Stroke | undefined
+    })
+
+/**
+ * What an owner may change about a price mark, and it is deliberately not its
+ * composition.
+ *
+ * E6 §3 and composition model §3.5 stand: raised minor digits, the tier tab
+ * overlapping the mark, the three-decimal KWD/OMR/BHD branch and LTR-in-Arabic
+ * are internal, and the digits are never separate text boxes. Owners given text
+ * boxes for a price produce hundreds of inconsistent treatments inside a month,
+ * and the price mark is the single element that decides whether output reads as
+ * a real offer book.
+ *
+ * **What was over-locked was the styling.** Colour, ground, outline and whether
+ * there is a tab at all are the shop's brand rather than our typography, and
+ * refusing them is what made the mark feel like somebody else's component
+ * sitting in the middle of their card.
+ */
+export interface PriceMarkStyle {
+  /** The tier tab and the outline. Defaults to the tier's own colour. */
+  tint?: ColorValue | undefined
+  /** The digits. */
+  ink?: ColorValue | undefined
+  /** The ground the mark sits on. */
+  surface?: ColorValue | undefined
+  /** `plain` drops the ground and the outline: digits alone on the card. */
+  frame?: 'tag' | 'plain' | undefined
+  /** `none` hides the tier tab. The chip element is the other place it shows. */
+  tab?: 'attached' | 'none' | undefined
+}
 
 /** Mirrors `ChipAnchor` in `index.ts`; restated so this module stands alone. */
 export type ChipAnchorRef = 'TOP_START' | 'TOP_END' | 'INLINE'

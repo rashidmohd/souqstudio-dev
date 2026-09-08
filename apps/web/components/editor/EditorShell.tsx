@@ -3,16 +3,18 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { ArrowLeft, TriangleAlert } from 'lucide-react'
-import type { Block, BrandKit } from '@souqstudio/types'
+import type { Block, BrandKit, Pin, SlotOverride } from '@souqstudio/types'
 import type { FlowPage } from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
+import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { OfferTray } from '@/components/editor/OfferTray'
 import {
   OfferProperties,
   SaveStatus,
   useFlaggedCount,
 } from '@/components/editor/OfferProperties'
+import { UndoRedo } from '@/components/editor/UndoRedo'
 import { useEditorStore } from '@/stores/editor-store'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 
@@ -41,6 +43,13 @@ type Props = {
   shopName: string
   tiers: { id: string; labelEn: string }[]
   currency: string
+  /** Bounded nudges by page index, as stored. E6-04. */
+  overrides: Record<number, SlotOverride[]>
+  pins: Pin[]
+  layout: { perRow: number; bodyRows: number }
+  /** Static blocks this shop may pin. A repeating one reads an offer, and a pin
+   *  has none. */
+  pinnable: { id: string; name: string }[]
   gridProblems: { code: string }[]
 }
 
@@ -57,26 +66,53 @@ export function EditorShell({
   shopName,
   tiers,
   currency,
+  overrides,
+  pins,
+  layout,
+  pinnable,
   gridProblems,
 }: Props) {
   const hydrate = useEditorStore((state) => state.hydrate)
   const select = useEditorStore((state) => state.select)
   const selectedOfferId = useEditorStore((state) => state.selectedOfferId)
   const liveOffers = useEditorStore((state) => state.offers)
+  const markEscalated = useEditorStore((state) => state.markEscalated)
   const flagged = useFlaggedCount()
+
+  // One set for the whole book, assembled from the pages. Each page reports its
+  // own, so the union has to be held here rather than replaced per page — page
+  // two reporting nothing must not clear page one's flags.
+  const escalatedByPage = React.useRef<Record<number, string[]>>({})
 
   // Hydrated in an effect rather than at module scope: the server payload is a
   // prop, and a store written during render would leak one book's offers into
   // the next book's first paint.
   React.useEffect(() => {
-    hydrate({ bookId, offers })
-  }, [hydrate, bookId, offers])
+    // Where each card landed, so a nudge knows which page row to write to.
+    // Derived from the flow rather than stored: the engine decides placement,
+    // and a second copy of that answer is one that can be wrong.
+    const placement: Record<string, { pageIndex: number; regionId: string }> = {}
+    for (const flowPage of pages) {
+      for (const spot of flowPage.placements) {
+        if (spot.offerId !== null) {
+          placement[spot.offerId] = { pageIndex: flowPage.index, regionId: spot.sourceId }
+        }
+      }
+    }
+
+    hydrate({ bookId, offers, overrides, placement })
+  }, [hydrate, bookId, offers, overrides, pages])
 
   // Before hydration the store is empty; drawing from the props keeps the first
   // paint identical to the server's and avoids a flash of an empty book.
   const drawn = Object.keys(liveOffers).length > 0
     ? liveOffers
     : Object.fromEntries(offers.map((offer) => [offer.id, offer]))
+
+  // Before hydration the store is empty, so the first paint draws the server's
+  // nudges — identical to what the server rendered, and no flash of an
+  // un-nudged card.
+  const liveOverrides = useEditorStore((state) => state.overrides)
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas-surround">
@@ -97,6 +133,7 @@ export function EditorShell({
         </span>
 
         <div className="ms-auto flex items-center gap-4 font-ui text-body-sm text-secondary">
+          <UndoRedo bookId={bookId} />
           <SaveStatus />
           <span>
             <Figure value={offers.length} size="data-sm" />{' '}
@@ -133,8 +170,21 @@ export function EditorShell({
       ) : null}
 
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="w-full shrink-0 overflow-auto border-b-hairline border-border-subtle bg-surface p-4 lg:order-first lg:w-72 lg:border-b-0 lg:border-e-hairline">
+        <aside className="flex w-full shrink-0 flex-col gap-6 overflow-auto border-b-hairline border-border-subtle bg-surface p-4 lg:order-first lg:w-72 lg:border-b-0 lg:border-e-hairline">
           <OfferTray bookId={bookId} />
+
+          <LayoutPanel
+            bookId={bookId}
+            perRow={layout.perRow}
+            bodyRows={layout.bodyRows}
+            offerCount={offers.length}
+            pageCount={pages.length}
+            pins={pins}
+            blocks={pinnable}
+            blockNames={Object.fromEntries(
+              Object.values(blocks).map((block) => [block.id, block.name])
+            )}
+          />
         </aside>
 
         <div className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
@@ -150,8 +200,13 @@ export function EditorShell({
                 // The artboard follows the *book's* language, never the
                 // interface's.
                 direction={edition === 'ar' ? 'rtl' : 'ltr'}
+                overrides={liveOverrides[flowPage.index] ?? overrides[flowPage.index] ?? []}
                 selectedOfferId={selectedOfferId}
                 onSelectOffer={select}
+                onEscalated={(ids) => {
+                  escalatedByPage.current[flowPage.index] = ids
+                  markEscalated(Object.values(escalatedByPage.current).flat())
+                }}
                 className="rounded-artboard"
               />
               {/* On a chip rather than directly on the surround: the canvas
@@ -165,7 +220,12 @@ export function EditorShell({
         </div>
 
         <aside className="w-full shrink-0 overflow-auto border-t-hairline border-border-subtle bg-surface p-4 lg:w-80 lg:border-s-hairline lg:border-t-0">
-          <OfferProperties bookId={bookId} tiers={tiers} currency={currency} />
+          <OfferProperties
+            bookId={bookId}
+            tiers={tiers}
+            currency={currency}
+            direction={edition === 'ar' ? 'rtl' : 'ltr'}
+          />
         </aside>
       </div>
     </div>

@@ -2,16 +2,21 @@
 
 import * as React from 'react'
 import {
+  BadgePercent,
+  Circle,
   Image as ImageIcon,
-  Layers,
+  Minus,
   Square,
+  SquareStack,
+  Store,
   Tag,
   Type,
-  BadgePercent,
-  Store,
+  Upload,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { BlockElement } from '@souqstudio/types'
+import { Button } from '@/components/ui/button'
+import { BOUND_ELEMENTS, FREE_ELEMENTS } from '@/lib/block-elements'
 
 /**
  * The element palette. E7 — `docs/composition-model.md` §3.4a.
@@ -36,17 +41,17 @@ type Props = {
   repeats: boolean
   disabled: boolean
   onAdd: (element: BlockElement) => void
+  /** Opens the artwork picker. Absent while uploads are unavailable. */
+  onUpload?: (() => void) | undefined
+  uploading?: boolean
 }
-
-/** Dropped elements land here, in the middle, at a size that can be seen. */
-const DROP = { start: 0.25, top: 0.4, width: 0.5, height: 0.14 }
 
 type Entry = {
   key: string
   label: string
   hint: string
   icon: LucideIcon
-  element: BlockElement
+  make: () => BlockElement
 }
 
 const BOUND: Entry[] = [
@@ -55,107 +60,98 @@ const BOUND: Entry[] = [
     label: 'Product image',
     hint: 'The packshot, or a reserved space when there is none',
     icon: ImageIcon,
-    element: { kind: 'image', box: { ...DROP, height: 0.3 }, source: { from: 'product' } },
+    make: BOUND_ELEMENTS['product-image'],
   },
   {
     key: 'product-name',
     label: 'Product name',
     hint: 'Never typed in — it follows the catalog',
     icon: Type,
-    element: {
-      kind: 'text',
-      box: DROP,
-      source: { from: 'product', field: 'name' },
-      level: 'h3',
-      align: 'start',
-    },
+    make: BOUND_ELEMENTS['product-name'],
   },
   {
     key: 'product-spec',
     label: 'Size or spec',
     hint: 'Pack size, weight, variant',
     icon: Type,
-    element: {
-      kind: 'text',
-      box: { ...DROP, height: 0.08 },
-      source: { from: 'product', field: 'spec' },
-      level: 'caption',
-      align: 'start',
-    },
+    make: BOUND_ELEMENTS['product-spec'],
   },
   {
     key: 'product-brand',
     label: 'Brand',
     hint: 'Absent on four rows in ten, so give it room to be empty',
     icon: Type,
-    element: {
-      kind: 'text',
-      box: { ...DROP, height: 0.08 },
-      source: { from: 'product', field: 'brand' },
-      level: 'h6',
-      align: 'start',
-    },
+    make: BOUND_ELEMENTS['product-brand'],
   },
   {
     key: 'price',
     label: 'Price',
-    hint: 'One element. Everything inside it is decided for you',
+    hint: 'One piece. You place, size and colour it',
     icon: Tag,
-    element: { kind: 'priceMark', box: { ...DROP, height: 0.2 } },
+    make: BOUND_ELEMENTS.price,
   },
   {
     key: 'chip',
     label: 'Offer badge',
     hint: 'Reads the promo tier on the offer',
     icon: BadgePercent,
-    element: { kind: 'chip', box: { start: 0.04, top: 0.03, width: 0.34, height: 0.1 }, anchor: 'TOP_START' },
+    make: BOUND_ELEMENTS.chip,
   },
 ]
 
-const STATIC: Entry[] = [
+const FREE: Entry[] = [
   {
-    key: 'static-text',
-    label: 'Fixed text',
+    key: 'text',
+    label: 'Text',
     hint: 'A headline or a legal line, in both languages',
     icon: Type,
-    element: {
-      kind: 'text',
-      box: DROP,
-      source: { from: 'static', textEn: 'Your text', textAr: 'النص' },
-      level: 'h2',
-      align: 'start',
-    },
+    make: FREE_ELEMENTS.text,
   },
   {
-    key: 'shop-name',
+    key: 'shop-detail',
     label: 'Shop details',
     hint: 'Name, phone or address, from the shop',
     icon: Store,
-    element: {
-      kind: 'text',
-      box: { ...DROP, height: 0.1 },
-      source: { from: 'shop', field: 'name' },
-      level: 'h4',
-      align: 'start',
-    },
+    make: FREE_ELEMENTS['shop-detail'],
   },
   {
     key: 'logo',
     label: 'Logo',
     hint: 'From the brand kit',
-    icon: Layers,
-    element: { kind: 'logo', box: { start: 0.04, top: 0.04, width: 0.18, height: 0.14 } },
+    icon: SquareStack,
+    make: FREE_ELEMENTS.logo,
   },
   {
-    key: 'shape',
-    label: 'Shape',
-    hint: 'A ground or a panel, in one of your brand colours',
+    key: 'background',
+    label: 'Background',
+    hint: 'A ground behind everything else',
     icon: Square,
-    element: { kind: 'shape', box: { start: 0, top: 0, width: 1, height: 1 }, surface: 'surface', radius: 3 },
+    make: FREE_ELEMENTS.background,
+  },
+  {
+    key: 'rectangle',
+    label: 'Rectangle',
+    hint: 'A panel, a band, a colour block',
+    icon: Square,
+    make: FREE_ELEMENTS.rectangle,
+  },
+  {
+    key: 'ellipse',
+    label: 'Circle',
+    hint: 'A burst, a dot, a rounded ground',
+    icon: Circle,
+    make: FREE_ELEMENTS.ellipse,
+  },
+  {
+    key: 'line',
+    label: 'Line',
+    hint: 'A rule or a divider',
+    icon: Minus,
+    make: FREE_ELEMENTS.line,
   },
 ]
 
-export function ElementPalette({ repeats, disabled, onAdd }: Props) {
+export function ElementPalette({ repeats, disabled, onAdd, onUpload, uploading }: Props) {
   return (
     <div className="flex flex-col gap-6">
       {repeats ? (
@@ -170,17 +166,31 @@ export function ElementPalette({ repeats, disabled, onAdd }: Props) {
       ) : null}
 
       <Group
-        title="The same every time"
+        title={repeats ? 'The same every time' : 'Anything you like'}
         note={
           repeats
             ? 'Identical on every card in the book.'
-            : 'This block is placed once, so nothing on it comes from a product.'
+            : 'This panel is placed once, so it is yours to design freely.'
         }
-        entries={STATIC}
+        entries={FREE}
         disabled={disabled}
         onAdd={onAdd}
         bound={false}
-      />
+      >
+        {onUpload ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            disabled={disabled}
+            loading={uploading ?? false}
+            onClick={onUpload}
+          >
+            <Upload className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            Upload artwork
+          </Button>
+        ) : null}
+      </Group>
     </div>
   )
 }
@@ -192,6 +202,7 @@ function Group({
   disabled,
   onAdd,
   bound,
+  children,
 }: {
   title: string
   note: string
@@ -199,6 +210,7 @@ function Group({
   disabled: boolean
   onAdd: (element: BlockElement) => void
   bound: boolean
+  children?: React.ReactNode
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -213,7 +225,7 @@ function Group({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onAdd(structuredClone(entry.element))}
+              onClick={() => onAdd(entry.make())}
               className="flex w-full items-start gap-2 rounded-control border-hairline border-border-subtle bg-surface p-2 text-start hover:bg-stone-100 disabled:opacity-50"
             >
               <entry.icon
@@ -233,6 +245,8 @@ function Group({
           </li>
         ))}
       </ul>
+
+      {children}
     </section>
   )
 }

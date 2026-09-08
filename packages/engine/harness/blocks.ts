@@ -63,9 +63,21 @@ export const BRAND_AD: Block = {
       aspectMin: 0.1,
       aspectMax: 30,
       elements: [
-        { kind: 'shape', box: box(0, 0, 1, 1), surface: 'accent', radius: 3 },
-        { kind: 'image', box: box(0.55, 0.08, 0.4, 0.84), source: { from: 'asset', assetId: 'demo' } },
         {
+          id: 'ground',
+          kind: 'shape',
+          box: box(0, 0, 1, 1),
+          fill: { from: 'role', ref: 'accent' },
+          radius: 3,
+        },
+        {
+          id: 'art',
+          kind: 'image',
+          box: box(0.55, 0.08, 0.4, 0.84),
+          source: { from: 'asset', assetId: 'demo' },
+        },
+        {
+          id: 'headline',
           kind: 'text',
           box: box(0.06, 0.2, 0.45, 0.3),
           source: { from: 'static', textEn: 'Ramadan Kareem', textAr: 'رمضان كريم' },
@@ -73,6 +85,7 @@ export const BRAND_AD: Block = {
           align: 'start',
         },
         {
+          id: 'support',
           kind: 'text',
           box: box(0.06, 0.54, 0.45, 0.26),
           source: {
