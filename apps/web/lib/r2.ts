@@ -7,6 +7,15 @@ import { env } from '@/lib/env'
 /**
  * Cloudflare R2. S3-compatible, so the AWS SDK talks to it unchanged.
  *
+ * **The bucket needs a CORS policy, and a correct presigned URL is not enough
+ * without one.** Every upload here is a cross-origin PUT from a page on our
+ * domain to `<bucket>.<account>.r2.cloudflarestorage.com`, so the browser sends
+ * a preflight first; a bucket with no policy answers `403 Unauthorized: CORS not
+ * configured for this bucket` and the PUT never leaves the page. It is invisible
+ * from the URL and from the server. `scripts/r2-cors.mjs` applies it —
+ * `pnpm --filter @souqstudio/web r2:cors` — and it has to be run once per bucket,
+ * production included.
+ *
  * **Uploads are presigned and go browser → R2 directly, never through a route.**
  * A Vercel serverless function caps its request body at 4.5MB, and E4-01 allows
  * a 10MB logo — so routing the bytes through Next would reject perfectly valid

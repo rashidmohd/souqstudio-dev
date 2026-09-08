@@ -111,6 +111,7 @@ export function ElementProperties({
           </Field>
           <ColorControl
             label="Colour"
+            allowGradient
             value={element.fill}
             {...color}
             onChange={(fill) => onChange({ ...element, fill })}

@@ -14,6 +14,7 @@ import type { Block, BlockElement, Currency, TokenRef } from '@souqstudio/types'
 import {
   fitPolicy,
   resolveColor,
+  resolvePaint,
   fitText,
   compactBlock,
   layoutPriceMark,
@@ -176,7 +177,21 @@ function shape(
   rect: Rect,
   blockEdge: number
 ): string {
-  const fill = resolveColor(element.fill, color)
+  // A gradient needs a definition in the document and a `url(#id)` pointing at
+  // it, so the fill is two strings here rather than one. The id is the element's
+  // own — the harness draws one block per file, so that is unique enough, and
+  // `draw.tsx` carries a per-surface prefix because a page holds sixty previews.
+  const paint = resolvePaint(element.fill, color)
+  const defs =
+    paint.kind === 'flat'
+      ? ''
+      : `<defs><linearGradient id="g-${element.id}"` +
+        ` x1="${paint.x1}" y1="${paint.y1}" x2="${paint.x2}" y2="${paint.y2}">` +
+        paint.stops
+          .map((stop) => `<stop offset="${stop.at}" stop-color="${stop.css}"/>`)
+          .join('') +
+        `</linearGradient></defs>`
+  const fill = paint.kind === 'flat' ? paint.css : `url(#g-${element.id})`
   const stroke = element.stroke
   const strokeAttrs =
     stroke === undefined
@@ -188,6 +203,7 @@ function shape(
     const y = mid(rect.y, rect.height)
     const width = Math.max(1, (stroke?.width ?? 0.004) * blockEdge)
     return (
+      defs +
       `<line x1="${rect.x}" y1="${y}" x2="${rect.x + rect.width}" y2="${y}"` +
       ` stroke="${fill}" stroke-width="${width}" stroke-linecap="round"/>`
     )
@@ -195,12 +211,14 @@ function shape(
 
   if (element.variant === 'ellipse') {
     return (
+      defs +
       `<ellipse cx="${mid(rect.x, rect.width)}" cy="${mid(rect.y, rect.height)}"` +
       ` rx="${rect.width / 2}" ry="${rect.height / 2}" fill="${fill}"${strokeAttrs}/>`
     )
   }
 
   return (
+    defs +
     `<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"` +
     ` rx="${element.radius}" fill="${fill}"${strokeAttrs}/>`
   )

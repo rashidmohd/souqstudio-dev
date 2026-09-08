@@ -468,6 +468,39 @@ wrong and is corrected. It is survivable on the logo path only because the compl
 reads the object back and re-parses it with sharp. Any future presigned path that stores
 what it is given does not inherit that.
 
+### The R2 bucket has no CORS policy — every browser upload is blocked before it starts
+
+**Found 8 September, after the two faults above were fixed and the upload still did not
+work.** A preflight against the bucket answers:
+
+```
+403 Forbidden
+<Error><Code>Unauthorized</Code><Message>CORS not configured for this bucket</Message></Error>
+```
+
+Every presigned upload in the product is a cross-origin PUT from a browser — the logo, a
+product photo, artwork dropped on the designer canvas, all three doing the same
+`fetch(uploadUrl, { method: 'PUT', body: file })` — so every one of them sends an `OPTIONS`
+first and every one of them is refused. **A perfectly correct presigned URL cannot be used
+by a browser against a bucket with no policy**, which is why the two fixes above changed
+the URL and changed nothing else.
+
+CORS appears nowhere in `docs/`, nowhere in `souqstudio-technical`, and nowhere in the code
+— it was never configured, in any environment. That is the other half of "nothing about the
+write path had ever been run against a real upload": the local path was equally broken and
+equally unexercised.
+
+`apps/web/scripts/r2-cors.mjs` applies it, reads it back rather than trusting the write, and
+takes its origins from `APP_ORIGINS` so a new environment needs no code change. A script
+rather than a dashboard click for the same reason the other two faults are now startup
+errors — **a manual step nobody records is a manual step that is wrong in the next
+environment.** Run it against the production bucket before production has a user.
+
+**Three independent faults on one path in one afternoon**, and the order they were found in
+is the lesson: the endpoint bug was silent, the checksum bug was loud, and the CORS gap was
+invisible from everything except an actual browser request. Each one alone was enough to
+break the feature; fixing two of them looked exactly like fixing none.
+
 ### A preview route with no auth check was committed — resolved, gone from the tree
 
 Commit `b293829` captured a temporary harness: `apps/web/app/preview-brand/page.tsx` and a

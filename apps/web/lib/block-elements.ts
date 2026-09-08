@@ -1,4 +1,4 @@
-import type { BlockElement, Box, ColorValue } from '@souqstudio/types'
+import type { BlockElement, Box, FlatColor } from '@souqstudio/types'
 
 /**
  * Minting elements for the designer. E7.
@@ -40,7 +40,7 @@ export function reidentify(element: BlockElement, groupId?: string): BlockElemen
  */
 export const DROP: Box = { start: 0.25, top: 0.4, width: 0.5, height: 0.14 }
 
-const role = (ref: 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'): ColorValue => ({
+const role = (ref: 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted'): FlatColor => ({
   from: 'role',
   ref,
 })

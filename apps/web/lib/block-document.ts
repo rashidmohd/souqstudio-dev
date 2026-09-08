@@ -27,6 +27,13 @@ import { TYPE_LEVELS, type Arrangement, type TypeLevel } from '@souqstudio/types
 const fraction = z.number().finite()
 
 /**
+ * How many stops a gradient may carry. A ceiling in the same spirit as
+ * `MAX_ELEMENTS` below — a product judgement, not architecture. Declared up here
+ * only because the schema that reads it is built at module load.
+ */
+export const MAX_GRADIENT_STOPS = 8
+
+/**
  * Boxes are bounded well outside 0–1 rather than clamped to it, deliberately.
  * A chip anchored `TOP_START` overhangs its block by design — E6 §7 — so the
  * schema's job is to reject nonsense, and `validateBlock` in the engine is what
@@ -54,14 +61,42 @@ const familySchema = z.enum(['headline', 'display', 'price', 'body'])
  * to the element's `opacity`, where it is one control an owner can find rather
  * than two ways of saying the same thing that disagree.
  */
-const colorSchema = z.discriminatedUnion('from', [
+const flatColorSchema = z.discriminatedUnion('from', [
   z.object({ from: z.literal('role'), ref: tokenRefSchema }),
   z.object({ from: z.literal('palette'), id: z.string().min(1).max(64) }),
   z.object({ from: z.literal('hex'), hex: z.string().regex(/^#[0-9a-fA-F]{6}$/) }),
 ])
 
+/**
+ * A gradient, and the bounds are the usual kind of product judgement.
+ *
+ * **Two stops minimum, because one stop is a flat colour written the expensive
+ * way** — and a document that can say the same thing two ways is a document
+ * where the properties panel and the renderer eventually disagree about which
+ * one it is holding. Eight is far past any card that reads; the ceiling exists
+ * so a generated document cannot hand the export worker four hundred.
+ *
+ * `at` is not required to be sorted or distinct. Sorting belongs to
+ * `resolvePaint`, which every renderer goes through, rather than to the edge —
+ * refusing an out-of-order document would reject work an owner can produce by
+ * dragging one stop past another.
+ */
+const gradientStopSchema = z.object({
+  at: z.number().min(0).max(1),
+  color: flatColorSchema,
+})
+
+const colorSchema = z.union([
+  flatColorSchema,
+  z.object({
+    from: z.literal('gradient'),
+    angle: z.number().min(0).max(360),
+    stops: z.array(gradientStopSchema).min(2).max(MAX_GRADIENT_STOPS),
+  }),
+])
+
 const strokeSchema = z.object({
-  color: colorSchema,
+  color: flatColorSchema,
   /** A fraction of the block's geometric mean, like every other size here. */
   width: z.number().min(0).max(0.2),
 })
@@ -117,9 +152,9 @@ const baseSchema = {
  * that catches a client running ahead of the deploy it is talking to.
  */
 const priceMarkStyleSchema = z.strictObject({
-  tint: colorSchema.optional(),
-  ink: colorSchema.optional(),
-  surface: colorSchema.optional(),
+  tint: flatColorSchema.optional(),
+  ink: flatColorSchema.optional(),
+  surface: flatColorSchema.optional(),
   frame: z.enum(['tag', 'plain']).optional(),
   tab: z.enum(['attached', 'none']).optional(),
 })
@@ -154,7 +189,7 @@ const elementSchema = z.discriminatedUnion('kind', [
     letterSpacing: z.number().min(-0.2).max(1).optional(),
     transform: z.enum(['none', 'uppercase']).optional(),
     family: familySchema.optional(),
-    color: colorSchema.optional(),
+    color: flatColorSchema.optional(),
   }),
   z.strictObject({
     ...baseSchema,
@@ -165,7 +200,7 @@ const elementSchema = z.discriminatedUnion('kind', [
     ...baseSchema,
     kind: z.literal('chip'),
     anchor: z.enum(['TOP_START', 'TOP_END', 'INLINE']),
-    fill: colorSchema.optional(),
+    fill: flatColorSchema.optional(),
   }),
   z.strictObject({ ...baseSchema, kind: z.literal('logo') }),
   z.strictObject({
@@ -245,6 +280,12 @@ export function toArrangements(value: unknown): Arrangement[] | null {
  *
  * Enforced here rather than in the type, because the same interface describes
  * both and the difference is whose block it is.
+ *
+ * **A gradient fails this by construction**, and that is the intended answer
+ * rather than an oversight: its `from` is `gradient`, never `role`, so no
+ * seeded block can hold one however its stops are named. The shipped library
+ * stays flat — the design system's "no gradients" is about our own surfaces,
+ * and a card the owner designed is not one of them.
  */
 export function usesOnlyRoles(arrangements: readonly Arrangement[]): boolean {
   const ok = (value: { from: string } | undefined) => value === undefined || value.from === 'role'

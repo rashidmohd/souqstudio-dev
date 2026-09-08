@@ -115,11 +115,13 @@ export function BlockArtboard({
   React.useEffect(() => setMounted(true), [])
 
   const svgRef = React.useRef<SVGSVGElement | null>(null)
+  const uid = React.useId()
   const drag = React.useRef<Drag | null>(null)
   const [guides, setGuides] = React.useState<Guides>({ x: [], y: [] })
   const [marquee, setMarquee] = React.useState<Rect | null>(null)
 
   const ctx: DrawContext = {
+    uid,
     token: (ref) => resolveToken(palette, ref),
     palette,
     scale,

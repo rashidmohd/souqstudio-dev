@@ -46,7 +46,14 @@ export {
 // Which way a *string* reorders, which is not which way the page lays out.
 // Every renderer needs it; see the file for what happens when one does not.
 export { placeText, textDirection, type TextPlacement } from './direction'
-export { resolveColor, roleColor } from './color'
+export {
+  resolveColor,
+  resolvePaint,
+  gradientVector,
+  flatten,
+  roleColor,
+  type Paint,
+} from './color'
 export { resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
 // The one place an owner may disagree with the engine, and it is bounded by
 // construction — E6 §1. See the file.

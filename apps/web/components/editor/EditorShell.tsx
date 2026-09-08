@@ -15,6 +15,11 @@ import {
   useFlaggedCount,
 } from '@/components/editor/OfferProperties'
 import { UndoRedo } from '@/components/editor/UndoRedo'
+import {
+  CanvasDrawer,
+  CanvasDrawerToggles,
+  useCanvasDrawer,
+} from '@/components/shared/canvas-drawer'
 import { useEditorStore } from '@/stores/editor-store'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 
@@ -78,6 +83,7 @@ export function EditorShell({
   const liveOffers = useEditorStore((state) => state.offers)
   const markEscalated = useEditorStore((state) => state.markEscalated)
   const flagged = useFlaggedCount()
+  const drawer = useCanvasDrawer()
 
   // One set for the whole book, assembled from the pages. Each page reports its
   // own, so the union has to be held here rather than replaced per page — page
@@ -169,8 +175,22 @@ export function EditorShell({
         </p>
       ) : null}
 
-      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="flex w-full shrink-0 flex-col gap-6 overflow-auto border-b-hairline border-border-subtle bg-surface p-4 lg:order-first lg:w-pane-start lg:border-b-0 lg:border-e-hairline">
+      <CanvasDrawerToggles
+        open={drawer.open}
+        onToggle={drawer.toggle}
+        startLabel="Offers and layout"
+        endLabel="Offer"
+      />
+
+      {/* `relative`, because the drawers below `lg` position against this row —
+          they have to cover the pages and not the header above them. */}
+      <div className="relative flex flex-1 flex-col overflow-hidden lg:flex-row">
+        <CanvasDrawer
+          side="start"
+          open={drawer.open === 'start'}
+          onClose={drawer.close}
+          className="flex-col gap-6 p-4"
+        >
           <OfferTray bookId={bookId} />
 
           <LayoutPanel
@@ -185,7 +205,7 @@ export function EditorShell({
               Object.values(blocks).map((block) => [block.id, block.name])
             )}
           />
-        </aside>
+        </CanvasDrawer>
 
         <div className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
           {pages.map((flowPage) => (
@@ -219,14 +239,19 @@ export function EditorShell({
           ))}
         </div>
 
-        <aside className="w-full shrink-0 overflow-auto border-t-hairline border-border-subtle bg-surface p-4 lg:w-pane-end lg:border-s-hairline lg:border-t-0">
+        <CanvasDrawer
+          side="end"
+          open={drawer.open === 'end'}
+          onClose={drawer.close}
+          className="flex-col p-4"
+        >
           <OfferProperties
             bookId={bookId}
             tiers={tiers}
             currency={currency}
             direction={edition === 'ar' ? 'rtl' : 'ltr'}
           />
-        </aside>
+        </CanvasDrawer>
       </div>
     </div>
   )

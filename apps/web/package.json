@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "stylelint": "stylelint \"styles/**/*.css\"",
-    "check:classes": "node scripts/check-classes.mjs"
+    "check:classes": "node scripts/check-classes.mjs",
+    "r2:cors": "node --env-file=.env.local scripts/r2-cors.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3",

@@ -24,7 +24,7 @@ import type {
   Arrangement,
   BlockElement,
   ChipAnchorRef,
-  ColorValue,
+  FlatColor,
   ImageSource,
   LogicalAlign,
   PriceMarkStyle,
@@ -48,7 +48,7 @@ export const box = (start: number, top: number, width: number, height: number) =
 export type Box = ReturnType<typeof box>
 
 /** A colour, the only way a seeded block may name one. */
-export const role = (ref: TokenRef): ColorValue => ({ from: 'role', ref })
+export const role = (ref: TokenRef): FlatColor => ({ from: 'role', ref })
 
 // ─── Aspect ranges ────────────────────────────────────────────────────────────
 

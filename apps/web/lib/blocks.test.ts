@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Arrangement } from '@souqstudio/types'
 import { SEED_BLOCKS } from '@souqstudio/engine'
-import { MAX_ELEMENTS, arrangementsSchema, toArrangements } from '@/lib/block-document'
+import {
+  MAX_ELEMENTS,
+  MAX_GRADIENT_STOPS,
+  arrangementsSchema,
+  toArrangements,
+} from '@/lib/block-document'
 import { usesOnlyRoles } from '@/lib/block-document'
 import { blockErrorMessage, blockErrors, blockUpdateSchema } from '@/lib/block-write'
 import { copyName, importName, planReaches } from '@/lib/blocks'
@@ -307,6 +312,114 @@ describe('colours, and who may use which', () => {
     for (const block of SEED_BLOCKS) {
       expect(usesOnlyRoles(block.arrangements)).toBe(true)
     }
+  })
+})
+
+describe('gradients', () => {
+  const gradient = (stops: unknown, angle: unknown = 90): unknown => ({
+    from: 'gradient',
+    angle,
+    stops,
+  })
+
+  const two = [
+    { at: 0, color: { from: 'role', ref: 'primary' } },
+    { at: 1, color: { from: 'hex', hex: '#d4af37' } },
+  ]
+
+  const withFill = (fill: unknown): unknown => [
+    {
+      aspectMin: 0.5,
+      aspectMax: 1.5,
+      elements: [
+        { id: 'ground', kind: 'shape', box: { start: 0, top: 0, width: 1, height: 1 }, fill, radius: 3 },
+      ],
+    },
+  ]
+
+  const withTextColor = (color: unknown): unknown => [
+    {
+      aspectMin: 0.5,
+      aspectMax: 1.5,
+      elements: [
+        {
+          id: 'name',
+          kind: 'text',
+          box: { start: 0, top: 0, width: 1, height: 0.2 },
+          source: { from: 'product', field: 'name' },
+          level: 'h1',
+          align: 'start',
+          color,
+        },
+      ],
+    },
+  ]
+
+  it('takes one on a shape fill', () => {
+    expect(toArrangements(withFill(gradient(two)))).not.toBeNull()
+  })
+
+  it('refuses one stop — that is a flat colour written the expensive way', () => {
+    expect(toArrangements(withFill(gradient([two[0]])))).toBeNull()
+  })
+
+  it('refuses more stops than a card can read', () => {
+    const many = Array.from({ length: MAX_GRADIENT_STOPS + 1 }, (_, index) => ({
+      at: index / (MAX_GRADIENT_STOPS + 1),
+      color: { from: 'hex', hex: '#143CD2' },
+    }))
+    expect(toArrangements(withFill(gradient(many)))).toBeNull()
+  })
+
+  it('refuses a stop outside the run, and an angle outside a turn', () => {
+    expect(
+      toArrangements(withFill(gradient([{ at: -0.2, color: two[0]!.color }, two[1]])))
+    ).toBeNull()
+    expect(toArrangements(withFill(gradient(two, 400)))).toBeNull()
+  })
+
+  /**
+   * The stops are colours the same three ways everything else is, so a gradient
+   * built on the shop's palette follows the shop. What a stop may not be is
+   * another gradient — the type says so and the schema has to agree, or a
+   * document could nest until the renderer gives up.
+   */
+  it('refuses a gradient inside a gradient', () => {
+    expect(
+      toArrangements(withFill(gradient([{ at: 0, color: gradient(two) }, two[1]])))
+    ).toBeNull()
+  })
+
+  /**
+   * Gradient text and gradient hairlines are how a card stops being legible at
+   * the size a booklet prints. The decision is in `ColorValue`; this is the
+   * check that it survives contact with the edge.
+   */
+  it('refuses one anywhere but a shape fill', () => {
+    expect(toArrangements(withTextColor(gradient(two)))).toBeNull()
+  })
+
+  it('keeps a gradient out of the seeded library, whatever its stops name', () => {
+    // Every stop is a role here, and it is still refused: the shipped library
+    // is flat, and `from` is 'gradient' rather than 'role' by construction.
+    const roles = toArrangements(
+      withFill(
+        gradient([
+          { at: 0, color: { from: 'role', ref: 'primary' } },
+          { at: 1, color: { from: 'role', ref: 'accent' } },
+        ])
+      )
+    )
+    expect(roles).not.toBeNull()
+    expect(usesOnlyRoles(roles!)).toBe(false)
+  })
+
+  it('reads an out-of-order document rather than refusing it', () => {
+    // An owner drags one stop past another and the array stops being sorted.
+    // Sorting belongs to `resolvePaint`, which every renderer goes through.
+    expect(
+      toArrangements(withFill(gradient([{ at: 1, color: two[0]!.color }, { at: 0, color: two[1]!.color }])))
+    ).not.toBeNull()
   })
 })
 

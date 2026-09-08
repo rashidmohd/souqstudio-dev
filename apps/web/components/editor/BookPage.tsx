@@ -117,6 +117,7 @@ export function BookPage({
 
   const report = React.useRef(onEscalated)
   report.current = onEscalated
+  const uid = React.useId()
   const escalatedKey = escalated.join(',')
   React.useEffect(() => {
     // Only once the real measurer is in play: the server estimate breaks lines
@@ -152,6 +153,9 @@ export function BookPage({
         const blockSize = Math.sqrt(placement.rect.width * placement.rect.height)
 
         const ctx: DrawContext = {
+          // Per placement, not per page: the same block appears in several
+          // cells of one page and each draws its own gradient definition.
+          uid: `${uid}-${index}`,
           token: (ref) => resolveToken(palette, ref),
           scale,
           blockSize,

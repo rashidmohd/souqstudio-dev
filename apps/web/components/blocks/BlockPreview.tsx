@@ -65,6 +65,8 @@ export function BlockPreview({
   const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => setMounted(true), [])
 
+  const uid = React.useId()
+
   const { elements } = resolveBlock(
     {
       id: 'preview',
@@ -79,6 +81,9 @@ export function BlockPreview({
   )
 
   const ctx: DrawContext = {
+    // Unique per mounted preview — the library page draws every block the shop
+    // owns, and two imported from the same seed carry identical element ids.
+    uid,
     token: (ref) => resolveToken(palette, ref),
     scale,
     blockSize,

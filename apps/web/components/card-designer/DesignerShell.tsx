@@ -15,6 +15,11 @@ import { Button } from '@/components/ui/button'
 import { BlockArtboard } from '@/components/card-designer/BlockArtboard'
 import { BlockProperties } from '@/components/card-designer/BlockProperties'
 import { ToolRail } from '@/components/card-designer/ToolRail'
+import {
+  CanvasDrawer,
+  CanvasDrawerToggles,
+  useCanvasDrawer,
+} from '@/components/shared/canvas-drawer'
 import { ElementProperties } from '@/components/card-designer/ElementProperties'
 import { LayerList } from '@/components/card-designer/LayerList'
 import { StressPreview } from '@/components/card-designer/StressPreview'
@@ -111,6 +116,7 @@ export function DesignerShell({
   const store = useDesignerStore()
   const elements = useElements()
   const selectedElement = useSelectedElement()
+  const drawer = useCanvasDrawer()
 
   React.useEffect(() => {
     hydrate({
@@ -353,11 +359,20 @@ export function DesignerShell({
 
       <Problems problems={problems} />
 
-      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+      <CanvasDrawerToggles
+        open={drawer.open}
+        onToggle={drawer.toggle}
+        startLabel="Tools and layers"
+        endLabel={selectedElement === null ? 'Block' : 'Element'}
+      />
+
+      {/* `relative`, because the drawers below `lg` position against this row —
+          they have to cover the canvas and not the header above it. */}
+      <div className="relative flex flex-1 flex-col overflow-hidden lg:flex-row">
         {/* Tools on the far edge, layers beside them — the arrangement every
             application this is modelled on uses, and the reason an owner who has
             opened one of them knows where to look. */}
-        <aside className="flex w-full shrink-0 border-b-hairline border-border-subtle bg-surface lg:order-first lg:w-pane-start lg:border-b-0 lg:border-e-hairline">
+        <CanvasDrawer side="start" open={drawer.open === 'start'} onClose={drawer.close}>
           <ToolRail
             repeats={repeats}
             disabled={!editable}
@@ -418,7 +433,7 @@ export function DesignerShell({
               />
             </section>
           </div>
-        </aside>
+        </CanvasDrawer>
 
         <div ref={stage} className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
           {repeats ? (
@@ -511,7 +526,12 @@ export function DesignerShell({
           ) : null}
         </div>
 
-        <aside className="w-full shrink-0 overflow-auto border-t-hairline border-border-subtle bg-surface p-4 lg:w-pane-end lg:border-s-hairline lg:border-t-0">
+        <CanvasDrawer
+          side="end"
+          open={drawer.open === 'end'}
+          onClose={drawer.close}
+          className="flex-col p-4"
+        >
           {selectedElement === null ? (
             <BlockProperties
               name={store.name}
@@ -536,7 +556,7 @@ export function DesignerShell({
               onChange={(element) => store.setElement(element.id, element)}
             />
           )}
-        </aside>
+        </CanvasDrawer>
       </div>
     </div>
   )

@@ -199,14 +199,58 @@ export type LogicalAlign = 'start' | 'center' | 'end'
  * The zod mirror in the web app is what enforces "seeded blocks are roles
  * only"; the type cannot, because the same interface describes both.
  */
-export type ColorValue =
+export type FlatColor =
   | { from: 'role'; ref: TokenRef }
   | { from: 'palette'; id: string }
   | { from: 'hex'; hex: string }
 
+/**
+ * One stop on a gradient. `at` is a fraction of the run, 0 to 1.
+ *
+ * **A stop names a colour the same three ways everything else does**, so a
+ * gradient built from the shop's palette follows the shop when they re-pick
+ * that colour — which is the whole reason `palette` exists as a source. It is
+ * `FlatColor` rather than `ColorValue` because a stop of a gradient cannot
+ * itself be a gradient, and saying so in the type is cheaper than a runtime
+ * depth check.
+ */
+export interface GradientStop {
+  at: number
+  color: FlatColor
+}
+
+/**
+ * A colour, or a run between several.
+ *
+ * **Gradients are a fourth source rather than a property of an element**, which
+ * is what keeps them out of every renderer's element switch: a ground that is a
+ * gradient is still a rectangle with a fill, and only the resolving of that
+ * fill changed. `resolveColor` was the seam and stayed one.
+ *
+ * **Only `shape.fill` takes one.** Text, strokes, chips and the price mark are
+ * `FlatColor`, and that is a design decision rather than an unfinished edge:
+ * gradient text and gradient hairlines are how a card stops being legible at
+ * the size a booklet actually prints, and neither has been asked for. Widening
+ * one of those fields later is a one-word change here plus whatever the
+ * renderers then owe — the type is what will tell you which ones.
+ *
+ * **No seeded block may hold one.** `usesOnlyRoles` in the web app refuses a
+ * gradient outright, so the shipped library stays flat; the design system's "no
+ * gradients in chrome" is about our surfaces, and an owner's own card is not
+ * one of ours.
+ *
+ * `angle` is degrees clockwise from a left-to-right run, so 0 runs along the
+ * start-to-end axis and 90 runs top to bottom. It does **not** mirror in an
+ * Arabic edition: an owner who angled a ground did so against the artwork they
+ * were looking at, and flipping it would be the renderer overruling them.
+ */
+export type ColorValue =
+  | FlatColor
+  | { from: 'gradient'; angle: number; stops: GradientStop[] }
+
 /** An outline. Width is a fraction of the block's geometric mean, never px. */
 export interface Stroke {
-  color: ColorValue
+  color: FlatColor
   width: number
 }
 
@@ -348,10 +392,10 @@ export type BlockElement =
       /** Overrides the face the level binds to. */
       family?: TypeFamily | undefined
       /** Overrides the automatic ink. */
-      color?: ColorValue | undefined
+      color?: FlatColor | undefined
     })
   | (ElementBase & { kind: 'priceMark'; style?: PriceMarkStyle | undefined })
-  | (ElementBase & { kind: 'chip'; anchor: ChipAnchorRef; fill?: ColorValue | undefined })
+  | (ElementBase & { kind: 'chip'; anchor: ChipAnchorRef; fill?: FlatColor | undefined })
   | (ElementBase & { kind: 'logo' })
   | (ElementBase & {
       kind: 'shape'
@@ -380,11 +424,11 @@ export type BlockElement =
  */
 export interface PriceMarkStyle {
   /** The tier tab and the outline. Defaults to the tier's own colour. */
-  tint?: ColorValue | undefined
+  tint?: FlatColor | undefined
   /** The digits. */
-  ink?: ColorValue | undefined
+  ink?: FlatColor | undefined
   /** The ground the mark sits on. */
-  surface?: ColorValue | undefined
+  surface?: FlatColor | undefined
   /** `plain` drops the ground and the outline: digits alone on the card. */
   frame?: 'tag' | 'plain' | undefined
   /** `none` hides the tier tab. The chip element is the other place it shows. */

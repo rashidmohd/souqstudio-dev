@@ -1,13 +1,21 @@
 'use client'
 
 import * as React from 'react'
-import type { BlockElement, BrandColor, ColorValue, TokenRef, TypeStep } from '@souqstudio/types'
+import type {
+  BlockElement,
+  BrandColor,
+  ColorValue,
+  FlatColor,
+  TokenRef,
+  TypeStep,
+} from '@souqstudio/types'
 import {
   fitPolicy,
   fitText,
   layoutPriceMark,
   placeText,
   resolveColor,
+  resolvePaint,
   type Rect,
   type TextMeasurer,
 } from '@souqstudio/engine'
@@ -46,6 +54,14 @@ export type ArtboardOffer = Pick<
 >
 
 export type DrawContext = {
+  /**
+   * Unique to this surface, and it prefixes every id this painter puts in the
+   * document — gradient definitions today. `React.useId()` at the surface is
+   * what it is for: `/brand/blocks` draws many blocks on one page and two
+   * copies of the same seed share element ids, so an unprefixed id would have
+   * one card's ground painting another's.
+   */
+  uid: string
   /** A brand-kit slot — `primary`, `accent`, `ink` — resolved to the shop's colour. */
   token: (ref: TokenRef) => string
   /**
@@ -71,8 +87,57 @@ export type DrawContext = {
 }
 
 /** A colour the element named, in whichever of the three ways it named it. */
-export const paint = (ctx: DrawContext, value: ColorValue): string =>
+export const paint = (ctx: DrawContext, value: FlatColor): string =>
   resolveColor(value, ctx.token, ctx.palette ?? [])
+
+/**
+ * A fill that may be a gradient, and the definition it needs to exist.
+ *
+ * **SVG cannot take a gradient as an attribute value.** It takes `url(#id)` and
+ * expects a `<linearGradient>` with that id somewhere in the same document — so
+ * a fill is two things here where a flat colour was one, and the caller has to
+ * render `defs` as well as apply `fill`.
+ *
+ * The definition is emitted **beside the shape rather than at the root of the
+ * svg**. A `<linearGradient>` paints nothing itself and resolves document-wide
+ * wherever it sits, so hoisting it to a single `<defs>` at the top would buy
+ * nothing and cost a channel from every element back up to the surface — which
+ * on the library page means threading state through sixty previews.
+ *
+ * `ctx.uid` is what keeps the id unique, and it has to. Ids are document-global,
+ * `/brand/blocks` draws every block the shop owns on one page, and two of them
+ * imported from the same seed carry the same element ids — so without a
+ * per-surface prefix the second card's ground silently adopts the first card's
+ * gradient. That failure looks like a rendering bug and is a naming one.
+ */
+export function fillPaint(
+  ctx: DrawContext,
+  value: ColorValue,
+  slot: string
+): { fill: string; defs: React.ReactNode } {
+  const resolved = resolvePaint(value, ctx.token, ctx.palette ?? [])
+  if (resolved.kind === 'flat') return { fill: resolved.css, defs: null }
+
+  const id = `${ctx.uid}-${slot}`
+  return {
+    fill: `url(#${id})`,
+    defs: (
+      <defs>
+        <linearGradient
+          id={id}
+          x1={resolved.x1}
+          y1={resolved.y1}
+          x2={resolved.x2}
+          y2={resolved.y2}
+        >
+          {resolved.stops.map((stop, index) => (
+            <stop key={index} offset={stop.at} stopColor={stop.css} />
+          ))}
+        </linearGradient>
+      </defs>
+    ),
+  }
+}
 
 /**
  * One element, painted.
@@ -145,34 +210,50 @@ function Shape({
       ? {}
       : { stroke: paint(ctx, stroke.color), strokeWidth: stroke.width * ctx.blockSize }
 
+  // The only fill in the model that may be a gradient — see `ColorValue`. A
+  // stroke, a chip and the price mark are flat by type, so `paint` still serves
+  // them and no other kind grew a second code path.
+  const { fill, defs } = fillPaint(ctx, element.fill, `${element.id}-fill`)
+
   if (element.variant === 'line') {
     return (
-      <line
-        x1={box.x}
-        y1={box.y + box.height / 2}
-        x2={box.x + box.width}
-        y2={box.y + box.height / 2}
-        stroke={paint(ctx, element.fill)}
-        strokeWidth={Math.max(1, (stroke?.width ?? 0.004) * ctx.blockSize)}
-        strokeLinecap="round"
-      />
+      <>
+        {defs}
+        <line
+          x1={box.x}
+          y1={box.y + box.height / 2}
+          x2={box.x + box.width}
+          y2={box.y + box.height / 2}
+          stroke={fill}
+          strokeWidth={Math.max(1, (stroke?.width ?? 0.004) * ctx.blockSize)}
+          strokeLinecap="round"
+        />
+      </>
     )
   }
 
   if (element.variant === 'ellipse') {
     return (
-      <ellipse
-        cx={box.x + box.width / 2}
-        cy={box.y + box.height / 2}
-        rx={box.width / 2}
-        ry={box.height / 2}
-        fill={paint(ctx, element.fill)}
-        {...strokeProps}
-      />
+      <>
+        {defs}
+        <ellipse
+          cx={box.x + box.width / 2}
+          cy={box.y + box.height / 2}
+          rx={box.width / 2}
+          ry={box.height / 2}
+          fill={fill}
+          {...strokeProps}
+        />
+      </>
     )
   }
 
-  return <rect {...xywh(box)} rx={element.radius} fill={paint(ctx, element.fill)} {...strokeProps} />
+  return (
+    <>
+      {defs}
+      <rect {...xywh(box)} rx={element.radius} fill={fill} {...strokeProps} />
+    </>
+  )
 }
 
 export const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.height })
