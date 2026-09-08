@@ -10,6 +10,7 @@ import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { FREE_ELEMENTS } from '@/lib/block-elements'
 import { assetResolver } from '@/lib/block-assets'
 import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
+import { Segmented } from '@/components/ui/segmented'
 import { Button } from '@/components/ui/button'
 import { BlockArtboard } from '@/components/card-designer/BlockArtboard'
 import { BlockProperties } from '@/components/card-designer/BlockProperties'
@@ -425,24 +426,16 @@ export function DesignerShell({
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-ui text-body-sm text-inverse">Designing for</span>
-              <div role="tablist" aria-label="Canvas shape" className="flex flex-wrap gap-1">
-                {(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => (
-                  <button
-                    key={shape}
-                    role="tab"
-                    type="button"
-                    aria-selected={pageShape === shape}
-                    onClick={() => setPageShape(shape)}
-                    className={
-                      pageShape === shape
-                        ? 'rounded-pill bg-surface px-3 py-1 font-ui text-body-sm text-primary'
-                        : 'rounded-pill px-3 py-1 font-ui text-body-sm text-inverse hover:bg-stone-800'
-                    }
-                  >
-                    {PAGE_SHAPES[shape].label}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                label="Canvas shape"
+                value={pageShape}
+                className="bg-surface"
+                options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
+                  value: shape,
+                  label: PAGE_SHAPES[shape].label,
+                }))}
+                onChange={setPageShape}
+              />
             </div>
           )}
 

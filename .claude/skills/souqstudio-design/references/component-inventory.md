@@ -526,6 +526,62 @@ type TabsProps = {
 **No `variant` prop.** One tab style in the product — underline. Pill tabs and boxed tabs
 do not exist, so there is nothing to choose between.
 
+### Segmented · ToggleBar
+
+| | |
+| --- | --- |
+| File | `components/ui/segmented.tsx` |
+| Status | `built` — apps/web only |
+| Governs | one-of-these and any-of-these choices in a canvas chrome |
+
+```tsx
+type Segment<T extends string> = {
+  value: T
+  label: string          // the accessible name AND the tooltip — never omitted
+  icon?: LucideIcon
+  glyph?: string         // a typographic mark: `TT`, `Aa`
+  mirror?: boolean       // flips in RTL, for glyphs that point somewhere
+}
+
+type SegmentedProps<T> = {
+  label: string
+  value: T
+  options: Segment<T>[]
+  disabled?: boolean
+  onChange: (value: T) => void
+  className?: string
+}
+
+type ToggleBarProps = {
+  label: string
+  options: (Segment<string> & { pressed: boolean })[]
+  disabled?: boolean
+  onToggle: (value: string, pressed: boolean) => void
+  className?: string
+}
+```
+
+**Added because three surfaces had already grown their own** — the block
+designer's language switch, its canvas-shape picker and the alignment buttons in
+its properties panel. Three shells, three sets of borders, three ideas of what
+selected looks like. That is the thing this file exists to stop.
+
+**One bordered shell, flush segments inside it.** The failure it replaces was a
+row of individually bordered squares: each read as its own control, so a pair of
+toggles looked like two unrelated buttons that happened to be adjacent rather
+than one group about one thing.
+
+**Two components rather than a `multiple` flag.** `Segmented` is one-of-these —
+choosing one unchooses the others — and `ToggleBar` is any-of-these. An owner
+reads which they are looking at *before* they touch it, and a shared component
+with a mode prop hides exactly that.
+
+`glyph` exists because the mark for uppercase **is** type. `TT` is what every
+design tool draws and no icon set carries it; an icon of letterforms at 16px is
+a worse version of the letterforms the interface already has.
+
+Not `Tabs`. Tabs navigate between panels and are underlined; this sets a value.
+
 ### StatusPill
 
 | | |

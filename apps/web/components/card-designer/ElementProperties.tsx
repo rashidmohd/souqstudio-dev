@@ -1,17 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
-  CaseUpper,
-  Circle,
-  Italic,
-  Lock,
-  Minus,
-  Square,
-} from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, Circle, Italic, Lock, Minus, Square } from 'lucide-react'
 import type {
   BlockElement,
   BrandColor,
@@ -23,7 +13,7 @@ import { TYPE_LEVELS } from '@souqstudio/types'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
-import { IconChoice, IconToggle } from '@/components/card-designer/IconChoice'
+import { Segmented, ToggleBar } from '@/components/ui/segmented'
 import { describe } from '@/components/card-designer/LayerList'
 
 /**
@@ -106,17 +96,19 @@ export function ElementProperties({
 
       {element.kind === 'shape' ? (
         <>
-          <IconChoice
-            label="Shape"
-            disabled={disabled}
-            value={element.variant ?? 'rect'}
-            options={[
-              { value: 'rect', label: 'Rectangle', icon: Square },
-              { value: 'ellipse', label: 'Circle', icon: Circle },
-              { value: 'line', label: 'Line', icon: Minus },
-            ]}
-            onChange={(variant) => onChange({ ...element, variant })}
-          />
+          <Field label="Shape">
+            <Segmented
+              label="Shape"
+              disabled={disabled}
+              value={element.variant ?? 'rect'}
+              options={[
+                { value: 'rect', label: 'Rectangle', icon: Square },
+                { value: 'ellipse', label: 'Circle', icon: Circle },
+                { value: 'line', label: 'Line', icon: Minus },
+              ]}
+              onChange={(variant) => onChange({ ...element, variant })}
+            />
+          </Field>
           <ColorControl
             label="Colour"
             value={element.fill}
@@ -190,6 +182,33 @@ export function ElementProperties({
 
       <Appearance element={element} disabled={disabled} onChange={onChange} />
       <BoxFields element={element} disabled={disabled} onChange={onChange} />
+    </div>
+  )
+}
+
+/**
+ * A label above a control that is not an `Input` or a `Select`.
+ *
+ * Those two draw their own label, and a segmented control on its own would be a
+ * row of buttons with no name — the panel reads as a list of decisions, and a
+ * decision without a name is a puzzle.
+ */
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-ui text-label font-medium text-primary">{label}</span>
+      {children}
+      {hint === undefined ? null : (
+        <p className="font-ui text-body-sm text-muted">{hint}</p>
+      )}
     </div>
   )
 }
@@ -404,18 +423,22 @@ function TextFields({
           and the value they set is logical rather than physical: `start` is the
           reading-order start, which is the right edge in Arabic. An arrow that
           pointed left while setting the right edge would be a lie. */}
-      <IconChoice
+      <Field
         label="Alignment"
-        disabled={disabled}
-        value={element.align}
         hint="Start and end follow the language, so Arabic mirrors on its own."
-        options={[
-          { value: 'start', label: 'Reading-order start', icon: AlignLeft, mirror: true },
-          { value: 'center', label: 'Centre', icon: AlignCenter },
-          { value: 'end', label: 'Reading-order end', icon: AlignRight, mirror: true },
-        ]}
-        onChange={(align) => onChange({ ...element, align })}
-      />
+      >
+        <Segmented
+          label="Alignment"
+          disabled={disabled}
+          value={element.align}
+          options={[
+            { value: 'start', label: 'Reading-order start', icon: AlignLeft, mirror: true },
+            { value: 'center', label: 'Centre', icon: AlignCenter },
+            { value: 'end', label: 'Reading-order end', icon: AlignRight, mirror: true },
+          ]}
+          onChange={(align) => onChange({ ...element, align })}
+        />
+      </Field>
 
       <ColorControl
         label="Text colour"
@@ -516,27 +539,31 @@ function SizeFields({
         }}
       />
 
-      <div className="flex items-center gap-2">
-        {/* Italics are offered and warned about, never blocked — it is the
-            shop's brand. Most Arabic-capable families ship no true italic, and
-            Arabic has no italic convention to synthesise toward. */}
-        <IconToggle
-          label="Italic"
-          icon={Italic}
+      {/* One group, because they are one thing an owner is deciding about this
+          text — two separately bordered squares read as two unrelated controls.
+          Italics are offered and warned about, never blocked: it is the shop's
+          brand, and most Arabic-capable families ship no true italic.
+          Uppercase draws as `TT` rather than as an icon, because in every design
+          tool the mark for case *is* type. */}
+      <Field label="Style">
+        <ToggleBar
+          label="Style"
           disabled={disabled}
-          pressed={element.italic ?? false}
-          onChange={(italic) => onChange({ ...element, italic })}
+          options={[
+            { value: 'italic', label: 'Italic', icon: Italic, pressed: element.italic ?? false },
+            {
+              value: 'uppercase',
+              label: 'UPPERCASE',
+              glyph: 'TT',
+              pressed: element.transform === 'uppercase',
+            },
+          ]}
+          onToggle={(value, pressed) => {
+            if (value === 'italic') onChange({ ...element, italic: pressed })
+            else onChange({ ...element, transform: pressed ? 'uppercase' : 'none' })
+          }}
         />
-        <IconToggle
-          label="UPPERCASE"
-          icon={CaseUpper}
-          disabled={disabled}
-          pressed={element.transform === 'uppercase'}
-          onChange={(on) =>
-            onChange({ ...element, transform: on ? 'uppercase' : 'none' })
-          }
-        />
-      </div>
+      </Field>
     </div>
   )
 }

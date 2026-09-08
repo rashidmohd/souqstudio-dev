@@ -564,3 +564,32 @@ One bug of my own worth recording: the fit effect marked its work done *before*
 its early return, so a first pass that ran before layout — when the column has no
 height — locked the fit out permanently. The guard has to come after the thing it
 is guarding.
+
+### The controls were four hand-rolled segmented controls
+
+*"The italics and AB icon are not looking great — for text alignment I think we
+have a better grouped button we can use."*
+
+Right, and the cause was worse than the symptom. **Four surfaces had each grown
+their own version of the same control**: the language switch, the canvas-shape
+picker, the alignment buttons and the italic/case pair. Four shells, four sets of
+borders, four ideas of what selected looks like — which is precisely what
+`references/component-inventory.md` exists to prevent, and there was no entry for
+it because nobody had built one.
+
+`components/ui/segmented.tsx` is the one, and the inventory entry is written.
+
+- **One bordered shell, flush segments inside.** The pair of italic/case buttons
+  had a border each, so they read as two unrelated controls that happened to sit
+  next to each other rather than one group about one thing.
+- **Two components, not a `multiple` flag.** `Segmented` is one-of-these —
+  choosing one unchooses the others — and `ToggleBar` is any-of-these. An owner
+  reads which they are looking at before they touch it, and a mode prop hides
+  exactly that.
+- **`TT`, not an icon.** The mark for uppercase *is* type: every design tool
+  draws it as letterforms, no icon set carries it, and lucide's `CaseUpper` is an
+  `AB` that reads as neither. `Segment.glyph` renders it in the interface face,
+  which is a better version of letterforms than any 16px drawing of them.
+- **A `Field` wrapper in the panel**, because `Input` and `Select` draw their own
+  labels and a bare row of buttons would have none. The panel is a list of
+  decisions and a decision without a name is a puzzle.
