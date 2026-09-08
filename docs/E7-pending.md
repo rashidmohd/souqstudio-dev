@@ -506,3 +506,61 @@ by reading the code.
 dev server is running overwrites the `.next` directory it is serving from, and
 the dev server then 404s its own chunks until it is restarted. It cost a
 confusing five minutes. Build in CI or stop the dev server first.
+
+### A tool, not a form — the interface pass
+
+The owner's second look: *"can we make the left side look like a toolbar in
+Photoshop, Illustrator and Canva, use icons familiar to that kind of tool even
+in the settings, and let the layer list be dragged to change the index."*
+
+All three were right, and the first one is the one that matters: **a labelled
+list of cards reads as a form, and a form is what was rejected.** Every
+application named puts a narrow strip of glyphs on the start edge, so a shop
+owner who has opened any of them arrives already knowing where the shapes are.
+
+- **The tool rail** — `ToolRail.tsx`, 56px, the pointer first and then the
+  conventional glyphs: a paint bucket for a ground, a square, a circle, a rule,
+  a `T` for type, an image-plus for an upload. **The two with no convention are
+  the two that are ours** — a product field and a price mark exist in no other
+  design tool — so those sit in their own tinted group below a divider, which is
+  also one of the three places bound elements have to be marked.
+- **Icons only where a convention exists.** Alignment, italics and case became
+  buttons; weight stayed a list, because four named weights are four values an
+  owner picks between and a `B` would collapse them to two. A binding — *what
+  does this text show* — stays a select: there is no glyph anybody has seen for
+  "product name", and inventing one is not borrowing a vocabulary.
+- **Layers drag, and front-most is at the top.** That is the order all four
+  tools use, and it is the reverse of the array underneath — index 0 paints
+  first, so it is furthest back. The list renders reversed and translates on the
+  way out; getting that backwards would send every drag the wrong way.
+
+**Every icon carries its name** in `title` and `aria-label`. An icon rail is
+fast for people who know it and opaque for people who do not, and that is the
+entire cost of the pattern.
+
+### Three more things the browser found
+
+Only one of the three was in what the owner asked for. All three were invisible
+to every test.
+
+**The shell was `min-h-screen`, so nothing scrolled inside it.** A canvas
+application's shell is exactly the window; with a minimum instead of a height,
+the three-pane row had no definite height to divide, `flex-1` sized to content,
+the `overflow-auto` on each pane never engaged, and the *document* scrolled — a
+1,188px card ran off the bottom of the window and took the tool rail and the
+properties panel with it. **The offer book editor had the same bug**, and both
+are now `h-screen overflow-hidden`.
+
+**Fit-to-view then silently did nothing**, because it measures the column it is
+fitting into and that column was as tall as its content: the ratio came out
+above 1 and clamped to 100%. With the shell fixed, a tall card opens at 66% and
+the whole thing is on screen — which is what every tool this is modelled on does
+on open, and for the reason that the first thing you need is the whole thing.
+
+**The layer names were truncated to `Prod…`** once the rail took 56px out of a
+288px pane. `--sq-pane-start` is 344 now.
+
+One bug of my own worth recording: the fit effect marked its work done *before*
+its early return, so a first pass that ran before layout — when the column has no
+height — locked the fit out permanently. The guard has to come after the thing it
+is guarding.

@@ -183,6 +183,7 @@ const config: Config = {
         // `w-80` do not exist here and compiled to nothing — see the token file.
         'pane-start': 'var(--sq-pane-start)',
         'pane-end': 'var(--sq-pane-end)',
+        'tool-rail': 'var(--sq-tool-rail)',
         'field-select': 'var(--sq-field-select)',
         'skeleton-chip': 'var(--sq-skeleton-chip)',
       },

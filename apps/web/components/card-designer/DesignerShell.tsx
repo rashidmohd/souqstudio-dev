@@ -13,7 +13,7 @@ import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
 import { Button } from '@/components/ui/button'
 import { BlockArtboard } from '@/components/card-designer/BlockArtboard'
 import { BlockProperties } from '@/components/card-designer/BlockProperties'
-import { ElementPalette } from '@/components/card-designer/ElementPalette'
+import { ToolRail } from '@/components/card-designer/ToolRail'
 import { ElementProperties } from '@/components/card-designer/ElementProperties'
 import { LayerList } from '@/components/card-designer/LayerList'
 import { StressPreview } from '@/components/card-designer/StressPreview'
@@ -160,6 +160,47 @@ export function DesignerShell({
 
   const offer = React.useMemo(() => toArtboardOffer(TYPICAL_PRODUCT, direction === 'rtl'), [direction])
 
+  /**
+   * Open at a zoom that shows the whole card.
+   *
+   * **A tall booklet card is about 1.8 times as tall as it is wide**, so at the
+   * full width of its column it runs well past the bottom of the window — an
+   * owner opening the designer saw the top half of a card and a scrollbar. Every
+   * tool this is modelled on opens at fit, and for the same reason: the first
+   * thing you need is the whole thing.
+   *
+   * Measured rather than assumed, because the column's height depends on the
+   * window, the warning banners above it and whether the stress panel is
+   * showing. Only on mount and on a change of shape — re-fitting after the owner
+   * has zoomed would be the tool arguing with them.
+   */
+  const stage = React.useRef<HTMLDivElement | null>(null)
+  const fitted = React.useRef<string>('')
+  const setZoom = store.setZoom
+
+  React.useEffect(() => {
+    const node = stage.current
+    if (node === null) return
+
+    const shape = `${width}x${height}`
+    if (fitted.current === shape) return
+
+    // The artboard fills the column's width, so its drawn height is that width
+    // times its own aspect. Fit is whatever fraction of the column brings that
+    // back inside the visible height.
+    const available = node.clientHeight - 96
+    const natural = node.clientWidth * (height / width)
+
+    // **Marked as fitted only once it actually fitted.** The first pass can run
+    // before layout, when the column has no height yet; recording the shape
+    // there would lock the fit out for good and leave the owner at 100% on a
+    // card twice the height of the window. That is exactly what it did.
+    if (available <= 0 || natural <= 0) return
+    fitted.current = shape
+
+    setZoom(Math.min(1, Math.max(0.25, available / natural)))
+  }, [width, height, setZoom])
+
   const problems = React.useMemo(
     () => validateBlock({ repeats, arrangements: store.arrangements }),
     [repeats, store.arrangements]
@@ -229,7 +270,7 @@ export function DesignerShell({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas-surround">
+    <div className="flex h-screen flex-col overflow-hidden bg-canvas-surround">
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
         <Link
           href="/brand/blocks"
@@ -312,23 +353,29 @@ export function DesignerShell({
       <Problems problems={problems} />
 
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="w-full shrink-0 overflow-auto border-b-hairline border-border-subtle bg-surface p-4 lg:order-first lg:w-pane-start lg:border-b-0 lg:border-e-hairline">
-          <div className="flex flex-col gap-6">
-            <ElementPalette
-              repeats={repeats}
-              disabled={!editable}
-              uploading={uploading}
-              onUpload={editable ? () => fileInput.current?.click() : undefined}
-              onAdd={(element, atBottom) => {
-                // Paint order is array order, so "behind everything" is the
-                // front of the list. A background appended like anything else
-                // covers the card.
-                store.setElements(
-                  atBottom === true ? [element, ...elements] : addElement(elements, element)
-                )
-                store.select([element.id])
-              }}
-            />
+        {/* Tools on the far edge, layers beside them — the arrangement every
+            application this is modelled on uses, and the reason an owner who has
+            opened one of them knows where to look. */}
+        <aside className="flex w-full shrink-0 border-b-hairline border-border-subtle bg-surface lg:order-first lg:w-pane-start lg:border-b-0 lg:border-e-hairline">
+          <ToolRail
+            repeats={repeats}
+            disabled={!editable}
+            uploading={uploading}
+            idle={store.selectedIds.length === 0}
+            onSelectNone={() => store.select([])}
+            onUpload={editable ? () => fileInput.current?.click() : undefined}
+            onAdd={(element, atBottom) => {
+              // Paint order is array order, so "behind everything" is the front
+              // of the list. A background appended like anything else covers
+              // the card.
+              store.setElements(
+                atBottom === true ? [element, ...elements] : addElement(elements, element)
+              )
+              store.select([element.id])
+            }}
+          />
+
+          <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-3">
 
             {/* Hidden, and driven by the palette's own button: a bare file input
                 is the one control in the product nobody can style, and the
@@ -347,7 +394,7 @@ export function DesignerShell({
 
             <section className="flex flex-col gap-2">
               <h2 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">
-                On this layout
+                Layers
               </h2>
               <LayerList
                 elements={elements}
@@ -357,9 +404,7 @@ export function DesignerShell({
                   if (additive === true && ids[0] !== undefined) store.toggleSelect(ids[0])
                   else store.select(ids)
                 }}
-                onReorder={(from, to) => {
-                  store.setElements(reorderElement(elements, from, to))
-                }}
+                onReorder={(from, to) => store.setElements(reorderElement(elements, from, to))}
                 onRemove={(id) => {
                   store.select([id])
                   store.removeSelected()
@@ -374,7 +419,7 @@ export function DesignerShell({
           </div>
         </aside>
 
-        <div className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
+        <div ref={stage} className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
           {repeats ? (
             <ArrangementTabs />
           ) : (

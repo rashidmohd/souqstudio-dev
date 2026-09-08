@@ -1,29 +1,40 @@
 'use client'
 
 import * as React from 'react'
-import { ArrowDown, ArrowUp, Link2, Lock, LockOpen, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, GripVertical, Link2, Lock, LockOpen, Trash2 } from 'lucide-react'
 import type { BlockElement } from '@souqstudio/types'
 import { isBound } from '@souqstudio/engine'
 
 /**
  * The layer list. E7.
  *
- * **Array order is paint order**, so this list *is* the z-order and the arrows
- * are the only control over it. Bottom of the list paints last, which is why it
- * is listed last: a list that showed the top layer first would put the arrows
- * the wrong way round for anyone who has used a design tool.
+ * **Front-most at the top, which is the opposite of how it was built and the
+ * same as every tool this is modelled on.** Photoshop, Illustrator, Figma and
+ * Canva all put the layer nearest the viewer at the top of the list, and an
+ * owner who has used any of them reads the first row as "the thing in front".
+ * The array underneath is paint order — index 0 is drawn first, so it is
+ * furthest back — so this list renders it reversed and translates on the way
+ * out. Getting that backwards makes every drag go the wrong way, which is worse
+ * than having no list.
+ *
+ * **Drag to reorder, and keep the arrows.** Dragging is what anyone coming from
+ * a design tool reaches for first; the arrows are the tablet path, and the
+ * design system asks for a persistent equivalent because long-press drag is
+ * unreliable on an iPad. Neither is a fallback for the other.
  *
  * The leading indicator is the second of the three places the design system
  * requires a bound element to be marked. It reads its answer from the engine's
- * `isBound`, as do the canvas and the palette — three surfaces deriving it
+ * `isBound`, as do the canvas and the tool rail — three surfaces deriving it
  * separately is how one of them ends up wrong.
  */
 
 type Props = {
+  /** In paint order: index 0 is furthest back. Displayed reversed. */
   elements: BlockElement[]
   selectedIds: readonly string[]
   disabled: boolean
   onSelect: (ids: string[], additive?: boolean) => void
+  /** Both indexes are into the **paint-order** array, not into this list. */
   onReorder: (from: number, to: number) => void
   onRemove: (id: string) => void
   onToggleLock: (id: string) => void
@@ -38,38 +49,90 @@ export function LayerList({
   onRemove,
   onToggleLock,
 }: Props) {
+  const [dragging, setDragging] = React.useState<string | null>(null)
+  const [over, setOver] = React.useState<string | null>(null)
+
   if (elements.length === 0) {
     return (
       <p className="font-ui text-body-sm text-muted">
-        Nothing on this layout yet. Add something from the palette.
+        Nothing on this layout yet. Pick a tool to add something.
       </p>
     )
   }
 
+  // Reversed for display; every index handed back is translated to paint order.
+  const rows = [...elements].reverse()
+  const paintIndex = (row: number) => elements.length - 1 - row
+
+  function drop(targetRow: number) {
+    const source = dragging
+    setDragging(null)
+    setOver(null)
+    if (source === null) return
+
+    const from = elements.findIndex((element) => element.id === source)
+    if (from === -1) return
+    onReorder(from, paintIndex(targetRow))
+  }
+
   return (
     <ul className="flex flex-col gap-1">
-      {elements.map((element, index) => {
+      {rows.map((element, row) => {
         const bound = isBound(element)
         const selected = selectedIds.includes(element.id)
         const locked = element.locked === true
+        const index = paintIndex(row)
 
         return (
           <li
             key={element.id}
-            className={
-              selected
-                ? 'flex items-center gap-1 rounded-control bg-selected-bg p-1'
-                : 'flex items-center gap-1 rounded-control p-1'
+            draggable={!disabled && !locked}
+            onDragStart={(event) => {
+              setDragging(element.id)
+              event.dataTransfer.effectAllowed = 'move'
+              // Firefox starts no drag at all without payload.
+              event.dataTransfer.setData('text/plain', element.id)
+            }}
+            onDragEnd={() => {
+              setDragging(null)
+              setOver(null)
+            }}
+            onDragOver={(event) => {
+              if (dragging === null) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              setOver(element.id)
+            }}
+            onDragLeave={() =>
+              setOver((current) => (current === element.id ? null : current))
             }
+            onDrop={(event) => {
+              event.preventDefault()
+              drop(row)
+            }}
+            className={[
+              'flex items-center gap-1 rounded-control p-1',
+              selected ? 'bg-selected-bg' : '',
+              dragging === element.id ? 'opacity-50' : '',
+              over === element.id && dragging !== element.id
+                ? 'outline outline-2 outline-offset-2 outline-border-focus'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
+            <GripVertical
+              className={locked ? 'size-4 shrink-0 text-muted opacity-disabled' : 'size-4 shrink-0 text-muted'}
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+
             <button
               type="button"
               // Shift and cmd add to the selection, exactly as on the canvas —
               // two ways of doing the same thing that behaved differently would
               // be worse than one.
-              onClick={(event) =>
-                onSelect([element.id], event.shiftKey || event.metaKey)
-              }
+              onClick={(event) => onSelect([element.id], event.shiftKey || event.metaKey)}
               className="flex min-w-0 flex-1 items-center gap-2 text-start"
             >
               {/* The mark, not a colour alone: a link glyph for bound, a rule
@@ -77,7 +140,7 @@ export function LayerList({
               {bound ? (
                 <Link2 className="size-4 shrink-0 text-link" strokeWidth={1.75} aria-hidden="true" />
               ) : (
-                <span className="ms-1 h-4 w-px shrink-0 bg-border-strong" aria-hidden="true" />
+                <span className="h-4 w-px shrink-0 bg-border-strong" aria-hidden="true" />
               )}
               <span className="truncate font-ui text-body-sm text-primary">
                 {describe(element)}
@@ -88,51 +151,75 @@ export function LayerList({
               <span className="sr-only">{bound ? 'From the catalog' : 'Fixed'}</span>
             </button>
 
-            <button
-              type="button"
+            <IconButton
+              label={locked ? `Unlock ${describe(element)}` : `Lock ${describe(element)}`}
+              pressed={locked}
               disabled={disabled}
               onClick={() => onToggleLock(element.id)}
-              aria-label={locked ? `Unlock ${describe(element)}` : `Lock ${describe(element)}`}
-              aria-pressed={locked}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
             >
               {locked ? (
                 <Lock className="size-4" strokeWidth={1.75} aria-hidden="true" />
               ) : (
                 <LockOpen className="size-4" strokeWidth={1.75} aria-hidden="true" />
               )}
-            </button>
-            <button
-              type="button"
-              disabled={disabled || index === 0}
-              onClick={() => onReorder(index, index - 1)}
-              aria-label={`Move ${describe(element)} behind`}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
+            </IconButton>
+
+            {/* Up is toward the front, because up is toward the front of this
+                list. The paint-order index moves the other way, which is what
+                `paintIndex` is for. */}
+            <IconButton
+              label={`Bring ${describe(element)} forward`}
+              disabled={disabled || row === 0}
+              onClick={() => onReorder(index, index + 1)}
             >
               <ArrowUp className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              disabled={disabled || index === elements.length - 1}
-              onClick={() => onReorder(index, index + 1)}
-              aria-label={`Move ${describe(element)} in front`}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
+            </IconButton>
+            <IconButton
+              label={`Send ${describe(element)} back`}
+              disabled={disabled || row === rows.length - 1}
+              onClick={() => onReorder(index, index - 1)}
             >
               <ArrowDown className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
+            </IconButton>
+            <IconButton
+              label={`Delete ${describe(element)}`}
               disabled={disabled}
               onClick={() => onRemove(element.id)}
-              aria-label={`Remove ${describe(element)}`}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
             >
               <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </button>
+            </IconButton>
           </li>
         )
       })}
     </ul>
+  )
+}
+
+function IconButton({
+  label,
+  disabled,
+  pressed,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled: boolean
+  pressed?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-pressed={pressed}
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
+    >
+      {children}
+    </button>
   )
 }
 

@@ -164,7 +164,10 @@
      whole width, and pushed the artboard off the screen. It shipped in E6 and
      was found in E7 by opening the designer and seeing a palette where a canvas
      should be — which is what consistency check #9 is for. */
-  --sq-pane-start:     288px;   /* palette, or the offer tray */
+  --sq-pane-start:     344px;   /* the offer tray; or, in the designer, the
+                                   56px tool rail plus a layer list wide enough
+                                   to read a name in — at 288 every row
+                                   truncated to "Prod…" */
   --sq-pane-end:       320px;   /* properties */
 
   /* Component box sizes. Off the spacing scale on purpose: spacing is the gap
@@ -178,6 +181,9 @@
   --sq-skeleton-chip:   64px;   /* stands in for a chip */
   --sq-field-select:   176px;   /* a role select; its longest option sets this */
   --sq-swatch:          28px;   /* a colour swatch in the block designer */
+  --sq-tool-rail:       56px;   /* the designer's tool strip — one 40px button
+                                   plus its breathing room, the width every
+                                   design tool has trained people to expect */
 
   --sq-dur-fast: 120ms;
   --sq-dur-base: 200ms;

@@ -115,7 +115,7 @@ export function EditorShell({
   const liveOverrides = useEditorStore((state) => state.overrides)
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas-surround">
+    <div className="flex h-screen flex-col overflow-hidden bg-canvas-surround">
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
         <Link
           href="/"

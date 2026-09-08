@@ -1,7 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { Lock } from 'lucide-react'
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  CaseUpper,
+  Circle,
+  Italic,
+  Lock,
+  Minus,
+  Square,
+} from 'lucide-react'
 import type {
   BlockElement,
   BrandColor,
@@ -13,6 +23,7 @@ import { TYPE_LEVELS } from '@souqstudio/types'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
+import { IconChoice, IconToggle } from '@/components/card-designer/IconChoice'
 import { describe } from '@/components/card-designer/LayerList'
 
 /**
@@ -95,18 +106,16 @@ export function ElementProperties({
 
       {element.kind === 'shape' ? (
         <>
-          <Select
+          <IconChoice
             label="Shape"
             disabled={disabled}
             value={element.variant ?? 'rect'}
             options={[
-              { value: 'rect', label: 'Rectangle' },
-              { value: 'ellipse', label: 'Circle' },
-              { value: 'line', label: 'Line' },
+              { value: 'rect', label: 'Rectangle', icon: Square },
+              { value: 'ellipse', label: 'Circle', icon: Circle },
+              { value: 'line', label: 'Line', icon: Minus },
             ]}
-            onChange={(event) =>
-              onChange({ ...element, variant: event.target.value as 'rect' | 'ellipse' | 'line' })
-            }
+            onChange={(variant) => onChange({ ...element, variant })}
           />
           <ColorControl
             label="Colour"
@@ -391,19 +400,21 @@ function TextFields({
 
       <SizeFields element={element} disabled={disabled} onChange={onChange} />
 
-      <Select
+      {/* The glyphs mirror in an Arabic interface, because they point somewhere
+          and the value they set is logical rather than physical: `start` is the
+          reading-order start, which is the right edge in Arabic. An arrow that
+          pointed left while setting the right edge would be a lie. */}
+      <IconChoice
         label="Alignment"
         disabled={disabled}
         value={element.align}
         hint="Start and end follow the language, so Arabic mirrors on its own."
         options={[
-          { value: 'start', label: 'Reading-order start' },
-          { value: 'center', label: 'Centre' },
-          { value: 'end', label: 'Reading-order end' },
+          { value: 'start', label: 'Reading-order start', icon: AlignLeft, mirror: true },
+          { value: 'center', label: 'Centre', icon: AlignCenter },
+          { value: 'end', label: 'Reading-order end', icon: AlignRight, mirror: true },
         ]}
-        onChange={(event) =>
-          onChange({ ...element, align: event.target.value as typeof element.align })
-        }
+        onChange={(align) => onChange({ ...element, align })}
       />
 
       <ColorControl
@@ -479,55 +490,53 @@ function SizeFields({
         />
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Select
-          label="Weight"
+      {/* **Weight stays a list; italics and case become buttons.** Four named
+          weights are four values an owner picks between and cannot guess from a
+          glyph — a `B` would collapse them to two. Italics and uppercase have
+          one glyph each and everybody already knows both. */}
+      <Select
+        label="Weight"
+        disabled={disabled}
+        value={String(element.weight ?? 0)}
+        options={[
+          { value: '0', label: 'From the style' },
+          { value: '400', label: 'Regular' },
+          { value: '600', label: 'Semibold' },
+          { value: '700', label: 'Bold' },
+          { value: '800', label: 'Heavy' },
+        ]}
+        onChange={(event) => {
+          const weight = Number(event.target.value)
+          if (weight === 0) {
+            const { weight: _dropped, ...rest } = element
+            onChange(rest as BlockElement)
+            return
+          }
+          onChange({ ...element, weight })
+        }}
+      />
+
+      <div className="flex items-center gap-2">
+        {/* Italics are offered and warned about, never blocked — it is the
+            shop's brand. Most Arabic-capable families ship no true italic, and
+            Arabic has no italic convention to synthesise toward. */}
+        <IconToggle
+          label="Italic"
+          icon={Italic}
           disabled={disabled}
-          value={String(element.weight ?? 0)}
-          options={[
-            { value: '0', label: 'From the style' },
-            { value: '400', label: 'Regular' },
-            { value: '600', label: 'Semibold' },
-            { value: '700', label: 'Bold' },
-            { value: '800', label: 'Heavy' },
-          ]}
-          onChange={(event) => {
-            const weight = Number(event.target.value)
-            if (weight === 0) {
-              const { weight: _dropped, ...rest } = element
-              onChange(rest as BlockElement)
-              return
-            }
-            onChange({ ...element, weight })
-          }}
+          pressed={element.italic ?? false}
+          onChange={(italic) => onChange({ ...element, italic })}
         />
-        <Select
-          label="Case"
+        <IconToggle
+          label="UPPERCASE"
+          icon={CaseUpper}
           disabled={disabled}
-          value={element.transform ?? 'none'}
-          options={[
-            { value: 'none', label: 'As written' },
-            { value: 'uppercase', label: 'UPPERCASE' },
-          ]}
-          onChange={(event) =>
-            onChange({ ...element, transform: event.target.value as 'none' | 'uppercase' })
+          pressed={element.transform === 'uppercase'}
+          onChange={(on) =>
+            onChange({ ...element, transform: on ? 'uppercase' : 'none' })
           }
         />
       </div>
-
-      {/* Offered and warned about, never blocked — it is the shop's brand. Most
-          Arabic-capable families ship no true italic, and Arabic has no italic
-          convention to synthesise toward. */}
-      <label className="flex items-center gap-2 font-ui text-label text-primary">
-        <input
-          type="checkbox"
-          disabled={disabled}
-          checked={element.italic ?? false}
-          onChange={(event) => onChange({ ...element, italic: event.target.checked })}
-          className="size-4 rounded-control border-hairline border-border-strong"
-        />
-        Italic
-      </label>
     </div>
   )
 }
