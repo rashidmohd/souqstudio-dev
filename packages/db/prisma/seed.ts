@@ -167,6 +167,11 @@ async function seedBlocks() {
       // JSON input type. Same assertion as `lib/brand-kit.ts` in the web app.
       arrangements: block.arrangements as unknown as Prisma.InputJsonValue,
       status: 'published',
+      // For an occasion rather than for a week. `activeFrom` and `activeTo` stay
+      // null on purpose: Ramadan and both Eids move against the Gregorian
+      // calendar, so a fixed window is a block that hides itself in the wrong
+      // month from its second year. See `library-seasonal.ts`.
+      isSeasonal: block.isSeasonal,
       // Null organizationId is what makes a block seeded rather than authored.
       organizationId: null,
     }

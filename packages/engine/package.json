@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "harness": "tsx harness/main.ts"
+    "harness": "tsx harness/main.ts",
+    "gallery": "tsx harness/gallery.ts"
   },
   "dependencies": {
     "@souqstudio/types": "workspace:*"

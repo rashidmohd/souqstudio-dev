@@ -138,6 +138,18 @@ pnpm --filter @souqstudio/db catalog:import-off -- --url --dry-run --limit 500
 
 Run `pnpm typecheck` after each meaningful change. Fix before continuing.
 
+**After UI work, and after a build:**
+
+```bash
+pnpm build && pnpm --filter @souqstudio/web check:classes
+```
+
+It reports every sized utility in the source that generates no CSS. The scales here are
+*replaced*, not extended, so an off-system class name is a valid string that styles nothing
+— typecheck has no opinion on it, the design lint rules test for wrong values rather than
+absent ones, and a component test asserts the same class the component already has. It has
+cost four screens. `docs/STATUS.md` §1.0.
+
 ---
 
 ## Known gaps
@@ -170,29 +182,30 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   `souqstudio-design → references/brand-kit-fonts.md`. E6 also has to
   `await document.fonts.load()` for every family and weight *before* creating any
   Fabric text object, or every bounding box is measured against the fallback.
-- **The layout engine runs, but nothing in the apps calls it.** `packages/engine` carries
-  track resolution, span geometry with RTL mirroring, arrangement selection, grid
-  validation, the flow engine and the seeded block library, all tested. The tables exist
-  (`blocks`, `block_versions`, `page_grids`, `book_pins`, migrated 5 September) and
-  `pnpm db:seed` fills `blocks` with four published blocks — offer card, hero band, footer,
-  message. `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG from the
-  seeded blocks and both the invented products in `harness/dummy.ts` **and real catalog
-  rows** — `pnpm --filter @souqstudio/db catalog:harness-export` writes those to a
+- **The layout engine is what everything draws through.** `packages/engine` carries track
+  resolution, span geometry with RTL mirroring, arrangement selection, grid validation, the
+  flow engine, the fit ladder, the price mark, bounded overrides, snapping and the seeded
+  block library of **67 blocks** — **232 tests**. Four surfaces render from it and all four share one
+  painter, `components/blocks/draw.tsx`: `/brand`'s block preview, the editor's page, the
+  designer's canvas and its worst-case panel. `pnpm --filter @souqstudio/engine harness`
+  draws sample pages to SVG from the seeded blocks and both invented products and **real
+  catalog rows** — `pnpm --filter @souqstudio/db catalog:harness-export` writes those to a
   gitignored JSON file, which is what keeps the engine free of any database import. Prices
   on the real pages are invented; names, brands, specs and their absences are not. This is
   how the model is checked; it is not the real renderer. **What it found first time out: a
   pack label printing backwards on every Arabic card** — the artboard has no equivalent of
-  chrome's `[data-figure]` bidi isolation, and E6's Fabric renderer and E9's SVG export
-  both need the `textDirection` rule now in `harness/svg.ts`.
-  Four surfaces draw those blocks for real, all through `components/blocks/draw`:
-  `/brand`'s preview, the editor's page, the designer's canvas and its worst-case
-  panel. **The frontier is now E9** — a book can be created, priced, edited and
-  designed, and cannot leave the product, because the `pdf` worker still throws.
-  Fabric is still not loaded anywhere, including by the designer, which is the
-  surface that was expected to need it: see `docs/E7-pending.md` §3 for what
-  would justify revisiting that. See also `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
-  must share one implementation — two would drift, and drift means the PDF does not match
-  the screen.
+  chrome's `[data-figure]` bidi isolation, which is why `placeText` exists and why every
+  renderer must call it. E9's export is the fourth surface and does not exist yet; when it
+  lands it must render the same component rather than a second reading of these rules.
+  `pnpm --filter @souqstudio/engine gallery` draws every seeded block at every shape it
+  claims — plus the worst-case Arabic name and an Arabic edition — to
+  `harness/out/gallery.html`. That is the only check that finds a design defect as opposed
+  to a correctness one, and it found three the tests could not: a block that declined to
+  design a shape and got the fallback crushed into it, a tier pill the same colour as the
+  ground under it, and a vertical divider drawn as a horizontal dash.
+  **Still no Fabric anywhere**, including in the designer, which was the surface expected to
+  need it — a second painter is how the PDF stops matching the screen. The engine lives in
+  `packages/` because web and worker must share one implementation.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be
   uploaded to `https://assets.souqstudio.com/email/logo-dark.png` before any email is
   sent, or every message renders with a broken image at the top.
@@ -218,8 +231,9 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   uploads, rotation, multi-select, the price mark's styling — is the shop's.
   Still no Fabric: direct manipulation goes through `moveBox`, `resizeBox` and
   `snapBox` in the engine and the same painter as the editor, because a second
-  painter is how the PDF stops matching the screen. What is owed is gradients, a
-  seeded gallery of real designs, and E7-03's seasonal scheduling.
+  painter is how the PDF stops matching the screen. What is owed is gradients and
+  seasonal *scheduling* — E7-03. The seeded gallery is built: sixty-seven blocks,
+  grouped by category on `/brand/blocks`.
 - **Rate limiting** — unspecified, including on public tracking endpoints. `POST
   /api/v1/auth/2fa/enroll` runs bcrypt unthrottled behind a valid session.
 - **Token encryption key management** — undecided. Blocks E10. Also decides

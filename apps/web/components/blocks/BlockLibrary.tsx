@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Copy, Lock, Pencil, Trash2 } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
+import { BLOCK_CATEGORIES, SEED_BLOCKS, type BlockCategory } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
 
@@ -60,15 +61,83 @@ export function BlockLibrary({ blocks, kit, canEdit }: Props) {
         canEdit={canEdit}
       />
 
-      <Section
-        title="Comes with every account"
-        note="Read-only, and kept up to date by us. Duplicate one to make it yours."
-        blocks={seeded}
-        kit={kit}
-        canEdit={canEdit}
-      />
+      <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-display text-subhead text-primary">Comes with every account</h2>
+          <p className="font-ui text-body-sm text-muted">
+            Read-only, and kept up to date by us. Duplicate one to make it yours.
+          </p>
+        </div>
+
+        {BLOCK_CATEGORIES.map((category) => {
+          const group = seeded.filter((block) => categoryOf(block.id) === category)
+          if (group.length === 0) return null
+          const copy = CATEGORY_COPY[category]
+
+          return (
+            <div key={category} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <h3 className="font-ui text-eyebrow uppercase text-secondary">
+                  {copy.title} · {group.length}
+                </h3>
+                <p className="font-ui text-body-sm text-muted">{copy.note}</p>
+              </div>
+              <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+                {group.map((block) => (
+                  <BlockCard key={block.id} block={block} kit={kit} canEdit={canEdit} />
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+      </section>
     </div>
   )
+}
+
+/**
+ * Which group a seeded block belongs to, read from the library rather than from
+ * the row.
+ *
+ * **Not a column on `blocks`.** It is a property of the design we shipped, not a
+ * fact about a database record, and a column would be one only the seed ever
+ * writes and only this screen ever reads. A block the shop authored has no
+ * category and needs none: theirs are listed first and separately, because that
+ * is the collection they can change.
+ */
+const SEEDED_CATEGORY = new Map<string, BlockCategory>(
+  SEED_BLOCKS.map((block) => [block.id, block.category])
+)
+
+const categoryOf = (id: string): BlockCategory => SEEDED_CATEGORY.get(id) ?? 'panel'
+
+/**
+ * Sixty-seven blocks in one list is a wall, and a wall is what a shop scrolls
+ * past on the way to using the first one. The groups say what a block is *for* —
+ * which is the question an owner is actually asking — rather than what it is
+ * made of.
+ */
+const CATEGORY_COPY: Record<BlockCategory, { title: string; note: string }> = {
+  'offer-card': {
+    title: 'Offer cards',
+    note: 'One per product. Each reflows into whatever shape its region turns out to be.',
+  },
+  header: {
+    title: 'Headers and covers',
+    note: 'The front of a book, the band across a page, and the dividers between sections.',
+  },
+  panel: {
+    title: 'Panels',
+    note: 'Placed once. Pin one into a book and the products route around it.',
+  },
+  footer: {
+    title: 'Footers',
+    note: 'The last row of a page, and the small print that has to be somewhere.',
+  },
+  seasonal: {
+    title: 'Seasonal',
+    note: 'The occasions, with the greeting already set in both languages.',
+  },
 }
 
 function Section({
@@ -100,6 +169,19 @@ function Section({
       )}
     </section>
   )
+}
+
+const PREVIEW_WIDTH = 420
+
+function previewSize(block: LibraryBlock): { width: number; height: number } {
+  const arrangement = block.arrangements[0]
+  // A repeating card is shown in the shape a booklet cell actually is, always —
+  // it carries four arrangements and the tall one is the one it was designed in.
+  if (block.repeats || arrangement === undefined) return { width: PREVIEW_WIDTH, height: 540 }
+
+  const middle = Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)
+  const aspect = Math.min(6, Math.max(0.5, middle))
+  return { width: PREVIEW_WIDTH, height: Math.round(PREVIEW_WIDTH / aspect) }
 }
 
 function BlockCard({
@@ -158,13 +240,11 @@ function BlockCard({
     <li className="flex flex-col gap-2">
       <div className="overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0">
         {/* Natural aspect per block: a hero band letterboxed into a card's shape
-            is not what the owner will get. */}
-        <BlockPreview
-          arrangements={block.arrangements}
-          kit={kit}
-          width={420}
-          height={block.repeats ? 540 : 170}
-        />
+            is not what the owner will get. A block placed once is drawn at the
+            shape its own aspect range says it was designed for — one flat height
+            for all of them made a cover, a page panel and a footer strip look
+            like the same object. */}
+        <BlockPreview arrangements={block.arrangements} kit={kit} {...previewSize(block)} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

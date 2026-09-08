@@ -41,10 +41,25 @@ catalog actually holds. Neither draws anything. `compact.ts` in particular decid
 much* space is reclaimed and takes *where it goes* as a parameter, because that is a design
 decision and the engine does not own it.
 
-`library.ts` holds the seeded blocks. It lives here rather than beside the seed
-because two consumers need the same bytes: `packages/db` writes them into
-`blocks`, and the harness draws them. A second copy would drift, and a drifted
-seed block renders differently in the database from the one that was checked.
+`library.ts` holds the seeded blocks — sixty-seven of them, assembled from
+`library-cards.ts` (repeating offer cards), `library-panels.ts` (headers, covers,
+panels, footers) and `library-seasonal.ts`, all written in the vocabulary
+`library-kit.ts` defines. It lives here rather than beside the seed because two
+consumers need the same bytes: `packages/db` writes them into `blocks`, and the
+harness draws them. A second copy would drift, and a drifted seed block renders
+differently in the database from the one that was checked.
+
+The split is by *what a block is for*, not by size. A card and a footer are the
+same schema and the same designer; what differs is whether the block repeats over
+the product list, and that decides its whole binding vocabulary — which is why
+they are not interleaved in one file.
+
+`library.test.ts` holds the library to the rules it is the example of: no hex, no
+warning from `validateBlock`, both languages on every static string, one price
+mark per repeating card and none on a panel, and an arrangement for every shape a
+merge can produce. `pnpm --filter @souqstudio/engine gallery` is the other half —
+it draws all of them, and it is the only check that finds a design defect rather
+than a correctness one.
 
 ## What does not belong here
 

@@ -93,4 +93,10 @@ export {
   type Placement,
 } from './flow'
 
-export { SEED_BLOCKS, bookletGrid, type SeedBlock } from './library'
+export {
+  BLOCK_CATEGORIES,
+  SEED_BLOCKS,
+  bookletGrid,
+  type BlockCategory,
+  type SeedBlock,
+} from './library'

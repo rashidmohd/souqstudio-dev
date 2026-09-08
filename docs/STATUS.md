@@ -3,24 +3,25 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 8 September 2026. The block designer was rebuilt into an actual
-design tool — any colour, any size, shapes, uploaded artwork, rotation, opacity,
-multi-select, group, align, distribute, snap guides, a keyboard, and a price mark
-whose styling is finally the shop's. The owner's verdict on the first version was
-that it was fundamentally not what they wanted, and `docs/E7-pending.md` §8 is
-the record of which constraints were load-bearing and which were only caution.
-Earlier the same day, E6's feature list was closed out: the properties panel
-carries everything E6-03 asks for, cards nudge within bounded limits, undo and autosave
-work, the tray drags, the master grid is editable, panels can be pinned, and a book can be
-duplicated. What is left of E6 is merging cells on the artboard. Before that, 7 September,
-E7 gave a shop owner a block designer: a seeded block
-can be duplicated, its elements moved, resized and re-bound, its overflow declared, and the
-result saved with undo and version history. Earlier the same day, E6 went from nothing to a
-working editor: a book can be created, drawn, priced, reordered and edited. Before that,
-6 September, pointing the render harness at real catalog rows — which found an Arabic pack label printing backwards
-and a category-coverage figure four times too high — the demo catalog seed and the Open
-Food Facts importer fix. Before that, 5 September, the composition-model build: the layout
-engine, the blocks schema, the reworked brand kit, the first renderer.
+Last updated 8 September 2026.
+
+**The block designer is a design tool now, and E6's feature list is closed.** A shop owner
+can build an offer book end to end — create it, price it, adjust it, lay it out, pin panels
+into it, duplicate it next week — and design the blocks it is built from: any colour, any
+size, shapes, uploaded artwork, rotation, multi-select, snapping, a tool rail and a
+keyboard. What no owner can do is get any of it out of the product, which is E9.
+
+**Two things about today are worth more than the feature list.**
+
+The designer was rejected on its first outing — *"fundamentally not what I want; the user
+is too stuck with us"* — and the useful part of that was separating the constraints doing
+real work from the ones that were only caution. Three survive: product text is bound rather
+than typed, coordinates are fractions of the block, and the *repeating* card reflows rather
+than being hand-placed. Everything else opened. `docs/E7-pending.md` §8.
+
+And **it was finally opened in a browser**, which found four defects in an afternoon that
+every test had passed over — including one that had been shipping in the offer book editor
+since E6. See §1.0; it is the most re-usable thing in this file.
 
 Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pending.md`,
 `docs/E4-pending.md`, `docs/E5-pending.md`, `docs/E6-pending.md`, `docs/E7-pending.md`.
@@ -54,7 +55,7 @@ exist. Nothing an owner builds can reach a customer.
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
 | **E6** Offer book editor | **Built.** Create a book from the catalog or from a committed CSV import, draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, pin a panel, and duplicate the whole book. Not written: merging cells on the artboard, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-pending.md` §8. |
-| **E7** Block designer | **Mostly built, and rebuilt on 8 September into a real design tool.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer: multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork as a background or a decoration, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. Not written: gradients, a seeded gallery, seasonal scheduling. See `E7-pending.md` §8. |
+| **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is sixty-seven blocks** — thirty-three offer cards, eight headers and covers, ten panels, five footers and eleven seasonal bands, grouped by category on `/brand/blocks`. Not written: gradients, seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar). See `E7-pending.md` §8. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
@@ -69,18 +70,54 @@ the flag in the change that adds the route** — that is the whole point of the 
 left rail now reads those flags, so an unbuilt destination is not rendered at all;
 `/catalog` and `/analytics` had been shipping as live nav items pointing at 404s.
 
-### 1.0 The canvas panes had no width, and the artboard was off the screen
+### 1.0 What opening it in a browser found, and why nothing else could
 
-**Found 8 September by opening the block designer**, and it had been true of the
-offer book editor since E6. `lg:w-72` and `lg:w-80` do not exist — this system
-*replaces* Tailwind's spacing scale — so both panes kept `w-full`, took the whole
-flex row, and pushed the artboard out of view. `--sq-pane-start` and
-`--sq-pane-end` are tokens now.
+The designer and the editor had been reported "built" for two days on the strength of
+typecheck, lint, 630 tests and a production build. On 8 September a headless browser was
+finally pointed at them. It found four defects in an afternoon.
 
-**Third occurrence of the same defect**, after the rail's `w-16`/`lg:w-64`. No
-part of the toolchain can catch it: the class name is a valid string, typecheck
-has no opinion, and the linter tests for wrong values rather than absent ones.
-Only a rendered page shows it. `docs/E7-pending.md`.
+**Three of them were the same defect.** This system *replaces* Tailwind's scales rather
+than extending them — deliberately, so an off-system value cannot silently work — and the
+cost is that an off-system class name is not an error either. It is a valid string that
+generates no CSS, so the element is simply unstyled.
+
+| Where | What was written | What happened |
+| --- | --- | --- |
+| The rail (earlier) | `w-16`, `lg:w-64` | sized by its own content |
+| The editor, since E6 | `lg:w-72`, `lg:w-80` | **the artboard was off the screen** |
+| The block designer | the same two | the same |
+| The designer's swatches | `size-7` | collapsed to dots |
+
+**Nothing in the toolchain can see this.** TypeScript has no opinion on a string. The
+design lint rules test for *wrong* values, not absent ones. A component test asserts the
+same class name the component already has. Only a rendered page shows it.
+
+So there is now a check: **`pnpm build && pnpm --filter @souqstudio/web check:classes`**.
+It reads the built CSS and reports every sized utility in the source that generates no
+rule. It is not in `pnpm check`, because it needs a build to compare against. Run it before
+calling UI work done. `apps/web/scripts/check-classes.mjs`.
+
+The tokens that were missing are named now, which is what the token file already said the
+answer was — *a box that needs a size needs a name*: `--sq-pane-start`, `--sq-pane-end`,
+`--sq-swatch`, `--sq-tool-rail`.
+
+**The fourth was a layout assumption.** Both canvas shells were `min-h-screen`, so the
+three-pane row had no definite height to divide, `flex-1` sized to content, the
+`overflow-auto` on each pane never engaged, and the *document* scrolled — a 1,188px card
+ran off the bottom of the window and took the tool rail and the properties panel with it.
+A canvas application's shell is exactly the window: both are `h-screen overflow-hidden`.
+
+**Two product defects came out of the same session**, and neither is a class name. A
+"Background" added from the palette appended like any other element, so it painted *last*
+and covered the whole design — and it defaulted to a white that is invisible on white
+paper, so the owner saw their card go blank with nothing apparently added, and clicked
+again. And four surfaces had each grown their own segmented control, which is what
+`references/component-inventory.md` exists to prevent; `components/ui/segmented.tsx` is
+the one now, with an entry.
+
+**The lesson is the cheapest one in this file and it was skipped for two days.** Every
+entry in `E6-pending.md` and `E7-pending.md` ended with "nothing has been opened in a
+browser". That sentence was the finding.
 
 ### 1.1 What changed in E4, and why
 
@@ -128,11 +165,15 @@ share one implementation, and drift there means the PDF does not match the scree
 | `render` | a block's elements to absolute rectangles |
 | `price-mark` | every piece of a price mark, and the money formatting |
 | `fit` | the four-rung fit ladder and what each text may suffer |
-| `library` | the four seeded blocks |
+| `library` | the four seeded blocks — element ids and `ColorValue` fills since 8 September |
 | `direction` | which way a *string* reorders, and where its line is anchored |
 | `compact` | reclaiming the height a card's content did not use |
+| `override` | the bounded nudge, and the key that survives next week's products |
+| `block-edit` | moving, resizing and validating an element while it is designed |
+| `snap` | snapping to a neighbour's edge, and aligning a selection to itself |
+| `color` | a role, a palette entry or a literal, resolved the same way twice |
 
-**144 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG —
+**219 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG —
 that is how the model is checked, and it is not a renderer anything ships. Output lands in
 `packages/engine/harness/out`; open `index.html`.
 
@@ -474,9 +515,10 @@ would reach for to check a migration against the history.
 for logos *and* catalog cutouts. **`pdf`, `ai` and `enrich` are
 `throw new Error('Not yet implemented')`.**
 
-- `pdf` blocks E9 export, and with it the editor's export button. **This is now the thing
-  on the critical path**: a book can be created, priced and edited, and cannot leave the
-  product.
+- `pdf` blocks E9 export, and with it the editor's export button. **It is the only thing on
+  the critical path now**: a book can be created, priced, adjusted, laid out, pinned,
+  duplicated and designed for, and it cannot leave the product. Everything built since
+  5 September has widened the gap between what an owner can make and what they can send.
 - `ai` blocks E8 entirely, and is where credits are actually spent — `consumeCredits()`
   in `packages/db/src/credits.ts` is written and called by nothing.
 - `enrich` blocks E5's multilingual synonym pipeline **and, now specifically, every
@@ -655,8 +697,9 @@ again on real catalog rows — see §1.2. It is off the table.
 
 ### E9 — Output formats & export (MVP)
 
-**Needs first:** the `pdf` worker. E6 is built, so this is the next thing on the critical
-path — a book can be created, priced and edited, and cannot leave the product.
+**Needs first:** the `pdf` worker. E6 and E7 are built, so this is the *only* thing on the
+critical path — a book can be created, priced, laid out and designed for, and it cannot
+leave the product.
 
 **The written pipeline starts one step later than it needs to.**
 `souqstudio-technical → references/export-pipeline.md` says canvas → `toSVG()` → HTML shell
@@ -668,13 +711,28 @@ in a browser to decide the layout. Confirm that before building to the document.
 
 A warm browser pool is still mandatory; launching per request costs 400–600ms every time.
 
+**What E7 added to this list.** The painter now draws rotation, opacity, strokes, ellipses,
+lines, `cover` images and free type sizes, and resolves colours through `ColorValue` — a
+role, a palette entry or a literal. The worker renders the same component, so it inherits
+all of that for nothing *provided it keeps rendering the same component*. Two things it
+must carry that a browser gives away free: the shop's palette, for `resolveColor` to have
+anything to resolve against, and a URL for uploaded artwork, which `lib/block-assets.ts`
+builds from `R2_PUBLIC_URL` and an object key.
+
 Two things the export must not lose, both learned the hard way in E6:
 
 - **`placeText` per text object.** A Latin pack label on an Arabic artboard prints backwards
   without it, and the failure is invisible to anyone checking the English edition.
 - **`--sq-tpl-*` has no stylesheet in the PDF.** The tier colour on the chip and the price
   mark resolves through a CSS custom property in the browser. Playwright renders an HTML
-  shell, so the tokens have to be inlined into it — see `E6-pending.md` §6.
+  shell, so the tokens have to be inlined into it — see `E6-pending.md` §6. Note that an
+  owner who styled a price mark or a chip in the designer has a `ColorValue` there instead,
+  which resolves without a stylesheet; it is the *unstyled* ones that still need the token
+  set.
+- **Two element kinds do not exist yet**, so the unit-price line and footnote markers are
+  stored, shown in the editor's panel, and cannot be printed. `E6-pending.md` §8 carries the
+  recommendation. Export is where that stops being an inconvenience and starts being a
+  missing line on a flyer.
 
 ### E10 — Sharing & publishing (MVP for link/QR/WhatsApp)
 
@@ -722,6 +780,21 @@ than assumed. A block placed once — a cover, a brand panel, a message — is
 designed at a page shape rather than at a card's, which is the "design a page,
 not a card" half of the answer; it reaches a book as a pin.
 
+**Then it was made to look like the tools it is competing with**, which was the
+second round of the same feedback and a fair one: a labelled list of cards reads
+as a form, and a form is what was rejected. A tool rail of conventional glyphs on
+the start edge — pointer, `T`, paint bucket, square, circle, rule — with the two
+that have no convention, a product field and a price mark, in their own tinted
+group, because those exist in no other design tool and inventing glyphs for them
+would be making up a vocabulary rather than borrowing one. Layers drag to
+reorder, **front-most at the top** as all four of those applications list them,
+which is the reverse of the array underneath. Icons only where a convention
+exists: alignment, italics and case became buttons, weight stayed a list because
+four named weights are four values a `B` would collapse to two.
+
+The canvas opens **fitted**, which it did not before — see §1.0 for why that
+silently did nothing until the shell was given a definite height.
+
 
 **The epic was rewritten before it was built**, against `docs/composition-model.md` §3, and
 the rewrite is `docs/E7-pending.md` §1. Templates and grids are not objects any more, so
@@ -740,14 +813,26 @@ mean a second painter, and the first thing to drift would be whether the card th
 designed is the card the PDF prints. `E7-pending.md` §3 carries the reasoning and the list
 of things that would justify revisiting it.
 
-The rule that did not move: **the price mark is one element the owner places and sizes,
-never one they open.** Selecting it shows a box, a size and one sentence saying why there is
-nothing else.
+The rule that did not move: **the price mark's composition.** Its colour, ground, frame and
+badge are the shop's now — refusing those is what made it feel like somebody else's
+component sitting in the middle of an owner's card — but the raised minor digits, the
+attached tier tab, the three-decimal branch and LTR-in-Arabic are still ours, and the digits
+are never separate text boxes.
 
-**Not built:** dragging a *new* element from the palette (tapping adds it, which is the
+**Not built:** gradients (a `ColorValue` variant rather than a rewrite, and the most likely
+next ask), dragging a *new* element from the palette (tapping adds it, which is the
 tablet-safe equivalent the design system asks for anyway), E7-03 seasonal scheduling — the
 columns exist and nothing reads them, and there is no block picker for a seasonal block to
 appear at the top of — and the overlay asset library.
+
+**The thing to build next here is not code.** A blank canvas is now the weakest part of a
+tool that is otherwise good enough: fifteen to twenty-five real seeded designs across
+grocery, pharmacy, electronics and the seasons would do more for a shop's first ten minutes
+than any control left on the list. It is design work, and `library.ts` is where it lands.
+
+**`pnpm db:seed` was re-run on 8 September** and the block library is on the new shape —
+element ids, `fill` as a `ColorValue`. Reading the rows back through the real parser is what
+caught two more defects; `E7-pending.md` has them.
 
 ### E8, E11 — later
 
@@ -786,13 +871,26 @@ These are waiting on a human, not on effort. Each one changes what gets built.
    `references/consistency-checklist.md` before calling UI work done.
 6. **`pnpm build` before anything reaches Railway.** `pnpm check` is typecheck, lint and
    stylelint — it does not build, and Railway does.
-7. **Look at it.** Consistency check #9 asks for the screen rendered in Arabic with real
-   strings, and it is the one check that keeps finding things the others cannot: a ratio
-   that read `12 of 8` in RTL, a colour field whose shell was half the border weight of
-   the input beside it, type that collapsed in a wide short block. For artboard work,
-   `pnpm --filter @souqstudio/engine harness` renders sample pages in both directions.
+7. **`pnpm --filter @souqstudio/web check:classes`, after that build.** It reports every
+   sized utility in the source that generates no CSS. The scales here are *replaced*, so an
+   off-system class name is a valid string that styles nothing, and nothing else in the
+   toolchain can see it — §1.0 has the four times that has cost a screen.
+8. **Open it.** Not "look at the code" — open the page. Consistency check #9 asks for the
+   screen rendered in Arabic with real strings, and it is the one check that keeps finding
+   what the others cannot: a ratio that read `12 of 8` in RTL, a colour field whose shell
+   was half the border weight of the input beside it, type that collapsed in a wide short
+   block, an artboard that was not on the page at all. For artboard work,
+   `pnpm --filter @souqstudio/engine harness` renders sample pages in both directions; for
+   a screen behind the session gate, a headless browser and a minted dev session take about
+   ten minutes to set up and found four defects the first time they were used.
 
 The design system is enforced mechanically: Tailwind's default palette, spacing and radius
 scales are replaced rather than extended, so an off-system value does not resolve. Lint
 errors on physical properties, raw hex, shadows, italics, blue fills and template tokens
 in chrome.
+
+**Two of those are worth knowing precisely, because both have bitten.** "Does not resolve"
+means *generates no CSS*, not *fails the build* — see step 7. And the raw-hex rule governs
+**our chrome, never what a shop produces**: a colour an owner picked is data on their block
+or their brand kit, which is why `ColorValue` exists and why a handful of files are exempt
+by path in `packages/config/eslint.design.cjs`.

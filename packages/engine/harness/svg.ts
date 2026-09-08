@@ -111,7 +111,37 @@ function neededHeight(
   return measured.fitted.lines.length * measured.fitted.fontSize * measured.fitted.lineHeight
 }
 
+/**
+ * Rotation and opacity, applied once around whatever the kind painted.
+ *
+ * Here rather than in each branch for the reason `draw.tsx` gives: an element
+ * that honours its own rotation in one renderer and ignores it in another is the
+ * bug this package exists to prevent, and the harness is the renderer a design
+ * is looked at in before anybody sees it in a browser.
+ */
 function renderElement(
+  element: BlockElement,
+  rect: Rect,
+  product: HarnessProduct | undefined,
+  ctx: RenderContext,
+  blockEdge: number
+): string {
+  const inner = paintElement(element, rect, product, ctx, blockEdge)
+  if (inner === '') return ''
+
+  const rotation = element.rotation ?? 0
+  const opacity = element.opacity ?? 1
+  if (rotation === 0 && opacity === 1) return inner
+
+  const spin =
+    rotation === 0
+      ? ''
+      : ` transform="rotate(${rotation} ${mid(rect.x, rect.width)} ${mid(rect.y, rect.height)})"`
+  const alpha = opacity === 1 ? '' : ` opacity="${opacity}"`
+  return `<g${spin}${alpha}>${inner}</g>`
+}
+
+function paintElement(
   element: BlockElement,
   rect: Rect,
   product: HarnessProduct | undefined,
@@ -120,24 +150,74 @@ function renderElement(
 ): string {
   switch (element.kind) {
     case 'shape':
-      return rounded(rect, resolveColor(element.fill, color), element.radius)
+      return shape(element, rect, blockEdge)
     case 'image':
-      return imagePlaceholder(rect, product)
+      return imagePlaceholder(rect, product, element.fit ?? 'contain')
     case 'logo':
       return logoPlaceholder(rect)
     case 'chip':
-      return product === undefined ? '' : chip(rect, product, ctx)
+      return product === undefined ? '' : chip(element, rect, product, ctx)
     case 'priceMark':
-      return product === undefined ? '' : priceMark(rect, product)
+      return product === undefined ? '' : priceMark(element, rect, product)
     case 'text':
       return text(element, rect, product, ctx, blockEdge)
   }
 }
 
+/**
+ * A ground, a panel, a disc, a rule.
+ *
+ * Three variants rather than three kinds, matching `draw.tsx` line for line — a
+ * rule that draws as a rectangle here and as a stroked line there is a divider
+ * that disappears between the harness and the page.
+ */
+function shape(
+  element: Extract<BlockElement, { kind: 'shape' }>,
+  rect: Rect,
+  blockEdge: number
+): string {
+  const fill = resolveColor(element.fill, color)
+  const stroke = element.stroke
+  const strokeAttrs =
+    stroke === undefined
+      ? ''
+      : ` stroke="${resolveColor(stroke.color, color)}"` +
+        ` stroke-width="${Math.max(1, stroke.width * blockEdge)}"`
+
+  if (element.variant === 'line') {
+    const y = mid(rect.y, rect.height)
+    const width = Math.max(1, (stroke?.width ?? 0.004) * blockEdge)
+    return (
+      `<line x1="${rect.x}" y1="${y}" x2="${rect.x + rect.width}" y2="${y}"` +
+      ` stroke="${fill}" stroke-width="${width}" stroke-linecap="round"/>`
+    )
+  }
+
+  if (element.variant === 'ellipse') {
+    return (
+      `<ellipse cx="${mid(rect.x, rect.width)}" cy="${mid(rect.y, rect.height)}"` +
+      ` rx="${rect.width / 2}" ry="${rect.height / 2}" fill="${fill}"${strokeAttrs}/>`
+    )
+  }
+
+  return (
+    `<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"` +
+    ` rx="${element.radius}" fill="${fill}"${strokeAttrs}/>`
+  )
+}
+
 // ─── Elements ─────────────────────────────────────────────────────────────────
 
-function imagePlaceholder(rect: Rect, product: HarnessProduct | undefined): string {
-  const inset = Math.min(rect.width, rect.height) * 0.12
+function imagePlaceholder(
+  rect: Rect,
+  product: HarnessProduct | undefined,
+  fit: 'contain' | 'cover'
+): string {
+  // A `cover` box is filled edge to edge, because that is what `cover` means and
+  // because the blocks that use it put the name and the price on top of the
+  // photograph. Drawn inset, the overlay cards read as a scrim floating beside a
+  // packshot rather than over one, which is not the design being checked.
+  const inset = fit === 'cover' ? 0 : Math.min(rect.width, rect.height) * 0.12
   const inner = {
     x: rect.x + inset,
     y: rect.y + inset,
@@ -167,14 +247,24 @@ function logoPlaceholder(rect: Rect): string {
   ].join('')
 }
 
-function chip(rect: Rect, product: HarnessProduct, ctx: RenderContext): string {
+function chip(
+  element: Extract<BlockElement, { kind: 'chip' }>,
+  rect: Rect,
+  product: HarnessProduct,
+  ctx: RenderContext
+): string {
   const label = ctx.direction === 'rtl' ? product.tier.labelAr : product.tier.labelEn
   // Fit on both axes. Sizing from height alone is what broke the wide
   // arrangement: the same box is a tall pill in one region aspect and a flat
   // sliver in another.
   const size = fitLabel(label, rect.width * 0.86, rect.height * 0.52, 0.56)
+  // The tier's own colour unless the block named one. A seeded card that puts
+  // the pill on a coloured tab needs it to stop being the tier colour there.
+  const pill =
+    element.fill === undefined ? color(product.tier.token) : resolveColor(element.fill, color)
+
   return [
-    rounded(rect, color(product.tier.token), rect.height / 2),
+    rounded(rect, pill, rect.height / 2),
     `<text x="${mid(rect.x, rect.width)}" y="${mid(rect.y, rect.height)}" font-size="${size}"`,
     ` font-weight="700" fill="${KIT.surface}" text-anchor="middle"`,
     ` dominant-baseline="middle">${esc(label)}</text>`,
@@ -196,8 +286,19 @@ function fitLabel(content: string, maxWidth: number, maxSize: number, perChar: n
  * attached tab, the fit on both axes — lived in throwaway code and were checked
  * only by eye. They are in the engine now, with tests, and this just paints.
  */
-function priceMark(rect: Rect, product: HarnessProduct): string {
-  const tint = color(product.tier.token)
+function priceMark(
+  element: Extract<BlockElement, { kind: 'priceMark' }>,
+  rect: Rect,
+  product: HarnessProduct
+): string {
+  // The composition stays ours; the skin is the shop's. `plain` drops the ground
+  // and the outline so the digits sit straight on a tinted card, and `tab: none`
+  // hides the tier badge for the cards that carry it as a chip instead.
+  const style = element.style ?? {}
+  const tint = style.tint === undefined ? color(product.tier.token) : resolveColor(style.tint, color)
+  const ink = style.ink === undefined ? KIT.ink : resolveColor(style.ink, color)
+  const plate = style.surface === undefined ? KIT.surface : resolveColor(style.surface, color)
+  const framed = style.frame !== 'plain'
   const l = layoutPriceMark(
     {
       tierId: 'harness',
@@ -217,26 +318,29 @@ function priceMark(rect: Rect, product: HarnessProduct): string {
     `<text x="${p.x}" y="${p.baseline}" font-size="${p.fontSize}" font-weight="${weight}"` +
     ` fill="${fill}" direction="ltr"${extra}>${esc(p.text)}</text>`
 
-  const tab = l.tab
+  const tab =
+    l.tab && style.tab !== 'none'
     ? rounded(l.tab.rect, tint, l.tab.rect.height / 2) +
       `<text x="${mid(l.tab.rect.x, l.tab.rect.width)}" y="${mid(l.tab.rect.y, l.tab.rect.height)}"` +
       ` font-size="${l.tab.fontSize}" font-weight="700" fill="${KIT.surface}"` +
       ` text-anchor="middle" dominant-baseline="middle">${esc(l.tab.text)}</text>`
     : ''
 
+  const frame = framed
+    ? rounded(l.mark, plate, 3) +
+      `<rect x="${l.mark.x}" y="${l.mark.y}" width="${l.mark.width}" height="${l.mark.height}"` +
+      ` rx="3" fill="none" stroke="${tint}" stroke-width="${Math.max(1, l.mark.height * 0.035)}"/>`
+    : ''
+
   return [
     tab,
-    rounded(l.mark, KIT.surface, 3),
-    `<rect x="${l.mark.x}" y="${l.mark.y}" width="${l.mark.width}" height="${l.mark.height}"`,
-    ` rx="3" fill="none" stroke="${tint}" stroke-width="${Math.max(1, l.mark.height * 0.035)}"/>`,
+    frame,
     `<text x="${l.currency.x}" y="${l.currency.baseline}" font-size="${l.currency.fontSize}"`,
-    ` font-weight="700" fill="${KIT.inkMuted}" direction="ltr">${esc(l.currency.text)}</text>`,
-    piece(l.major, KIT.ink),
-    l.minor ? piece(l.minor, KIT.ink) : '',
-    l.compare
-      ? piece(l.compare, KIT.inkMuted, 400, ' text-decoration="line-through"')
-      : '',
-    l.prefix ? piece(l.prefix, KIT.inkMuted, 700) : '',
+    ` font-weight="700" fill="${ink}" opacity="0.7" direction="ltr">${esc(l.currency.text)}</text>`,
+    piece(l.major, ink),
+    l.minor ? piece(l.minor, ink) : '',
+    l.compare ? piece(l.compare, ink, 400, ' text-decoration="line-through" opacity="0.6"') : '',
+    l.prefix ? piece(l.prefix, ink, 700, ' opacity="0.7"') : '',
   ].join('')
 }
 
@@ -261,8 +365,13 @@ function fitFor(
   const family = SAMPLE_SCALE.families[step.family]
   const policy = fitPolicy(element.source, element.overflow)
 
+  // The element's own case wins over the level's. A brand line set in small
+  // uppercase is a decision the block made; the scale's is the default it made
+  // it against.
+  const transform = element.transform ?? step.transform
+
   const fitted = fitText({
-    text: step.transform === 'uppercase' ? content.toUpperCase() : content,
+    text: transform === 'uppercase' ? content.toUpperCase() : content,
     box: { width: rect.width, height: rect.height },
     level: element.level,
     scale: SAMPLE_SCALE,
@@ -304,17 +413,17 @@ function text(
   // English card — see `src/direction.ts`.
   const { anchor, x, direction } = placeText(content, element.align, rect, ctx.direction)
 
-  const fill = fitted.escalated
-    ? ESCALATED
-    : element.level === 'caption'
-      ? KIT.inkMuted
-      : inkFor(element, ctx)
+  const fill = fitted.escalated ? ESCALATED : inkFor(element, ctx)
 
   return fitted.lines
     .map((line, i) => {
       const y = rect.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)
       return (
-        `<text x="${x}" y="${y}" font-size="${fitted.fontSize}" font-weight="${step.weight}"` +
+        `<text x="${x}" y="${y}" font-size="${fitted.fontSize}"` +
+        ` font-weight="${element.weight ?? step.weight}"` +
+        (element.letterSpacing === undefined
+          ? ''
+          : ` letter-spacing="${element.letterSpacing * fitted.fontSize}"`) +
         ` font-family="${family}" fill="${fill}" text-anchor="${anchor}"` +
         ` direction="${direction}" unicode-bidi="isolate">${esc(line)}</text>`
       )
@@ -357,15 +466,22 @@ function resolveText(
   }
 }
 
-/** Static blocks sit on a tinted ground, so their text inverts. */
+/**
+ * What colour a string draws in, in `draw.tsx`'s order.
+ *
+ * **The element's own colour wins first**, and it has to: a product name on a
+ * tinted card names `surface` explicitly, and a harness that checked "is it a
+ * caption" before "did the block say" drew every one of them in the ink colour
+ * on top of the ink-coloured ground.
+ */
 function inkFor(
   element: Extract<BlockElement, { kind: 'text' }>,
   ctx: RenderContext
 ): string {
   void ctx
-  return element.source.from === 'static' || element.source.from === 'shop'
-    ? KIT.surface
-    : KIT.ink
+  if (element.color !== undefined) return resolveColor(element.color, color)
+  if (element.source.from === 'static' || element.source.from === 'shop') return KIT.surface
+  return element.level === 'caption' ? KIT.inkMuted : KIT.ink
 }
 
 // ─── Primitives ───────────────────────────────────────────────────────────────

@@ -383,10 +383,40 @@ because there is no scale step to fall to.
 1. **Text on a path, gradients, shadows, blend modes.** None of them are in the
    model. Gradients are the one most likely to be asked for next, and they are a
    `ColorValue` variant rather than a rewrite.
-2. **A seeded gallery.** The owner's own option list raised this: fifteen to
-   twenty-five real designs — seasonal, grocery, pharmacy, electronics — so a
-   shop starts from something good. That is design work rather than engineering,
-   and it is what stops a blank canvas feeling worse than the default.
+2. ~~**A seeded gallery.**~~ **Done, 8 September — sixty-seven blocks.** The ask
+   was fifteen to twenty-five real designs; the library is thirty-three repeating
+   offer cards, eight headers and covers, ten panels, five footers and eleven
+   seasonal bands. `packages/engine/src/library-cards.ts`,
+   `library-panels.ts` and `library-seasonal.ts`, on a shared vocabulary in
+   `library-kit.ts`; grouped by category on `/brand/blocks`.
+
+   **The count came from structure times skin rather than from drawing sixty-odd
+   cards.** Seventeen structures — stacked, price band, overlay, burst, ticket,
+   framed, price-first, list row, compact, feature, halo, brand-led, spec-led,
+   side rail, split tint, photo-led, no-photograph — each parameterised by a
+   ground, a price-mark skin, an accent and a pill colour. Thirty hand-drawn
+   cards would have drifted apart inside a month.
+
+   Three findings worth keeping, and all three came from **looking at the
+   renders**, not from the tests, which were green throughout:
+
+   - **`pickArrangement` never fails, so declining to design a shape does not
+     avoid it.** The list row shipped with two arrangements on the honest
+     argument that a line item in a tall cell is not a line item. What an owner
+     actually got was the wide layout crushed into a portrait box — a stretched
+     thumbnail, a two-character price, and the name escalated red. It now carries
+     four.
+   - **A promo-tier pill draws in a brand colour, so a brand-coloured ground can
+     swallow it.** A "Half price" chip whose token is `primary`, on a
+     primary-grounded card. Every tinted card now names a neutral for the pill,
+     and the ticket's tab is `ink` or `surface` rather than a brand role.
+   - **`variant: 'line'` draws left to right in both painters**, so three
+     vertical dividers rendered as two-pixel dashes. `rule()` in the kit now
+     emits a thin rectangle when the box is taller than it is wide.
+
+   `pnpm --filter @souqstudio/engine gallery` draws every block at every shape it
+   claims, plus the worst-case Arabic name and an Arabic edition, into
+   `harness/out/gallery.html`. That is the check; nothing else finds these.
 3. ~~**`pnpm db:seed` must be re-run.**~~ **Done**, and it found something. See
    below.
 4. **Nothing has been opened in a browser.** Typecheck, lint, 216 engine tests,

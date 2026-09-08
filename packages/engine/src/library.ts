@@ -1,4 +1,7 @@
-import type { Arrangement, BlockElement, PageGrid, Region, TypeLevel } from '@souqstudio/types'
+import type { PageGrid, Region } from '@souqstudio/types'
+import { CARD_BLOCKS } from './library-cards'
+import { FOOTER_IDS, HEADER_IDS, PANEL_BLOCKS } from './library-panels'
+import { SEASONAL_BLOCKS } from './library-seasonal'
 
 /**
  * The seeded block library — the building blocks every shop starts with.
@@ -8,285 +11,126 @@ import type { Arrangement, BlockElement, PageGrid, Region, TypeLevel } from '@so
  * Owner authoring is an escape hatch from a decent starting point, not a
  * substitute for having one. `docs/composition-model.md` §3.6.
  *
- * They live in the engine rather than beside the seed because two consumers
- * need the same bytes: `packages/db` seeds them into `blocks`, and the render
- * harness draws them. A second copy would drift, and a drifted seed block is one
- * that renders differently in the database from the one that was checked. Nothing here is a hex or a pixel: every
- * colour is a `TokenRef` resolved against the shop's palette, every text element
- * names a `TypeLevel` from its type scale, and every box is a fraction of the
- * block so one design serves a 1080 carousel post and a third of an A4 column.
- */
-
-const box = (start: number, top: number, width: number, height: number) => ({
-  start,
-  top,
-  width,
-  height,
-})
-
-/**
- * Every seeded element names a colour by **role**, never by value, and that is
- * the one rule a seeded block cannot break: a block shipped before it has met a
- * shop has to name something the shop's kit can resolve. An owner's own block
- * may use their palette or a literal — see `ColorValue`.
- */
-const role = (ref: 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'inkMuted') =>
-  ({ from: 'role', ref }) as const
-
-/**
- * Ids are stable and hand-written here rather than generated.
+ * They live in the engine rather than beside the seed because two consumers need
+ * the same bytes: `packages/db` seeds them into `blocks`, and the render harness
+ * draws them. A second copy would drift, and a drifted seed block is one that
+ * renders differently in the database from the one that was checked. Nothing
+ * here is a hex or a pixel: every colour is a `TokenRef` resolved against the
+ * shop's palette, every text element names a `TypeLevel` from its type scale,
+ * and every box is a fraction of the block so one design serves a 1080 carousel
+ * post and a third of an A4 column.
  *
- * They are what selection, grouping and z-order operate on, and a seeded block
- * is a document people read: `photo` and `name` say what moved when a design
- * changes, where `e3` says nothing. They repeat across arrangements on purpose —
- * the tall layout's `name` and the wide layout's `name` are the same element in
- * two shapes.
+ * ## Sixty-seven, and why the count is the point
+ *
+ * This started as four. Four is enough to prove the model and not enough to
+ * start from: a shop that opens the library, sees one card and one footer, and
+ * concludes the product designs for somebody else is a shop that never gets to
+ * its first book. `docs/E7-pending.md` names a seeded gallery as what is still
+ * owed, and puts the number at fifteen to twenty-five *real designs*.
+ *
+ * The designs are drawn from what a printed offer book, a hypermarket weekly and
+ * an e-commerce grid actually do — the reasoning is in `library-cards.ts` and
+ * `library-panels.ts`, beside the blocks it produced. Two conclusions are worth
+ * stating here because they shaped the whole list:
+ *
+ * - **Promotion mechanics are not blocks.** BOGO, multibuy, was/now, percent off
+ *   and bundle are the offer's *tier* and what the price mark draws inside
+ *   itself. Giving each a block would multiply the library by five and leave a
+ *   shop that invents a sixth mechanic with nothing. What differs between these
+ *   designs is emphasis, not vocabulary.
+ * - **Most catalog rows have no photograph** — 4.2% carry one. So two of the
+ *   cards have no image element at all, and they are designs rather than
+ *   fallbacks.
  */
-const surface: BlockElement = {
-  id: 'surface',
-  kind: 'shape',
-  box: box(0, 0, 1, 1),
-  fill: role('surface'),
-  radius: 3,
-}
 
-const productImage = (b: ReturnType<typeof box>): BlockElement => ({
-  id: 'photo',
-  kind: 'image',
-  box: b,
-  source: { from: 'product' },
-})
-
-const productText = (
-  b: ReturnType<typeof box>,
-  field: 'name' | 'spec',
-  level: TypeLevel
-): BlockElement => ({
-  id: field,
-  kind: 'text',
-  box: b,
-  source: { from: 'product', field },
-  level,
-  align: 'start',
-})
-
-const tierChip = (b: ReturnType<typeof box>): BlockElement => ({
-  id: 'chip',
-  kind: 'chip',
-  box: b,
-  anchor: 'TOP_START',
-})
-
-const price = (b: ReturnType<typeof box>): BlockElement => ({
-  id: 'price',
-  kind: 'priceMark',
-  box: b,
-})
+// ─── The library ──────────────────────────────────────────────────────────────
 
 /**
- * The repeating offer card, in four arrangements.
+ * What kind of thing a block is, for grouping a library nobody can scan in one
+ * screen.
  *
- * Designed tall first — the shape a booklet grid produces most often — then
- * reflowed for the merges. "Fit" cannot mean stretch: a stretched card is a
- * distorted card, so the engine picks the arrangement whose aspect range
- * contains the region's.
+ * **Derived here rather than stored on the row.** It is a property of the design
+ * we shipped, not a fact about a database record, and the alternative — a column
+ * — would be a column only the seed ever writes and only one screen ever reads.
+ * A block an owner authors has no category and needs none: theirs are listed
+ * first and separately, because that is the collection they can change.
  */
-const OFFER_CARD_ARRANGEMENTS: Arrangement[] = [
-  {
-    // TALL — the default booklet cell, and an Instagram story slot.
-    aspectMin: 0.35,
-    aspectMax: 0.85,
-    elements: [
-      surface,
-      productImage(box(0.08, 0.06, 0.84, 0.34)),
-      tierChip(box(0.04, 0.02, 0.36, 0.09)),
-      // Three lines of a worst-case Arabic name, not one of an English one. The
-      // name box was 13% of card height and the fit ladder escalated on every
-      // long product in the catalog — designed at the friendly case, which E6 §5
-      // says is the wrong direction to design in. At 20% the ladder steps down
-      // once and fits, which is what a rung is for.
-      productText(box(0.08, 0.44, 0.84, 0.2), 'name', 'h3'),
-      productText(box(0.08, 0.65, 0.84, 0.07), 'spec', 'caption'),
-      price(box(0.08, 0.74, 0.84, 0.2)),
-    ],
-  },
-  {
-    // SQUARE — a carousel post, and a four-across booklet cell.
-    aspectMin: 0.85,
-    aspectMax: 1.35,
-    elements: [
-      surface,
-      productImage(box(0.08, 0.07, 0.84, 0.32)),
-      tierChip(box(0.04, 0.03, 0.32, 0.1)),
-      productText(box(0.08, 0.43, 0.84, 0.2), 'name', 'h3'),
-      productText(box(0.08, 0.64, 0.84, 0.08), 'spec', 'caption'),
-      price(box(0.08, 0.74, 0.84, 0.19)),
-    ],
-  },
-  {
-    // WIDE — a two-column merge. Image leads, price anchors the end.
-    aspectMin: 1.35,
-    aspectMax: 2.6,
-    elements: [
-      surface,
-      productImage(box(0.04, 0.1, 0.3, 0.8)),
-      tierChip(box(0.02, 0.04, 0.16, 0.16)),
-      productText(box(0.38, 0.16, 0.36, 0.24), 'name', 'h3'),
-      productText(box(0.38, 0.43, 0.36, 0.14), 'spec', 'caption'),
-      price(box(0.7, 0.24, 0.27, 0.52)),
-    ],
-  },
-  {
-    // BANNER — a full-row merge. Name and price sit inline.
-    aspectMin: 2.6,
-    aspectMax: 12,
-    elements: [
-      surface,
-      productImage(box(0.02, 0.12, 0.14, 0.76)),
-      productText(box(0.19, 0.24, 0.42, 0.3), 'name', 'h3'),
-      productText(box(0.19, 0.56, 0.42, 0.2), 'spec', 'caption'),
-      price(box(0.66, 0.18, 0.3, 0.64)),
-    ],
-  },
-]
+export type BlockCategory = 'offer-card' | 'header' | 'panel' | 'footer' | 'seasonal'
 
-/** Static blocks carry one open range: designed at one aspect, cropping to fit. */
-const OPEN = { aspectMin: 0.1, aspectMax: 30 }
-
-const HERO_BAND_ARRANGEMENTS: Arrangement[] = [
-  {
-    ...OPEN,
-    elements: [
-      { id: 'ground', kind: 'shape', box: box(0, 0, 1, 1), fill: role('primary'), radius: 3 },
-      { id: 'logo', kind: 'logo', box: box(0.04, 0.12, 0.08, 0.2) },
-      {
-        id: 'headline',
-        kind: 'text',
-        box: box(0.04, 0.4, 0.56, 0.3),
-        source: { from: 'static', textEn: 'Your headline', textAr: 'العنوان الرئيسي' },
-        // h1 resolves to the headline face, which is deliberately not the face
-        // product names use. A hero and a product name are not one voice.
-        level: 'h1',
-        align: 'start',
-      },
-      {
-        id: 'support',
-        kind: 'text',
-        box: box(0.04, 0.74, 0.56, 0.14),
-        source: { from: 'static', textEn: 'Supporting line', textAr: 'سطر داعم' },
-        level: 'body',
-        align: 'start',
-      },
-      {
-        id: 'flash',
-        kind: 'text',
-        box: box(0.66, 0.4, 0.3, 0.3),
-        source: { from: 'static', textEn: 'This week only', textAr: 'هذا الأسبوع فقط' },
-        level: 'h2',
-        align: 'end',
-      },
-    ],
-  },
-]
-
-const FOOTER_ARRANGEMENTS: Arrangement[] = [
-  {
-    ...OPEN,
-    elements: [
-      { id: 'ground', kind: 'shape', box: box(0, 0, 1, 1), fill: role('secondary'), radius: 3 },
-      { id: 'logo', kind: 'logo', box: box(0.02, 0.2, 0.1, 0.6) },
-      {
-        id: 'shop-name',
-        kind: 'text',
-        box: box(0.14, 0.24, 0.3, 0.5),
-        source: { from: 'shop', field: 'name' },
-        level: 'h4',
-        align: 'start',
-      },
-      {
-        id: 'small-print',
-        kind: 'text',
-        box: box(0.5, 0.3, 0.48, 0.4),
-        source: {
-          from: 'static',
-          textEn: 'Prices valid while stocks last',
-          textAr: 'الأسعار سارية حتى نفاد الكمية',
-        },
-        level: 'caption',
-        align: 'end',
-      },
-    ],
-  },
-]
-
-const MESSAGE_ARRANGEMENTS: Arrangement[] = [
-  {
-    ...OPEN,
-    elements: [
-      { id: 'ground', kind: 'shape', box: box(0, 0, 1, 1), fill: role('primary'), radius: 3 },
-      { id: 'logo', kind: 'logo', box: box(0.38, 0.12, 0.24, 0.16) },
-      {
-        id: 'message',
-        kind: 'text',
-        box: box(0.1, 0.36, 0.8, 0.2),
-        source: { from: 'static', textEn: 'Your message', textAr: 'رسالتك' },
-        level: 'h2',
-        align: 'center',
-      },
-      {
-        id: 'second-line',
-        kind: 'text',
-        box: box(0.1, 0.6, 0.8, 0.16),
-        source: { from: 'static', textEn: 'A second line', textAr: 'سطر ثانٍ' },
-        level: 'body',
-        align: 'center',
-      },
-    ],
-  },
+export const BLOCK_CATEGORIES: readonly BlockCategory[] = [
+  'offer-card',
+  'header',
+  'panel',
+  'footer',
+  'seasonal',
 ]
 
 export interface SeedBlock {
   id: string
   name: string
   description: string
+  /** Does this block repeat over the product list, or is it placed once? */
   repeats: boolean
-  arrangements: Arrangement[]
+  category: BlockCategory
+  /**
+   * For an occasion rather than for a week. It carries no dates — Ramadan and
+   * both Eids move against the Gregorian calendar, so a fixed window is wrong
+   * from its second year. See `library-seasonal.ts`.
+   */
+  isSeasonal: boolean
+  arrangements: import('@souqstudio/types').Arrangement[]
+}
+
+const categoryOf = (id: string): BlockCategory => {
+  if (HEADER_IDS.has(id)) return 'header'
+  if (FOOTER_IDS.has(id)) return 'footer'
+  return 'panel'
 }
 
 export const SEED_BLOCKS: SeedBlock[] = [
-  {
-    id: 'blk_offer_card',
-    name: 'Offer card',
-    description: 'One product, its price and its badge. Reflows for merged regions.',
-    repeats: true,
-    arrangements: OFFER_CARD_ARRANGEMENTS,
-  },
-  {
-    id: 'blk_hero_band',
-    name: 'Hero band',
-    description: 'A headline across the top of a page, in the headline typeface.',
-    repeats: false,
-    arrangements: HERO_BAND_ARRANGEMENTS,
-  },
-  {
-    id: 'blk_footer',
-    name: 'Footer',
-    description: 'Shop name, logo and the small print. Sits on a merged last row.',
-    repeats: false,
-    arrangements: FOOTER_ARRANGEMENTS,
-  },
-  {
-    id: 'blk_message',
-    name: 'Message',
-    description: 'A whole post or a pinned panel carrying a message instead of a product.',
-    repeats: false,
-    arrangements: MESSAGE_ARRANGEMENTS,
-  },
+  ...CARD_BLOCKS.map(
+    (block): SeedBlock => ({
+      ...block,
+      repeats: true,
+      category: 'offer-card',
+      isSeasonal: false,
+    })
+  ),
+  ...PANEL_BLOCKS.map(
+    (block): SeedBlock => ({
+      ...block,
+      repeats: false,
+      category: categoryOf(block.id),
+      isSeasonal: false,
+    })
+  ),
+  ...SEASONAL_BLOCKS.map(
+    (block): SeedBlock => ({
+      ...block,
+      repeats: false,
+      category: 'seasonal',
+      isSeasonal: true,
+    })
+  ),
 ]
 
-/** Named so `bookletGrid` references the same ids the seed publishes. */
-const OFFER_CARD = SEED_BLOCKS[0]!
-const FOOTER = SEED_BLOCKS[2]!
+/**
+ * The ids `bookletGrid` composes with, looked up rather than indexed.
+ *
+ * They were `SEED_BLOCKS[0]` and `SEED_BLOCKS[2]` while there were four blocks,
+ * which is a position that silently became the wrong block the moment the list
+ * grew. Four live books name these two ids inside their `page_grids` regions,
+ * so getting it wrong is not a rendering bug — it is four books drawing footers
+ * where their cards should be.
+ */
+const byId = (id: string): SeedBlock => {
+  const block = SEED_BLOCKS.find((candidate) => candidate.id === id)
+  if (block === undefined) throw new Error(`library: no seeded block "${id}"`)
+  return block
+}
+
+const OFFER_CARD = byId('blk_offer_card')
+const FOOTER = byId('blk_footer')
 
 // ─── Seeded grids ─────────────────────────────────────────────────────────────
 
