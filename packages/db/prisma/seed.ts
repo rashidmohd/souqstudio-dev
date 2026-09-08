@@ -183,7 +183,68 @@ async function seedBlocks() {
     })
   }
 
+  await pruneSeededBlocks()
+
   console.log(`[seed] ${SEED_BLOCKS.length} blocks`)
+}
+
+/**
+ * Seeded blocks that are no longer in the library.
+ *
+ * **Upserting is not enough once the library can shrink.** The seed writes what
+ * `SEED_BLOCKS` holds and has never removed anything, so the fourteen cards cut
+ * on 8 September — colour swaps of their neighbours, and variants that differed
+ * by a hairline — would sit in every database for ever, still listed in the
+ * picker, still importable. A library that can only grow is how the thing an
+ * owner complained about comes back.
+ *
+ * **Referenced blocks are archived, never deleted.** A page grid names its block
+ * by id inside `regions` JSON, which Prisma cannot enforce, so deleting one that
+ * a live book draws would leave a hole in a page rather than an error anywhere.
+ * `book_pins` has a real foreign key and the delete would simply fail. Archiving
+ * takes it out of the picker and leaves every book that uses it intact.
+ *
+ * A shop's own copy is a separate row with its own id and is never touched —
+ * importing is copying, so nothing an owner has taken is taken back.
+ */
+async function pruneSeededBlocks() {
+  const current = new Set(SEED_BLOCKS.map((block) => block.id))
+  const seeded = await prisma.block.findMany({
+    where: { organizationId: null },
+    select: { id: true, name: true, status: true },
+  })
+  const stale = seeded.filter((block) => !current.has(block.id))
+  if (stale.length === 0) return
+
+  const [grids, pins] = await Promise.all([
+    prisma.pageGrid.findMany({ select: { regions: true } }),
+    prisma.bookPin.findMany({ select: { blockId: true } }),
+  ])
+
+  const inUse = new Set(pins.map((pin) => pin.blockId))
+  for (const grid of grids) {
+    for (const region of grid.regions as unknown as { blockId?: string }[]) {
+      if (typeof region.blockId === 'string') inUse.add(region.blockId)
+    }
+  }
+
+  const archived = stale.filter((block) => inUse.has(block.id))
+  const removable = stale.filter((block) => !inUse.has(block.id))
+
+  if (archived.length > 0) {
+    await prisma.block.updateMany({
+      where: { id: { in: archived.map((block) => block.id) } },
+      data: { status: 'archived' },
+    })
+  }
+  if (removable.length > 0) {
+    await prisma.block.deleteMany({ where: { id: { in: removable.map((b) => b.id) } } })
+  }
+
+  console.log(
+    `[seed] pruned ${removable.length} retired blocks` +
+      (archived.length > 0 ? `, archived ${archived.length} still used by a book` : '')
+  )
 }
 
 // ─── Catalog categories — E5-02 ───────────────────────────────────────────────

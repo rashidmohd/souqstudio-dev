@@ -185,7 +185,7 @@ Tracked, not forgotten. Raise rather than inventing an answer.
 - **The layout engine is what everything draws through.** `packages/engine` carries track
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation, the
   flow engine, the fit ladder, the price mark, bounded overrides, snapping and the seeded
-  block library of **67 blocks** — **232 tests**. Four surfaces render from it and all four share one
+  block library of **59 blocks** — **232 tests**. Four surfaces render from it and all four share one
   painter, `components/blocks/draw.tsx`: `/brand`'s block preview, the editor's page, the
   designer's canvas and its worst-case panel. `pnpm --filter @souqstudio/engine harness`
   draws sample pages to SVG from the seeded blocks and both invented products and **real
@@ -232,7 +232,7 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   Still no Fabric: direct manipulation goes through `moveBox`, `resizeBox` and
   `snapBox` in the engine and the same painter as the editor, because a second
   painter is how the PDF stops matching the screen. What is owed is gradients and
-  seasonal *scheduling* — E7-03. The seeded gallery is built: sixty-seven blocks,
+  seasonal *scheduling* — E7-03. The seeded gallery is built: fifty-nine blocks,
   grouped by category on `/brand/blocks`.
 - **Rate limiting** — unspecified, including on public tracking endpoints. `POST
   /api/v1/auth/2fa/enroll` runs bcrypt unthrottled behind a valid session.

@@ -297,11 +297,19 @@ export const words = (
  * is the shop's brand rather than our typography, and it is what stops the mark
  * feeling like somebody else's component in the middle of their card.
  */
-export const price = (b: Box, style?: PriceMarkStyle): BlockElement => ({
+export const price = (
+  b: Box,
+  style?: PriceMarkStyle,
+  options: { rotation?: number } = {}
+): BlockElement => ({
   id: 'price',
   kind: 'priceMark',
   box: b,
   ...(style === undefined ? {} : { style }),
+  // Rotation is placement, not composition — it lives on `ElementBase` like it
+  // does for every other kind. A mark tilted with the band it sits in is still
+  // the same mark; what E6 §3 refuses is opening it up, not moving it.
+  ...(options.rotation === undefined ? {} : { rotation: options.rotation }),
 })
 
 /** `plain` drops the ground and the outline: digits alone on a tinted card. */

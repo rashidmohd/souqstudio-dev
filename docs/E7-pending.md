@@ -383,7 +383,7 @@ because there is no scale step to fall to.
 1. **Text on a path, gradients, shadows, blend modes.** None of them are in the
    model. Gradients are the one most likely to be asked for next, and they are a
    `ColorValue` variant rather than a rewrite.
-2. ~~**A seeded gallery.**~~ **Done, 8 September — sixty-seven blocks.** The ask
+2. ~~**A seeded gallery.**~~ **Done, 8 September — fifty-nine blocks.** The ask
    was fifteen to twenty-five real designs; the library is thirty-three repeating
    offer cards, eight headers and covers, ten panels, five footers and eleven
    seasonal bands. `packages/engine/src/library-cards.ts`,
@@ -452,7 +452,7 @@ because there is no scale step to fall to.
 
    **And the previews got a packshot.** `toArtboardOffer` sent `imageUrl: null`,
    so every card in the library drew the grey "this product has no photograph"
-   box — sixty-seven blocks in a shop window, and an owner could not tell a
+   box — the whole library in a shop window, and an owner could not tell a
    photo-led card from a compact one because neither had a photo. `PREVIEW_PRODUCT`
    now carries `SAMPLE_PACKSHOT`, a category illustration in
    `public/preview/`. Three things about it are deliberate:
@@ -476,13 +476,62 @@ because there is no scale step to fall to.
    undoes the reason for having a picture. Every worst-case property survives and
    the strings got longer — 56 characters of English against 55, 58 of Arabic
    against 52, the same two-line spec and the same three-decimal KWD price.
+
+   **Then the owner looked at all thirty-three offer cards at once and said they
+   looked the same.** He was right, and the diagnosis is the reusable part.
+   Sixteen shared one skeleton — photo top, name, spec, price tag bottom, white
+   ground, 8% margins — and differed by a hairline, a 4% rail or a disc at 28%
+   opacity. Eleven were a colour swap of the card beside them. Six were
+   genuinely distinct.
+
+   Four causes, all of them decisions I made:
+
+   - **The price mark was the same object at the same size in the same place in
+     28 of 33.** It is a fifth of the card. `PriceMarkStyle.frame: 'plain'` had
+     existed the whole time and was used twice.
+   - **Every photograph was a `contain` rectangle in the upper third**, inset 8%,
+     axis-aligned. Never full-bleed, never `cover`, never dominant, never small.
+   - **One margin and one alignment everywhere.**
+   - **Skins varied colour only** — the weakest differentiator at the size a
+     library is actually browsed. Seventeen structures times skins sounded like
+     variety and produced near-duplicates.
+
+   **Cut sixteen, added eight.** Offer cards 33 → 25, library 67 → 59. Out: every
+   pure colour swap (`blk_offer_card_tinted` survives as the one tinted
+   exemplar), the hairline-only variants, `blk_pharmacy` — which was `framed` in
+   a different stroke colour, and a swatch is not a register — and
+   `blk_photo_led`, which was `fullBleed` with an inset. In: `fullBleed`,
+   `cornerFlag`, `priceBomb`, `editorial`, `platedPhoto`, `inlinePrice`,
+   `nameBand`, `splitVertical`. `photoLed` stays in the file, unshipped, with a
+   note saying what it would need to earn a place back.
+
+   Two consequences worth carrying:
+
+   - **`price()` takes a rotation now.** The corner flag needs the mark tilted
+     with the band it sits in; a horizontal price on a tilted band reads as a
+     mistake. Rotation is `ElementBase` placement, not composition — E6 §3
+     refuses opening the mark up, not moving it.
+   - **The seed had to learn to delete.** It upserts `SEED_BLOCKS` and had never
+     removed anything, so sixteen retired blocks would have sat in every database
+     for ever, still in the picker. `pruneSeededBlocks` deletes a retired seeded
+     block, or **archives** it if a page grid or a pin still names it — a grid
+     names its block inside `regions` JSON, so deleting one a live book draws
+     would make a hole rather than an error. A shop's own copy is a separate row
+     and is never touched: importing is copying, so nothing an owner has taken is
+     taken back.
 3. ~~**`pnpm db:seed` must be re-run.**~~ **Done**, and it found something. See
    below.
-4. **Nothing has been opened in a browser.** Typecheck, lint, 216 engine tests,
-   415 web tests, `pnpm build` and the render harness all pass; the canvas
-   interactions — marquee, snap guides, rotation handle, upload — have not been
-   used by a person. That is the check that has repeatedly found what the others
-   could not, and it is the one still outstanding.
+4. **Nothing has been opened in a browser.** Typecheck, lint, 232 engine tests,
+   418 web tests, `pnpm build`, `check:classes`, the render harness and the block
+   gallery all pass; the canvas interactions — marquee, snap guides, rotation
+   handle, upload — have not been used by a person. **The library work of
+   8 September is unopened too**: the reshaped `/brand/blocks`, the import
+   dialog, and the previews with a packshot in them. Each was checked by mocking
+   it at its real dimensions, which caught two defects on its own and cannot
+   catch a third class — how the filter row behaves on a phone, or what mounting
+   67 live previews at once costs on the mid-range Android this is built for.
+   That is the check that has repeatedly found what the others could not, and it
+   is the one still outstanding.
 
 ### The reseed, and what reading real rows back found
 

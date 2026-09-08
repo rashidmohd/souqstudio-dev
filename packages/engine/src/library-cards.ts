@@ -162,9 +162,11 @@ export const stacked = (skin: Skin): Arrangement[] => [
 /**
  * The packshot takes nearly half the card and the type gets out of its way.
  *
- * For the categories a photograph sells — fresh produce, bakery, anything where
- * the shopper is buying the look of the thing. It costs a type step on the name,
- * which is the trade and is why it is not the default.
+ * **Not in the library any more, and kept because it is a shape somebody will
+ * want back.** It was `fullBleed` with an 8% inset — exactly the class of
+ * difference that made thirty-three cards look like one card — so the version
+ * that reaches the edge stayed and this one went. Give it a skin no other card
+ * has and it earns a place again; ship it as it is and it is a duplicate.
  */
 export const photoLed = (skin: Skin): Arrangement[] => [
   at(TALL, [
@@ -861,6 +863,11 @@ export const specLed = (skin: Skin): Arrangement[] => {
  * The tier pill sits **beside** the rail rather than in it. It hung off the
  * start edge in the first draft, half on the rail and half on the page, which
  * read as a mistake rather than as a decision.
+ *
+ * It is also listed *after* the photograph, and that is not tidiness: elements
+ * paint in order, so a chip written before the photo is a chip behind it. The
+ * gallery showed exactly that — a pill sliced in half by a packshot — after the
+ * pill moved and the list order did not.
  */
 export const sideRail = (skin: Skin): Arrangement[] => {
   const rail = skin.accent ?? 'primary'
@@ -868,8 +875,8 @@ export const sideRail = (skin: Skin): Arrangement[] => {
     at(TALL, [
       base(skin),
       panel('rail', box(0, 0, 0.1, 1), rail),
-      badge(skin, box(0.14, 0.03, 0.34, 0.08)),
       photo(box(0.16, 0.06, 0.78, 0.34)),
+      badge(skin, box(0.14, 0.03, 0.34, 0.08)),
       bound('name', box(0.16, 0.45, 0.78, 0.2), 'h3', ink(skin)),
       bound('spec', box(0.16, 0.66, 0.78, 0.06), 'caption', muted(skin)),
       price(box(0.16, 0.74, 0.78, 0.19), skin.price),
@@ -877,8 +884,8 @@ export const sideRail = (skin: Skin): Arrangement[] => {
     at(SQUARISH, [
       base(skin),
       panel('rail', box(0, 0, 0.09, 1), rail),
-      badge(skin, box(0.13, 0.03, 0.32, 0.09)),
       photo(box(0.15, 0.06, 0.79, 0.32)),
+      badge(skin, box(0.13, 0.03, 0.32, 0.09)),
       bound('name', box(0.15, 0.44, 0.79, 0.2), 'h3', ink(skin)),
       bound('spec', box(0.15, 0.65, 0.79, 0.07), 'caption', muted(skin)),
       price(box(0.15, 0.74, 0.79, 0.19), skin.price),
@@ -886,8 +893,8 @@ export const sideRail = (skin: Skin): Arrangement[] => {
     at(WIDE, [
       base(skin),
       panel('rail', box(0, 0, 0.05, 1), rail),
-      badge(skin, box(0.08, 0.05, 0.2, 0.13)),
       photo(box(0.08, 0.22, 0.24, 0.68)),
+      badge(skin, box(0.08, 0.05, 0.2, 0.13)),
       bound('name', box(0.36, 0.2, 0.32, 0.26), 'h3', ink(skin)),
       bound('spec', box(0.36, 0.48, 0.32, 0.14), 'caption', muted(skin)),
       price(box(0.71, 0.24, 0.26, 0.52), skin.price),
@@ -994,6 +1001,412 @@ export const wordsOnly = (skin: Skin): Arrangement[] => [
   ]),
 ]
 
+// ─── Structure 18: full bleed ─────────────────────────────────────────────────
+
+/**
+ * The photograph reaches three edges, and the price is digits with no tag.
+ *
+ * **Added after looking at all thirty-three at once.** Every card in the library
+ * inset its photograph by 8% and framed its price in the same tag, so the 60% of
+ * the card that carries the most ink was identical across sixteen of them — the
+ * differences were a hairline here, a 4% rail there, all of them invisible at
+ * the size a library is actually looked at. Reaching the edge is the cheapest
+ * move that cannot be mistaken for anything else.
+ */
+export const fullBleed = (skin: Skin): Arrangement[] => [
+  at(TALL, [
+    base(skin),
+    photo(box(0, 0, 1, 0.46), { fit: 'cover' }),
+    badge(skin, box(0.04, 0.03, 0.36, 0.08)),
+    bound('name', box(0.07, 0.52, 0.86, 0.18), 'h3', ink(skin)),
+    bound('spec', box(0.07, 0.72, 0.86, 0.06), 'caption', muted(skin)),
+    price(box(0.07, 0.79, 0.86, 0.17), PLAIN_PRICE),
+  ]),
+  at(SQUARISH, [
+    base(skin),
+    photo(box(0, 0, 1, 0.44), { fit: 'cover' }),
+    badge(skin, box(0.04, 0.03, 0.34, 0.09)),
+    bound('name', box(0.07, 0.5, 0.86, 0.18), 'h3', ink(skin)),
+    bound('spec', box(0.07, 0.7, 0.86, 0.07), 'caption', muted(skin)),
+    price(box(0.07, 0.78, 0.86, 0.17), PLAIN_PRICE),
+  ]),
+  at(WIDE, [
+    base(skin),
+    photo(box(0, 0, 0.44, 1), { fit: 'cover' }),
+    badge(skin, box(0.02, 0.04, 0.18, 0.14)),
+    bound('name', box(0.5, 0.16, 0.44, 0.26), 'h3', ink(skin)),
+    bound('spec', box(0.5, 0.44, 0.44, 0.14), 'caption', muted(skin)),
+    price(box(0.5, 0.6, 0.44, 0.28), PLAIN_PRICE),
+  ]),
+  at(BANNER, [
+    base(skin),
+    photo(box(0, 0, 0.24, 1), { fit: 'cover' }),
+    bound('name', box(0.28, 0.22, 0.36, 0.3), 'h3', ink(skin)),
+    bound('spec', box(0.28, 0.54, 0.36, 0.2), 'caption', muted(skin)),
+    price(box(0.68, 0.2, 0.29, 0.6), PLAIN_PRICE),
+  ]),
+]
+
+// ─── Structure 19: corner flag ────────────────────────────────────────────────
+
+/**
+ * A band tilted across the corner with the price reversed out of it.
+ *
+ * **Nothing else in the library rotates**, which is why this is here: a design
+ * recognisable from across a room is worth more in a picker than a design that
+ * is subtly better in a page. The tilt drops to 8° on the wide shapes, where a
+ * short band at 16° runs out of card before it runs out of band.
+ *
+ * The mark rotates *with* the flag. A horizontal price on a tilted band reads as
+ * a mistake, and the box stays inside the block either way — rotation moves what
+ * is drawn, not what `validateBlock` measures.
+ */
+export const cornerFlag = (skin: Skin): Arrangement[] => {
+  const flag = skin.accent ?? 'primary'
+  const band = (b: ReturnType<typeof box>, tilt: number): BlockElement[] => [
+    panel('flag', b, flag, { rotation: tilt, radius: 0 }),
+    price(
+      box(b.start + 0.02, b.top + 0.008, b.width - 0.04, b.height - 0.016),
+      REVERSED_PRICE,
+      { rotation: tilt }
+    ),
+  ]
+
+  return [
+    at(TALL, [
+      base(skin),
+      photo(box(0, 0, 1, 0.6), { fit: 'cover' }),
+      ...band(box(0.28, 0.05, 0.7, 0.13), 16),
+      bound('name', box(0.07, 0.66, 0.86, 0.2), 'h3', ink(skin)),
+      bound('spec', box(0.07, 0.88, 0.86, 0.07), 'caption', muted(skin)),
+    ]),
+    at(SQUARISH, [
+      base(skin),
+      photo(box(0, 0, 1, 0.58), { fit: 'cover' }),
+      ...band(box(0.28, 0.05, 0.7, 0.14), 16),
+      bound('name', box(0.07, 0.64, 0.86, 0.2), 'h3', ink(skin)),
+      bound('spec', box(0.07, 0.86, 0.86, 0.08), 'caption', muted(skin)),
+    ]),
+    at(WIDE, [
+      base(skin),
+      photo(box(0, 0, 0.5, 1), { fit: 'cover' }),
+      ...band(box(0.46, 0.08, 0.5, 0.2), 8),
+      bound('name', box(0.54, 0.42, 0.4, 0.26), 'h3', ink(skin)),
+      bound('spec', box(0.54, 0.7, 0.4, 0.14), 'caption', muted(skin)),
+    ]),
+    at(BANNER, [
+      base(skin),
+      photo(box(0, 0, 0.26, 1), { fit: 'cover' }),
+      ...band(box(0.62, 0.14, 0.36, 0.34), 8),
+      bound('name', box(0.3, 0.24, 0.28, 0.3), 'h3', ink(skin)),
+      bound('spec', box(0.3, 0.56, 0.28, 0.18), 'caption', muted(skin)),
+    ]),
+  ]
+}
+
+// ─── Structure 20: price bomb ─────────────────────────────────────────────────
+
+/**
+ * The mark at a third of the card, on a disc that nearly fills it.
+ *
+ * What a hypermarket weekly does with the one deal it is actually advertising.
+ * `burst` was the closest the library had and it gives the disc a quarter of the
+ * card; this gives it half, drops the tag, and lets the numerals be the design.
+ *
+ * **One per page and the page will be better for it.** Two of these beside each
+ * other is a page with no lead deal at all, which is the failure the whole
+ * hierarchy exists to avoid.
+ */
+export const priceBomb = (skin: Skin): Arrangement[] => {
+  const dot = skin.accent ?? 'accent'
+  return [
+    at(TALL, [
+      base(skin),
+      photo(box(0.24, 0.02, 0.52, 0.22)),
+      badge(skin, box(0.03, 0.02, 0.3, 0.07)),
+      disc('bomb', box(0.02, 0.26, 0.96, 0.46), dot),
+      price(box(0.1, 0.32, 0.8, 0.32), REVERSED_PRICE),
+      bound('name', box(0.08, 0.76, 0.84, 0.15), 'h4', ink(skin)),
+      bound('spec', box(0.08, 0.92, 0.84, 0.06), 'caption', muted(skin)),
+    ]),
+    at(SQUARISH, [
+      base(skin),
+      photo(box(0.26, 0.02, 0.48, 0.2)),
+      badge(skin, box(0.03, 0.02, 0.28, 0.08)),
+      disc('bomb', box(0.02, 0.24, 0.96, 0.48), dot),
+      price(box(0.1, 0.3, 0.8, 0.34), REVERSED_PRICE),
+      bound('name', box(0.08, 0.75, 0.84, 0.16), 'h4', ink(skin)),
+      bound('spec', box(0.08, 0.92, 0.84, 0.06), 'caption', muted(skin)),
+    ]),
+    at(WIDE, [
+      base(skin),
+      photo(box(0.03, 0.12, 0.24, 0.66)),
+      badge(skin, box(0.02, 0.02, 0.16, 0.12)),
+      bound('name', box(0.03, 0.82, 0.28, 0.14), 'h4', ink(skin)),
+      disc('bomb', box(0.33, 0.04, 0.65, 0.92), dot),
+      price(box(0.38, 0.24, 0.55, 0.52), REVERSED_PRICE),
+    ]),
+    at(BANNER, [
+      base(skin),
+      photo(box(0.02, 0.12, 0.14, 0.76)),
+      bound('name', box(0.18, 0.3, 0.28, 0.26), 'h4', ink(skin)),
+      bound('spec', box(0.18, 0.58, 0.28, 0.16), 'caption', muted(skin)),
+      disc('bomb', box(0.5, 0.03, 0.48, 0.94), dot),
+      price(box(0.55, 0.22, 0.38, 0.56), REVERSED_PRICE),
+    ]),
+  ]
+}
+
+// ─── Structure 21: editorial ──────────────────────────────────────────────────
+
+/**
+ * Type as the graphic: the name three steps up, the packshot small, hairlines
+ * above and below, and a price that does not shout.
+ *
+ * The register a pharmacy, a deli or a speciality grocer sells in, and the
+ * opposite of every other card here — it is the only one where the photograph is
+ * the smallest thing on the card. `pharmacy` used to occupy this slot and was
+ * `framed` in a different stroke colour, which is not a register, it is a swatch.
+ */
+export const editorial = (skin: Skin): Arrangement[] => {
+  const line = skin.accent ?? 'ink'
+  const eyebrow = {
+    ...muted(skin),
+    transform: 'uppercase' as const,
+    letterSpacing: 0.14,
+    align: 'center' as const,
+  }
+  return [
+    at(TALL, [
+      base(skin),
+      rule('top', box(0.1, 0.07, 0.8, 0.005), line),
+      bound('brand', box(0.1, 0.1, 0.8, 0.05), 'caption', eyebrow),
+      bound('name', box(0.08, 0.19, 0.84, 0.3), 'h1', { ...ink(skin), align: 'center' }),
+      photo(box(0.28, 0.52, 0.44, 0.24)),
+      rule('mid', box(0.4, 0.8, 0.2, 0.005), line),
+      bound('spec', box(0.1, 0.83, 0.8, 0.05), 'caption', { ...muted(skin), align: 'center' }),
+      price(box(0.1, 0.88, 0.8, 0.1), PLAIN_PRICE),
+    ]),
+    at(SQUARISH, [
+      base(skin),
+      rule('top', box(0.1, 0.08, 0.8, 0.005), line),
+      bound('brand', box(0.1, 0.11, 0.8, 0.06), 'caption', eyebrow),
+      bound('name', box(0.08, 0.21, 0.84, 0.28), 'h1', { ...ink(skin), align: 'center' }),
+      photo(box(0.3, 0.52, 0.4, 0.22)),
+      rule('mid', box(0.4, 0.78, 0.2, 0.005), line),
+      bound('spec', box(0.1, 0.81, 0.8, 0.06), 'caption', { ...muted(skin), align: 'center' }),
+      price(box(0.1, 0.87, 0.8, 0.11), PLAIN_PRICE),
+    ]),
+    at(WIDE, [
+      base(skin),
+      rule('top', box(0.06, 0.12, 0.42, 0.005), line),
+      bound('brand', box(0.06, 0.16, 0.42, 0.09), 'caption', { ...eyebrow, align: 'start' }),
+      bound('name', box(0.06, 0.3, 0.42, 0.34), 'h1', ink(skin)),
+      bound('spec', box(0.06, 0.68, 0.42, 0.12), 'caption', muted(skin)),
+      photo(box(0.54, 0.16, 0.2, 0.68)),
+      rule('mid', box(0.8, 0.14, 0.005, 0.72), line),
+      price(box(0.84, 0.32, 0.14, 0.36), PLAIN_PRICE),
+    ]),
+    at(BANNER, [
+      base(skin),
+      rule('top', box(0.03, 0.16, 0.3, 0.005), line),
+      bound('brand', box(0.03, 0.22, 0.3, 0.12), 'caption', { ...eyebrow, align: 'start' }),
+      bound('name', box(0.03, 0.38, 0.42, 0.36), 'h1', ink(skin)),
+      photo(box(0.5, 0.14, 0.12, 0.72)),
+      rule('mid', box(0.66, 0.16, 0.005, 0.68), line),
+      price(box(0.7, 0.3, 0.27, 0.4), PLAIN_PRICE),
+    ]),
+  ]
+}
+
+// ─── Structure 22: plated photo ───────────────────────────────────────────────
+
+/**
+ * The photograph is the whole card and a white plate floats over the foot of it.
+ *
+ * Not `overlay`, which darkens the picture and sets the type straight onto it.
+ * The plate is opaque, so the name and the price get the contrast of a white
+ * card while the photograph still owns the shape — which is the compromise a
+ * social post wants and a scrim does not give.
+ */
+export const platedPhoto = (skin: Skin): Arrangement[] => [
+  at(TALL, [
+    photo(box(0, 0, 1, 1), { fit: 'cover' }),
+    chip(box(0.04, 0.03, 0.36, 0.08)),
+    panel('plate', box(0.06, 0.58, 0.88, 0.36), skin.ground),
+    bound('name', box(0.1, 0.62, 0.8, 0.16), 'h4'),
+    bound('spec', box(0.1, 0.78, 0.8, 0.05), 'caption'),
+    price(box(0.1, 0.83, 0.8, 0.1), PLAIN_PRICE),
+  ]),
+  at(SQUARISH, [
+    photo(box(0, 0, 1, 1), { fit: 'cover' }),
+    chip(box(0.04, 0.03, 0.34, 0.09)),
+    panel('plate', box(0.06, 0.56, 0.88, 0.38), skin.ground),
+    bound('name', box(0.1, 0.6, 0.8, 0.17), 'h4'),
+    bound('spec', box(0.1, 0.77, 0.8, 0.06), 'caption'),
+    price(box(0.1, 0.83, 0.8, 0.1), PLAIN_PRICE),
+  ]),
+  at(WIDE, [
+    photo(box(0, 0, 1, 1), { fit: 'cover' }),
+    chip(box(0.02, 0.04, 0.18, 0.14)),
+    panel('plate', box(0.5, 0.06, 0.44, 0.88), skin.ground),
+    bound('name', box(0.54, 0.14, 0.36, 0.26), 'h4'),
+    bound('spec', box(0.54, 0.42, 0.36, 0.14), 'caption'),
+    price(box(0.54, 0.6, 0.36, 0.26), PLAIN_PRICE),
+  ]),
+  at(BANNER, [
+    photo(box(0, 0, 1, 1), { fit: 'cover' }),
+    panel('plate', box(0.36, 0.08, 0.6, 0.84), skin.ground),
+    bound('name', box(0.4, 0.18, 0.3, 0.3), 'h4'),
+    bound('spec', box(0.4, 0.52, 0.3, 0.2), 'caption'),
+    price(box(0.72, 0.22, 0.2, 0.52), PLAIN_PRICE),
+  ]),
+]
+
+// ─── Structure 23: inline price ───────────────────────────────────────────────
+
+/**
+ * Name at the start of a row, price at the end of it, a rule above both.
+ *
+ * The e-commerce grid's convention rather than the leaflet's, and the only card
+ * here where the price is not on its own line. It is the quietest treatment in
+ * the library, which makes it the one for a page where the *products* are the
+ * argument and the prices are a detail — a pharmacy's own-brand range, a
+ * stationery list.
+ */
+export const inlinePrice = (skin: Skin): Arrangement[] => [
+  at(TALL, [
+    base(skin),
+    photo(box(0.06, 0.06, 0.88, 0.4)),
+    badge(skin, box(0.03, 0.03, 0.34, 0.08)),
+    bound('name', box(0.06, 0.5, 0.88, 0.16), 'h4', ink(skin)),
+    bound('spec', box(0.06, 0.67, 0.88, 0.06), 'caption', muted(skin)),
+    rule('divider', box(0.06, 0.77, 0.88, 0.004), 'inkMuted'),
+    price(box(0.06, 0.8, 0.88, 0.14), PLAIN_PRICE),
+  ]),
+  at(SQUARISH, [
+    base(skin),
+    photo(box(0.06, 0.06, 0.88, 0.38)),
+    badge(skin, box(0.03, 0.03, 0.32, 0.09)),
+    bound('name', box(0.06, 0.48, 0.88, 0.16), 'h4', ink(skin)),
+    bound('spec', box(0.06, 0.65, 0.88, 0.07), 'caption', muted(skin)),
+    rule('divider', box(0.06, 0.76, 0.88, 0.004), 'inkMuted'),
+    price(box(0.06, 0.79, 0.88, 0.15), PLAIN_PRICE),
+  ]),
+  at(WIDE, [
+    base(skin),
+    photo(box(0.04, 0.1, 0.26, 0.8)),
+    badge(skin, box(0.02, 0.04, 0.16, 0.13)),
+    bound('name', box(0.34, 0.22, 0.36, 0.26), 'h4', ink(skin)),
+    bound('spec', box(0.34, 0.5, 0.36, 0.14), 'caption', muted(skin)),
+    rule('divider', box(0.74, 0.16, 0.004, 0.68), 'inkMuted'),
+    price(box(0.78, 0.32, 0.19, 0.36), PLAIN_PRICE),
+  ]),
+  at(BANNER, [
+    base(skin),
+    photo(box(0.02, 0.12, 0.12, 0.76)),
+    bound('name', box(0.18, 0.28, 0.4, 0.3), 'h4', ink(skin)),
+    bound('spec', box(0.18, 0.6, 0.4, 0.18), 'caption', muted(skin)),
+    rule('divider', box(0.64, 0.18, 0.004, 0.64), 'inkMuted'),
+    price(box(0.68, 0.34, 0.29, 0.32), PLAIN_PRICE),
+  ]),
+]
+
+// ─── Structure 24: name band ──────────────────────────────────────────────────
+
+/**
+ * The colour band sits behind the **name**, not behind the price.
+ *
+ * `priceBand` puts the mark in a coloured strip and is the flyer default; this
+ * inverts it, which is the supermarket own-label convention — the product line
+ * is what the band is announcing, and the price is left plain underneath. Two
+ * cards, one shape, opposite emphasis.
+ */
+export const nameBand = (skin: Skin): Arrangement[] => {
+  const band = skin.accent ?? 'primary'
+  return [
+    at(TALL, [
+      base(skin),
+      photo(box(0.06, 0.04, 0.88, 0.36)),
+      badge(skin, box(0.03, 0.02, 0.32, 0.08)),
+      panel('band', box(0, 0.44, 1, 0.22), band, { radius: 0 }),
+      bound('name', box(0.07, 0.47, 0.86, 0.16), 'h3', { color: 'surface' }),
+      bound('spec', box(0.07, 0.69, 0.86, 0.06), 'caption', muted(skin)),
+      price(box(0.07, 0.76, 0.86, 0.2), skin.price),
+    ]),
+    at(SQUARISH, [
+      base(skin),
+      photo(box(0.06, 0.04, 0.88, 0.34)),
+      badge(skin, box(0.03, 0.02, 0.3, 0.09)),
+      panel('band', box(0, 0.42, 1, 0.22), band, { radius: 0 }),
+      bound('name', box(0.07, 0.45, 0.86, 0.16), 'h3', { color: 'surface' }),
+      bound('spec', box(0.07, 0.67, 0.86, 0.07), 'caption', muted(skin)),
+      price(box(0.07, 0.75, 0.86, 0.2), skin.price),
+    ]),
+    at(WIDE, [
+      base(skin),
+      photo(box(0.04, 0.1, 0.28, 0.8)),
+      badge(skin, box(0.02, 0.04, 0.16, 0.13)),
+      panel('band', box(0.36, 0.1, 0.62, 0.3), band, { radius: 0 }),
+      bound('name', box(0.39, 0.14, 0.56, 0.22), 'h3', { color: 'surface' }),
+      bound('spec', box(0.39, 0.44, 0.56, 0.14), 'caption', muted(skin)),
+      price(box(0.39, 0.6, 0.56, 0.3), skin.price),
+    ]),
+    at(BANNER, [
+      base(skin),
+      photo(box(0.02, 0.12, 0.13, 0.76)),
+      panel('band', box(0.18, 0.16, 0.44, 0.32), band, { radius: 0 }),
+      bound('name', box(0.2, 0.2, 0.4, 0.24), 'h3', { color: 'surface' }),
+      bound('spec', box(0.2, 0.56, 0.4, 0.18), 'caption', muted(skin)),
+      price(box(0.66, 0.2, 0.31, 0.6), skin.price),
+    ]),
+  ]
+}
+
+// ─── Structure 25: split vertical ─────────────────────────────────────────────
+
+/**
+ * Half photograph, half words — **in a tall cell as well as a wide one.**
+ *
+ * Every other card in the library stacks in a portrait region and only splits
+ * side by side when the region is already wide. This one splits at every shape,
+ * which makes a column of them read as a completely different page from a column
+ * of stacked cards.
+ */
+export const splitVertical = (skin: Skin): Arrangement[] => [
+  at(TALL, [
+    base(skin),
+    photo(box(0, 0, 0.46, 1), { fit: 'cover' }),
+    badge(skin, box(0.02, 0.03, 0.4, 0.07)),
+    bound('name', box(0.52, 0.12, 0.42, 0.3), 'h4', ink(skin)),
+    bound('spec', box(0.52, 0.46, 0.42, 0.12), 'caption', muted(skin)),
+    price(box(0.52, 0.62, 0.42, 0.3), PLAIN_PRICE),
+  ]),
+  at(SQUARISH, [
+    base(skin),
+    photo(box(0, 0, 0.48, 1), { fit: 'cover' }),
+    badge(skin, box(0.02, 0.03, 0.4, 0.09)),
+    bound('name', box(0.54, 0.14, 0.4, 0.28), 'h4', ink(skin)),
+    bound('spec', box(0.54, 0.46, 0.4, 0.12), 'caption', muted(skin)),
+    price(box(0.54, 0.62, 0.4, 0.28), PLAIN_PRICE),
+  ]),
+  at(WIDE, [
+    base(skin),
+    photo(box(0, 0, 0.5, 1), { fit: 'cover' }),
+    badge(skin, box(0.02, 0.04, 0.2, 0.14)),
+    bound('name', box(0.56, 0.16, 0.38, 0.26), 'h4', ink(skin)),
+    bound('spec', box(0.56, 0.44, 0.38, 0.14), 'caption', muted(skin)),
+    price(box(0.56, 0.6, 0.38, 0.28), PLAIN_PRICE),
+  ]),
+  at(BANNER, [
+    base(skin),
+    photo(box(0, 0, 0.34, 1), { fit: 'cover' }),
+    bound('name', box(0.38, 0.22, 0.3, 0.3), 'h4', ink(skin)),
+    bound('spec', box(0.38, 0.54, 0.3, 0.2), 'caption', muted(skin)),
+    price(box(0.7, 0.22, 0.27, 0.56), PLAIN_PRICE),
+  ]),
+]
+
 // ─── The cards ────────────────────────────────────────────────────────────────
 
 export interface CardBlock {
@@ -1027,46 +1440,10 @@ export const CARD_BLOCKS: CardBlock[] = [
     arrangements: stacked({ ground: 'primary', onTint: true, price: TAG_ON_TINT, chipFill: 'ink' }),
   },
   {
-    id: 'blk_offer_card_accent',
-    name: 'Offer card, accent',
-    description: 'Grounded in the accent colour. Reads as a second tier of emphasis under the tinted card.',
-    arrangements: stacked({ ground: 'accent', onTint: true, price: TAG_ON_TINT, chipFill: 'ink' }),
-  },
-  {
-    id: 'blk_offer_card_outlined',
-    name: 'Offer card, outlined',
-    description: 'A hairline border instead of a fill. Separates cards on a page that has no gaps.',
-    arrangements: stacked({ ground: 'surface', stroke: outline('inkMuted', 0.004) }),
-  },
-  {
     id: 'blk_price_band',
     name: 'Price band card',
     description: 'The price reversed out of a coloured band along the foot. The weekly-flyer default.',
     arrangements: priceBand({ ground: 'surface', accent: 'primary' }),
-  },
-  {
-    id: 'blk_price_band_accent',
-    name: 'Price band card, accent',
-    description: 'The same band in the accent colour, for a page that already uses the primary elsewhere.',
-    arrangements: priceBand({ ground: 'surface', accent: 'accent' }),
-  },
-  {
-    id: 'blk_price_band_ink',
-    name: 'Price band card, ink',
-    description: 'A near-black band. The quietest way to make a price the loudest thing on a card.',
-    arrangements: priceBand({ ground: 'surface', accent: 'ink' }),
-  },
-  {
-    id: 'blk_photo_led',
-    name: 'Photo-led card',
-    description: 'Nearly half the card is the packshot. For produce, bakery and anything sold by its look.',
-    arrangements: photoLed({ ground: 'surface' }),
-  },
-  {
-    id: 'blk_photo_led_tinted',
-    name: 'Photo-led card, tinted',
-    description: 'A photo-led card on a coloured ground, for a section that should read as its own.',
-    arrangements: photoLed({ ground: 'secondary', onTint: true, price: TAG_ON_TINT, chipFill: 'ink' }),
   },
   {
     id: 'blk_compact',
@@ -1075,22 +1452,10 @@ export const CARD_BLOCKS: CardBlock[] = [
     arrangements: compact({ ground: 'surface' }),
   },
   {
-    id: 'blk_compact_tinted',
-    name: 'Compact card, tinted',
-    description: 'A dense card on a coloured ground. Useful for a whole aisle rather than one product.',
-    arrangements: compact({ ground: 'primary', onTint: true, price: TAG_ON_TINT, chipFill: 'ink' }),
-  },
-  {
     id: 'blk_feature',
     name: 'Feature card',
     description: 'Brand line, big name, big price. Designed for a merged two-by-two — your lead deal.',
     arrangements: feature({ ground: 'surface' }),
-  },
-  {
-    id: 'blk_feature_tinted',
-    name: 'Feature card, tinted',
-    description: 'The lead deal on a coloured ground, so it separates from the cards around it.',
-    arrangements: feature({ ground: 'primary', onTint: true, price: TAG_ON_TINT, chipFill: 'ink' }),
   },
   {
     id: 'blk_burst',
@@ -1099,22 +1464,10 @@ export const CARD_BLOCKS: CardBlock[] = [
     arrangements: burst({ ground: 'surface', accent: 'accent' }),
   },
   {
-    id: 'blk_burst_primary',
-    name: 'Price burst card, primary',
-    description: 'The same burst in your first brand colour.',
-    arrangements: burst({ ground: 'surface', accent: 'primary' }),
-  },
-  {
     id: 'blk_overlay',
     name: 'Photo overlay card',
     description: 'Full-bleed photograph with the name and price on a dark scrim. Built for a square post.',
     arrangements: overlay('ink', 'surface'),
-  },
-  {
-    id: 'blk_overlay_light',
-    name: 'Photo overlay card, light',
-    description: 'The same overlay with a pale scrim and dark type, for photographs that are already dark.',
-    arrangements: overlay('surface', 'ink'),
   },
   {
     id: 'blk_ticket',
@@ -1123,27 +1476,10 @@ export const CARD_BLOCKS: CardBlock[] = [
     arrangements: ticket({ ground: 'surface', accent: 'ink' }),
   },
   {
-    id: 'blk_ticket_tinted',
-    name: 'Ticket card, tinted',
-    description: 'A white tab on a coloured card, so the badge keeps its own colour and still reads.',
-    arrangements: ticket({
-      ground: 'primary',
-      onTint: true,
-      accent: 'surface',
-      price: TAG_ON_TINT,
-    }),
-  },
-  {
     id: 'blk_framed',
     name: 'Framed card',
     description: 'A hairline frame, centred type and a rule above the price. The quieter register.',
     arrangements: framed({ ground: 'surface', stroke: outline('primary', 0.005) }),
-  },
-  {
-    id: 'blk_framed_quiet',
-    name: 'Framed card, quiet',
-    description: 'The same frame in a muted line, for a page that should not shout.',
-    arrangements: framed({ ground: 'surface', stroke: outline('inkMuted', 0.004), price: PLAIN_PRICE }),
   },
   {
     id: 'blk_price_first',
@@ -1152,21 +1488,9 @@ export const CARD_BLOCKS: CardBlock[] = [
     arrangements: priceFirst({ ground: 'surface' }),
   },
   {
-    id: 'blk_price_first_tinted',
-    name: 'Price-first card, tinted',
-    description: 'Price-first on a coloured ground, for a page of one category.',
-    arrangements: priceFirst({ ground: 'secondary', onTint: true, price: TAG_ON_TINT, accent: 'surface', chipFill: 'ink' }),
-  },
-  {
     id: 'blk_list_row',
     name: 'List row',
     description: 'A line item: thumbnail, name, price at the end. For a wide region or a full row.',
-    arrangements: listRow({ ground: 'surface' }, false),
-  },
-  {
-    id: 'blk_list_row_ruled',
-    name: 'List row, ruled',
-    description: 'The same row with a rule beneath, so a stack of them reads as one table.',
     arrangements: listRow({ ground: 'surface' }, true),
   },
   {
@@ -1200,21 +1524,57 @@ export const CARD_BLOCKS: CardBlock[] = [
     arrangements: specLed({ ground: 'surface' }),
   },
   {
-    id: 'blk_pharmacy',
-    name: 'Pharmacy card',
-    description: 'Centred, framed and unhurried, with the pack detail given room. For pharmacy and beauty.',
-    arrangements: framed({ ground: 'surface', stroke: outline('secondary', 0.004), accent: 'secondary' }),
+    id: 'blk_full_bleed',
+    name: 'Full-bleed card',
+    description: 'The photograph reaches three edges and the price is digits, not a tag.',
+    arrangements: fullBleed({ ground: 'surface' }),
+  },
+  {
+    id: 'blk_split_vertical',
+    name: 'Split card',
+    description: 'Half photograph, half words — at every shape, not only when the region is wide.',
+    arrangements: splitVertical({ ground: 'surface' }),
+  },
+  {
+    id: 'blk_plated_photo',
+    name: 'Plated photo card',
+    description: 'The photograph is the whole card, with a white plate floating over the foot.',
+    arrangements: platedPhoto({ ground: 'surface' }),
+  },
+  {
+    id: 'blk_price_bomb',
+    name: 'Price bomb card',
+    description: 'The mark at a third of the card on a disc. The lead deal, and one to a page.',
+    arrangements: priceBomb({ ground: 'surface', accent: 'accent' }),
+  },
+  {
+    id: 'blk_corner_flag',
+    name: 'Corner flag card',
+    description: 'A band tilted across the corner with the price reversed out of it.',
+    arrangements: cornerFlag({ ground: 'surface', accent: 'primary' }),
+  },
+  {
+    id: 'blk_name_band',
+    name: 'Name band card',
+    description: 'The colour band sits behind the product line, and the price is left plain.',
+    arrangements: nameBand({ ground: 'surface', accent: 'primary' }),
+  },
+  {
+    id: 'blk_editorial',
+    name: 'Editorial card',
+    description: 'Type as the graphic: a big name, a small packshot and a quiet price.',
+    arrangements: editorial({ ground: 'surface' }),
+  },
+  {
+    id: 'blk_inline_price',
+    name: 'Inline price card',
+    description: 'Name at the start of a row, price at the end. The quietest card here.',
+    arrangements: inlinePrice({ ground: 'surface' }),
   },
   {
     id: 'blk_words_only',
     name: 'Card without a photograph',
     description: 'Name and price at full size, no image. For the two thirds of a catalog with no packshot.',
     arrangements: wordsOnly({ ground: 'surface' }),
-  },
-  {
-    id: 'blk_words_only_tinted',
-    name: 'Card without a photograph, tinted',
-    description: 'The same card grounded in colour, which is what makes a page of them look deliberate.',
-    arrangements: wordsOnly({ ground: 'primary', onTint: true, price: TAG_ON_TINT, chipFill: 'ink' }),
   },
 ]

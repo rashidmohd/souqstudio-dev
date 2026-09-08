@@ -5,11 +5,15 @@ of the remaining epics needs before it can begin.
 
 Last updated 8 September 2026.
 
-**The block designer is a design tool now, and E6's feature list is closed.** A shop owner
-can build an offer book end to end — create it, price it, adjust it, lay it out, pin panels
-into it, duplicate it next week — and design the blocks it is built from: any colour, any
-size, shapes, uploaded artwork, rotation, multi-select, snapping, a tool rail and a
-keyboard. What no owner can do is get any of it out of the product, which is E9.
+**The block designer is a design tool now, it has a library to design from, and E6's
+feature list is closed.** A shop owner can build an offer book end to end — create it,
+price it, adjust it, lay it out, pin panels into it, duplicate it next week — design the
+blocks it is built from, and start from **fifty-nine seeded blocks** rather than four.
+What no owner can do is get any of it out of the product, which is E9.
+
+**Two things an owner cannot do today that are not epics.** A logo upload on the dev
+deployment is broken twice over — see §2 — and none of the library work has been opened in
+a browser, which is the check §1.0 exists to argue for.
 
 **Two things about today are worth more than the feature list.**
 
@@ -55,7 +59,7 @@ exist. Nothing an owner builds can reach a customer.
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
 | **E6** Offer book editor | **Built.** Create a book from the catalog or from a committed CSV import, draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, pin a panel, and duplicate the whole book. Not written: merging cells on the artboard, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-pending.md` §8. |
-| **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is sixty-seven blocks** — thirty-three offer cards, eight headers and covers, ten panels, five footers and eleven seasonal bands, grouped by category on `/brand/blocks`. Not written: gradients, seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar). See `E7-pending.md` §8. |
+| **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is fifty-nine blocks** — twenty-five offer cards, eight headers and covers, ten panels, five footers and eleven seasonal bands — and the screen changed shape with it: `/brand/blocks` is now the shop's own blocks alone, with "Add from library" opening a filtered, multi-select picker. Not written: gradients, seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar), and **none of it has been opened in a browser**. See `E7-pending.md` §8. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
@@ -165,7 +169,7 @@ share one implementation, and drift there means the PDF does not match the scree
 | `render` | a block's elements to absolute rectangles |
 | `price-mark` | every piece of a price mark, and the money formatting |
 | `fit` | the four-rung fit ladder and what each text may suffer |
-| `library` | the four seeded blocks — element ids and `ColorValue` fills since 8 September |
+| `library` | the seeded library — **59 blocks** across `library-cards`, `library-panels`, `library-seasonal` on a shared `library-kit` |
 | `direction` | which way a *string* reorders, and where its line is anchored |
 | `compact` | reclaiming the height a card's content did not use |
 | `override` | the bounded nudge, and the key that survives next week's products |
@@ -173,7 +177,7 @@ share one implementation, and drift there means the PDF does not match the scree
 | `snap` | snapping to a neighbour's edge, and aligning a selection to itself |
 | `color` | a role, a palette entry or a literal, resolved the same way twice |
 
-**219 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG —
+**232 tests.** `pnpm --filter @souqstudio/engine harness` renders sample pages to SVG —
 that is how the model is checked, and it is not a renderer anything ships. Output lands in
 `packages/engine/harness/out`; open `index.html`.
 
@@ -257,13 +261,21 @@ dropped, along with `offer_books.templateId`/`densityProfile` and
 `offer_book_pages.pageType`/`densityProfile`. Safe to drop with rows in them because
 nothing referenced either — the database held zero offer books.
 
-**`pnpm db:seed`** publishes four blocks: offer card (repeating, four arrangements), hero
-band, footer, message. `page_grids` has no relation to `blocks` on purpose — a region
+**`pnpm db:seed`** publishes **59 blocks** — 25 repeating offer cards, 8 headers and
+covers, 10 panels, 5 footers and 11 seasonal bands — and **prunes the ones that have been
+retired**, archiving any a live book still names rather than deleting it. Upserting alone
+was enough only while the library could not shrink. It was four until 8 September: offer
+card, hero band, footer, message. Those four keep their ids, because four live books name
+`blk_offer_card` and `blk_footer` inside their `page_grids` regions and Prisma cannot
+enforce a key through JSON. `page_grids` has no relation to `blocks` on purpose — a region
 names its block by id *inside* the `regions` JSON, and Prisma cannot enforce a key through
 JSON, so a relation would only add a join table nothing writes to.
 
 **`components/blocks/BlockPreview.tsx`** is the first renderer: inline SVG, drawing the
-seeded blocks in the shop's palette and typefaces on the `/brand` Blocks card. It computes
+seeded blocks in the shop's palette and typefaces — on `/brand/blocks` and in the import
+dialog that screen opens. Since 8 September the sample offer carries a stand-in packshot
+(`public/preview/`), because a library this size all drawing the grey "no photograph"
+box is a shop window in which nothing can be told apart. It computes
 no geometry — every rectangle and line break comes from the engine. Fabric is still the
 *editor's* renderer, where dragging needs an object model.
 
@@ -393,7 +405,7 @@ the camera half of E5-03. The import's match thresholds are unverified against r
 one**: a misspelling inside a longer product name scores under the trigram threshold and
 returns nothing at all. Both are written up in `E5-pending.md` §3.
 
-### `R2_ENDPOINT` carried the bucket name — every uploaded object landed unreachable
+### `R2_ENDPOINT` still carries the bucket on Railway — logo and image uploads land unreachable
 
 **Found and fixed locally on 6 September**, while attaching a placeholder image to the demo
 catalog. `apps/web/.env.local` had
@@ -430,7 +442,7 @@ and the bucket as a host prefix. The app will not boot on the bad value rather t
 uploading into the void. **Fix the Railway variable before the next deploy or dev stops
 serving**, which is the intended trade.
 
-### Every presigned upload URL carried a checksum for an empty body
+### Every presigned upload URL carried a checksum for an empty body — fixed in code
 
 **Found 8 September, in the same URL.** Since `@aws-sdk/client-s3` v3.729 the SDK adds a
 CRC32 checksum to `PutObject` by default. On a normal request it computes that from the
@@ -456,13 +468,14 @@ wrong and is corrected. It is survivable on the logo path only because the compl
 reads the object back and re-parses it with sharp. Any future presigned path that stores
 what it is given does not inherit that.
 
-### A preview route with no auth check was committed — remove before deploying
+### A preview route with no auth check was committed — resolved, gone from the tree
 
 Commit `b293829` captured a temporary harness: `apps/web/app/preview-brand/page.tsx` and a
 `/preview-brand` entry in `PUBLIC_PATHS`. That route mounts the brand kit screen with **no
 session check**. It was a scratch page for looking at the four cards without writing to the
-live database, and it should never have been committed. The deletion is in the working
-tree; do not deploy that commit as it stands.
+live database, and it should never have been committed. **Resolved** — the route and its
+`PUBLIC_PATHS` entry are gone from the tree; `apps/web/app/` has no `preview-brand`. The
+warning stands for anything deployed from `b293829` itself.
 
 ### Promo-tier seeding is fixed — was breaking every new account
 
@@ -833,6 +846,43 @@ four named weights are four values a `B` would collapse to two.
 The canvas opens **fitted**, which it did not before — see §1.0 for why that
 silently did nothing until the shell was given a definite height.
 
+**Then it was given something to design *from*.** The seeded gallery E7-pending
+listed as owed is built. `pnpm --filter @souqstudio/engine gallery` draws every
+block at every shape it claims, plus the worst-case Arabic name and an Arabic
+edition, to `harness/out/gallery.html` — and it is the only check in the repo
+that finds a *design* defect rather than a correctness one. It found four the
+232 engine tests could not:
+
+- **A block that declines to design a shape does not avoid it.**
+  `pickArrangement` falls back to the nearest range, so the list row's two
+  arrangements meant an owner dropping it into a portrait cell got the wide
+  layout crushed into it — stretched thumbnail, two-character price, name
+  escalated red. Refusing to design a shape only stops anyone deciding what it
+  looks like.
+- **A promo-tier pill draws in a brand colour, so a brand-coloured ground can
+  swallow it.** A `primary` tier on a `primary` card.
+- **`variant: 'line'` draws left to right in both painters**, so three vertical
+  dividers rendered as two-pixel dashes.
+
+**And the screen stopped being a page of both collections.** At four seeded
+blocks, printing ours under theirs read as one screen with two halves; at
+sixty-seven it read as a catalog with the shop's own work stranded at the top.
+They are not peers — one is theirs and editable and the reason to open the
+screen, the other is a shelf. `/brand/blocks` is their library alone now, and
+"Add from library" opens `BlockImportDialog`: filtered by what a block is *for*,
+multi-select, one action naming the count. `POST /api/v1/blocks` grew a `fromIds`
+branch beside `fromId` — importing is not duplicating, so an imported block is
+"Ramadan band" and not "Ramadan band copy".
+
+**What E7 still owes:** gradients, E7-03's seasonal scheduling, and the check
+that has found something every time it has been run — *none of the library work
+has been opened in a browser.* It was verified by mocking each surface at its
+real dimensions against the rendered blocks, which caught two defects on its own
+(a footer tile 22px tall beside a 240px card; a dairy packshot under a laundry
+detergent's name). A mock cannot tell you how the filter row behaves on a phone,
+and it cannot measure the dialog mounting 67 live previews at once on the
+mid-range Android this product is for.
+
 
 **The epic was rewritten before it was built**, against `docs/composition-model.md` §3, and
 the rewrite is `docs/E7-pending.md` §1. Templates and grids are not objects any more, so
@@ -920,7 +970,16 @@ These are waiting on a human, not on effort. Each one changes what gets built.
    block, an artboard that was not on the page at all. For artboard work,
    `pnpm --filter @souqstudio/engine harness` renders sample pages in both directions; for
    a screen behind the session gate, a headless browser and a minted dev session take about
-   ten minutes to set up and found four defects the first time they were used.
+   ten minutes to set up and found four defects the first time they were used. For a
+   *block* rather than a page, `pnpm --filter @souqstudio/engine gallery` draws all
+   fifty-nine at every shape they claim; it found four defects no test could,
+   and looking at them all at once found a fifth thing no single render can.
+9. **Check the environment the code will run in, not the one on your machine.** The
+   `R2_ENDPOINT` fault in §2 was found locally on 6 September, fixed in `.env.local`,
+   written up here with the words "check the Railway environment before deploying" — and
+   the deployment still carried it two days later, because a note in a status file is not a
+   control. Where a variable has a shape that can be silently wrong, validate it in
+   `lib/env.ts` so the app refuses to boot instead of writing into the void.
 
 The design system is enforced mechanically: Tailwind's default palette, spacing and radius
 scales are replaced rather than extended, so an off-system value does not resolve. Lint
