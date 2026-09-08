@@ -558,8 +558,12 @@ lands a new organization has no block to compose with.
    floor; it escalates instead, and the owner sees the flag before the book prints. The
    measurer is injected, because the engine cannot measure a glyph without a font and
    must not try. **RTL** (E6 §6) is already in the engine.
-8. **Block designer and the saved library.** Last, deliberately — seeded blocks must be
-   good before owner authoring is worth having.
+8. ~~**Block designer and the saved library.**~~ — done, 7 September, as E7. Last,
+   deliberately, and the order held: the seeded blocks were good first, so "new block"
+   could be *duplicate a block that works* rather than a blank artboard. `/brand/blocks`
+   is the library, `/card-designer/[blockId]` is the designer, and `block-edit.ts` in the
+   engine owns the arithmetic — which is why there is still no Fabric anywhere.
+   `docs/E7-pending.md`.
 9. **Chips, footnotes, shop variants** (E6 §7, §8).
 
 **Steps 3–5 are the risk.** If the master plus flow produces a book that looks like a real

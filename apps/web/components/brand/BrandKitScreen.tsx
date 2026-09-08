@@ -329,9 +329,18 @@ export function BrandKitScreen({
               ))}
             </ul>
 
+            {/* The card shows what a shop composes with; changing it is one
+                route further in, where the canvas can have the width. E7. */}
+            <Link
+              href="/brand/blocks"
+              className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+            >
+              Manage blocks
+            </Link>
+
             <p className="font-ui text-body-sm text-muted">
-              These come with every account. Designing your own arrives with the
-              offer book editor.
+              These come with every account. Duplicate one to design a version
+              of your own.
             </p>
           </BrandCard>
 

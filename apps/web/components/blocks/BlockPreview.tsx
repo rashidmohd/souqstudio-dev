@@ -2,15 +2,15 @@
 
 import * as React from 'react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
-import { resolveBlock, toPriceMark } from '@souqstudio/engine'
+import { resolveBlock } from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { resolveScale } from '@/lib/brand-fonts'
+import { toArtboardOffer } from '@/lib/preview-offer'
 import { PREVIEW_PRODUCT } from '@/lib/preview-product'
 import {
   drawElement,
   estimateWidth,
   measureText,
-  type ArtboardOffer,
   type DrawContext,
 } from '@/components/blocks/draw'
 
@@ -85,7 +85,10 @@ export function BlockPreview({
     ar: direction === 'rtl',
     direction,
     measure: mounted ? measureText : estimateWidth,
-    offer: sampleOffer(direction === 'rtl'),
+    // Adapted through the one place that turns a sample product into what an
+    // artboard draws — the designer's canvas and its stress panel use the same
+    // function, so three previews cannot disagree about what a card shows.
+    offer: toArtboardOffer(PREVIEW_PRODUCT, direction === 'rtl'),
     shopName: 'Al Nakheel Market',
   }
 
@@ -102,30 +105,4 @@ export function BlockPreview({
       ))}
     </svg>
   )
-}
-
-/**
- * `PREVIEW_PRODUCT` in the shape the artboard draws.
- *
- * Adapted rather than kept as a second product type, so the preview and a real
- * book cannot disagree about what a card shows. The sample is deliberately the
- * worst case — see the note on `lib/preview-product.ts`, including the one
- * respect in which real catalog rows are worse than it.
- *
- * `tierToken` is empty on purpose: the preview has no promo tier row behind it,
- * and `draw` falls back to the brand kit's accent rather than to a
- * `--sq-tpl-*` colour this block never chose.
- */
-function sampleOffer(ar: boolean): ArtboardOffer {
-  return {
-    name: ar ? PREVIEW_PRODUCT.nameAr : PREVIEW_PRODUCT.nameEn,
-    spec: ar ? PREVIEW_PRODUCT.specAr : PREVIEW_PRODUCT.specEn,
-    brand: PREVIEW_PRODUCT.brandEn,
-    imageUrl: null,
-    priceMark: toPriceMark(PREVIEW_PRODUCT.amount, PREVIEW_PRODUCT.currency, 'preview', {
-      comparePrice: PREVIEW_PRODUCT.comparePrice,
-    }),
-    tierLabel: ar ? PREVIEW_PRODUCT.tierLabelAr : PREVIEW_PRODUCT.tierLabelEn,
-    tierToken: '',
-  }
 }

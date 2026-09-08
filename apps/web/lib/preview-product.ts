@@ -36,3 +36,34 @@ export const PREVIEW_PRODUCT = {
   tierLabelEn: 'Half price',
   tierLabelAr: 'نصف السعر',
 } as const
+
+/**
+ * The product the designer's *canvas* draws, as against the stress panel above.
+ *
+ * The design system asks for two different things in two places, and both are
+ * right: bound elements on the canvas render sample data so the owner is
+ * designing against something that looks like their catalog, and a persistent
+ * stress panel renders the worst case so they see the failure while they are
+ * causing it.
+ *
+ * **This is the median real row, not a friendly one.** Of the 2,140 rows in the
+ * catalog, 58% carry a brand, 33% a spec, 4.2% a pack size and 4.2% an image —
+ * so a typical card is a short name, a placeholder and a good deal of space. A
+ * "typical" sample with every field filled would be a third preview of the same
+ * happy case, and the empty half is the part a designer has to see.
+ */
+export const TYPICAL_PRODUCT = {
+  nameEn: 'Basmati rice 5 kg',
+  // Null rather than a translation: 96% of the universal catalog has no Arabic
+  // name, and a card that has never been drawn without one is a card whose
+  // Arabic edition nobody has seen.
+  nameAr: null,
+  specEn: null,
+  specAr: null,
+  brandEn: 'Al Wadi',
+  amount: 24.5,
+  currency: 'AED' as Currency,
+  comparePrice: '31.00',
+  tierLabelEn: 'Save 20%',
+  tierLabelAr: 'وفّر ٢٠٪',
+} as const

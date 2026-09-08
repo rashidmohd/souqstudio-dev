@@ -214,6 +214,52 @@ It draws against `PREVIEW_PRODUCT` — the longest Arabic-length name, a two-lin
 spec and a three-decimal Kuwaiti price. A preview built from friendly data tells
 an owner their card works and lets the real catalog prove otherwise.
 
+**The block designer's canvas is `BlockArtboard`, not this** —
+`components/card-designer/BlockArtboard.tsx`, same painter, plus selection, drag
+and eight resize handles. Use `BlockPreview` wherever a block is only looked at;
+it takes no interaction props at all, so a read-only surface cannot grow half of
+one by accident.
+
+### BlockArtboard
+
+| | |
+| --- | --- |
+| File | `components/card-designer/BlockArtboard.tsx` |
+| Status | `built` — apps/web only |
+| Governs | E7 block designer canvas, and its worst-case panel |
+
+```tsx
+type BlockArtboardProps = {
+  elements: BlockElement[]
+  kit: BrandKit
+  width: number
+  height: number
+  direction: 'ltr' | 'rtl'      // the BLOCK's language, never the interface's
+  offer: ArtboardOffer | undefined
+  shopName: string
+  selected?: number | null
+  onSelect?: (index: number | null) => void
+  onChange?: (elements: BlockElement[]) => void   // per pointer move; never commits
+  onCheckpoint?: () => void                        // once, as a drag begins
+  markBound?: boolean
+  className?: string
+  ariaLabel?: string
+}
+```
+
+**Interaction is opt-in and all-or-nothing**: without both `onSelect` and
+`onChange` it renders no hit targets and no handles, so the same component is the
+designer's canvas and its own stress preview.
+
+**Still not Fabric.** Direct manipulation needs a hit target, a delta and
+somewhere to put the result; `moveBox` and `resizeBox` in `@souqstudio/engine`
+own the arithmetic, in block fractions, and RTL is one sign flip on the delta
+rather than a mirrored coordinate system. A second painter is how the PDF stops
+matching the screen — `docs/E7-pending.md` §3.
+
+**A drag is one undo step.** `onCheckpoint` fires on pointer down, before
+anything has changed; `onChange` fires per pointer move and never commits.
+
 ### ColorField
 
 | | |

@@ -204,6 +204,29 @@ export type TextSource =
   | { from: 'static'; textEn: string; textAr: string }
 
 /**
+ * What an overlong string is allowed to suffer.
+ *
+ * **Declared, not discovered.** The design system makes this a first-class
+ * control in the designer's properties panel for one reason: it is the setting
+ * that decides whether a block survives contact with the catalog, and a shop
+ * that finds out by looking at a printed flyer has found out too late. The fit
+ * ladder still runs — this says where it is allowed to stop.
+ *
+ *   shrink    fall down the scale to `floor`, then escalate. The default for a
+ *             product name, which is never cut and never shrunk to illegibility.
+ *   clamp     wrap to at most `lines`, then truncate the last one.
+ *   truncate  one line, cut with an ellipsis.
+ *
+ * Omitting it keeps `fitPolicy`'s answer for the source, which is what every
+ * seeded block relies on. A price mark has no entry here at all: it is not text
+ * and it fits on both axes by construction.
+ */
+export type TextOverflow =
+  | { mode: 'shrink'; floor: TypeLevel }
+  | { mode: 'clamp'; lines: number }
+  | { mode: 'truncate' }
+
+/**
  * `priceMark` is one element the owner drags, places and sizes — never one they
  * open. The was-price and the offer price are inside it, together, and are not
  * two text levels to be assembled: raised minor digits, the tier tab, the
@@ -217,7 +240,15 @@ export type TextSource =
  */
 export type BlockElement =
   | { kind: 'image'; box: Box; source: ImageSource }
-  | { kind: 'text'; box: Box; source: TextSource; level: TypeLevel; align: LogicalAlign }
+  | {
+      kind: 'text'
+      box: Box
+      source: TextSource
+      level: TypeLevel
+      align: LogicalAlign
+      /** Declared rather than discovered. Omitted means the source's default. */
+      overflow?: TextOverflow | undefined
+    }
   | { kind: 'priceMark'; box: Box }
   | { kind: 'chip'; box: Box; anchor: ChipAnchorRef }
   | { kind: 'logo'; box: Box }

@@ -58,7 +58,7 @@ asked to.
 | Shop-owner page | `apps/web/app/(dashboard)/[feature]/page.tsx` |
 | Auth / onboarding page | `apps/web/app/(auth)/[page]/page.tsx` |
 | Offer book editor | `apps/web/app/(dashboard)/editor/[id]/page.tsx` |
-| Card designer | `apps/web/app/(dashboard)/card-designer/[templateId]/page.tsx` |
+| Block designer | `apps/web/app/(dashboard)/card-designer/[blockId]/page.tsx` |
 | Public offer book viewer | `apps/web/app/o/[code]/page.tsx` |
 | Admin page | `apps/admin/app/[feature]/page.tsx` |
 

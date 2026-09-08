@@ -21,10 +21,11 @@ apps/web/
 │   │   │   └── [id]/
 │   │   │       └── page.tsx       # Full-bleed offer book editor — escapes shell
 │   │   ├── card-designer/
-│   │   │   └── [templateId]/
-│   │   │       └── page.tsx       # Full-bleed card designer — escapes shell
+│   │   │   └── [blockId]/
+│   │   │       └── page.tsx       # Block designer — three panes, canvas surround
 │   │   ├── catalog/               # Product catalog browser
 │   │   ├── brand/                 # Brand kit management
+│   │   │   └── blocks/            # The block library — E7
 │   │   ├── analytics/             # Analytics dashboard
 │   │   └── settings/
 │   │       ├── organization/
@@ -42,6 +43,7 @@ apps/web/
 │           ├── shops/
 │           ├── catalog/
 │           ├── offer-books/
+│           ├── blocks/            # The block library and one block's document
 │           ├── export/            # Queues PDF job, returns jobId
 │           ├── ai/                # Queues AI jobs, polls status
 │           ├── analytics/
@@ -51,7 +53,8 @@ apps/web/
 ├── components/
 │   ├── ui/                        # shadcn/ui — never edit directly
 │   ├── editor/                    # Offer book editor canvas components
-│   ├── card-designer/             # Card designer canvas components
+│   ├── card-designer/             # Block designer canvas components
+│   ├── blocks/                    # Block preview + library, shared painter
 │   ├── catalog/                   # Product search + category browser
 │   ├── brand/                     # Brand setup step components
 │   ├── offer-book/                # Offer book list, card, preview
@@ -60,6 +63,7 @@ apps/web/
 │   └── shared/                    # Layout, nav, empty states, illustrations
 ├── stores/
 │   ├── editor-store.ts            # Zustand — canvas state + undo stack
+│   ├── designer-store.ts          # Zustand — block designer, undo, autosave
 │   ├── brand-store.ts             # Zustand — brand kit (drives live preview)
 │   └── notification-store.ts      # Zustand — in-app notification bell
 ├── lib/
@@ -93,12 +97,19 @@ apps/web/
 - Editor route `editor/[id]`: escapes the shell entirely. Full bleed, no rail.
   Three panes: catalog (start), artboard (centre), properties (end).
   On mobile (<1024px): side panels overlay the canvas, never compress it.
-- Card designer route `card-designer/[templateId]`: also escapes the shell. This is
+- Card designer route `card-designer/[blockId]`: this is
   NOT the offer book editor — one card on a canvas, no page grid, no product selection,
   no pagination. Three panes: component palette (start), card canvas (centre),
   properties (end). Same overlay-not-compress rule below 1024px.
-  A template is bound to one language at creation; direction is a segmented control
-  in the designer chrome. Numerals are never affected by it.
+  Direction is a segmented control in the designer chrome, defaulting to English and
+  driving the artboard rather than the interface. Numerals are never affected by it.
+  A block is *not* bound to one language: every static string carries both `textEn`
+  and `textAr`, and the document schema refuses one without the other.
+  **Neither canvas actually escapes the shell**, and both must stay the same: a
+  nested layout cannot remove the rail — Next nests layouts rather than replacing
+  them — so escaping means a route group outside `(dashboard)`, which is where the
+  auth gate lives. Canvas parity is the rule that matters; if one moves, both move.
+  See `docs/E7-pending.md` §7.
 - `o/[code]`: public viewer. SSR. Zero chrome. Separate layout. Architecturally
   distinct from the dashboard — it is seen thousands of times per book by people
   who have never heard of SouqStudio. Mobile-first, fast paint, lazy images.

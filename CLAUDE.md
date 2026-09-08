@@ -181,13 +181,13 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   pack label printing backwards on every Arabic card** — the artboard has no equivalent of
   chrome's `[data-figure]` bidi isolation, and E6's Fabric renderer and E9's SVG export
   both need the `textDirection` rule now in `harness/svg.ts`.
-  `/brand` draws those blocks for real — `components/blocks/BlockPreview.tsx` renders
-  them in the shop's palette and typefaces through the engine, computing no geometry
-  itself. What is still missing is the **editor**: Fabric for the interactive canvas,
-  and the offers to put on it. `catalog_products` now holds 2,140 rows and 970 brands —
-  E5 is no longer the blocker — but `offer_books` is still empty and nothing in the
-  product can create one: `app/(dashboard)/editor/[id]/` is a lone `.gitkeep` and
-  `EDITOR_BUILT` is false. E6 is the frontier. See `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
+  Four surfaces draw those blocks for real, all through `components/blocks/draw`:
+  `/brand`'s preview, the editor's page, the designer's canvas and its worst-case
+  panel. **The frontier is now E9** — a book can be created, priced, edited and
+  designed, and cannot leave the product, because the `pdf` worker still throws.
+  Fabric is still not loaded anywhere, including by the designer, which is the
+  surface that was expected to need it: see `docs/E7-pending.md` §3 for what
+  would justify revisiting that. See also `docs/composition-model.md` §12. The engine lives in `packages/` because web and worker
   must share one implementation — two would drift, and drift means the PDF does not match
   the screen.
 - **Email logo not yet on R2.** `apps/web/public/brand/email/logo-dark.png` must be
@@ -204,8 +204,14 @@ Tracked, not forgotten. Raise rather than inventing an answer.
 - **`global-error.tsx` does not exist.** `app/error.tsx` and `app/not-found.tsx` now do,
   but an exception thrown by the root layout itself escapes both — that needs a boundary
   shipping its own `<html>` and `<body>`.
-- **Card designer** — a fifth layout family in the design system with no epic covering
-  it. See the addendum in `docs/E7-template-grid-management.md`.
+- ~~**Card designer** — a fifth layout family with no epic covering it.~~ **Built,
+  7 September**, as E7: `/brand/blocks` is the library and `/card-designer/[blockId]`
+  is the designer. The epic was rewritten first — templates and grids are not
+  objects any more — and the rewrite is `docs/E7-pending.md` §1. Still no Fabric:
+  direct manipulation goes through `moveBox`/`resizeBox` in the engine and the
+  same painter as the editor, because a second painter is how the PDF stops
+  matching the screen. What is owed is dragging a *new* element from the palette,
+  and E7-03's seasonal scheduling.
 - **Rate limiting** — unspecified, including on public tracking endpoints. `POST
   /api/v1/auth/2fa/enroll` runs bcrypt unthrottled behind a valid session.
 - **Token encryption key management** — undecided. Blocks E10. Also decides

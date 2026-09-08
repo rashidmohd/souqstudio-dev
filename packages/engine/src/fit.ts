@@ -21,7 +21,13 @@
  * both axes by construction.
  */
 
-import type { TextSource, TextStyle, TypeLevel, TypeScale } from '@souqstudio/types'
+import type {
+  TextOverflow,
+  TextSource,
+  TextStyle,
+  TypeLevel,
+  TypeScale,
+} from '@souqstudio/types'
 import { TYPE_LEVELS } from '@souqstudio/types'
 
 /**
@@ -51,6 +57,14 @@ export interface FitRequest {
   floor?: TypeLevel | undefined
   /** May this text be cut? A spec may. A name may not. */
   truncatable?: boolean | undefined
+  /**
+   * A ceiling on line count, independent of the height the box allows.
+   *
+   * The box already caps lines by arithmetic; this caps them by *decision*. A
+   * three-line name in a box that could hold four is a card whose proportions
+   * the owner chose, and the designer's clamp control is how they say so.
+   */
+  maxLines?: number | undefined
   measure: TextMeasurer
 }
 
@@ -116,11 +130,22 @@ export function fitText(request: FitRequest): FitResult {
     request.floor === undefined ? steps.length - 1 : steps.indexOf(request.floor)
   const startIndex = steps.indexOf(request.level)
 
+  const lineCap = request.maxLines === undefined ? Infinity : Math.max(1, request.maxLines)
+
   const attempt = (level: TypeLevel, lineHeight: number) => {
     const fontSize = sizeOf(scale, level, blockSize)
     const lines = wrapText(text, box.width, fontSize, family, measure)
     const height = lines.length * fontSize * lineHeight
-    return { level, fontSize, lineHeight, lines, fits: height <= box.height }
+    // Two ceilings, and both have to hold: the height the box has, and the line
+    // count the owner declared. A clamp that only stopped the box from
+    // overflowing would not be a clamp.
+    return {
+      level,
+      fontSize,
+      lineHeight,
+      lines,
+      fits: height <= box.height && lines.length <= lineCap,
+    }
   }
 
   // Rung 0 — as designed.
@@ -144,7 +169,10 @@ export function fitText(request: FitRequest): FitResult {
   const floorLevel = steps[Math.min(floorIndex, steps.length - 1)] ?? request.level
   const floorSize = sizeOf(scale, floorLevel, blockSize)
   const floorLeading = Math.max(MIN_LINE_HEIGHT, scale.levels[floorLevel].lineHeight)
-  const maxLines = Math.max(1, Math.floor(box.height / (floorSize * floorLeading)))
+  const maxLines = Math.max(
+    1,
+    Math.min(Math.floor(box.height / (floorSize * floorLeading)), lineCap)
+  )
   const full = wrapText(text, box.width, floorSize, family, measure)
 
   if (request.truncatable === true && full.length > maxLines) {
@@ -194,11 +222,33 @@ export function fitStyle(
  *
  * Static copy is the owner's own words, so it is not cut either — an ellipsis
  * through someone's headline is worse than telling them it does not fit.
+ *
+ * **A block may override it**, and the designer is where that happens: the
+ * design system makes overflow a first-class control precisely because it is
+ * what decides whether a block survives the catalog. The override is per
+ * element and travels in the block, so both renderers read the same answer.
  */
-export function fitPolicy(source: TextSource): {
+export function fitPolicy(
+  source: TextSource,
+  overflow?: TextOverflow | undefined
+): {
   floor?: TypeLevel | undefined
   truncatable: boolean
+  maxLines?: number | undefined
 } {
+  // A declared policy wins over the derived one, and only over the derived one:
+  // it says where the ladder may stop, never that a name may be cut when the
+  // owner did not ask for it. `truncate` and `clamp` *are* that request, made
+  // explicitly in the designer, which is the difference between a rule and a
+  // default.
+  if (overflow !== undefined) {
+    if (overflow.mode === 'shrink') return { floor: overflow.floor, truncatable: false }
+    if (overflow.mode === 'clamp') {
+      return { truncatable: true, maxLines: Math.max(1, Math.round(overflow.lines)) }
+    }
+    return { truncatable: true, maxLines: 1 }
+  }
+
   if (source.from === 'product') {
     return source.field === 'name'
       ? { floor: 'h4', truncatable: false }

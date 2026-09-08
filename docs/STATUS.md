@@ -3,29 +3,34 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 6 September 2026, after pointing the render harness at real catalog rows —
-which found an Arabic pack label printing backwards and a category-coverage figure four
-times too high. Before that, the demo catalog seed and the Open Food Facts importer fix. Before that, 5 September, after the composition-model build — the layout engine, the
-blocks schema, the reworked brand kit, the first renderer — and after E5-01 and E5-02, the
-catalog search and category browser.
+Last updated 7 September 2026, after E7 gave a shop owner a block designer: a seeded block
+can be duplicated, its elements moved, resized and re-bound, its overflow declared, and the
+result saved with undo and version history. Earlier the same day, E6 went from nothing to a
+working editor: a book can be created, drawn, priced, reordered and edited. Before that,
+6 September, pointing the render harness at real catalog rows — which found an Arabic pack label printing backwards
+and a category-coverage figure four times too high — the demo catalog seed and the Open
+Food Facts importer fix. Before that, 5 September, the composition-model build: the layout
+engine, the blocks schema, the reworked brand kit, the first renderer.
 
 Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pending.md`,
-`docs/E4-pending.md`, `docs/E5-pending.md`, `docs/E6-pending.md`.
+`docs/E4-pending.md`, `docs/E5-pending.md`, `docs/E6-pending.md`, `docs/E7-pending.md`.
 The epic specs themselves (`docs/E1-*.md` … `docs/E13-*.md`) stay the record of what was
 asked for — corrections to them are recorded in the pending notes, not edited in.
 
 **`docs/composition-model.md` is the architecture now, and it is built.** Read it before
-starting E6 or E7. It supersedes E6 §2 and §5, changed the E4 brand-kit shape, and absorbs
-most of what E7 was scoped to do. In one sentence: *a brand kit is identity, a block is a
+touching E6 or E7. It supersedes E6 §2 and §5, changed the E4 brand-kit shape, and absorbed
+most of what E7 was scoped to do — E7 is the block designer that was left, and it is built. In one sentence: *a brand kit is identity, a block is a
 designed building block, a page is a spreadsheet of regions filled with blocks, and
 products flow through it.*
 
-**One line to remember before picking anything up: the catalog is filled, and the offer books are not.**
-`offer_books` holds zero rows, and `catalog_products` holds only the 99 demo rows
-`catalog:seed-demo` writes — enough to look at a screen, not a catalog. The *browser* over
-it exists — E5-01 search and E5-02 category browsing are built — so the screen is there
-and the rows are not. Filling it is what remains of the critical path: the ingest half of
-E5 (import, barcode, upload) and the Open Food Facts seed.
+**One line to remember before picking anything up: the loop closes now.** A shop owner can
+create an offer book from the catalog or from a spreadsheet, see it drawn, price it, reorder
+it and edit it — `/editor/new` to `/editor/[id]`. The dev database holds real books, offers
+and items written through that path rather than through a script.
+
+**What that leaves on the critical path is E9, not E6.** A book can be made and cannot yet
+leave the product: the `pdf` worker still throws, so there is no export, and E10's share
+paths do not exist. Nothing an owner builds can reach a customer.
 
 ---
 
@@ -37,13 +42,15 @@ E5 (import, barcode, upload) and the Open Food Facts seed.
 | **E2** Organization management | Built. Org settings, shops (add, deactivate, archive), team and invites, per-shop access, brand inheritance. See `E2-pending.md`. |
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
+| **E6** Offer book editor | **Mostly built.** Create a book from the catalog or from a committed CSV import, draw it, price it, set tiers, reorder, add and remove offers, join two products with an `or`/`and`. Not written: drag-to-reorder, `SlotOverride` nudging, undo, autosave, and the rest of the properties panel — unit price, chips, footnotes. No Fabric yet; the artboard is inline SVG and has not needed one. See `E6-pending.md`. |
+| **E7** Block designer | **Mostly built.** `/brand/blocks` is the library — the shop's own blocks and the four seeded ones — and `/card-designer/[blockId]` is the designer: drag and resize, bind to a product field, declare an overflow policy, undo, autosave, version history, a persistent worst-case preview. Not written: dragging a *new* element from the palette, seasonal scheduling, the overlay asset library. See `E7-pending.md`. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
 See §1.2 — it is most of what E6 and E7 were scoped to do.
 
-Everything else is unstarted: **E6, E7, E8, E9, E10, E11, E12, E13**. Their route
-directories exist and are empty.
+Everything else is unstarted: **E8, E9, E10, E11, E12, E13**. Their route directories
+exist and are empty.
 
 `apps/web/lib/features.ts` is the machine-readable version of this table. A control whose
 destination is not built renders disabled with the reason visible, or is omitted. **Flip
@@ -134,7 +141,8 @@ still cover the price mark better, because they carry a three-decimal currency o
   spec, 4.2% a pack size, 4.2% an image, 4.2% an Arabic name. The offer card reserves a box
   per field, so a typical real card is a short name, a grey placeholder and a large void.
   The block is not wrong; it was designed against twelve products that all have every
-  field. It needs an arrangement for sparse rows — E6/E7's call.
+  field. It needs an arrangement for sparse rows — answered by `compactBlock`, which the
+  editor now passes `balance` to.
 - **The fit ladder escalates on real names and never did on the dummies.** Four escalations
   across the longest-names page, zero across every dummy page including `WORST_CASE`. Real
   names are *shorter* at the median (17 characters against the dummies' 30) and longer at
@@ -167,7 +175,8 @@ blocks in the shop's own palette and was passing the page direction straight to 
 `<text>`. It does not *show* today only because `PREVIEW_PRODUCT` carries a fully
 translated Arabic spec — and 96% of the universal catalog does not, which is exactly the
 gap real rows exposed. Fixed in the same change; the note is on `lib/preview-product.ts`.
-**E6's Fabric layer and E9's SVG export still have to call it**, and neither exists yet.
+**E9's SVG export still has to call it**, and E6's Fabric layer will when it exists —
+neither does yet. The editor's artboard does call it, through the shared painter.
 
 Worth keeping from writing it: **the first version of the rule was wrong twice, and its
 tests caught both.** Matching code-point ranges let `×` (U+00D7, which sits among the
@@ -250,7 +259,8 @@ yet, so it is cheaper to clear the relevant one first than to work around it.
 
 ### The catalog is filled — this no longer blocks everything downstream
 
-`offer_books` still holds **zero rows**, but `catalog_products` now holds **2,140** — 2,041
+`offer_books` holds real books now — created, priced and edited through the product rather
+than by a script — and `catalog_products` holds **2,140** — 2,041
 real products sampled from the Open Food Facts run plus the 99 demo rows — against 970
 brands. **The full 61,230-product catalog lives in `packages/db/data/catalog-off.csv`**,
 deliberately not in the database: ninety thousand rows cost real money to host in dev and
@@ -267,8 +277,9 @@ Historic note, kept because it shaped everything above: `pnpm --filter @souqstud
 `--clear` takes them out again; they exist so the screens and the engine can be *looked
 at*, not as a catalog. The layout engine, the block library, the price mark, the fit
 ladder and the first renderer are all built and were tested only against products
-constructed inside a test. This is still the only thing on the critical path, and it is
-E5.
+constructed inside a test. **Both halves of that have since been answered**: the harness
+composes real catalog rows, and the editor composes real books. Neither the catalog nor the
+editor is on the critical path any more — E9 export is.
 
 **The reader over it now exists, and so does the first way in.** `/catalog` searches and
 browses both collections, looks a barcode up, and lets an owner add a product the catalog
@@ -279,15 +290,17 @@ all returned zero rows, which is the point.
 **The bulk path is built too.** `/catalog/import` takes a CSV, guesses what each column
 means, resolves every row against both collections in two queries rather than two per row,
 and puts the ones it could not place with confidence in front of the owner. It commits into
-the catalog; carrying the sheet's prices into an offer book is E6's half, because there are
-no offer books.
+the catalog. **Carrying the sheet's prices into an offer book is done** — `/editor/new`
+reads a committed import and creates a book already priced, which is the half E5-06 left
+open because there were no offer books to carry them into.
 
-**The Open Food Facts seed is written and has not been run against the real export**, and
-until 6 September it could not have been: `writeBatch` upserted on a compound unique key
-containing a null `organizationId`, which the client rejects at runtime, so any real run
-would have died on its first batch. That is fixed and the write path is now proven on a
-fixture — create, then re-run to update, no duplicate barcodes. Running it for real still
-writes tens of thousands of rows and takes hours: a decision, not a step.
+**The Open Food Facts seed has been run** — 4,535,569 rows read, 61,230 mapped to
+`data/catalog-off.csv`, 2,041 sampled into dev. Kept here because it nearly could not have
+been: until 6 September `writeBatch` upserted on a compound unique key containing a null
+`organizationId`, which the client rejects at runtime, so any real run would have died on
+its first batch. Loading the full 61,230 into a production database is still a decision
+rather than a step, and **no reader for that CSV exists yet** — the exporter was written,
+the importer for our own format was not.
 
 **The category mapping is done, and it lands 23.4% — not the 93.8% recorded here until
 6 September.** `toCatalogCategory` resolves the OFF taxonomy onto the ten names
@@ -431,13 +444,15 @@ Two things that came out of applying it:
 `prisma migrate diff --from-migrations` refuses to run at all, which is the tool anyone
 would reach for to check a migration against the history.
 
-### Three worker handlers throw — blocks E6, E8, E9
+### Three worker handlers throw — blocks E8 and E9
 
 `apps/worker/src/workers/` has five workers. `email` and `bg` are implemented — `bg` now
 for logos *and* catalog cutouts. **`pdf`, `ai` and `enrich` are
 `throw new Error('Not yet implemented')`.**
 
-- `pdf` blocks E9 export and the E6 editor's export path.
+- `pdf` blocks E9 export, and with it the editor's export button. **This is now the thing
+  on the critical path**: a book can be created, priced and edited, and cannot leave the
+  product.
 - `ai` blocks E8 entirely, and is where credits are actually spent — `consumeCredits()`
   in `packages/db/src/credits.ts` is written and called by nothing.
 - `enrich` blocks E5's multilingual synonym pipeline **and, now specifically, every
@@ -528,7 +543,8 @@ and a QR phone-capture handoff. All of it is in the schema and in the E5 migrati
 **This is the only thing on the critical path**, and it is now specifically the *ingest*
 half of it. Everything downstream — the engine, the blocks, the price mark, the fit ladder,
 the renderer, and now the catalog browser too — is built and idle because there are no
-products to place. E6 is not thin without E5; it is impossible.
+products to place. E6 is not thin without E5; it is impossible. **Both are built now**, and
+what a book cannot do is leave the product — that is E9 and E10.
 
 Of the three things E5 §9 says the migration does not carry, **promo-tier seeding is now
 done** (§2). The `enrich` worker for synonyms and the cutout branch of the `bg` worker are
@@ -536,92 +552,84 @@ still open.
 
 E5-08 catalog admin overlaps E13; build the shop-facing half first.
 
-### E6 — Offer book editor (MVP)
+### E6 — Offer book editor (MVP) — the loop closes
 
 **Read `docs/composition-model.md`, not E6 §2 or §5.** Those sections describe a page-type
-grammar that no longer exists; the doc's banner says which parts still stand.
+grammar that no longer exists; the doc's banner says which parts still stand. Detail and
+reasoning live in `docs/E6-pending.md`; this is the summary.
 
-**Roughly half of E6 is already built** — see §1.2. The engine composes pages, the blocks
-are seeded, the price mark and the fit ladder are done and tested, and a renderer draws
-blocks on `/brand`. What E6 still owns:
+**Built, 7 September.** A shop owner can now:
 
-- **The editor screen** at `/editor/[id]` — offer tray, artboard, properties panel.
-- **The Fabric layer.** `BlockPreview` is inline SVG and static; the editor needs an object
-  model for dragging, nudging and selection. The geometry is not rebuilt — Fabric draws
-  what the engine already decides, the same way the SVG renderer does.
+- **Create a book** at `/editor/new` — title, format, language, and either products picked
+  from the catalog or **a committed CSV import, whose prices come with it**. That second
+  path is the half E5-06 deliberately left open: it committed rows into the catalog and
+  stopped, because there were no offer books to carry the prices into.
+- **See it drawn** at `/editor/[id]`. The artboard is inline SVG through the engine —
+  `flowBook` pages it, `resolveBlock` places the elements, `compactBlock` reclaims what the
+  content did not use at `balance`, and `components/blocks/draw` paints. `/brand` uses the
+  same painter, so a card cannot look one way there and another here.
+- **Price it** — price, was-price and promo tier in the properties panel, optimistic, saved
+  per field on blur. The tier is the only control on the price mark, per E6 §3.
+- **Change what is in it** — search and add, remove, reorder, and join a second product to
+  an offer with `or`/`and`.
+
+`EDITOR_BUILT` and `BOOK_CREATION_BUILT` are both true. `stores/editor-store.ts` exists.
+
+**What E6 still owns:**
+
+- **Drag** — to reorder in the tray, and from catalog to cell. Reordering is up/down
+  buttons today: the design system requires a persistent equivalent for tablet and says
+  long-press drag is unreliable on iPad, so the equivalent was built first. Drag is owed.
 - **`SlotOverride` handling**, keyed by `regionId` + `offerId` rather than grid position,
-  which is what lets a nudge survive next week's product swap.
-- **Master and instances**, and **pins**. The engine models both; nothing authors them yet.
-- **Quality flags** surfacing `fit-escalated` from the ladder, plus missing `nameAr`
-  blocking publish on AR editions.
+  which is what lets a nudge survive next week's product swap. Nothing nudges yet.
+- **Master and instances**, and **pins**. The engine models both; nothing authors them.
+- **Undo, and autosave.** Saving today is per-field on blur, which is not the same thing.
+- **The rest of the properties panel** — unit price, chips, footnotes, legal lines,
+  per-item name and spec overrides. Those columns exist and `composeOffer` reads them;
+  nothing writes them.
+- **`fit-escalated`** as a quality flag. The other three — missing price, missing `nameAr`,
+  missing or fallback image — are surfaced per offer and counted in the header.
 
-The risk E6 §10 names — *"if the engine's output looks like a real flyer with no manual
-adjustment, the product works"* — **has been answered on invented data, and the answer was
-yes.** The harness produces booklet pages, a cover with a hero band, merged regions and an
-Instagram carousel with a pinned message, all without a hand-placed element. What it has
-not been asked is whether that holds for *real* products: the names, brands and pack sizes
-it composes are hardcoded in `harness/dummy.ts` (see §1.2), and the catalog now has 2,140
-rows it has never seen.
+**No Fabric, and that is a finding rather than an omission.** The epic assumes a canvas
+object model; nothing built so far has needed one, because the engine decides every
+rectangle and the artboard only paints them. Fabric earns its place when direct
+manipulation does — dragging and nudging — and not before. When it lands, two rules from
+`apps/web/CLAUDE.md` bite immediately: `document.fonts.load()` for every family *and*
+weight before a single text object, and `placeText` per text object, because a canvas text
+object takes its own direction and does not inherit the artboard's.
 
-**There is no booklet creation flow, and no partial one.** `app/(dashboard)/editor/[id]/`
-contains a single `.gitkeep`, `EDITOR_BUILT` is `false` so the rail does not offer it, and
-`offer_books` holds zero rows with nothing in the product able to create one. The only
-place a page renders is the harness, from the command above.
+**The risk E6 §10 names has been answered twice.** *"If the engine's output looks like a
+real flyer with no manual adjustment, the product works."* Yes on invented data, and yes
+again on real catalog rows — see §1.2. It is off the table.
 
-**That cheapest next step has been taken — the harness composes real rows now.** See §1.2
-for the four findings and the commands. The short version: a page of real products **does**
-still read as a flyer, so E6 §10's gamble survives contact with the catalog; but the Arabic
-pack label was printing backwards, and the card is largely empty because 67% of rows have
-no spec and 96% have no pack size or image.
-
-**Two of those are now E6's to answer before the editor is worth building:**
-
-- **The Fabric layer must call `textDirection`.** The rule is in the engine and
-  `BlockPreview` and the harness both use it; Fabric and the PDF export are the two
-  renderers left. A canvas text object takes its own direction, so this is not inherited —
-  it has to be passed, per text object, from the string rather than from the artboard.
-- **The offer card needs a sparse treatment, and `compactBlock` is it.** Built
-  6 September: `packages/engine/src/compact.ts`, 14 tests. The caller measures what each
-  element's content actually needed, the engine removes what is absent and hands the
-  reclaimed height to one beneficiary. Two passes and only two — compaction changes heights
-  only, and line breaking is driven by width, so the second fit produces the same line
-  count at a box that now fits it. It refuses side-by-side arrangements (WIDE, BANNER)
-  rather than inventing an answer for them: they have the same problem and a different
-  shape.
-
-  **Nothing in the app calls it yet**, so there is no default to regret. E6 passes a policy
-  when it wires the editor; the harness renders all four so the choice is made by looking:
-  `compaction-{sparse,typical}-{none,image,price,balance}` in `harness/out`.
-
-  **Recommendation from the renders: `balance`.** `image` and `price` both make one
-  element's *size* a function of a different element's *text length* — a card with a
-  one-line name gets a bigger packshot, or a bigger price, than the card beside it. Over a
-  3×3 grid that reads as ragged rather than as varied, and it is worst on the price, which
-  is the number a customer compares across the page. `balance` moves elements and resizes
-  none, so every packshot and every price mark is the same size in every cell. This is the
-  same call `ProductCard` already made and wrote down — *"a grid of mixed heights reads as
-  broken rather than as varied"* — and the argument does not change on an artboard.
-
-**Needs first:** nothing else. The editor proper **needs the `pdf` worker** for export, but
-not to start.
-
-Read the canvas rules in `apps/web/CLAUDE.md` before the first line — Fabric holds visual
-state, Zustand holds logical state, and `document.fonts.load()` runs before any Fabric
-text object is created or every bounding box is measured against the fallback. The brand
-kit now lets an owner pick ten different families, so that is not theoretical.
-
-`stores/editor-store.ts` does not exist yet. `brand-store.ts` is the pattern to follow.
+**Needs first:** nothing. The `pdf` worker blocks *export*, which is E9.
 
 ### E9 — Output formats & export (MVP)
 
-**Needs first:** E6, and the `pdf` worker. The pipeline is settled and written down —
-canvas → `toSVG()` → HTML shell → Playwright — in
-`souqstudio-technical → references/export-pipeline.md`. A warm browser pool is mandatory;
-launching per request costs 400–600ms every time.
+**Needs first:** the `pdf` worker. E6 is built, so this is the next thing on the critical
+path — a book can be created, priced and edited, and cannot leave the product.
+
+**The written pipeline starts one step later than it needs to.**
+`souqstudio-technical → references/export-pipeline.md` says canvas → `toSVG()` → HTML shell
+→ Playwright, and that first arrow assumes a Fabric canvas to call `toSVG()` on. **There is
+no canvas.** The artboard is inline SVG produced on the server by `components/editor/
+BookPage.tsx` from engine geometry, so the worker can render the same component and skip
+Fabric entirely — which also removes the font-loading hazard, because nothing measures text
+in a browser to decide the layout. Confirm that before building to the document.
+
+A warm browser pool is still mandatory; launching per request costs 400–600ms every time.
+
+Two things the export must not lose, both learned the hard way in E6:
+
+- **`placeText` per text object.** A Latin pack label on an Arabic artboard prints backwards
+  without it, and the failure is invisible to anyone checking the English edition.
+- **`--sq-tpl-*` has no stylesheet in the PDF.** The tier colour on the chip and the price
+  mark resolves through a CSS custom property in the browser. Playwright renders an HTML
+  shell, so the tokens have to be inlined into it — see `E6-pending.md` §6.
 
 ### E10 — Sharing & publishing (MVP for link/QR/WhatsApp)
 
-**Needs first:** E6, and the encryption key decision for the Instagram half only. The
+**Needs first:** the encryption key decision, for the Instagram half only — E6 is built. The
 link, QR and WhatsApp share paths need neither and could go earlier if the public viewer
 at `app/o/[code]` is worth having before export is.
 
@@ -641,20 +649,35 @@ notification UI and no `stores/notification-store.ts`.
 Admin auth is a separate path against `admin_users` with its own session secret — never
 the shop-owner session layer.
 
-### E7, E8, E11 — later
+### E7 — Block designer — built, 7 September
 
-**E7 lost most of its reason to exist.** It was admin tooling for templates and grids,
-and both tables are dropped: a grid is now `perRow` on a region and a template that bundled
-look *and* arrangement had nothing left to be. What E7 still covers is a **block designer**
-— drag an element onto a block, bind it to a product field, pick a text style — plus the
-card designer addendum, a fifth layout family with no epic of its own. Rewrite the epic
-against `docs/composition-model.md` §3 before starting it.
+**The epic was rewritten before it was built**, against `docs/composition-model.md` §3, and
+the rewrite is `docs/E7-pending.md` §1. Templates and grids are not objects any more, so
+E7-01, E7-02 and E7-04 had nothing left to administer; what survived is the block designer
+and the card designer addendum, and **E7-05 — owner-authored blocks, scoped V3 — shipped in
+the MVP** because the composition model made it the same code path as a seeded block.
 
-The block schema already anticipates owner-authored blocks: `blocks.organizationId` is
-nullable, and null is what makes a block seeded rather than authored. One rule the designer
-must not break — **the price mark is one element the owner places and sizes, never one they
-open.** Owners given text boxes for a price produce hundreds of inconsistent treatments
-inside a month.
+A shop owner can now duplicate a seeded block, move and resize its elements, change what
+each one binds to, declare what an overlong string may suffer, undo, and restore a previous
+version. The library is `/brand/blocks`; the designer is `/card-designer/[blockId]`.
+
+**Still no Fabric, and this was the surface that was supposed to need it.** Direct
+manipulation needs a hit target, a delta and somewhere to put the result; the engine already
+owns the arithmetic in fractions and the painter already draws every element. Fabric would
+mean a second painter, and the first thing to drift would be whether the card the owner
+designed is the card the PDF prints. `E7-pending.md` §3 carries the reasoning and the list
+of things that would justify revisiting it.
+
+The rule that did not move: **the price mark is one element the owner places and sizes,
+never one they open.** Selecting it shows a box, a size and one sentence saying why there is
+nothing else.
+
+**Not built:** dragging a *new* element from the palette (tapping adds it, which is the
+tablet-safe equivalent the design system asks for anyway), E7-03 seasonal scheduling — the
+columns exist and nothing reads them, and there is no block picker for a seasonal block to
+appear at the top of — and the overlay asset library.
+
+### E8, E11 — later
 
 E8 is AI features, V2, and needs the `ai` worker. E11 is analytics, V2, and needs the
 public viewer from E10 to have something to track.

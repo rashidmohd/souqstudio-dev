@@ -270,7 +270,10 @@ function Text({
 
   const step = ctx.scale.levels[element.level]
   const family = fontStack(ctx.scale.families[step.family])
-  const policy = fitPolicy(element.source)
+  // The block's declared policy wins over the derived one. It is what the
+  // designer's overflow control writes, and it travels in the block so every
+  // renderer reads the same answer.
+  const policy = fitPolicy(element.source, element.overflow)
 
   const fitted = fitText({
     text: step.transform === 'uppercase' ? content.toUpperCase() : content,
@@ -281,6 +284,7 @@ function Text({
     measure: ctx.measure,
     truncatable: policy.truncatable,
     ...(policy.floor === undefined ? {} : { floor: policy.floor }),
+    ...(policy.maxLines === undefined ? {} : { maxLines: policy.maxLines }),
   })
 
   // Position, anchor and direction together, from the engine. They cannot be

@@ -48,6 +48,24 @@ export {
 export { placeText, textDirection, type TextPlacement } from './direction'
 export { resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
 export { validateGrid, type GridProblem, type GridProblemCode } from './validate'
+// Editing a block, which is arithmetic over fractions and therefore the engine's
+// rather than a component's — E7. See the file.
+export {
+  MIN_ELEMENT,
+  SNAP,
+  snap,
+  moveBox,
+  resizeBox,
+  addElement,
+  removeElement,
+  replaceElement,
+  reorderElement,
+  isBound,
+  validateBlock,
+  type Handle,
+  type BlockProblem,
+  type BlockProblemCode,
+} from './block-edit'
 export {
   flowBook,
   pageCountFor,

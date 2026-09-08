@@ -194,3 +194,58 @@ describe('fitPolicy', () => {
     expect(fitPolicy({ from: 'shop', field: 'address' }).truncatable).toBe(true)
   })
 })
+
+describe('fitPolicy — a declared overflow', () => {
+  it('takes the block’s answer over the derived one', () => {
+    // The designer is where an owner says what an overlong string may suffer,
+    // and the setting exists precisely because the derived default cannot know
+    // what this particular card is for.
+    const policy = fitPolicy({ from: 'product', field: 'name' }, { mode: 'clamp', lines: 2 })
+    expect(policy.truncatable).toBe(true)
+    expect(policy.maxLines).toBe(2)
+  })
+
+  it('carries the floor a shrink policy names', () => {
+    const policy = fitPolicy({ from: 'product', field: 'spec' }, { mode: 'shrink', floor: 'h5' })
+    expect(policy).toEqual({ floor: 'h5', truncatable: false })
+  })
+
+  it('makes truncate one line', () => {
+    expect(fitPolicy({ from: 'shop', field: 'name' }, { mode: 'truncate' })).toEqual({
+      truncatable: true,
+      maxLines: 1,
+    })
+  })
+
+  it('never asks for less than one line', () => {
+    expect(fitPolicy({ from: 'product', field: 'spec' }, { mode: 'clamp', lines: 0 }).maxLines).toBe(1)
+  })
+})
+
+describe('maxLines', () => {
+  const long = 'Golden basmati rice from the Punjab, aged twelve months, extra long grain'
+
+  it('caps the line count even where the box would hold more', () => {
+    const r = fitText(req({ text: long, maxLines: 2, truncatable: true }))
+    expect(r.lines.length).toBeLessThanOrEqual(2)
+  })
+
+  it('cuts the last line rather than overflowing it', () => {
+    const r = fitText(req({ text: long, maxLines: 1, truncatable: true }))
+    expect(r.lines).toHaveLength(1)
+    expect(r.truncated).toBe(true)
+    expect(r.lines[0]?.endsWith('…')).toBe(true)
+  })
+
+  it('escalates rather than cutting text that may not be cut', () => {
+    const r = fitText(req({ text: long, maxLines: 1, truncatable: false }))
+    expect(r.truncated).toBe(false)
+    expect(r.escalated).toBe(true)
+  })
+
+  it('changes nothing for text that already fits inside the cap', () => {
+    const plain = fitText(req())
+    const capped = fitText(req({ maxLines: 4 }))
+    expect(capped).toEqual(plain)
+  })
+})

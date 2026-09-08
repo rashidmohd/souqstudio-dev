@@ -15,8 +15,8 @@ errors. It just looks wrong, and the artboard gets compressed.
 | # | Family | Route | Layout file | Inherits shell? |
 | --- | --- | --- | --- | --- |
 | 1 | App shell | `(dashboard)/*` | `app/(dashboard)/layout.tsx` | — it *is* the shell |
-| 2 | Offer book editor | `(dashboard)/editor/[id]` | `app/(dashboard)/editor/layout.tsx` | **No — must override** |
-| 3 | Card designer | `(dashboard)/card-designer/[templateId]` | `app/(dashboard)/card-designer/layout.tsx` | **No — must override** |
+| 2 | Offer book editor | `(dashboard)/editor/[id]` | none — see the note in §3 | Yes, as built |
+| 3 | Card designer | `(dashboard)/card-designer/[blockId]` | none — see the note in §3 | Yes, as built |
 | 4 | Onboarding | `(auth)/*` | `app/(auth)/layout.tsx` | No — separate route group |
 | 5 | Public viewer | `o/[code]` | `app/o/layout.tsx` | No — separate surface entirely |
 
@@ -161,11 +161,20 @@ auth and org context, then renders full-bleed without the rail.
 
 ## 3 · Card designer
 
-`app/(dashboard)/card-designer/[templateId]/page.tsx` with its own `layout.tsx`
+`app/(dashboard)/card-designer/[blockId]/page.tsx`
 
-Same escape pattern, same three-pane geometry, **different content**. This is not the
-offer book editor: one card on a canvas, no page grid, no product selection, no
-pagination.
+Same three-pane geometry as family 2, **different content**. This is not the offer book
+editor: one block on a canvas, no page grid, no product selection, no pagination.
+
+**Neither canvas escapes the shell, as built, and that is deliberate rather than
+outstanding.** A nested `layout.tsx` cannot remove the rail — Next nests layouts rather
+than replacing them — so escaping means a route group outside `(dashboard)`, which is also
+where the auth gate lives. Canvas parity is the rule that matters here: a designer that
+escaped while the editor did not would be exactly the divergence the parity rule exists to
+prevent. If one moves, both move, in one change. `docs/E7-pending.md` §7.
+
+**The parameter is `[blockId]`.** It was `[templateId]`, named after a table the
+composition model dropped; what an owner designs here is a block.
 
 ```
 ┌────────────────────────────────────────────────┐
@@ -179,11 +188,15 @@ pagination.
 - **Canvas parity with family 2 is a hard requirement.** Identical padding, zoom controls,
   selection outline and handle treatment. A shop moving between designing a card and
   building a book must not feel they changed application.
-- Stress preview is a persistent panel, never behind a tab.
-- Template language is bound at creation; direction is a segmented control in the chrome.
-  Numerals are never affected by it.
+- Stress preview is a persistent panel, never behind a tab. It draws the *worst* case;
+  the canvas above it draws a *typical* catalog row — a short name, no Arabic name, no
+  image — because that is what most of the catalog is.
+- Direction is a segmented control in the chrome, driving the artboard rather than the
+  interface. Numerals are never affected by it. A block is **not** bound to one language:
+  every static string carries both `textEn` and `textAr`, and the document schema refuses
+  one without the other.
 
-See `SKILL.md` → Design surfaces, and the addendum in `docs/E7-template-grid-management.md`.
+See `SKILL.md` → Design surfaces, and `docs/E7-pending.md`.
 
 ---
 

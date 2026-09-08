@@ -1,5 +1,14 @@
 # E7 — Template & Grid Management
 
+> **Largely superseded — read `docs/E7-pending.md`, and `docs/composition-model.md` §3
+> before it.** Templates and grids are not objects any more: `templates` became `blocks`,
+> `grids` was dropped, and a grid is now the page's own track definition. What E7 covers is
+> a **block designer** and the block library, both built on 7 September 2026, plus the
+> seasonal work, which is not. E7-05 — owner-authored blocks, scoped V3 — shipped in the
+> MVP instead, because the composition model made it the same code path as everything else.
+> The feature lists below stay the record of what was asked for; the corrections are in the
+> pending note.
+
 ## Overview
 
 An internal admin capability that allows the SouqStudio team to create, manage, and publish templates and grid layouts without developer involvement. This is what enables fast seasonal content — a Ramadan template can be built, scheduled, and published without a deployment.

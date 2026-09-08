@@ -258,7 +258,7 @@ function fitFor(
 
   const step = SAMPLE_SCALE.levels[element.level]
   const family = SAMPLE_SCALE.families[step.family]
-  const policy = fitPolicy(element.source)
+  const policy = fitPolicy(element.source, element.overflow)
 
   const fitted = fitText({
     text: step.transform === 'uppercase' ? content.toUpperCase() : content,
@@ -269,6 +269,7 @@ function fitFor(
     measure: estimateWidth,
     truncatable: policy.truncatable,
     ...(policy.floor === undefined ? {} : { floor: policy.floor }),
+    ...(policy.maxLines === undefined ? {} : { maxLines: policy.maxLines }),
   })
 
   return { content, fitted, step, family }

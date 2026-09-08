@@ -41,6 +41,17 @@ export const EDITOR_BUILT = true
  */
 export const BOOK_CREATION_BUILT = true
 
+/**
+ * E7 — the block library at /brand/blocks and the designer at
+ * /card-designer/[blockId]. Built: duplicate a seeded block, move and resize
+ * elements, bind them, set an overflow policy, undo, autosave, version history.
+ *
+ * Not built: dragging a *new* element from the palette onto the canvas (it is
+ * added by tapping, which is the tablet-safe equivalent the design system asks
+ * for anyway), seasonal scheduling, and thumbnails.
+ */
+export const BLOCK_DESIGNER_BUILT = true
+
 /** E5 — the product catalog browser at /catalog. Built: search and browsing. */
 export const CATALOG_BUILT = true
 
