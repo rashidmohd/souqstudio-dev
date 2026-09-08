@@ -4,7 +4,7 @@ import { SEED_BLOCKS } from '@souqstudio/engine'
 import { MAX_ELEMENTS, arrangementsSchema, toArrangements } from '@/lib/block-document'
 import { usesOnlyRoles } from '@/lib/block-document'
 import { blockErrorMessage, blockErrors, blockUpdateSchema } from '@/lib/block-write'
-import { copyName, planReaches } from '@/lib/blocks'
+import { copyName, importName, planReaches } from '@/lib/blocks'
 
 /**
  * The pure half of E7: what a block document may contain, when a write is
@@ -238,6 +238,34 @@ describe('copyName', () => {
   it('numbers the second one rather than colliding', () => {
     expect(copyName('Offer card', ['Offer card copy'])).toBe('Offer card copy 2')
     expect(copyName('Offer card', ['Offer card copy', 'Offer card copy 2'])).toBe('Offer card copy 3')
+  })
+})
+
+describe('importName', () => {
+  it('keeps the library block\u2019s own name', () => {
+    // An import is not a copy of anything the owner can see. "Ramadan band copy"
+    // describes a relationship to a block they have never had.
+    expect(importName('Ramadan band', [])).toBe('Ramadan band')
+    expect(importName('Ramadan band', ['Offer card', 'Footer'])).toBe('Ramadan band')
+  })
+
+  it('falls back to a copy name only on a real collision', () => {
+    expect(importName('Offer card', ['Offer card'])).toBe('Offer card copy')
+    expect(importName('Offer card', ['Offer card', 'Offer card copy'])).toBe('Offer card copy 2')
+  })
+
+  it('names every seeded block distinctly, so importing the library collides with nothing', () => {
+    // The failure this rules out: two blocks arriving from one click with the
+    // same name, which leaves an owner two rows they cannot tell apart. The
+    // route decides each name against the ones it has already added, so this is
+    // the same walk the import does.
+    const taken: string[] = []
+    for (const block of SEED_BLOCKS) {
+      const name = importName(block.name, taken)
+      expect(taken).not.toContain(name)
+      taken.push(name)
+    }
+    expect(taken).toHaveLength(SEED_BLOCKS.length)
   })
 })
 

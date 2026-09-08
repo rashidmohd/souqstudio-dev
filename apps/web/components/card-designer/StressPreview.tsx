@@ -49,7 +49,15 @@ export function StressPreview({
   asset,
   escalated = 0,
 }: Props) {
-  const offer = React.useMemo(() => toArtboardOffer(PREVIEW_PRODUCT, direction === 'rtl'), [direction])
+  // **The stand-in packshot comes off here.** `PREVIEW_PRODUCT` carries one so
+  // the block library has something to look at, and this panel is the opposite
+  // surface: a missing photograph is not a gap in the worst case, it is 95.8% of
+  // the catalog and therefore part of it. A stress preview that always has a
+  // picture cannot show the card an owner will actually print.
+  const offer = React.useMemo(
+    () => toArtboardOffer({ ...PREVIEW_PRODUCT, imageUrl: null }, direction === 'rtl'),
+    [direction]
+  )
 
   return (
     <figure className="flex w-full flex-col gap-2">

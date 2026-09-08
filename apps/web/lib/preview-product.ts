@@ -1,6 +1,31 @@
 import type { Currency } from '@souqstudio/types'
 
 /**
+ * The stand-in packshot a block preview draws.
+ *
+ * **For the library and nowhere near a book.** A shop browsing sixty-seven
+ * blocks is looking at a shop window, and every card in it drawing the grey
+ * "this product has no photograph" box sells none of them — the owner cannot
+ * tell a photo-led card from a compact one when neither has a photo. The moment
+ * they use the block it renders their own products, so nothing here reaches a
+ * page anyone prints.
+ *
+ * It is **category artwork, not a photograph**, which is the honest thing for a
+ * placeholder to be: it says "a product goes here" without pretending to be a
+ * product the shop sells. Dairy is one of the ten in
+ * `packages/db/src/catalog-categories.ts`; the rest slot in beside it the day
+ * they exist, and `PACKSHOT` becomes a lookup rather than a constant.
+ *
+ * Served from `public/`, not from `assets.souqstudio.com`, for the same reason
+ * as the illustrations and the fonts: a preview must not wait on a third-party
+ * round trip to paint. It is deliberately **not** in `public/illustrations/` —
+ * that directory is the chrome slot map in `lib/illustrations.ts`, audited
+ * against the illustration manifest's charcoal-line, sand-ground rules, and this
+ * is artboard content in its own palette rather than a chrome illustration.
+ */
+export const SAMPLE_PACKSHOT = '/preview/packshot-dairy.svg'
+
+/**
  * The product a block preview draws.
  *
  * **Deliberately the worst case**, and the owner cannot change it. A preview
@@ -25,11 +50,19 @@ import type { Currency } from '@souqstudio/types'
  * still the case this preview is for.
  */
 export const PREVIEW_PRODUCT = {
-  nameEn: 'Automatic laundry detergent powder with lemon fragrance',
-  nameAr: 'مسحوق غسيل أوتوماتيك بالليمون للغسالات الأوتوماتيكية',
-  specEn: 'Front load, 3 kg, concentrated formula',
-  specAr: 'تحميل أمامي، ٣ كجم، تركيبة مركزة',
-  brandEn: 'Ariel',
+  // **Dairy, because the packshot is.** These were a laundry detergent until the
+  // sample gained a picture, and a card reading "Automatic laundry detergent
+  // powder" over a carton of milk and a wedge of cheese is a preview that
+  // undoes the reason for having a picture at all. Every worst-case property is
+  // preserved and the strings got *longer*: the English name is 56 characters
+  // against 55, the Arabic 58 against 52, and the spec still wraps to two lines
+  // in a booklet cell.
+  nameEn: 'Full cream long life milk enriched with vitamins A and D',
+  nameAr: 'حليب طويل الأجل كامل الدسم مدعّم بفيتامينات أ و د الطبيعية',
+  specEn: '1 litre, pack of 4, ultra heat treated',
+  specAr: '١ لتر، عبوة من ٤، معالج بالحرارة العالية',
+  brandEn: 'Al Rawabi',
+  imageUrl: SAMPLE_PACKSHOT,
   amount: 12.75,
   currency: 'KWD' as Currency,
   comparePrice: '25.500',
@@ -61,6 +94,12 @@ export const TYPICAL_PRODUCT = {
   specEn: null,
   specAr: null,
   brandEn: 'Al Wadi',
+  // **Null, and it stays null.** This is the median real row and 4.2% of the
+  // catalog carries an image, so a typical card is a placeholder and a good deal
+  // of space — which is the half of the card a designer has to see while they
+  // are laying one out. The library preview is a shop window and may be dressed;
+  // the canvas an owner designs on may not.
+  imageUrl: null,
   amount: 24.5,
   currency: 'AED' as Currency,
   comparePrice: '31.00',

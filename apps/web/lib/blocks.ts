@@ -187,6 +187,35 @@ export function copyName(base: string, existing: readonly string[]): string {
 }
 
 /**
+ * How many blocks one import may carry.
+ *
+ * **Set above the whole seeded library on purpose.** It is a bound on what one
+ * request may ask the server to do, not a rule an owner should ever meet — if
+ * somebody selects every block there is, that is a strange thing to want and not
+ * a thing to refuse. Keeping it out of reach is also what lets the dialog stay
+ * ignorant of it: no cap to explain, no counter to police, and `lib/blocks.ts`
+ * is `server-only`, so a client could not read the number anyway.
+ */
+export const MAX_IMPORT = 100
+
+/**
+ * The name an **imported** block keeps.
+ *
+ * Not `copyName`, and the difference matters on the screen. Duplicating a block
+ * you already have produces a second one beside the first, so "Ramadan band
+ * copy" is exactly right — it says which is which. Importing one from the
+ * library is not a copy of anything the shop can see: it is *getting* the
+ * Ramadan band, and calling it "Ramadan band copy" describes a relationship to
+ * something the owner has never had.
+ *
+ * It falls back to `copyName` only on a collision, which is the case where the
+ * owner really does have two.
+ */
+export function importName(base: string, existing: readonly string[]): string {
+  return existing.includes(base) ? copyName(base, existing) : base
+}
+
+/**
  * Whether any of this organization's page grids or pins still name this block.
  *
  * **A JSON scan, and it is the right shape rather than a compromise.**

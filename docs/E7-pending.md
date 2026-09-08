@@ -417,6 +417,65 @@ because there is no scale step to fall to.
    `pnpm --filter @souqstudio/engine gallery` draws every block at every shape it
    claims, plus the worst-case Arabic name and an Arabic edition, into
    `harness/out/gallery.html`. That is the check; nothing else finds these.
+
+   **And it changed the screen.** `/brand/blocks` printed both collections, the
+   shop's own above ours. At four seeded blocks that read as one page with two
+   halves; at sixty-seven it read as a catalog with the shop's own work stranded
+   at the top of it. They are not peers — one is theirs, editable, and the reason
+   to open the screen; the other is a shelf. So the page is now *their* library
+   alone, with "Add from library" opening `BlockImportDialog`: a filter across
+   what a block is *for*, multi-select, and one action that names the count.
+
+   Three decisions inside it worth not undoing:
+
+   - **The filter earns its place only because it is a picker.** On a page you
+     scroll, a category heading is a signpost and grouping is enough. In a picker
+     "footers" is the question the owner arrived with, and the answer should
+     remove the other sixty-two blocks from the screen rather than move them
+     further down it.
+   - **`POST /api/v1/blocks` grew a second branch rather than a flag.** `fromId`
+     duplicates one block and returns it so the client can open it in the
+     designer; `fromIds` imports several and returns the list. The naming differs
+     and that is the whole reason: an imported block is not a copy of anything
+     the owner can see, so it is "Ramadan band", not "Ramadan band copy" —
+     `importName` in `lib/blocks.ts`. The loop is sequential so each name is
+     decided against the ones the same import just added.
+   - **A partial import reports what did not come.** Seven blocks arriving and
+     one being plan-gated is a fact the owner needs; failing all eight over it is
+     a worse answer than seven and a sentence.
+
+   **Not opened in a browser** — same gap as §8 records for the designer. The
+   dialog was checked by mocking it at its real dimensions against the rendered
+   blocks, which is what caught the tile sizing: a footer at full tile width is a
+   22px sliver beside a 240px card, so every block is now fitted into one shared
+   box instead of setting its own height.
+
+   **And the previews got a packshot.** `toArtboardOffer` sent `imageUrl: null`,
+   so every card in the library drew the grey "this product has no photograph"
+   box — sixty-seven blocks in a shop window, and an owner could not tell a
+   photo-led card from a compact one because neither had a photo. `PREVIEW_PRODUCT`
+   now carries `SAMPLE_PACKSHOT`, a category illustration in
+   `public/preview/`. Three things about it are deliberate:
+
+   - **It is category artwork, not a photograph.** A placeholder should say "a
+     product goes here" without pretending to be a product the shop sells. Dairy
+     is one of the ten in `packages/db/src/catalog-categories.ts`; the rest slot
+     in beside it and `SAMPLE_PACKSHOT` becomes a lookup rather than a constant.
+   - **It is not in `public/illustrations/`.** That directory is the chrome slot
+     map in `lib/illustrations.ts`, audited against the illustration manifest's
+     charcoal-line, sand-ground rules. This is artboard content in its own
+     palette and would fail that audit; filing it there would put it in front of
+     the next person choosing an empty state.
+   - **The stress panel strips it, and `TYPICAL_PRODUCT` never had it.** A
+     missing photograph is not a gap in the worst case — it is 95.8% of the
+     catalog, so it is part of it. The library preview is a shop window and may
+     be dressed; the canvas an owner designs on may not.
+
+   The sample product's *words* changed with it. They were a laundry detergent,
+   and a card reading "Automatic laundry detergent powder" over a carton of milk
+   undoes the reason for having a picture. Every worst-case property survives and
+   the strings got longer — 56 characters of English against 55, 58 of Arabic
+   against 52, the same two-line spec and the same three-decimal KWD price.
 3. ~~**`pnpm db:seed` must be re-run.**~~ **Done**, and it found something. See
    below.
 4. **Nothing has been opened in a browser.** Typecheck, lint, 216 engine tests,

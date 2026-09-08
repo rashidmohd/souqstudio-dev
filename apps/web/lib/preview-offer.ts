@@ -22,6 +22,11 @@ export interface SampleProduct {
   specEn: string | null
   specAr: string | null
   brandEn: string | null
+  /**
+   * A stand-in packshot, or null for the surfaces where its absence is the
+   * point. Same field a real row has, so the adapter below stays one mapping.
+   */
+  imageUrl: string | null
   amount: number
   currency: Currency
   comparePrice: string | null
@@ -44,7 +49,7 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     name: (ar ? product.nameAr : product.nameEn) ?? product.nameEn,
     spec: (ar ? product.specAr : product.specEn) ?? null,
     brand: product.brandEn,
-    imageUrl: null,
+    imageUrl: product.imageUrl,
     priceMark: toPriceMark(product.amount, product.currency, 'preview', {
       ...(product.comparePrice === null ? {} : { comparePrice: product.comparePrice }),
     }),

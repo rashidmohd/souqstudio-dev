@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
-import { copyName, listBlocks, loadBlock, starterFor } from '@/lib/blocks'
+import { MAX_IMPORT, copyName, importName, listBlocks, loadBlock, starterFor } from '@/lib/blocks'
 
 /**
  * The block library. E7.
@@ -20,15 +20,33 @@ import { copyName, listBlocks, loadBlock, starterFor } from '@/lib/blocks'
  * block the organization already has.
  */
 
-const createSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  /**
-   * The block to start from — a seeded id, or one of the organization's own.
-   * There is no "blank" branch, and that is the design rather than a gap.
-   */
-  fromId: z.string().min(1).max(64),
-  description: z.string().trim().max(200).optional(),
-})
+/**
+ * Two ways in, and they mean different things.
+ *
+ * `fromId` **duplicates**: one block, the caller names it, and the response is
+ * the block so the client can open it in the designer. That is the action on a
+ * block the shop already has.
+ *
+ * `fromIds` **imports**: several blocks from the seeded library at once, each
+ * keeping its own name, and the response is the list. Made a second branch
+ * rather than a `fromIds: [one]` call because the naming differs — an imported
+ * block is not a copy of anything the owner can see, so it is "Ramadan band"
+ * and not "Ramadan band copy". `importName` in `lib/blocks.ts`.
+ *
+ * There is no "blank" branch in either, and that is the design rather than a
+ * gap: an empty artboard produces something worse than the default. §3.6.
+ */
+const createSchema = z.union([
+  z.object({
+    name: z.string().trim().min(1).max(80),
+    fromId: z.string().min(1).max(64),
+    description: z.string().trim().max(200).optional(),
+  }),
+  z.object({
+    fromIds: z.array(z.string().min(1).max(64)).min(1).max(MAX_IMPORT),
+  }),
+])
+
 
 export async function GET() {
   const { session, response } = await requireApiSession()
@@ -63,6 +81,10 @@ export async function POST(request: NextRequest) {
     select: { planId: true },
   })
   const planId = organization?.planId ?? null
+
+  if ('fromIds' in parsed.data) {
+    return importBlocks(parsed.data.fromIds, session.user.organizationId, planId)
+  }
 
   // Two sources, one shape. A seeded block is read from the engine rather than
   // from the database so a copy is of the library that was checked, and an
@@ -116,4 +138,68 @@ export async function POST(request: NextRequest) {
   })
 
   return ok(block, 201)
+}
+
+/**
+ * Several blocks from the library, in one request.
+ *
+ * **Sequential, and the loop is the reason.** Each block's name is decided
+ * against the names that already exist *including the ones this import has just
+ * added*, so importing two blocks that would land on the same name gives the
+ * second one a number rather than a duplicate. Firing them in parallel — or as
+ * one `createMany` — would have every name decided against the same stale
+ * snapshot, which is how an owner ends up with two rows they cannot tell apart.
+ *
+ * A source that has gone missing or that the plan does not reach is **skipped
+ * and reported**, not fatal. An import of eight blocks failing whole because one
+ * of them is plan-gated is a worse answer than seven blocks and a sentence
+ * saying which one did not come.
+ */
+async function importBlocks(fromIds: readonly string[], organizationId: string, planId: string | null) {
+  const existing = await prisma.block.findMany({
+    where: { organizationId },
+    select: { name: true },
+  })
+  const names = existing.map((block) => block.name)
+
+  const created: { id: string; name: string }[] = []
+  const skipped: string[] = []
+
+  // Duplicates in one request would create two identical blocks from one click.
+  for (const fromId of new Set(fromIds)) {
+    const seeded = starterFor(fromId)
+    const source = seeded === null ? await loadBlock(fromId, organizationId, planId) : seeded
+
+    if (source === null || ('locked' in source && source.locked)) {
+      skipped.push(fromId)
+      continue
+    }
+
+    const name = importName(source.name, names)
+    names.push(name)
+
+    const block = await prisma.block.create({
+      data: {
+        organizationId,
+        name,
+        description: source.description ?? null,
+        repeats: source.repeats,
+        // `Arrangement[]` is an interface with no implicit index signature, so
+        // it is not assignable to Prisma's JSON input type. Same assertion as
+        // `lib/brand-kit.ts` and the seed.
+        arrangements: source.arrangements as unknown as Prisma.InputJsonValue,
+        // A copy starts published: it is already a design that works.
+        status: 'published',
+        planTier: 'starter',
+      },
+      select: { id: true, name: true },
+    })
+    created.push(block)
+  }
+
+  if (created.length === 0) {
+    return fail('source_not_found', 'None of those blocks could be added.', 404)
+  }
+
+  return ok({ created, skipped }, 201)
 }

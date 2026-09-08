@@ -3,26 +3,32 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Copy, Lock, Pencil, Trash2 } from 'lucide-react'
+import { LibraryBig, Lock, Pencil, Trash2 } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
-import { BLOCK_CATEGORIES, SEED_BLOCKS, type BlockCategory } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/shared/empty-state'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { BlockImportDialog } from '@/components/blocks/BlockImportDialog'
 
 /**
  * The block library. E7 — `docs/composition-model.md` §3.6.
  *
  * Two collections, one schema: the blocks SouqStudio seeds, and the ones this
- * organization authored. **Saved blocks are the compounding asset** — design a
- * seasonal header once and every shop in the chain uses it — which is why the
- * shop's own come first rather than after a list they cannot change.
+ * organization authored. **Only the second is on this page**, and that is the
+ * change the library outgrowing four blocks forced.
  *
- * **Duplicate is the primary action on a seeded block, not edit.** Every account
- * composes with the same four; editing one in place would change everybody's
- * library or fork it silently, and the copy is a starting point that already
- * works. That is also why there is no "new blank block" anywhere on this screen:
- * a blank artboard produces something worse than the default, and the owner
- * blames the product.
+ * Both used to be printed here, the shop's own above ours. At four seeded blocks
+ * that read as one screen with two halves; at sixty-seven it read as a catalog
+ * with the shop's own work stranded at the top of it. The collections are not
+ * peers — one is the shop's, editable, and the reason to open the screen; the
+ * other is a shelf you take something off. So the shelf became a picker behind
+ * "Add from library", with a filter, which is also what lets an owner who came
+ * for a footer see footers rather than scroll past sixty-two other things.
+ *
+ * **Duplicate is still how a block starts, not a blank artboard.** Importing is
+ * duplicating with the trip through the designer removed: the copy is the shop's
+ * from the moment it lands, and §3.6's rule — an empty canvas produces something
+ * worse than the default — is untouched.
  */
 
 export type LibraryBlock = {
@@ -44,130 +50,64 @@ type Props = {
 }
 
 export function BlockLibrary({ blocks, kit, canEdit }: Props) {
+  const router = useRouter()
+  const [importing, setImporting] = React.useState(false)
+
   const mine = blocks.filter((block) => block.organizationId !== null)
   const seeded = blocks.filter((block) => block.organizationId === null)
 
   return (
-    <div className="flex flex-col gap-8">
-      <Section
-        title="Your blocks"
-        note={
-          mine.length === 0
-            ? 'None yet. Duplicate one below and change it — that is how a block of your own starts.'
-            : 'Available in every book this organization makes.'
-        }
-        blocks={mine}
-        kit={kit}
-        canEdit={canEdit}
-      />
-
-      <section className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 className="font-display text-subhead text-primary">Comes with every account</h2>
+          <h2 className="font-display text-subhead text-primary">Your blocks</h2>
           <p className="font-ui text-body-sm text-muted">
-            Read-only, and kept up to date by us. Duplicate one to make it yours.
+            Available in every book this organization makes.
           </p>
         </div>
 
-        {BLOCK_CATEGORIES.map((category) => {
-          const group = seeded.filter((block) => categoryOf(block.id) === category)
-          if (group.length === 0) return null
-          const copy = CATEGORY_COPY[category]
-
-          return (
-            <div key={category} className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1">
-                <h3 className="font-ui text-eyebrow uppercase text-secondary">
-                  {copy.title} · {group.length}
-                </h3>
-                <p className="font-ui text-body-sm text-muted">{copy.note}</p>
-              </div>
-              <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
-                {group.map((block) => (
-                  <BlockCard key={block.id} block={block} kit={kit} canEdit={canEdit} />
-                ))}
-              </ul>
-            </div>
-          )
-        })}
-      </section>
-    </div>
-  )
-}
-
-/**
- * Which group a seeded block belongs to, read from the library rather than from
- * the row.
- *
- * **Not a column on `blocks`.** It is a property of the design we shipped, not a
- * fact about a database record, and a column would be one only the seed ever
- * writes and only this screen ever reads. A block the shop authored has no
- * category and needs none: theirs are listed first and separately, because that
- * is the collection they can change.
- */
-const SEEDED_CATEGORY = new Map<string, BlockCategory>(
-  SEED_BLOCKS.map((block) => [block.id, block.category])
-)
-
-const categoryOf = (id: string): BlockCategory => SEEDED_CATEGORY.get(id) ?? 'panel'
-
-/**
- * Sixty-seven blocks in one list is a wall, and a wall is what a shop scrolls
- * past on the way to using the first one. The groups say what a block is *for* —
- * which is the question an owner is actually asking — rather than what it is
- * made of.
- */
-const CATEGORY_COPY: Record<BlockCategory, { title: string; note: string }> = {
-  'offer-card': {
-    title: 'Offer cards',
-    note: 'One per product. Each reflows into whatever shape its region turns out to be.',
-  },
-  header: {
-    title: 'Headers and covers',
-    note: 'The front of a book, the band across a page, and the dividers between sections.',
-  },
-  panel: {
-    title: 'Panels',
-    note: 'Placed once. Pin one into a book and the products route around it.',
-  },
-  footer: {
-    title: 'Footers',
-    note: 'The last row of a page, and the small print that has to be somewhere.',
-  },
-  seasonal: {
-    title: 'Seasonal',
-    note: 'The occasions, with the greeting already set in both languages.',
-  },
-}
-
-function Section({
-  title,
-  note,
-  blocks,
-  kit,
-  canEdit,
-}: {
-  title: string
-  note: string
-  blocks: LibraryBlock[]
-  kit: BrandKit
-  canEdit: boolean
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-subhead text-primary">{title}</h2>
-        <p className="font-ui text-body-sm text-muted">{note}</p>
+        {/* One primary per region: when there is nothing here yet the empty
+            state carries the action, so this button would be the second one
+            saying the same thing. */}
+        {canEdit && mine.length > 0 ? (
+          <Button type="button" variant="primary" onClick={() => setImporting(true)}>
+            <LibraryBig className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            Add from library
+          </Button>
+        ) : null}
       </div>
 
-      {blocks.length === 0 ? null : (
+      {mine.length === 0 ? (
+        <EmptyState
+          kind="empty"
+          title="No blocks of your own yet"
+          body={`Start from one of the ${seeded.length} we ship — an offer card, a header, a footer, a seasonal band. Add the ones you want and change them from there.`}
+          action={{
+            label: 'Add from library',
+            ...(canEdit
+              ? { onClick: () => setImporting(true) }
+              : {
+                  disabled: true,
+                  disabledReason: 'Only an owner or a manager can add blocks.',
+                }),
+          }}
+        />
+      ) : (
         <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
-          {blocks.map((block) => (
+          {mine.map((block) => (
             <BlockCard key={block.id} block={block} kit={kit} canEdit={canEdit} />
           ))}
         </ul>
       )}
-    </section>
+
+      <BlockImportDialog
+        open={importing}
+        onOpenChange={setImporting}
+        blocks={seeded}
+        kit={kit}
+        onImported={() => router.refresh()}
+      />
+    </div>
   )
 }
 
@@ -184,6 +124,15 @@ function previewSize(block: LibraryBlock): { width: number; height: number } {
   return { width: PREVIEW_WIDTH, height: Math.round(PREVIEW_WIDTH / aspect) }
 }
 
+/**
+ * One of the shop's own blocks.
+ *
+ * **Only ever theirs now.** It used to render a seeded block too, with
+ * "Duplicate" where "Open" is — that branch moved into `BlockImportDialog`,
+ * where picking several at once is the point. A card that had to ask which
+ * collection it belonged to before it knew what its buttons were is a card doing
+ * two jobs.
+ */
 function BlockCard({
   block,
   kit,
@@ -194,26 +143,8 @@ function BlockCard({
   canEdit: boolean
 }) {
   const router = useRouter()
-  const [busy, setBusy] = React.useState<'duplicate' | 'delete' | null>(null)
+  const [busy, setBusy] = React.useState<'delete' | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const mine = block.organizationId !== null
-
-  async function duplicate() {
-    setBusy('duplicate')
-    setError(null)
-    const response = await fetch('/api/v1/blocks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fromId: block.id, name: block.name }),
-    })
-    const body = (await response.json()) as {
-      data: { id: string } | null
-      error: { message: string } | null
-    }
-    setBusy(null)
-    if (body.data) router.push(`/card-designer/${body.data.id}`)
-    else setError(body.error?.message ?? 'That could not be duplicated.')
-  }
 
   async function remove() {
     setBusy('delete')
@@ -255,7 +186,7 @@ function BlockCard({
             {block.planTier}
           </span>
         ) : null}
-        {mine && block.status !== 'published' ? (
+        {block.status !== 'published' ? (
           <span className="rounded-pill bg-sand px-2 py-px font-ui text-eyebrow uppercase text-secondary">
             {block.status}
           </span>
@@ -267,31 +198,18 @@ function BlockCard({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        {mine ? (
-          // `Button` has no `asChild`, so a navigation stays a Link with the
-          // control's own shell rather than a button that pushes a route — the
-          // middle-click and the status bar are worth keeping.
-          <Link
-            href={`/card-designer/${block.id}`}
-            className="inline-flex h-control items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
-          >
-            <Pencil className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            Open
-          </Link>
-        ) : (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!canEdit || block.locked}
-            loading={busy === 'duplicate'}
-            onClick={duplicate}
-          >
-            <Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            Duplicate
-          </Button>
-        )}
+        {/* `Button` has no `asChild`, so a navigation stays a Link with the
+            control's own shell rather than a button that pushes a route — the
+            middle-click and the status bar are worth keeping. */}
+        <Link
+          href={`/card-designer/${block.id}`}
+          className="inline-flex h-control items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+        >
+          <Pencil className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Open
+        </Link>
 
-        {mine && canEdit ? (
+        {canEdit ? (
           <Button type="button" variant="ghost" loading={busy === 'delete'} onClick={remove}>
             <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
             Remove
