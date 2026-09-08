@@ -179,6 +179,10 @@ const config: Config = {
         chip: 'var(--sq-size-chip)',
         rail: 'var(--sq-rail)',
         'rail-collapsed': 'var(--sq-rail-collapsed)',
+        // The editor's and the designer's side panes. Named because `w-72` and
+        // `w-80` do not exist here and compiled to nothing — see the token file.
+        'pane-start': 'var(--sq-pane-start)',
+        'pane-end': 'var(--sq-pane-end)',
         'field-select': 'var(--sq-field-select)',
         'skeleton-chip': 'var(--sq-skeleton-chip)',
       },

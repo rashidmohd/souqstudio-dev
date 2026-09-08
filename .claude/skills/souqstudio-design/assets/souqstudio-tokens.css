@@ -157,6 +157,16 @@
   --sq-rail:           280px;
   --sq-rail-collapsed:  64px;
 
+  /* The two canvas panes, and this is the **third** time the defect above has
+     been found. The offer book editor and the block designer both said
+     `lg:w-72` and `lg:w-80`; neither exists once this file replaces Tailwind's
+     spacing scale, so each pane kept its `w-full` inside the flex row, took the
+     whole width, and pushed the artboard off the screen. It shipped in E6 and
+     was found in E7 by opening the designer and seeing a palette where a canvas
+     should be — which is what consistency check #9 is for. */
+  --sq-pane-start:     288px;   /* palette, or the offer tray */
+  --sq-pane-end:       320px;   /* properties */
+
   /* Component box sizes. Off the spacing scale on purpose: spacing is the gap
      between things, and these are things. Each one replaces a Tailwind default
      — h-24, h-32, max-h-16, w-36, w-44, size-10 — that compiled to nothing once

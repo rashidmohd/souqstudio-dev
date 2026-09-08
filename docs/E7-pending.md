@@ -430,3 +430,45 @@ Verified after the fact: all five rows parse under the strict schema, carry
 distinct ids within every arrangement, use roles only where they must, and raise
 no errors and no warnings; and all four books still resolve `Offer card` and
 `Footer` from their master grids.
+
+### The canvas was not on the screen, and it had not been since E6
+
+**Found by opening the designer**, which is the check that had been outstanding
+through all of this. The palette filled the width, the layer list sat under it,
+and there was no artboard anywhere on the page.
+
+`lg:w-72` and `lg:w-80` **do not exist in this design system**. The Tailwind
+config replaces the spacing scale rather than extending it — deliberately, so an
+off-system value fails loudly — and neither class compiles to anything. Both
+panes therefore kept their `w-full`, each took the whole width of the flex row,
+and pushed the artboard out of view.
+
+**The offer book editor has had the identical defect since E6.** Same two class
+names, same two panes. Nobody saw it because nobody had opened either canvas.
+
+**This is the third time this exact defect has appeared**, and the token file
+already documents the first: the rail said `w-16` and `lg:w-64`, both compiled to
+nothing, and it was sized by its own content until `--sq-rail` was added. The
+answer is the same one that file states — *a box that needs a size needs a name*
+— so `--sq-pane-start` (288px) and `--sq-pane-end` (320px) are tokens now, with
+`w-pane-start` and `w-pane-end` in the Tailwind config, and both shells use them.
+
+Two things worth taking from it:
+
+- **Nothing in the toolchain can catch this.** The class name is a valid string,
+  typecheck has no opinion, the linter's rules are about *wrong* values rather
+  than absent ones, and a component test would have asserted the same class name
+  the component already had. Only a rendered page shows it, which is why
+  consistency check #9 is a check.
+- **The check that finds it is cheap and was skipped repeatedly.** Every entry in
+  this file and in `E6-pending.md` ends with "nothing has been opened in a
+  browser". That sentence was the finding.
+
+### Still owed on the layout
+
+Below 1024px the two panes **stack above the canvas** rather than overlaying it.
+The design system is explicit — *"side panels overlay the canvas, never compress
+it"* — and stacking is worse than compressing: on a narrow window the artboard is
+pushed off the bottom of the page entirely, which is the same symptom as the bug
+above by a different route. It applies to the editor equally. Not fixed here: it
+is a drawer, not a width.

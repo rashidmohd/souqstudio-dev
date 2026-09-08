@@ -312,7 +312,7 @@ export function DesignerShell({
       <Problems problems={problems} />
 
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="w-full shrink-0 overflow-auto border-b-hairline border-border-subtle bg-surface p-4 lg:order-first lg:w-72 lg:border-b-0 lg:border-e-hairline">
+        <aside className="w-full shrink-0 overflow-auto border-b-hairline border-border-subtle bg-surface p-4 lg:order-first lg:w-pane-start lg:border-b-0 lg:border-e-hairline">
           <div className="flex flex-col gap-6">
             <ElementPalette
               repeats={repeats}
@@ -468,7 +468,7 @@ export function DesignerShell({
           ) : null}
         </div>
 
-        <aside className="w-full shrink-0 overflow-auto border-t-hairline border-border-subtle bg-surface p-4 lg:w-80 lg:border-s-hairline lg:border-t-0">
+        <aside className="w-full shrink-0 overflow-auto border-t-hairline border-border-subtle bg-surface p-4 lg:w-pane-end lg:border-s-hairline lg:border-t-0">
           {selectedElement === null ? (
             <BlockProperties
               name={store.name}

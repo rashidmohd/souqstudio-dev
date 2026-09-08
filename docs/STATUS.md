@@ -69,6 +69,19 @@ the flag in the change that adds the route** — that is the whole point of the 
 left rail now reads those flags, so an unbuilt destination is not rendered at all;
 `/catalog` and `/analytics` had been shipping as live nav items pointing at 404s.
 
+### 1.0 The canvas panes had no width, and the artboard was off the screen
+
+**Found 8 September by opening the block designer**, and it had been true of the
+offer book editor since E6. `lg:w-72` and `lg:w-80` do not exist — this system
+*replaces* Tailwind's spacing scale — so both panes kept `w-full`, took the whole
+flex row, and pushed the artboard out of view. `--sq-pane-start` and
+`--sq-pane-end` are tokens now.
+
+**Third occurrence of the same defect**, after the rail's `w-16`/`lg:w-64`. No
+part of the toolchain can catch it: the class name is a valid string, typecheck
+has no opinion, and the linter tests for wrong values rather than absent ones.
+Only a rendered page shows it. `docs/E7-pending.md`.
+
 ### 1.1 What changed in E4, and why
 
 The brand kit carried a `gridId` and a `templateId`. Both are gone. **A brand kit *has*
