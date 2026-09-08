@@ -40,7 +40,8 @@ import { BOUND_ELEMENTS, FREE_ELEMENTS } from '@/lib/block-elements'
 type Props = {
   repeats: boolean
   disabled: boolean
-  onAdd: (element: BlockElement) => void
+  /** `atBottom` puts the element behind everything already on the layout. */
+  onAdd: (element: BlockElement, atBottom?: boolean) => void
   /** Opens the artwork picker. Absent while uploads are unavailable. */
   onUpload?: (() => void) | undefined
   uploading?: boolean
@@ -52,6 +53,12 @@ type Entry = {
   hint: string
   icon: LucideIcon
   make: () => BlockElement
+  /**
+   * Added behind everything rather than on top. Only a background wants this,
+   * and it wants it absolutely: an element that covers the card and paints last
+   * is not a background, it is a lid.
+   */
+  atBottom?: boolean
 }
 
 const BOUND: Entry[] = [
@@ -127,6 +134,7 @@ const FREE: Entry[] = [
     hint: 'A ground behind everything else',
     icon: Square,
     make: FREE_ELEMENTS.background,
+    atBottom: true,
   },
   {
     key: 'rectangle',
@@ -208,13 +216,14 @@ function Group({
   note: string
   entries: Entry[]
   disabled: boolean
-  onAdd: (element: BlockElement) => void
+  /** `atBottom` puts the element behind everything already on the layout. */
+  onAdd: (element: BlockElement, atBottom?: boolean) => void
   bound: boolean
   children?: React.ReactNode
 }) {
   return (
     <section className="flex flex-col gap-2">
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <h2 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">{title}</h2>
         <p className="font-ui text-body-sm text-muted">{note}</p>
       </div>
@@ -225,14 +234,14 @@ function Group({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onAdd(entry.make())}
+              onClick={() => onAdd(entry.make(), entry.atBottom)}
               className="flex w-full items-start gap-2 rounded-control border-hairline border-border-subtle bg-surface p-2 text-start hover:bg-stone-100 disabled:opacity-50"
             >
               <entry.icon
                 className={
                   bound
-                    ? 'mt-0.5 size-4 shrink-0 text-link'
-                    : 'mt-0.5 size-4 shrink-0 text-muted'
+                    ? 'mt-1 size-4 shrink-0 text-link'
+                    : 'mt-1 size-4 shrink-0 text-muted'
                 }
                 strokeWidth={1.75}
                 aria-hidden="true"

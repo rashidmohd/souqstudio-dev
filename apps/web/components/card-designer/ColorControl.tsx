@@ -101,8 +101,8 @@ export function ColorControl({
           aria-label="Any colour"
           className={
             value?.from === 'hex'
-              ? 'flex size-7 items-center justify-center rounded-control border-2 border-border-focus'
-              : 'flex size-7 items-center justify-center rounded-control border-hairline border-border-strong hover:bg-stone-100'
+              ? 'flex size-swatch items-center justify-center rounded-control border-2 border-border-focus'
+              : 'flex size-swatch items-center justify-center rounded-control border-hairline border-border-strong hover:bg-stone-100'
           }
         >
           <Palette className="size-4 text-secondary" strokeWidth={1.75} aria-hidden="true" />
@@ -156,13 +156,13 @@ function Swatch({
       style={{ backgroundColor: hex }}
       className={
         selected
-          ? 'flex size-7 items-center justify-center rounded-control border-2 border-border-focus'
-          : 'flex size-7 items-center justify-center rounded-control border-hairline border-border-subtle'
+          ? 'flex size-swatch items-center justify-center rounded-control border-2 border-border-focus'
+          : 'flex size-swatch items-center justify-center rounded-control border-hairline border-border-subtle'
       }
     >
       {selected ? (
         <Check
-          className="size-3.5 mix-blend-difference text-stone-0"
+          className="size-4 mix-blend-difference text-stone-0"
           strokeWidth={3}
           aria-hidden="true"
         />

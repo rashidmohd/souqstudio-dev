@@ -64,7 +64,7 @@ export function CanvasToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-pill bg-surface px-2 py-1">
-      <div className="flex items-center gap-0.5" role="group" aria-label="Align">
+      <div className="flex items-center gap-1" role="group" aria-label="Align">
         {ALIGNMENTS.map((entry) => (
           <Button
             key={entry.how}

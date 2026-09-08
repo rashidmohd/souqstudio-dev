@@ -75,9 +75,9 @@ export function LayerList({
               {/* The mark, not a colour alone: a link glyph for bound, a rule
                   for static. Colour is the reinforcement. */}
               {bound ? (
-                <Link2 className="size-3.5 shrink-0 text-link" strokeWidth={1.75} aria-hidden="true" />
+                <Link2 className="size-4 shrink-0 text-link" strokeWidth={1.75} aria-hidden="true" />
               ) : (
-                <span className="ms-1 h-3.5 w-px shrink-0 bg-border-strong" aria-hidden="true" />
+                <span className="ms-1 h-4 w-px shrink-0 bg-border-strong" aria-hidden="true" />
               )}
               <span className="truncate font-ui text-body-sm text-primary">
                 {describe(element)}
@@ -94,12 +94,12 @@ export function LayerList({
               onClick={() => onToggleLock(element.id)}
               aria-label={locked ? `Unlock ${describe(element)}` : `Lock ${describe(element)}`}
               aria-pressed={locked}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-40"
+              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
             >
               {locked ? (
-                <Lock className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                <Lock className="size-4" strokeWidth={1.75} aria-hidden="true" />
               ) : (
-                <LockOpen className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                <LockOpen className="size-4" strokeWidth={1.75} aria-hidden="true" />
               )}
             </button>
             <button
@@ -107,27 +107,27 @@ export function LayerList({
               disabled={disabled || index === 0}
               onClick={() => onReorder(index, index - 1)}
               aria-label={`Move ${describe(element)} behind`}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-40"
+              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
             >
-              <ArrowUp className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              <ArrowUp className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </button>
             <button
               type="button"
               disabled={disabled || index === elements.length - 1}
               onClick={() => onReorder(index, index + 1)}
               aria-label={`Move ${describe(element)} in front`}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-40"
+              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
             >
-              <ArrowDown className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              <ArrowDown className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </button>
             <button
               type="button"
               disabled={disabled}
               onClick={() => onRemove(element.id)}
               aria-label={`Remove ${describe(element)}`}
-              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-40"
+              className="rounded-pill p-1 text-secondary hover:bg-stone-100 disabled:opacity-disabled"
             >
-              <Trash2 className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </button>
           </li>
         )

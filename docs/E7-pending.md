@@ -472,3 +472,37 @@ it"* — and stacking is worse than compressing: on a narrow window the artboard
 pushed off the bottom of the page entirely, which is the same symptom as the bug
 above by a different route. It applies to the editor equally. Not fixed here: it
 is a drawer, not a width.
+
+### Driving it in a real browser, at last — and the three things that found
+
+The check that had been outstanding through every entry above finally ran:
+headless Chrome, a minted dev session, the designer opened, an element clicked
+and dragged. It found three defects in about ten minutes, none of which any test
+could have.
+
+**1. The canvas was not on the page.** `lg:w-72` / `lg:w-80` — see above.
+
+**2. "Background" was a lid, not a ground.** The palette appended it like any
+other element, so it painted *last* and covered the whole design; and it
+defaulted to `surface`, which resolves to white on white paper, so the owner saw
+their card go blank with nothing apparently added. The owner's block had two of
+them — because after the first click looked like it had done nothing, they
+clicked again. It now inserts at the bottom of the paint order and lands in the
+shop's first brand colour.
+
+**3. The colour swatches were collapsed to dots.** `size-7` does not exist here
+either. The swatch is a box that needs a size, so it has a name now:
+`--sq-swatch`, 28px.
+
+**`pnpm --filter @souqstudio/web check:classes` exists because of the second and
+third of those.** It reads the built CSS and reports every sized utility in the
+source that generates no rule. Run it after a build. The full reasoning is in
+`apps/web/scripts/check-classes.mjs`; the short version is that this defect has
+now appeared four times, nothing in the toolchain can see it, and the cost of
+each occurrence has been a screen that looks broken for a reason nobody can find
+by reading the code.
+
+**One thing broken in passing, and worth knowing.** Running `next build` while a
+dev server is running overwrites the `.next` directory it is serving from, and
+the dev server then 404s its own chunks until it is restarted. It cost a
+confusing five minutes. Build in CI or stop the dev server first.

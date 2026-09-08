@@ -86,7 +86,7 @@ function Section({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <h2 className="font-display text-subhead text-primary">{title}</h2>
         <p className="font-ui text-body-sm text-muted">{note}</p>
       </div>

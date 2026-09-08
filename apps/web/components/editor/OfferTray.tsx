@@ -367,7 +367,7 @@ function AddProduct({
                   type="button"
                   disabled={disabled}
                   onClick={() => onAdd(product.id)}
-                  className="flex min-h-row w-full items-center justify-between gap-2 rounded-control px-2 text-start hover:bg-stone-100 disabled:opacity-40"
+                  className="flex min-h-row w-full items-center justify-between gap-2 rounded-control px-2 text-start hover:bg-stone-100 disabled:opacity-disabled"
                 >
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate font-ui text-body-sm text-primary">{name}</span>

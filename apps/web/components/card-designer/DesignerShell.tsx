@@ -253,7 +253,7 @@ export function DesignerShell({
           <div
             role="group"
             aria-label="Card language"
-            className="flex items-center rounded-pill border-hairline border-border-subtle p-0.5"
+            className="flex items-center rounded-pill border-hairline border-border-subtle p-1"
           >
             {(['ltr', 'rtl'] as const).map((value) => (
               <button
@@ -319,8 +319,13 @@ export function DesignerShell({
               disabled={!editable}
               uploading={uploading}
               onUpload={editable ? () => fileInput.current?.click() : undefined}
-              onAdd={(element) => {
-                store.setElements(addElement(elements, element))
+              onAdd={(element, atBottom) => {
+                // Paint order is array order, so "behind everything" is the
+                // front of the list. A background appended like anything else
+                // covers the card.
+                store.setElements(
+                  atBottom === true ? [element, ...elements] : addElement(elements, element)
+                )
                 store.select([element.id])
               }}
             />
@@ -615,13 +620,13 @@ function Problems({ problems }: { problems: BlockProblem[] }) {
     <>
       {errors.length > 0 ? (
         <p className="flex items-start gap-2 border-b-hairline border-border-subtle bg-critical-bg px-4 py-2 font-ui text-body-sm text-critical-fg">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+          <TriangleAlert className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span>{errors.map((problem) => problem.message).join('. ')}.</span>
         </p>
       ) : null}
       {warnings.length > 0 ? (
         <p className="flex items-start gap-2 border-b-hairline border-border-subtle bg-caution-bg px-4 py-2 font-ui text-body-sm text-caution-fg">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+          <TriangleAlert className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span>{warnings.map((problem) => problem.message).join('. ')}.</span>
         </p>
       ) : null}

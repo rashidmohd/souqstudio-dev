@@ -144,12 +144,26 @@ export const FREE_ELEMENTS = {
     radius: 0,
     stroke: { color: role('ink'), width: 0.004 },
   }),
-  /** A full-bleed ground, which is what most owners reach for first. */
+  /**
+   * A full-bleed ground, which is what most owners reach for first.
+   *
+   * **It goes to the bottom of the stack, and it is not white.** Both of those
+   * were wrong on the first version and the pair of them made the control
+   * destructive: a background is *defined* by being behind everything, so
+   * appending it like any other element painted an opaque sheet over the whole
+   * design — and defaulting it to `surface`, which resolves to white on white
+   * paper, meant the owner saw their card go blank with nothing apparently
+   * added. Clicking it twice, because the first click looked like it had done
+   * nothing, is exactly what happened.
+   *
+   * The first brand colour instead: visible the moment it lands, and obviously
+   * the thing that was just added.
+   */
   background: (): BlockElement => ({
     id: newElementId(),
     kind: 'shape',
     box: { start: 0, top: 0, width: 1, height: 1 },
-    fill: role('surface'),
+    fill: role('primary'),
     variant: 'rect',
     radius: 3,
   }),

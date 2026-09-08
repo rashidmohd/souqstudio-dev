@@ -177,6 +177,7 @@
   --sq-skeleton-card:  128px;   /* stands in for a real card */
   --sq-skeleton-chip:   64px;   /* stands in for a chip */
   --sq-field-select:   176px;   /* a role select; its longest option sets this */
+  --sq-swatch:          28px;   /* a colour swatch in the block designer */
 
   --sq-dur-fast: 120ms;
   --sq-dur-base: 200ms;

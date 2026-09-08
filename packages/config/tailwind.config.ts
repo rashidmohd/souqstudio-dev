@@ -192,6 +192,7 @@ const config: Config = {
         icon: 'var(--sq-icon)',
         'icon-lg': 'var(--sq-icon-lg)',
         'control-lg': 'var(--sq-h-control-lg)',
+        swatch: 'var(--sq-swatch)',
       },
       borderWidth: {
         hairline: '0.5px',

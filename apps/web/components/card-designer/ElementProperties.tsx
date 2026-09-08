@@ -77,8 +77,8 @@ export function ElementProperties({
   const color = { palette, token, disabled }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
         <h2 className="font-display text-subhead text-primary">{describe(element)}</h2>
         <p className="font-ui text-body-sm text-muted">{purpose(element)}</p>
       </div>
@@ -267,7 +267,7 @@ function PriceMarkFields({
       />
 
       <p className="flex items-start gap-2 rounded-control bg-sand-tint p-3 font-ui text-body-sm text-secondary">
-        <Lock className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+        <Lock className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
         <span>
           How the number itself is set — the raised fils, the currency, the way
           it reads in Arabic — stays ours, so every price in every book is read

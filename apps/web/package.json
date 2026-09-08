@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "stylelint": "stylelint \"styles/**/*.css\""
+    "stylelint": "stylelint \"styles/**/*.css\"",
+    "check:classes": "node scripts/check-classes.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3",

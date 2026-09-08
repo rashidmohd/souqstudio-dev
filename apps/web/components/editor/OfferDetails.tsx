@@ -33,7 +33,7 @@ type Props = { bookId: string; offer: ComposedOffer }
 
 export function OfferDetails({ bookId, offer }: Props) {
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <UnitPriceFields bookId={bookId} offer={offer} />
       <Chips bookId={bookId} offer={offer} />
       <Footnotes bookId={bookId} offer={offer} />

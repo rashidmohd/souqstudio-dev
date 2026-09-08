@@ -57,7 +57,7 @@ export function StressPreview({
         <span className="font-ui text-body-sm text-secondary">Worst case</span>
         {escalated > 0 ? (
           <span className="flex items-center gap-1 font-ui text-body-sm text-caution-fg">
-            <TriangleAlert className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+            <TriangleAlert className="size-4" strokeWidth={1.75} aria-hidden="true" />
             <Figure value={escalated} size="data-sm" /> too long
           </span>
         ) : null}
