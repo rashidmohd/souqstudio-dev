@@ -14,8 +14,15 @@ import { env } from '@/lib/env'
  * URL; the browser does the PUT.
  *
  * That also means **the server never sees the file it is authorising**. The
- * content type and size ceiling are pinned into the signature, and the object
- * is verified after the fact in the completion route.
+ * size ceiling is pinned into the signature — `content-length` is signed, so a
+ * larger body is refused by R2 before it lands.
+ *
+ * **The content type is not**, despite being passed to the command: the
+ * presigner signs `content-length;host` and nothing else, so a client may PUT
+ * whatever type it likes. That is survivable only because the completion route
+ * reads the object back and re-parses it with sharp, which is what actually
+ * makes a renamed executable impossible. Any future presigned path that stores
+ * what it is given without that second look does not inherit the protection.
  */
 
 const client = new S3Client({
@@ -25,6 +32,25 @@ const client = new S3Client({
     accessKeyId: env.R2_ACCESS_KEY_ID,
     secretAccessKey: env.R2_SECRET_ACCESS_KEY,
   },
+  /**
+   * **Without this, every presigned upload URL is born broken.**
+   *
+   * Since v3.729 the SDK adds a CRC32 checksum to `PutObject` by default. On a
+   * normal request it computes that from the body. On a *presigned* one there is
+   * no body at signing time, so it computes the checksum of nothing — CRC32 of
+   * an empty payload, `AAAAAA==` — and bakes it into the query string as
+   * `x-amz-checksum-crc32`. The browser then PUTs the real bytes against a URL
+   * that swears they hash to empty, and R2 rejects it.
+   *
+   * `WHEN_REQUIRED` drops the checksum on operations that do not demand one,
+   * which is what the presigner needs. Verified by signing the same command with
+   * and without it: the parameter is present in one and absent in the other.
+   *
+   * Not an R2 quirk — the same URL fails against S3. It is why an upload path
+   * that "worked" before an SDK bump stops working after one, with nothing in
+   * this repo having changed.
+   */
+  requestChecksumCalculation: 'WHEN_REQUIRED',
 })
 
 /** How long a presigned upload URL stays valid. Long enough for a slow 4G upload. */
@@ -137,9 +163,10 @@ export function publicUrl(key: string): string {
 /**
  * A URL the browser can PUT to.
  *
- * `ContentType` and `ContentLength` are part of the signature, so a client that
- * sends a different type or a larger body gets a signature mismatch from R2
- * rather than a stored file nobody checked.
+ * `ContentLength` is part of the signature, so a client sending a larger body
+ * gets a mismatch from R2 rather than a stored file nobody checked.
+ * `ContentType` is passed and **is not signed** — see the note at the top of
+ * this file. The completion route is what makes that safe.
  */
 export async function presignUpload(
   key: string,

@@ -25,6 +25,19 @@ const schema = z.object({
   R2_SECRET_ACCESS_KEY:               z.string().min(1),
   R2_BUCKET_NAME:                     z.string().min(1),
   R2_PUBLIC_URL:                      z.string().url(),
+  /**
+   * The account endpoint, and **the bucket must not be in it.**
+   *
+   * `https://<account>.r2.cloudflarestorage.com` — no bucket, no path, no
+   * trailing slash. The SDK is handed `Bucket` separately and puts it in the
+   * host itself, so an endpoint carrying `/souqstudio-dev` writes every object
+   * to `souqstudio-dev/<key>` while `publicUrl()` builds a link to `<key>`.
+   *
+   * **Nothing about that failure is visible from the app.** The presign
+   * succeeds, the PUT returns 200, and only the rendered image is missing — it
+   * shipped in one `.env.local` for weeks and reached the dev deployment. So it
+   * is a startup error now rather than a note in `docs/STATUS.md`.
+   */
   R2_ENDPOINT:                        z.string().url(),
   REDIS_URL:                          z.string().min(1),
   RESEND_API_KEY:                     z.string().startsWith('re_'),
@@ -34,6 +47,41 @@ const schema = z.object({
   OPENAI_API_KEY:                     z.string().startsWith('sk-'),
   ANTHROPIC_API_KEY:                  z.string().startsWith('sk-ant-'),
   REMBG_SERVICE_URL:                  z.string().url(),
+})
+
+/**
+ * The bucket must not be in the endpoint, in either form it can hide.
+ *
+ * `R2_ENDPOINT` is the bare account endpoint —
+ * `https://<account>.r2.cloudflarestorage.com`. The SDK is handed `Bucket`
+ * separately and builds the host from it, so an endpoint that already carries
+ * the bucket writes every object somewhere `publicUrl()` cannot address:
+ *
+ *   endpoint + /souqstudio-dev   → PUT .../souqstudio-dev/<key>, stored at
+ *                                  `souqstudio-dev/<key>`, linked at `<key>`
+ *   souqstudio-dev.<account>...  → the SDK prepends the bucket again
+ *
+ * **Nothing about either failure is visible from the app.** The presign
+ * succeeds, the PUT returns 200, and only the rendered image is missing. The
+ * first shape sat in one `.env.local` for weeks and is in the dev deployment as
+ * this is written — `docs/STATUS.md` records the first discovery and the second.
+ * A note in a status file did not stop it happening again, so it is a startup
+ * error now.
+ */
+const withEndpointCheck = schema.superRefine((value, ctx) => {
+  const endpoint = new URL(value.R2_ENDPOINT)
+  const bucket = value.R2_BUCKET_NAME
+
+  if (endpoint.pathname !== '/' || endpoint.hostname.startsWith(`${bucket}.`)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['R2_ENDPOINT'],
+      message:
+        `must be the bare account endpoint with no path and no bucket — ` +
+        `https://<account>.r2.cloudflarestorage.com. ` +
+        `"${bucket}" belongs in R2_BUCKET_NAME and nowhere else.`,
+    })
+  }
 })
 
 export type Env = z.infer<typeof schema>
@@ -54,7 +102,7 @@ export type Env = z.infer<typeof schema>
  * nested objects and buries them.
  */
 function load(): Env {
-  const parsed = schema.safeParse(process.env)
+  const parsed = withEndpointCheck.safeParse(process.env)
   if (parsed.success) return parsed.data
 
   if (process.env.SKIP_ENV_VALIDATION === '1') {

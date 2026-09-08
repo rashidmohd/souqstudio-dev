@@ -418,6 +418,44 @@ change's business. Worth a decision.
 before deploying** — if it carries the same shape, every logo and product image uploaded in
 production is written where nothing can read it.
 
+**It did carry the same shape, and it still does.** Confirmed 8 September from a presigned
+URL the dev deployment handed out: `souqstudio-dev.<account>.r2.cloudflarestorage.com/`
+`souqstudio-dev/<key>` — the bucket in the host *and* in the path. So the note above was
+written, the local file was fixed, and the deployment was never checked. A note in a status
+file is not a control.
+
+`R2_ENDPOINT` is now validated at startup against `R2_BUCKET_NAME` — `lib/env.ts`,
+`withEndpointCheck` — and refuses both shapes it can hide in: the bucket as a path segment
+and the bucket as a host prefix. The app will not boot on the bad value rather than
+uploading into the void. **Fix the Railway variable before the next deploy or dev stops
+serving**, which is the intended trade.
+
+### Every presigned upload URL carried a checksum for an empty body
+
+**Found 8 September, in the same URL.** Since `@aws-sdk/client-s3` v3.729 the SDK adds a
+CRC32 checksum to `PutObject` by default. On a normal request it computes that from the
+body; on a *presigned* one there is no body yet, so it computes the checksum of nothing —
+`AAAAAA==`, CRC32 of an empty payload — and bakes it into the query as
+`x-amz-checksum-crc32`. The browser then PUTs real bytes against a URL asserting they hash
+to empty, and R2 rejects it.
+
+Fixed with `requestChecksumCalculation: 'WHEN_REQUIRED'` on the S3 client in `lib/r2.ts`.
+Verified by signing the same command with and without it. The worker's client is untouched:
+it never presigns, and a checksum computed from a body it actually has is correct.
+
+**This is two independent faults on one path**, and they mask each other: the endpoint bug
+stores the object where nothing can read it *silently*, the checksum bug fails the PUT
+*loudly*, so fixing either alone still leaves a logo upload that does not work. Both are
+also older than any test in this repo — nothing about the write path had ever been run
+against a real upload, which §2 has said all along.
+
+**One more thing came out of reading the signature:** `X-Amz-SignedHeaders` is
+`content-length;host`. `ContentType` is passed to the command and **is not signed**, so a
+client may PUT any type it likes — the comment in `lib/r2.ts` claiming both were pinned was
+wrong and is corrected. It is survivable on the logo path only because the completion route
+reads the object back and re-parses it with sharp. Any future presigned path that stores
+what it is given does not inherit that.
+
 ### A preview route with no auth check was committed — remove before deploying
 
 Commit `b293829` captured a temporary harness: `apps/web/app/preview-brand/page.tsx` and a
