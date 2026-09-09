@@ -1110,3 +1110,58 @@ it is gone with it.
 **Still not opened in a browser.** Five entries now. Every finding in this one
 came from a screenshot, and the overflow — the single cause of three of them —
 was invisible to typecheck, lint, 694 tests, the build and `check:classes` alike.
+
+---
+
+## 13. Four layouts called "Banner", and the save that was failing silently — 9 September
+
+The owner, on the new top card: *"I can see more than one banner in the top bar,
+what is that? I think we can handle that in a dropdown, and each I think we have
+to use icon."*
+
+### The tabs had stopped naming anything
+
+`shapeName` maps an aspect range to one of four words, and everything above 2.6:1
+is "Banner". **`add()` produces exactly those**: it starts the new range at the
+widest one already present and doubles it, so the second, third and fourth
+additions are all in banner territory. Four tabs reading "Banner", identical, in
+a control whose whole job is to say which one you are on.
+
+A dropdown now, as asked, and the label carries the proportion — `Banner · 3.7:1`,
+`Banner · 7.4:1`. Ratios rather than the raw aspect, and inverted below square:
+nobody describes a portrait card as "0.71 to 1".
+
+**The icon is drawn rather than chosen.** Four layouts that are all banners would
+get the same glyph from any icon set, which restates the problem instead of
+solving it — so `ShapeGlyph` draws a rectangle at the layout's real proportion. A
+box at 3:1 and a box at 12:1 do not look alike, and this is the rare case where
+drawing the thing is less work than naming it. Its height is floored so a very
+flat band stays a rectangle instead of becoming a hairline that reads as a
+divider. The shape picker for a block placed once takes the same glyph.
+
+### The screenshot also showed a block that could not save
+
+Seven layouts, and `Not saved` in the corner in red.
+
+**`MAX_ARRANGEMENTS` is 6 and only `arrangementsSchema` knew it.** Nothing in the
+designer stopped an owner adding a seventh, so every autosave from that point on
+was refused — and the entire report of that failure, on screen, was two words.
+The block still edits, still draws, still says the shop's name; it just never
+persists again.
+
+Two fixes, because they answer different questions:
+
+- **`add()` refuses at the cap and the button is disabled**, with the reason in
+  its `title`. A limit the interface does not know about is a limit the owner
+  meets as a bug.
+- **A block already over the cap says so**, in the same place the grid problems
+  appear, and says what to do. The Add button cannot help someone who is already
+  past it, and `arrangementsSchema` is a long way from this screen.
+
+**This is the first defect in this file that a test could plausibly have
+caught** — the cap is a pure number and the store is unit-tested — and it still
+took a screenshot, because nothing tested the *pairing* of a client that can
+produce a document and a schema that refuses it. Worth remembering the next time
+a limit is written in one place.
+
+**Still not opened in a browser.** Six.

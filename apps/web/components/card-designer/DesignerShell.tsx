@@ -9,6 +9,7 @@ import { addElement, alignBoxes, reorderElement, validateBlock } from '@souqstud
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { FREE_ELEMENTS } from '@/lib/block-elements'
 import { assetResolver } from '@/lib/block-assets'
+import { MAX_ARRANGEMENTS } from '@/lib/block-document'
 import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -370,6 +371,21 @@ export function DesignerShell({
 
       <Problems problems={problems} />
 
+      {/*
+        **The save is refused above the cap, and the only sign of it was the
+        words "Not saved".** `arrangementsSchema` is the authority and it is a
+        long way from this screen, so a block that drifted over — before the Add
+        button knew about the limit — has to be told what to do about it rather
+        than left guessing at a rejected autosave.
+      */}
+      {store.arrangements.length > MAX_ARRANGEMENTS ? (
+        <p className="border-b-hairline border-border-subtle bg-critical-bg px-4 py-2 font-ui text-body-sm text-critical-fg">
+          This block has {store.arrangements.length} layouts and a block may carry{' '}
+          {MAX_ARRANGEMENTS}. Nothing will save until one is removed: choose a layout above,
+          then remove it from the block panel.
+        </p>
+      ) : null}
+
       <CanvasDrawerToggles
         open={drawer.open}
         onToggle={drawer.toggle}
@@ -497,16 +513,21 @@ export function DesignerShell({
                 repeats ? (
                   <ArrangementTabs />
                 ) : (
-                  <Select
-                    label="Designing for"
-                    className="w-field-select"
-                    value={pageShape}
-                    options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
-                      value: shape,
-                      label: PAGE_SHAPES[shape].label,
-                    }))}
-                    onChange={(event) => setPageShape(event.target.value as PageShape)}
-                  />
+                  <div className="flex items-end gap-2">
+                    <span className="flex h-control items-center text-secondary">
+                      <ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />
+                    </span>
+                    <Select
+                      label="Designing for"
+                      className="w-field-select"
+                      value={pageShape}
+                      options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
+                        value: shape,
+                        label: PAGE_SHAPES[shape].label,
+                      }))}
+                      onChange={(event) => setPageShape(event.target.value as PageShape)}
+                    />
+                  </div>
                 )
               }
               count={store.selectedIds.length}
@@ -655,9 +676,16 @@ function ArrangementTabs() {
   const editable = useDesignerStore((state) => state.editable)
   const select = useDesignerStore((state) => state.selectArrangement)
 
+  const full = arrangements.length >= MAX_ARRANGEMENTS
+
   function add() {
     const current = arrangements[index]
-    if (current === undefined) return
+    // **The cap is enforced here as well as in the schema**, and it was not.
+    // `arrangementsSchema` refuses more than `MAX_ARRANGEMENTS`, so a seventh
+    // layout made every autosave fail — and the whole of that failure, to the
+    // owner, was the words "Not saved" in the corner. A limit the interface
+    // does not know about is a limit the owner discovers as a bug.
+    if (current === undefined || full) return
     const last = arrangements.reduce((max, item) => Math.max(max, item.aspectMax), 0)
     const copy: Arrangement = {
       aspectMin: last,
@@ -674,31 +702,41 @@ function ArrangementTabs() {
     }))
   }
 
-  // On a light card since the toolbar absorbed it — `text-inverse` here was
-  // for the dark canvas surround and would now be white on white.
+  const current = arrangements[index]
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div role="tablist" aria-label="Layouts" className="flex flex-wrap items-center gap-1">
-        {arrangements.map((item, i) => (
-          <button
-            key={i}
-            role="tab"
-            type="button"
-            aria-selected={i === index}
-            onClick={() => select(i)}
-            className={
-              i === index
-                ? 'rounded-pill bg-selected-bg px-3 py-1 font-ui text-body-sm text-selected-fg'
-                : 'rounded-pill px-3 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100'
-            }
-          >
-            {shapeName(item)}
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-wrap items-end gap-2">
+      <span className="flex h-control items-center text-secondary">
+        <ShapeGlyph aspect={current === undefined ? 1 : middleAspect(current)} />
+      </span>
+
+      {/*
+        **A dropdown, because the tabs stopped naming anything.** Every range
+        above 2.6:1 was called "Banner", and adding layouts produces exactly
+        those — so a block with four of them showed four identical tabs and the
+        owner had no way to tell which was which. The label carries the
+        proportion now, and the glyph draws it.
+      */}
+      <Select
+        label="Layout"
+        className="w-field-select"
+        value={String(index)}
+        options={arrangements.map((item, i) => ({
+          value: String(i),
+          label: `${shapeName(item)} · ${ratioLabel(middleAspect(item))}`,
+        }))}
+        onChange={(event) => select(Number(event.target.value))}
+      />
 
       {editable ? (
-        <Button type="button" variant="ghost" onClick={add}>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mb-1"
+          disabled={full}
+          title={full ? `A block may carry ${MAX_ARRANGEMENTS} layouts.` : undefined}
+          onClick={add}
+        >
           <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Add a layout
         </Button>
@@ -707,7 +745,60 @@ function ArrangementTabs() {
   )
 }
 
-/** The shape a range covers, in the words an owner would use for it. */
+/** The shape an aspect range is centred on — the same figure `shapeName` reads. */
+const middleAspect = (arrangement: Arrangement): number =>
+  Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)
+
+/**
+ * A proportion as a ratio an owner can read. `3.2:1` above square, `1:1.4`
+ * below it — nobody describes a portrait card as "0.71 to 1".
+ */
+function ratioLabel(aspect: number): string {
+  const figure = (value: number) =>
+    value >= 10 ? String(Math.round(value)) : String(Math.round(value * 10) / 10)
+  return aspect >= 1 ? `${figure(aspect)}:1` : `1:${figure(1 / aspect)}`
+}
+
+/**
+ * The shape itself, drawn.
+ *
+ * **A rectangle at the real proportion rather than an icon chosen from a set.**
+ * Four layouts that are all "Banner" would get the same glyph from any icon
+ * library, which is the problem restated rather than solved; a box drawn at 3:1
+ * and a box drawn at 12:1 do not look alike. It is the one case where drawing
+ * the thing is less work than naming it.
+ *
+ * The height is floored so a very flat band is still a rectangle rather than a
+ * hairline that reads as a divider.
+ */
+function ShapeGlyph({ aspect }: { aspect: number }) {
+  const box = 20
+  const inner = box - 2
+  const width = aspect >= 1 ? inner : inner * aspect
+  const height = Math.max(3, aspect >= 1 ? inner / aspect : inner)
+
+  return (
+    <svg
+      width={box}
+      height={box}
+      viewBox={`0 0 ${box} ${box}`}
+      aria-hidden="true"
+      className="shrink-0"
+    >
+      <rect
+        x={(box - width) / 2}
+        y={(box - height) / 2}
+        width={width}
+        height={height}
+        rx={1.5}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.25}
+      />
+    </svg>
+  )
+}
+
 function shapeName(arrangement: Arrangement): string {
   const middle = Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)
   if (middle < 0.85) return 'Tall'
