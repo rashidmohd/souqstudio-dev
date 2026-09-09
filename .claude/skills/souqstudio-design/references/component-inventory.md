@@ -626,6 +626,47 @@ designer's element opacity and a gradient stop's opacity are the same question,
 and `Segmented` is already the cautionary tale about what happens when they are
 not shared.
 
+### InlineSelect
+
+| | |
+| --- | --- |
+| File | `components/ui/inline-select.tsx` |
+| Status | `built` — apps/web only |
+| Governs | a choice on a toolbar, where a labelled field would not fit |
+
+```tsx
+type InlineSelectProps<T extends string> = {
+  label: string                  // the accessible name — never drawn
+  value: T
+  options: { value: T; label: string }[]
+  leading?: React.ReactNode      // a mark for the *current* value
+  disabled?: boolean
+  onChange: (value: T) => void
+  className?: string
+}
+```
+
+**`Select` inside a form, `InlineSelect` on a toolbar.** `Select`'s label sits
+above its field, which is right where everything around it is a labelled field
+and wrong in a row of flat controls — it makes the bar twice as tall for one
+word, and anything that has to sit beside it reads as a second control.
+
+**A bare native `<select>` laid transparently over our own row** — the same
+arrangement as `ShopSwitcher`, and blessed here for the same reasons: the
+platform picker keeps its scroll physics, its touch behaviour and its
+accessibility tree, and the row can carry a glyph no native `<option>` could.
+The visible markup is `aria-hidden` and the select carries the accessible name,
+so it is announced once, as one control.
+
+**`leading` marks the current value and not the list.** A native option list is
+text, so every option's `label` still has to stand on its own — the glyph is a
+confirmation of where you are, never the only way to tell two options apart.
+
+Not a hand-rolled menu. A listbox built from divs owes keyboard navigation, focus
+return, type-ahead, scroll containment and a screen-reader contract, and the
+platform already does all five correctly here. `ShopSwitcher` predates this and
+stays hand-fitted to the rail; if a third caller wants that shape, it folds in.
+
 ### StatusPill
 
 | | |

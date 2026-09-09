@@ -11,7 +11,7 @@ import { FREE_ELEMENTS } from '@/lib/block-elements'
 import { assetResolver } from '@/lib/block-assets'
 import { MAX_ARRANGEMENTS } from '@/lib/block-document'
 import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
-import { Select } from '@/components/ui/select'
+import { InlineSelect } from '@/components/ui/inline-select'
 import { Button } from '@/components/ui/button'
 import { BlockArtboard } from '@/components/card-designer/BlockArtboard'
 import { BlockProperties } from '@/components/card-designer/BlockProperties'
@@ -513,21 +513,17 @@ export function DesignerShell({
                 repeats ? (
                   <ArrangementTabs />
                 ) : (
-                  <div className="flex items-end gap-2">
-                    <span className="flex h-control items-center text-secondary">
-                      <ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />
-                    </span>
-                    <Select
-                      label="Designing for"
-                      className="w-field-select"
-                      value={pageShape}
-                      options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
-                        value: shape,
-                        label: PAGE_SHAPES[shape].label,
-                      }))}
-                      onChange={(event) => setPageShape(event.target.value as PageShape)}
-                    />
-                  </div>
+                  <InlineSelect
+                    label="Designing for"
+                    className="w-field-select"
+                    value={pageShape}
+                    leading={<ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />}
+                    options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
+                      value: shape,
+                      label: PAGE_SHAPES[shape].label,
+                    }))}
+                    onChange={setPageShape}
+                  />
                 )
               }
               count={store.selectedIds.length}
@@ -705,34 +701,34 @@ function ArrangementTabs() {
   const current = arrangements[index]
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <span className="flex h-control items-center text-secondary">
-        <ShapeGlyph aspect={current === undefined ? 1 : middleAspect(current)} />
-      </span>
-
+    <div className="flex flex-wrap items-center gap-2">
       {/*
-        **A dropdown, because the tabs stopped naming anything.** Every range
-        above 2.6:1 was called "Banner", and adding layouts produces exactly
-        those — so a block with four of them showed four identical tabs and the
-        owner had no way to tell which was which. The label carries the
-        proportion now, and the glyph draws it.
+        **The shape and the name on one line, which a `Select` cannot do.** Its
+        label sits above its field, so on a toolbar it is three stacked things
+        in a row of flat ones — and the glyph had to be parked beside it, which
+        read as two controls. `InlineSelect` is the row, and the glyph is inside
+        it showing the layout you are on.
+
+        The names had stopped naming anything: every range above 2.6:1 is
+        "Banner" and `add()` produces exactly those, so four layouts showed four
+        identical tabs. The label carries the proportion and the glyph draws it.
       */}
-      <Select
+      <InlineSelect
         label="Layout"
         className="w-field-select"
         value={String(index)}
+        leading={<ShapeGlyph aspect={current === undefined ? 1 : middleAspect(current)} />}
         options={arrangements.map((item, i) => ({
           value: String(i),
           label: `${shapeName(item)} · ${ratioLabel(middleAspect(item))}`,
         }))}
-        onChange={(event) => select(Number(event.target.value))}
+        onChange={(next) => select(Number(next))}
       />
 
       {editable ? (
         <Button
           type="button"
           variant="ghost"
-          className="mb-1"
           disabled={full}
           title={full ? `A block may carry ${MAX_ARRANGEMENTS} layouts.` : undefined}
           onClick={add}

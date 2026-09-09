@@ -34,7 +34,9 @@ import { Figure } from '@/components/ui/figure'
  * row floating above this one on the dark surround — two bars of chrome over one
  * canvas, and the owner asked for one. They are the same kind of thing: what am
  * I designing, and what am I doing to it. A card rather than a pill now, because
- * a pill is the shape of a row of icons and this row starts with a field.
+ * a pill is the shape of a row of icons and this row starts with a control that
+ * is not one — an `InlineSelect`, which is a row rather than a labelled field
+ * precisely so the bar stays one line tall.
  */
 
 type Props = {
@@ -72,7 +74,7 @@ export function CanvasToolbar({
   const canDistribute = !disabled && count >= 3
 
   return (
-    <div className="flex flex-wrap items-end gap-2 rounded-card bg-surface px-2 py-2">
+    <div className="flex flex-wrap items-center gap-2 rounded-card bg-surface px-2 py-2">
       {leading === undefined ? null : (
         <>
           {leading}
@@ -80,7 +82,7 @@ export function CanvasToolbar({
         </>
       )}
 
-      <div className="flex items-center gap-1 pb-1" role="group" aria-label="Align">
+      <div className="flex items-center gap-1" role="group" aria-label="Align">
         {ALIGNMENTS.map((entry) => (
           <Button
             key={entry.how}
@@ -129,7 +131,6 @@ export function CanvasToolbar({
         aria-label="Group"
         disabled={!canAlign}
         onClick={onGroup}
-        className="mb-1"
       >
         <Group className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </Button>
@@ -140,14 +141,13 @@ export function CanvasToolbar({
         aria-label="Ungroup"
         disabled={disabled || count === 0}
         onClick={onUngroup}
-        className="mb-1"
       >
         <Ungroup className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </Button>
 
       <Divider />
 
-      <div className="flex items-center gap-1 pb-1" role="group" aria-label="Zoom">
+      <div className="flex items-center gap-1" role="group" aria-label="Zoom">
         <Button
           type="button"
           variant="ghost"
@@ -179,7 +179,7 @@ export function CanvasToolbar({
   )
 }
 
-/** Between groups. `self-center` so it does not stretch with an `items-end` row. */
+/** Between groups. */
 const Divider = () => (
-  <span className="h-4 w-px self-center bg-border-subtle" aria-hidden="true" />
+  <span className="h-4 w-px bg-border-subtle" aria-hidden="true" />
 )

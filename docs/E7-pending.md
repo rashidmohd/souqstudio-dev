@@ -1165,3 +1165,40 @@ produce a document and a schema that refuses it. Worth remembering the next time
 a limit is written in one place.
 
 **Still not opened in a browser.** Six.
+
+---
+
+## 14. The layout picker is a row, not a field — 9 September
+
+*"That layout dropdown maybe a dropdown menu, and we can use the text and box in
+one line, or instead of the text use an icon."*
+
+Right, and the version §13 shipped was the half-answer: a `Select` with the shape
+glyph parked *beside* it. `Select` draws its label above its field, so on a
+toolbar it is three stacked things in a row of flat ones, and a glyph sitting
+next to it reads as a second control rather than as part of the first.
+
+**`components/ui/inline-select.tsx`, and the pattern was already in the repo.**
+`ShopSwitcher` lays a bare native `<select>` transparently over its own row, with
+the visible markup `aria-hidden` and the accessible name on the select — the
+inventory blessed that in E2 as the answer to "a select that should not look like
+a form field". This is the same arrangement, generalised, with a `leading` slot
+for a mark.
+
+It buys the thing that made the ask hard: **a native `<option>` cannot carry an
+icon**, so a list of glyphs is impossible in any real `<select>`. Putting the
+glyph on the *row* rather than in the list gives the owner the shape of the
+layout they are on, at the cost of the list still being text — which is why the
+option labels keep the proportion in them and have to stand alone.
+
+**Not a hand-rolled menu**, which was the other reading of "dropdown menu". A
+listbox built from divs owes keyboard navigation, focus return, type-ahead,
+scroll containment and a screen-reader contract; the platform does all five here
+already, and this project has one very recent lesson about what happens when a
+control is rebuilt rather than reused.
+
+The toolbar went back to `items-center` and lost the baseline nudges §13 added —
+those existed only to cope with a label sitting above a field, and there is no
+label above anything in the bar now.
+
+**Still not opened in a browser.** Seven.
