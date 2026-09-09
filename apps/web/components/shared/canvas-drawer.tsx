@@ -13,8 +13,13 @@ import { cn } from '@/lib/utils'
  * either — the panes were `w-full` in a `flex-col` under `lg`, so they *stacked*
  * and pushed the artboard off the bottom of the page. On a narrow window the
  * thing the screen exists to show was not on it, which is the same symptom as
- * the `lg:w-72` bug that `check:classes` was written for, arriving by a
- * different route.
+ * the missing pane-width bug that `check:classes` was written for, arriving
+ * by a different route.
+ *
+ * (Utility names are deliberately not spelled out in this comment. The
+ * checker reads source text, so one quoted in prose is reported as a class
+ * that generates no CSS — a false positive in the one check nobody should
+ * learn to ignore.)
  *
  * It is one component because `docs/E7-pending.md` §7 makes canvas parity a hard
  * rule: the designer and the offer book editor are the same shell with different

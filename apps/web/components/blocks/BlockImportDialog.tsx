@@ -1,9 +1,16 @@
 'use client'
 
 import * as React from 'react'
-import { Check, Lock } from 'lucide-react'
+import { CalendarClock, Check, Lock } from 'lucide-react'
 import type { BrandKit } from '@souqstudio/types'
-import { BLOCK_CATEGORIES, SEED_BLOCKS, type BlockCategory } from '@souqstudio/engine'
+import {
+  BLOCK_CATEGORIES,
+  BLOCK_OCCASION,
+  SEED_BLOCKS,
+  occasionWindow,
+  type BlockCategory,
+  type SeasonWindow,
+} from '@souqstudio/engine'
 import { Dialog } from '@/components/ui/dialog'
 import { Segmented } from '@/components/ui/segmented'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
@@ -37,6 +44,8 @@ type Props = {
   /** The seeded collection — `organizationId: null`. */
   blocks: LibraryBlock[]
   kit: BrandKit
+  /** The organization's country. National days differ across the Gulf. */
+  country: string
   /** Called after a successful import, so the page behind can re-read. */
   onImported: () => void
 }
@@ -98,7 +107,7 @@ const CATEGORY_NOTE: Record<Filter, string> = {
 const TILE_WIDTH = 176
 const TILE_HEIGHT = 160
 
-export function BlockImportDialog({ open, onOpenChange, blocks, kit, onImported }: Props) {
+export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, onImported }: Props) {
   const [filter, setFilter] = React.useState<Filter>('all')
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = React.useState(false)
@@ -114,10 +123,51 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, onImported 
     }
   }, [open])
 
-  const shown = React.useMemo(
-    () => (filter === 'all' ? blocks : blocks.filter((block) => categoryOf(block.id) === filter)),
-    [blocks, filter]
-  )
+  /**
+   * **Read after mount, not during render.** `new Date()` in a render runs once
+   * on the server and again in the browser, and the two answers differ — which
+   * on the day a window opens is a hydration mismatch React reports and a
+   * picker that shows a different order for a frame. Before it is set nothing is
+   * promoted, which is the same picker this was a week ago.
+   */
+  const [now, setNow] = React.useState<Date | null>(null)
+  React.useEffect(() => setNow(new Date()), [open])
+
+  /**
+   * The blocks whose occasion is running, and the window each is in. E7-03.
+   *
+   * **Computed rather than read off the row.** `blocks.activeFrom` and
+   * `activeTo` are still null on every seeded row and always will be: Ramadan
+   * and both Eids move about eleven days a year against the Gregorian calendar,
+   * so a date seeded today is wrong by the next re-seed and silently wrong
+   * after that. `occasionWindow` in the engine derives it — see that file.
+   */
+  const inSeason = React.useMemo(() => {
+    const windows = new Map<string, SeasonWindow>()
+    if (now === null) return windows
+
+    for (const block of blocks) {
+      const occasion = BLOCK_OCCASION[block.id]
+      if (occasion === undefined) continue
+      const window = occasionWindow(occasion, now, country)
+      if (window === null) continue
+      if (now >= window.from && now <= window.to) windows.set(block.id, window)
+    }
+    return windows
+  }, [blocks, now, country])
+
+  const shown = React.useMemo(() => {
+    const matching =
+      filter === 'all' ? blocks : blocks.filter((block) => categoryOf(block.id) === filter)
+
+    // **Stable, and only the promotion moves.** Sorting by "is it in season"
+    // alone would reshuffle the other sixty blocks on a browser whose sort is
+    // not stable; comparing the flag and nothing else keeps the library's own
+    // order underneath, which is the order an owner saw yesterday.
+    return [...matching].sort(
+      (a, b) => Number(inSeason.has(b.id)) - Number(inSeason.has(a.id))
+    )
+  }, [blocks, filter, inSeason])
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -225,6 +275,8 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, onImported 
               key={block.id}
               block={block}
               kit={kit}
+              season={inSeason.get(block.id)}
+              now={now}
               selected={selected.has(block.id)}
               onToggle={() => toggle(block.id)}
             />
@@ -246,11 +298,15 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, onImported 
 function Tile({
   block,
   kit,
+  season,
+  now,
   selected,
   onToggle,
 }: {
   block: LibraryBlock
   kit: BrandKit
+  season: SeasonWindow | undefined
+  now: Date | null
   selected: boolean
   onToggle: () => void
 }) {
@@ -289,6 +345,12 @@ function Tile({
 
         <span className="flex flex-wrap items-center gap-1">
           <span className="font-ui text-label font-medium text-primary">{block.name}</span>
+          {season !== undefined && now !== null ? (
+            <span className="flex items-center gap-1 rounded-pill bg-selected-bg px-2 py-px font-ui text-eyebrow uppercase text-selected-fg">
+              <CalendarClock className="size-3" strokeWidth={1.75} aria-hidden="true" />
+              {seasonLabel(season, now)}
+            </span>
+          ) : null}
           {block.locked ? (
             <span className="flex items-center gap-1 rounded-pill bg-sand px-2 py-px font-ui text-eyebrow uppercase text-secondary">
               <Lock className="size-3" strokeWidth={1.75} aria-hidden="true" />
@@ -299,6 +361,21 @@ function Tile({
       </button>
     </li>
   )
+}
+
+/**
+ * What the badge says.
+ *
+ * **"On now" or a countdown, never a date.** A date is a thing an owner has to
+ * compare against today; the reason the block is at the top of the picker is
+ * that it is nearly time, and that is the sentence. Days rather than a
+ * formatted date also sidesteps the question of which calendar to print it in
+ * — the answer for Ramadan is not the same as for back to school.
+ */
+function seasonLabel(season: SeasonWindow, now: Date): string {
+  const days = Math.ceil((season.starts.getTime() - now.getTime()) / 86_400_000)
+  if (days <= 0) return 'On now'
+  return days === 1 ? 'Tomorrow' : `In ${days} days`
 }
 
 function tileSize(block: LibraryBlock): { width: number; height: number } {

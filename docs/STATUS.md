@@ -907,9 +907,10 @@ multi-select, one action naming the count. `POST /api/v1/blocks` grew a `fromIds
 branch beside `fromId` — importing is not duplicating, so an imported block is
 "Ramadan band" and not "Ramadan band copy".
 
-**What E7 still owes:** gradients, E7-03's seasonal scheduling, and the check
-that has found something every time it has been run — *none of the library work
-has been opened in a browser.* It was verified by mocking each surface at its
+**What E7 still owes:** ~~gradients, E7-03's seasonal scheduling~~ — both landed
+later on 8 September, see `E7-pending.md` §9 — and the check that has found
+something every time it has been run: *none of the library work has been opened
+in a browser.* It was verified by mocking each surface at its
 real dimensions against the rendered blocks, which caught two defects on its own
 (a footer tile 22px tall beside a 240px card; a dairy packshot under a laundry
 detergent's name). A mock cannot tell you how the filter row behaves on a phone,
@@ -940,11 +941,16 @@ component sitting in the middle of an owner's card — but the raised minor digi
 attached tier tab, the three-decimal branch and LTR-in-Arabic are still ours, and the digits
 are never separate text boxes.
 
-**Not built:** gradients (a `ColorValue` variant rather than a rewrite, and the most likely
-next ask), dragging a *new* element from the palette (tapping adds it, which is the
-tablet-safe equivalent the design system asks for anyway), E7-03 seasonal scheduling — the
-columns exist and nothing reads them, and there is no block picker for a seasonal block to
-appear at the top of — and the overlay asset library.
+**Not built:** dragging a *new* element from the palette (tapping adds it, which is the
+tablet-safe equivalent the design system asks for anyway), the composer's half of E7-03, and
+the overlay asset library.
+
+~~Gradients~~ and ~~E7-03~~ were built later the same day — `E7-pending.md` §9. The estimate
+recorded here was wrong in an instructive way: the `ColorValue` arm really is four lines, but
+`resolveColor` returning a `string` is the seam, and SVG will not take a gradient as an
+attribute value. Seasonal scheduling turned out to be blocked on a premise rather than on
+work — the picker it needed had already been built, and the moving-calendar problem is
+answered by computing the window instead of storing it.
 
 **The thing to build next here is not code.** A blank canvas is now the weakest part of a
 tool that is otherwise good enough: fifteen to twenty-five real seeded designs across

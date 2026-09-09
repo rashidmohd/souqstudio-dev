@@ -64,6 +64,16 @@ export {
   isEmptyOverride,
 } from './override'
 export { validateGrid, type GridProblem, type GridProblemCode } from './validate'
+// When a seasonal block is in season — computed rather than stored, because
+// Ramadan and both Eids move against the Gregorian calendar. E7-03.
+export {
+  BLOCK_OCCASION,
+  blockWindow,
+  inSeason,
+  occasionWindow,
+  type Occasion,
+  type SeasonWindow,
+} from './seasonal'
 // Editing a block, which is arithmetic over fractions and therefore the engine's
 // rather than a component's — E7. See the file.
 // Snapping and alignment — the arithmetic that turns "close enough" into "the

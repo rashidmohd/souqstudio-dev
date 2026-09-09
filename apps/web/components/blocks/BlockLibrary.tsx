@@ -47,9 +47,11 @@ type Props = {
   blocks: LibraryBlock[]
   kit: BrandKit
   canEdit: boolean
+  /** The organization's country, for the occasions that depend on it. */
+  country: string
 }
 
-export function BlockLibrary({ blocks, kit, canEdit }: Props) {
+export function BlockLibrary({ blocks, kit, canEdit, country }: Props) {
   const router = useRouter()
   const [importing, setImporting] = React.useState(false)
 
@@ -105,6 +107,7 @@ export function BlockLibrary({ blocks, kit, canEdit }: Props) {
         onOpenChange={setImporting}
         blocks={seeded}
         kit={kit}
+        country={country}
         onImported={() => router.refresh()}
       />
     </div>

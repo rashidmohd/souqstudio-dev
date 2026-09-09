@@ -252,11 +252,13 @@ Recorded here rather than edited into the epic.
    palette entry adds it to the middle of the card, which is the tablet-safe
    equivalent the design system asks for in any case; the drag is owed, exactly
    as it is in the editor's tray.
-2. **E7-03, seasonal.** `blocks` already carries `isSeasonal`, `activeFrom` and
-   `activeTo` and nothing reads them. What is missing is the *composer's* side —
-   a seasonal block appearing at the top of the picker inside its window — and
-   there is no picker yet, because the editor composes a book from the seeded
-   grid rather than from a chosen block. Build it when the composer chooses.
+2. ~~**E7-03, seasonal.**~~ **Half done, 8 September — see §9.** A seasonal
+   block now appears at the top of the *import* picker inside its window, and
+   the window is computed from the calendar rather than stored, because Ramadan
+   and both Eids move against the Gregorian one. The composer's side is still
+   owed for the reason given here: the editor composes a book from the seeded
+   grid rather than from a chosen block, so there is no composer picker to
+   promote into. Build that when the composer chooses.
 3. **The overlay asset library.** Crescents, lanterns, National Day motifs.
    `ImageSource` already has `{ from: 'asset'; assetId }` and the designer does
    not offer it, because there is no asset library to point at and a picker over
@@ -380,9 +382,10 @@ because there is no scale step to fall to.
 
 ### What is still owed
 
-1. **Text on a path, gradients, shadows, blend modes.** None of them are in the
-   model. Gradients are the one most likely to be asked for next, and they are a
-   `ColorValue` variant rather than a rewrite.
+1. ~~**Gradients.**~~ **Done, 8 September — see §9.** Text on a path, shadows and
+   blend modes are still not in the model, and none of them has been asked for.
+   The estimate that gradients were "a `ColorValue` variant rather than a
+   rewrite" was half right, and §9 says which half.
 2. ~~**A seeded gallery.**~~ **Done, 8 September — fifty-nine blocks.** The ask
    was fifteen to twenty-five real designs; the library is thirty-three repeating
    offer cards, eight headers and covers, ten panels, five footers and eleven
@@ -602,14 +605,16 @@ Two things worth taking from it:
   this file and in `E6-pending.md` ends with "nothing has been opened in a
   browser". That sentence was the finding.
 
-### Still owed on the layout
+### ~~Still owed on the layout~~ — fixed, 8 September
 
-Below 1024px the two panes **stack above the canvas** rather than overlaying it.
-The design system is explicit — *"side panels overlay the canvas, never compress
-it"* — and stacking is worse than compressing: on a narrow window the artboard is
-pushed off the bottom of the page entirely, which is the same symptom as the bug
-above by a different route. It applies to the editor equally. Not fixed here: it
-is a drawer, not a width.
+Below 1024px the two panes **stacked above the canvas** rather than overlaying
+it. The design system is explicit — *"side panels overlay the canvas, never
+compress it"* — and stacking is worse than compressing: on a narrow window the
+artboard was pushed off the bottom of the page entirely, which is the same
+symptom as the bug above by a different route. It applied to the editor equally.
+
+`components/shared/canvas-drawer.tsx`, and it is one component for both because
+§7 makes canvas parity a hard rule. See §9.
 
 ### Driving it in a real browser, at last — and the three things that found
 
@@ -731,3 +736,149 @@ it because nobody had built one.
 - **A `Field` wrapper in the panel**, because `Input` and `Select` draw their own
   labels and a bare row of buttons would have none. The panel is a list of
   decisions and a decision without a name is a puzzle.
+
+---
+
+## 9. Gradients, the drawers, and a calendar — 8 September
+
+Three of the four things §6 and §8 left owed. What is deliberately still not
+built is at the end.
+
+### Gradients: the estimate was wrong about which part was hard
+
+§8 said gradients were "a `ColorValue` variant rather than a rewrite". The type
+change *is* four lines. **The seam is `resolveColor` returning a `string`**, and
+that is what made it look like a rewrite to anyone who opened the file.
+
+A flat colour is a string in every target — an SVG attribute, a canvas
+`fillStyle`, a PDF colour operator. A gradient is not. SVG needs a
+`<linearGradient>` *in the document* and a `url(#id)` pointing at it, and CSS
+`linear-gradient()` syntax is **not** valid in an SVG paint attribute, so there
+is no version of this where the string form quietly keeps working.
+
+So `resolvePaint` is the new seam and hands back a discriminated value; the
+renderer materialises it. `resolveColor` stayed, narrowed to `FlatColor`.
+
+- **The narrowing is the design.** `ColorValue` gained a gradient arm and every
+  field except a shape's `fill` was retyped to `FlatColor` — so the compiler
+  named all eight call sites that had to decide, rather than a reviewer being
+  asked to find them. Gradient text and gradient hairlines are how a card stops
+  being legible at the size a booklet prints; neither has been asked for, and
+  widening a field later is one word here plus whatever the renderers then owe.
+- **The gradient line is computed in the engine, not the renderer.** Both
+  painters read `x1`/`y1`/`x2`/`y2` from `gradientVector`. Two renderers agreeing
+  on the stops and disagreeing on the angle is exactly the drift `packages/engine`
+  exists to prevent, and it is the kind that survives review because both
+  pictures look plausible. The half-length is `(|cos| + |sin|) / 2` rather than
+  `0.5`, or a 45° run stops before the corner it is aimed at and both ends flatten.
+- **Stops are sorted in `resolvePaint`, not refused at the edge.** An owner drags
+  one stop past another and the array stops being sorted; `<linearGradient>`
+  ignores an offset that goes backwards, so an unsorted document would draw
+  differently in SVG than anywhere that sorts. Refusing it would reject work the
+  owner can produce with one drag.
+- **Definition ids carry a per-surface prefix.** `/brand/blocks` draws every block
+  the shop owns on one page, ids are document-global, and two blocks imported
+  from the same seed carry identical element ids — so without the prefix the
+  second card's ground silently adopts the first card's gradient. That failure
+  looks like a rendering bug and is a naming one.
+- **No seeded block may hold one**, by construction: `usesOnlyRoles` tests
+  `from === 'role'` and a gradient's `from` is `gradient`, whatever its stops
+  name. The shipped library stays flat. The design system's "no gradients" is
+  about *our* surfaces, and a card the owner drew is not one of ours — that
+  distinction is now written down rather than assumed.
+- **A stop cannot be a gradient**, in the type and in the schema. One level, no
+  recursion, no depth check.
+
+### The drawers, and why they are one component
+
+`components/shared/canvas-drawer.tsx` is used by the designer and the offer book
+editor, because §7 makes canvas parity a hard rule and a drawer that behaved one
+way in one of them would be the divergence that rule exists to prevent.
+
+- **Toggled with `hidden`, not a transform.** Tailwind's translate utilities are
+  physical, so sliding a drawer needs a second set of `rtl:` classes on every
+  pane — four rules to get a direction right in a product that is half Arabic,
+  for an animation nobody asked for.
+- **No scrim.** The system defines no scrim token — the reasoning is already in
+  `ui/dialog.tsx` — and inventing an rgba to dim a canvas would break the
+  no-raw-colour rule for decoration. The pane is opaque and hairline-bordered
+  like every other surface; the click-catcher behind it is transparent.
+- **One drawer open at a time.** Two open on a 700px window is the whole canvas
+  covered, which is the bug this replaced.
+
+### E7-03, and the reason it had been blocked
+
+§6 recorded seasonal scheduling as blocked on two things: no picker, and no dates
+on the seeded rows because *"Ramadan and both Eids move against the Gregorian
+calendar"*.
+
+**The first blocker had already gone** — `BlockImportDialog` is a picker, built
+when the library outgrew the page. Nobody went back and noticed.
+
+**The second is answered by not storing dates at all.** A date seeded today is
+wrong within a year and silently wrong after that, which is exactly why those
+columns stayed null. `packages/engine/src/seasonal.ts` derives the window
+instead: a seeded block names an occasion, and the occasion knows whether it is
+fixed to the Gregorian calendar, fixed to the Hijri one, or a property of the
+shop's country. Nothing to re-seed, and the library shipped today is still right
+in 2032.
+
+- **`islamic-umalqura`, through `Intl`.** It is the civil calendar the Gulf
+  states publish and therefore the one shops print against; the astronomical and
+  tabular variants disagree by a day, and a day is the whole difference between
+  a band appearing on Eid and after it.
+- **Ramadan ends the day before Shawwal opens**, which is correct in a 29-day and
+  a 30-day month without knowing which it is.
+- **National day reads `organizations.country`.** Six different dates across the
+  Gulf, and greeting a Saudi shop on the second of December is worse than no
+  band. A country not in the list gets no window rather than a wrong one.
+- **A three-week lead on the occasions people plan a campaign around.** A band
+  that appears on the first of Ramadan appears after the issue it belonged in.
+- **`activeFrom`/`activeTo` keep their meaning for a block the shop authored** —
+  a shop's own anniversary is a fact about that shop and nothing can compute it.
+  `blockWindow` is the one question, asked of whichever source owns the answer.
+- **The now is read after mount.** `new Date()` during render answers differently
+  on the server and in the browser, which on the day a window opens is a
+  hydration mismatch and a picker that reorders for a frame.
+
+One bug worth recording, because it was invisible and the test that caught it was
+a property rather than a date. `fromHijri` rounded *milliseconds* instead of
+days, so every date it returned was at 11:03 in the afternoon rather than
+midnight — which nothing showed until the end-of-day calculation added a day less
+a millisecond to one and landed in the next Hijri month. Ramadan's last day
+reported as the first of Shawwal. Rounding whole days before multiplying is the fix.
+
+### What this did not do
+
+- **Text on a path, shadows, blend modes.** Still not in the model, still not
+  asked for.
+- **Dragging a *new* element from the palette.** §6.1 stands: tapping adds it,
+  which is the tablet-safe equivalent the design system asks for anyway.
+- **The overlay asset library**, §6.3 — still blocked on the asset-table decision
+  in §8's "did not do" list, not on effort.
+- **Thumbnails, the per-book block snapshot, the admin half.** §6.4, §6.5, §6.6,
+  all still deliberate.
+- **Seasonal blocks are promoted in the *import* picker, not in a composer.**
+  That is the picker that exists. The editor still composes a book from the
+  seeded grid rather than from a chosen block, so §6.2's "build it when the
+  composer chooses" remains true of the composer — what is built is the half that
+  had a surface to live on.
+
+### And the check that keeps being the one that finds things
+
+`pnpm --filter @souqstudio/web check:classes` ran clean — 65 sized utilities, all
+resolving — but only after it flagged `canvas-drawer.tsx`. **The offending class
+name was inside a doc comment**, quoted while explaining the bug the checker was
+written for. The checker reads source text and cannot tell prose from markup, and
+a permanent false positive in the one check nobody should learn to ignore is
+worse than the comment was useful. Utility names are spelled around in that file
+now, with a note saying why.
+
+`next build` was run into `.next-verify` via a temporary `distDir`, because
+building into `.next` while a dev server is serving from it costs the five
+confusing minutes §8 already recorded. The config change was reverted; if this
+keeps happening, a one-line env-var escape hatch in `next.config.mjs` is the fix.
+
+**Still not opened in a browser.** Typecheck, lint, 746 tests and the class check
+all pass, and the build compiles every route — but §8's own lesson is that those
+four things were green for every defect a browser found in ten minutes.

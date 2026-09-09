@@ -40,7 +40,7 @@ export default async function BlocksPage() {
 
   const organization = await prisma.organization.findUnique({
     where: { id: session.user.organizationId },
-    select: { planId: true },
+    select: { planId: true, country: true },
   })
 
   const [brand, blocks] = await Promise.all([
@@ -74,6 +74,9 @@ export default async function BlocksPage() {
         }))}
         kit={brand.brandKit}
         canEdit={canEdit}
+        // The seasonal blocks are promoted against a calendar, and the national
+        // day is a different date in every one of them. E7-03.
+        country={organization?.country ?? 'AE'}
       />
     </div>
   )
