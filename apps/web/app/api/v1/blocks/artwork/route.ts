@@ -20,10 +20,13 @@ import {
  * legitimately reaches, and proxying would reject valid files with a platform
  * error the shop owner can do nothing about.
  *
- * **No SVG**, on the rule E5-04 already states: an SVG accepted from an upload
- * is script-bearing content served from our own domain, and the logo path can
- * only afford it because it rasterises everything it is given. Block artwork is
- * stored as uploaded.
+ * **No SVG on this route**, on the rule E5-04 already states: an SVG accepted
+ * from an upload is script-bearing content served from our own domain, and what
+ * this route authorises is a PUT straight into the bucket. That rule has not
+ * moved — `artwork/vector` accepts the file, rasterises it, and stores the PNG,
+ * so an owner may upload the drawing their designer gave them and the bucket
+ * still holds nothing but bitmaps. The bytes go through the server there
+ * precisely because they cannot here.
  *
  * **The key is the id.** `ImageSource` names artwork by `assetId`, and for an
  * owner's own upload that id is the R2 object key — which is what the designer's

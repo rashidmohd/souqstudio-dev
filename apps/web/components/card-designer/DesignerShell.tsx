@@ -248,6 +248,27 @@ export function DesignerShell({
   async function upload(file: File) {
     setUploading(true)
     try {
+      /**
+       * **A vector takes a different road, and it has to.** The presigned flow
+       * puts the browser's bytes straight into the bucket, which is exactly what
+       * must not happen to an SVG — it is rasterised on the server and a PNG is
+       * stored instead. Small enough to fit in a request body, which is the only
+       * reason that is affordable here.
+       */
+      if (file.type === 'image/svg+xml') {
+        const raster = await fetch('/api/v1/blocks/artwork/vector', {
+          method: 'POST',
+          headers: { 'content-type': 'image/svg+xml' },
+          body: file,
+        })
+        const drawn = (await raster.json()) as { data: { assetId: string } | null }
+        if (drawn.data === null) return
+        const vector = FREE_ELEMENTS.artwork(drawn.data.assetId)
+        store.setElements(addElement(elements, vector))
+        store.select([vector.id])
+        return
+      }
+
       const authorise = await fetch('/api/v1/blocks/artwork', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -443,7 +464,7 @@ export function DesignerShell({
             <input
               ref={fileInput}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0]

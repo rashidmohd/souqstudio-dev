@@ -92,6 +92,36 @@ export const ACCEPTED_PRODUCT_IMAGE_TYPES = [
   'image/webp',
 ] as const
 
+/**
+ * Vector artwork an owner may upload for a block — and **it never reaches the
+ * bucket in this form.**
+ *
+ * The rule above stands: an SVG stored and served from our own domain is
+ * script-bearing content, and a manager who can upload one can plant a stored
+ * XSS that any link then delivers. Nothing here weakens that. What changed is
+ * that a shop owner's badge artwork *arrives* as an SVG, because that is what a
+ * designer hands them — so it is rasterised on the way in, exactly as the logo
+ * path has always done, and a PNG is what gets stored.
+ *
+ * The bytes go through the server rather than a presigned PUT for the same
+ * reason: something has to read them before R2 does. That is affordable here and
+ * nowhere else on this path — a vector badge is tens of kilobytes, while the
+ * raster ceiling is 10MB and would not fit in a request body.
+ */
+export const ACCEPTED_VECTOR_TYPES = ['image/svg+xml'] as const
+
+/** Generous for a drawing, and far under the body cap a route can accept. */
+export const MAX_VECTOR_BYTES = 2 * 1024 * 1024
+
+/**
+ * How large a rasterised vector may be, on its longest edge.
+ *
+ * A4 at 300dpi is 2480px across and a badge occupies a fraction of it, so 2048
+ * is past anything this prints — and the cost of guessing high is bytes rather
+ * than a visible defect, which is the right way round.
+ */
+export const VECTOR_RASTER_EDGE = 2048
+
 export type AcceptedProductImageType = (typeof ACCEPTED_PRODUCT_IMAGE_TYPES)[number]
 
 /**

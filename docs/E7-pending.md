@@ -1448,3 +1448,69 @@ shape behind it if they want one. The chip is now a shortcut rather than the
 only road.
 
 **Still not opened in a browser.** Ten.
+
+---
+
+## 19. SVG artwork, without storing an SVG — 9 September
+
+*"At the moment we can only import images. Any way we can import SVG also?"*
+
+A shop owner's badge arrives from their designer as an SVG. It is also the format
+that stays sharp on a printed page, which is the whole reason to want it.
+
+### The rule it runs into, and why it does not move
+
+`E5-04` and the artwork route both refuse SVG on one line of reasoning: **an SVG
+served from our own domain is script-bearing content.** A manager who can upload
+one can plant a stored XSS that any shared link then delivers — the file is not
+dangerous sitting in a bucket, it is dangerous the moment a browser navigates to
+it and runs it on `blocks-dev.souqstudio.com`.
+
+That rule is right and it has not been weakened. What changed is *where the file
+stops*: `POST /api/v1/blocks/artwork/vector` takes the SVG, rasterises it, and
+stores a PNG. The bucket still holds nothing but bitmaps.
+
+**Rasterising rather than sanitising, deliberately.** A sanitiser is a list of
+things to strip that has to stay current against the next `<foreignObject>`
+trick, and it leaves a vector in the bucket that is only safe as long as every
+future reader of it is careful. Rasterising removes the question instead of
+managing it — the same trade `lib/logo.ts` made in E4, for the same reason.
+
+**The cost, stated plainly:** the vector is gone. That is affordable because
+nothing in the product consumes a vector — the only destination is a printed
+page, and 2048px on the long edge is past A4 at 300dpi for artwork that occupies
+part of a card. If the export worker ever wants true vector, this is the decision
+to revisit, and it will need a sanitiser to do it.
+
+### One asymmetry that is the point rather than an inconsistency
+
+This is the only upload on the path whose bytes go through the server. Raster
+artwork is presigned because it reaches 10MB and a serverless body cannot; a
+vector badge is tens of kilobytes, and **something has to read it before R2
+does.** The two routes are different shapes because they carry different risks.
+
+### The density is computed, and a fixed one would have shipped a soft badge
+
+`density` is the only lever sharp gives for how large a vector renders, and a
+fixed 300 renders at the drawing's *nominal* size — a badge authored on a
+100×100 viewBox comes out 417px, and with the logo path's `withoutEnlargement` it
+stays 417px. The owner who uploaded a vector precisely so it would be crisp would
+have got something softer than the PNG they could have exported themselves.
+
+So the nominal size is read first and the density chosen to land the long edge on
+2048, capped for a drawing authored at 8px. Verified across four viewBoxes:
+100×100 and 16×16 both reach 2048², 1200×300 reaches 2048×512.
+
+`limitInputPixels` is a real guard rather than a formality: an SVG declaring
+enormous dimensions is a few bytes asking for gigabytes of raster, and the upload
+size cap cannot see it — the file is small, the drawing is not.
+
+### Checked against the thing itself
+
+The tests rasterise real documents rather than asserting a code path: a script in
+the source does not survive into the output, the output is a PNG and contains no
+`<svg`, proportions hold, a small drawing reaches print size, and a file that is
+not a drawing is refused. `Content-Type` is not trusted anywhere — it is a string
+the client chose, and whether sharp can rasterise the bytes is what decides.
+
+**Still not opened in a browser.** Eleven.
