@@ -64,6 +64,15 @@ export {
   isEmptyOverride,
 } from './override'
 export { validateGrid, type GridProblem, type GridProblemCode } from './validate'
+// The shapes an offer card is made of. Paths, computed here so the screen and
+// the export cannot draw a different burst. See the file.
+export {
+  HOLDS_PROPORTION,
+  PATH_SHAPES,
+  needsEvenOdd,
+  shapePath,
+  type PathShape,
+} from './shapes'
 // When a seasonal block is in season — computed rather than stored, because
 // Ramadan and both Eids move against the Gregorian calendar. E7-03.
 export {

@@ -419,8 +419,27 @@ export type BlockElement =
   | (ElementBase & {
       kind: 'shape'
       fill: ColorValue
-      /** Rectangle unless it says otherwise. A line draws its stroke only. */
-      variant?: 'rect' | 'ellipse' | 'line' | undefined
+      /**
+       * Rectangle unless it says otherwise. A line draws its stroke only.
+       *
+       * **The first three are primitives and the rest are offer furniture.** A
+       * rectangle, an ellipse and a line are drawn as their own SVG elements —
+       * turning a rectangle into a path would lose `radius` for nothing. The six
+       * after them are paths computed by `shapePath` in the engine, because a
+       * burst drawn by the screen and a burst drawn by the export worker have to
+       * be the same burst.
+       */
+      variant?:
+        | 'rect'
+        | 'ellipse'
+        | 'line'
+        | 'burst'
+        | 'ribbon'
+        | 'tag'
+        | 'flash'
+        | 'star'
+        | 'arrow'
+        | undefined
       radius: number
       stroke?: Stroke | undefined
     })

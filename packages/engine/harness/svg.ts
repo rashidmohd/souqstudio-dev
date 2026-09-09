@@ -15,6 +15,10 @@ import {
   fitPolicy,
   resolveColor,
   resolvePaint,
+  shapePath,
+  needsEvenOdd,
+  PATH_SHAPES,
+  type PathShape,
   fitText,
   compactBlock,
   layoutPriceMark,
@@ -218,6 +222,14 @@ function shape(
       `<ellipse cx="${mid(rect.x, rect.width)}" cy="${mid(rect.y, rect.height)}"` +
       ` rx="${rect.width / 2}" ry="${rect.height / 2}" fill="${fill}"${strokeAttrs}/>`
     )
+  }
+
+  // The offer shapes, from the same path function `draw.tsx` calls — which is
+  // the only reason this harness is worth looking at.
+  if (element.variant !== undefined && (PATH_SHAPES as string[]).includes(element.variant)) {
+    const shape = element.variant as PathShape
+    const rule = needsEvenOdd(shape) ? ' fill-rule="evenodd"' : ''
+    return defs + `<path d="${shapePath(shape, rect)}" fill="${fill}"${rule}${strokeAttrs}/>`
   }
 
   return (

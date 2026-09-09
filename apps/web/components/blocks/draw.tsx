@@ -13,9 +13,13 @@ import {
   fitPolicy,
   fitText,
   layoutPriceMark,
+  needsEvenOdd,
   placeText,
   resolveColor,
   resolvePaint,
+  shapePath,
+  PATH_SHAPES,
+  type PathShape,
   type Rect,
   type TextMeasurer,
 } from '@souqstudio/engine'
@@ -248,6 +252,25 @@ function Shape({
     )
   }
 
+  // **Everything else is a path the engine computed**, and the branch is here
+  // rather than in a `default` because falling through to the rectangle is what
+  // this code did before the shapes existed: a burst drawn as a plain box, with
+  // nothing failing and nothing to see but a card that came out wrong.
+  const path = asPathShape(element.variant)
+  if (path !== null) {
+    return (
+      <>
+        {defs}
+        <path
+          d={shapePath(path, box, ctx.direction)}
+          fill={fill}
+          {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
+          {...strokeProps}
+        />
+      </>
+    )
+  }
+
   return (
     <>
       {defs}
@@ -255,6 +278,12 @@ function Shape({
     </>
   )
 }
+
+/** The variant as a path shape, or null for the three that draw as elements. */
+const asPathShape = (variant: string | undefined): PathShape | null =>
+  variant !== undefined && (PATH_SHAPES as string[]).includes(variant)
+    ? (variant as PathShape)
+    : null
 
 export const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.height })
 

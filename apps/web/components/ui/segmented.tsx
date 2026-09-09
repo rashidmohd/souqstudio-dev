@@ -43,6 +43,16 @@ export type Segment<T extends string> = {
   glyph?: string
   /** Mirrors in an Arabic interface. For glyphs that point somewhere. */
   mirror?: boolean
+  /**
+   * A mark this component cannot name — drawn by the caller.
+   *
+   * Added for the block designer's shape picker, where the honest mark for
+   * "burst" is *the burst*, drawn by the same path function that draws it on the
+   * card. No icon set has these, and one that did would still be a second
+   * drawing of a shape the engine already knows how to draw — which is the exact
+   * divergence `packages/engine` exists to prevent, arriving through an icon.
+   */
+  render?: () => React.ReactNode
 }
 
 const SHELL = 'flex w-fit items-center gap-1 rounded-pill border-hairline border-border-subtle p-1'
@@ -132,6 +142,8 @@ export function ToggleBar({
  * letterforms the interface already has.
  */
 function Face({ option }: { option: Segment<string> }) {
+  if (option.render !== undefined) return <>{option.render()}</>
+
   if (option.icon !== undefined) {
     const Icon = option.icon
     return (

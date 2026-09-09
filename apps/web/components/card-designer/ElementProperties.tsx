@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { AlignCenter, AlignLeft, AlignRight, Circle, Italic, Lock, Minus, Square } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, Italic, Lock } from 'lucide-react'
 import type {
   BlockElement,
   BrandColor,
@@ -10,6 +10,7 @@ import type {
   TypeLevel,
 } from '@souqstudio/types'
 import { TYPE_LEVELS } from '@souqstudio/types'
+import { needsEvenOdd, shapePath, type Rect } from '@souqstudio/engine'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
@@ -98,15 +99,25 @@ export function ElementProperties({
       {element.kind === 'shape' ? (
         <>
           <Field label="Shape">
+            {/*
+              **Nine in a 3×3 grid, and every mark is the shape itself.** A row
+              of nine will not fit a 288px pane — the direction picker taught
+              that the hard way — and an icon set has nothing that means "burst"
+              other than a picture somebody drew of one, which would be a second
+              drawing of a shape the engine already knows. `render` draws each
+              option through `shapePath`, so the button and the card cannot
+              disagree about what a tag looks like.
+            */}
             <Segmented
               label="Shape"
+              className="grid w-full grid-cols-3 rounded-control"
               disabled={disabled}
               value={element.variant ?? 'rect'}
-              options={[
-                { value: 'rect', label: 'Rectangle', icon: Square },
-                { value: 'ellipse', label: 'Circle', icon: Circle },
-                { value: 'line', label: 'Line', icon: Minus },
-              ]}
+              options={SHAPE_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+                render: () => <ShapePreview variant={option.value} />,
+              }))}
               onChange={(variant) => onChange({ ...element, variant })}
             />
           </Field>
@@ -305,6 +316,55 @@ function PriceMarkFields({
         </span>
       </p>
     </>
+  )
+}
+
+type ShapeVariant = NonNullable<Extract<BlockElement, { kind: 'shape' }>['variant']>
+
+/**
+ * The three primitives first, then the six an offer card is made of. In that
+ * order because a rectangle is what most owners reach for and a burst is what
+ * they reach for next — not alphabetically, and not by how interesting it is.
+ */
+const SHAPE_OPTIONS: { value: ShapeVariant; label: string }[] = [
+  { value: 'rect', label: 'Rectangle' },
+  { value: 'ellipse', label: 'Circle' },
+  { value: 'line', label: 'Line' },
+  { value: 'burst', label: 'Burst' },
+  { value: 'star', label: 'Star' },
+  { value: 'ribbon', label: 'Ribbon' },
+  { value: 'tag', label: 'Tag' },
+  { value: 'flash', label: 'Corner flash' },
+  { value: 'arrow', label: 'Arrow' },
+]
+
+/**
+ * One shape, drawn at button size by the function that draws it on the card.
+ *
+ * The box is deliberately wider than it is tall: a ribbon and an arrow are
+ * length-shaped things and a square preview of one reads as a blob, while a
+ * burst and a star hold their proportion and centre themselves in it anyway —
+ * which is the behaviour being previewed as much as the outline is.
+ */
+const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
+
+function ShapePreview({ variant }: { variant: ShapeVariant }) {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
+      {variant === 'rect' ? (
+        <rect x={1} y={3} width={14} height={10} rx={2} fill="currentColor" />
+      ) : variant === 'ellipse' ? (
+        <ellipse cx={8} cy={8} rx={7} ry={5} fill="currentColor" />
+      ) : variant === 'line' ? (
+        <rect x={1} y={7} width={14} height={2} rx={1} fill="currentColor" />
+      ) : (
+        <path
+          d={shapePath(variant, PREVIEW)}
+          fill="currentColor"
+          {...(needsEvenOdd(variant) ? { fillRule: 'evenodd' as const } : {})}
+        />
+      )}
+    </svg>
   )
 }
 

@@ -315,6 +315,46 @@ describe('colours, and who may use which', () => {
   })
 })
 
+describe('the offer shapes', () => {
+  const withVariant = (variant: unknown): unknown => [
+    {
+      aspectMin: 0.5,
+      aspectMax: 1.5,
+      elements: [
+        {
+          id: 'ground',
+          kind: 'shape',
+          box: { start: 0, top: 0, width: 1, height: 1 },
+          fill: { from: 'role', ref: 'primary' },
+          variant,
+          radius: 3,
+        },
+      ],
+    },
+  ]
+
+  it('stores the three primitives and the six an offer card is made of', () => {
+    for (const variant of ['rect', 'ellipse', 'line', 'burst', 'ribbon', 'tag', 'flash', 'star', 'arrow']) {
+      expect(toArrangements(withVariant(variant))).not.toBeNull()
+    }
+  })
+
+  /**
+   * The schema is the mirror of the type, and a variant the renderers do not
+   * know draws as a plain rectangle with nothing failing — which is what the
+   * new shapes did before both painters learned about them.
+   */
+  it('refuses a variant nothing can draw', () => {
+    expect(toArrangements(withVariant('hexagon'))).toBeNull()
+  })
+
+  it('lets a seeded block use one, since a shape names no colour of its own', () => {
+    const parsed = toArrangements(withVariant('burst'))
+    expect(parsed).not.toBeNull()
+    expect(usesOnlyRoles(parsed!)).toBe(true)
+  })
+})
+
 describe('gradients', () => {
   const gradient = (stops: unknown, angle: unknown = 90): unknown => ({
     from: 'gradient',

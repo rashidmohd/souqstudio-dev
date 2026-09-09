@@ -16,6 +16,7 @@ import {
   Store,
   PanelLeftClose,
   PanelLeftOpen,
+  Sparkle,
   Tag,
   Type,
 } from 'lucide-react'
@@ -88,6 +89,7 @@ const FREE: Tool[] = [
   { key: 'background', label: 'Background', icon: PaintBucket, make: FREE_ELEMENTS.background, atBottom: true },
   { key: 'rectangle', label: 'Rectangle', icon: Square, make: FREE_ELEMENTS.rectangle },
   { key: 'ellipse', label: 'Circle', icon: Circle, make: FREE_ELEMENTS.ellipse },
+  { key: 'burst', label: 'Burst', icon: Sparkle, make: FREE_ELEMENTS.burst },
   { key: 'line', label: 'Line', icon: Minus, make: FREE_ELEMENTS.line },
   { key: 'logo', label: 'Logo', icon: Stamp, make: FREE_ELEMENTS.logo },
   { key: 'shop-detail', label: 'Shop details', icon: Store, make: FREE_ELEMENTS['shop-detail'] },

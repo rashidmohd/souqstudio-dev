@@ -127,6 +127,22 @@ export const FREE_ELEMENTS = {
     variant: 'rect',
     radius: 3,
   }),
+  /**
+   * The one offer shape on the rail.
+   *
+   * **The other five are a click away in the properties panel and this one is
+   * not**, because a burst is what an offer card is usually *about* — and a
+   * shape nobody knows exists is a shape nobody uses. Putting all six on the
+   * rail would make a strip of nineteen tools out of one that is already long.
+   */
+  burst: (): BlockElement => ({
+    id: newElementId(),
+    kind: 'shape',
+    box: { start: 0.32, top: 0.28, width: 0.36, height: 0.36 },
+    fill: role('accent'),
+    variant: 'burst',
+    radius: 0,
+  }),
   ellipse: (): BlockElement => ({
     id: newElementId(),
     kind: 'shape',

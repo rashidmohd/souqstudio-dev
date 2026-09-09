@@ -220,7 +220,12 @@ const elementSchema = z.discriminatedUnion('kind', [
     ...baseSchema,
     kind: z.literal('shape'),
     fill: colorSchema,
-    variant: z.enum(['rect', 'ellipse', 'line']).optional(),
+    // The three primitives, then the six an offer card is actually made of.
+    // `radius` applies to the rectangle alone; the paths compute their own
+    // corners, and a document that sets both is not wrong, just ignored.
+    variant: z
+      .enum(['rect', 'ellipse', 'line', 'burst', 'ribbon', 'tag', 'flash', 'star', 'arrow'])
+      .optional(),
     radius: z.number().min(0).max(64),
     stroke: strokeSchema.optional(),
   }),
