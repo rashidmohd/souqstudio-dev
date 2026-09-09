@@ -218,7 +218,7 @@ const elementSchema = z.discriminatedUnion('kind', [
     anchor: z.enum(['TOP_START', 'TOP_END', 'INLINE']),
     fill: flatColorSchema.optional(),
     // Four of the nine shapes — see `BlockElement`. A badge holds a word.
-    shape: z.enum(['pill', 'burst', 'ribbon', 'tag']).optional(),
+    shape: z.enum(['none', 'pill', 'burst', 'ribbon', 'tag']).optional(),
     ink: flatColorSchema.optional(),
   }),
   z.strictObject({ ...baseSchema, kind: z.literal('logo') }),

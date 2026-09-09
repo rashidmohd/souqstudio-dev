@@ -444,8 +444,13 @@ export type BlockElement =
        * flash has no interior, an arrow's is a shaft, and a star's usable area
        * is a third of its box. `CHIP_FIT` in the engine carries how much of each
        * one the label may use.
+       *
+       * **`none` is the fifth option and draws no badge**, leaving the tier as
+       * words on the card — the same choice the price mark has had since E6,
+       * where `frame: 'plain'` drops the ground and leaves the digits alone. An
+       * owner who has drawn their own ground does not want ours on top of it.
        */
-      shape?: 'pill' | 'burst' | 'ribbon' | 'tag' | undefined
+      shape?: 'none' | 'pill' | 'burst' | 'ribbon' | 'tag' | undefined
       /**
        * The label's colour. Worked out from the badge when omitted.
        *

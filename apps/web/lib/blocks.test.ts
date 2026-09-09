@@ -460,8 +460,8 @@ describe('the offer badge', () => {
     },
   ]
 
-  it('takes the four shapes a badge may be', () => {
-    for (const shape of ['pill', 'burst', 'ribbon', 'tag']) {
+  it('takes no badge at all, and the four shapes a badge may be', () => {
+    for (const shape of ['none', 'pill', 'burst', 'ribbon', 'tag']) {
       expect(toArrangements(withChip(shape))).not.toBeNull()
     }
   })

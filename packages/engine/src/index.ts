@@ -72,6 +72,7 @@ export {
   HOLDS_PROPORTION,
   PATH_SHAPES,
   chipPathShape,
+  drawsGround,
   needsEvenOdd,
   shapePath,
   type ChipShape,

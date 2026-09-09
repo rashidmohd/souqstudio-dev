@@ -222,9 +222,9 @@ export const needsEvenOdd = (shape: PathShape): boolean => shape === 'tag'
  * a star is a badge whose label is illegible or whose star is enormous. These
  * four hold a word.
  */
-export type ChipShape = 'pill' | 'burst' | 'ribbon' | 'tag'
+export type ChipShape = 'none' | 'pill' | 'burst' | 'ribbon' | 'tag'
 
-export const CHIP_SHAPES: ChipShape[] = ['pill', 'burst', 'ribbon', 'tag']
+export const CHIP_SHAPES: ChipShape[] = ['none', 'pill', 'burst', 'ribbon', 'tag']
 
 /**
  * How much of a badge its label may use, and whether the badge is square.
@@ -247,13 +247,36 @@ export const CHIP_SHAPES: ChipShape[] = ['pill', 'burst', 'ribbon', 'tag']
  * else in this system.
  */
 export const CHIP_FIT: Record<ChipShape, { width: number; height: number; square: boolean }> = {
+  /**
+   * No badge at all — the tier as words on the card.
+   *
+   * **The same option the price mark has had since E6**, where `frame: 'plain'`
+   * drops the ground and the outline and leaves the digits alone. A badge is the
+   * loudest thing on a card and not every design wants one; an owner who has
+   * drawn their own ground does not want ours on top of it.
+   *
+   * It may use the whole box, because there is no outline to stay inside — and a
+   * taller cap than the pill's for the same reason: the pill's 0.52 is mostly
+   * the space its own rounded ends need.
+   */
+  none: { width: 1, height: 0.62, square: false },
   pill: { width: 0.86, height: 0.52, square: false },
   burst: { width: 0.52, height: 0.34, square: true },
   ribbon: { width: 0.7, height: 0.46, square: false },
   tag: { width: 0.74, height: 0.48, square: false },
 }
 
-/** The path shape a badge draws as. A pill is a rounded rect, not a path. */
+/**
+ * The path a badge draws as, or null when it does not draw one.
+ *
+ * Null covers two different things and the caller has to tell them apart: a
+ * `pill` is a rounded rect — an SVG element rather than a path — and `none`
+ * draws nothing at all. `drawsGround` is the question most callers actually
+ * have.
+ */
 export function chipPathShape(shape: ChipShape): PathShape | null {
-  return shape === 'pill' ? null : shape
+  return shape === 'pill' || shape === 'none' ? null : shape
 }
+
+/** Whether the badge paints anything behind its label. */
+export const drawsGround = (shape: ChipShape): boolean => shape !== 'none'

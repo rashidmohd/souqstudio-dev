@@ -15,6 +15,7 @@ import {
   layoutPriceMark,
   CHIP_FIT,
   chipPathShape,
+  drawsGround,
   needsEvenOdd,
   placeText,
   resolveColor,
@@ -424,6 +425,13 @@ function Chip({
    */
   const inkFor = (badge: string): string => {
     if (element.ink !== undefined) return paint(ctx, element.ink)
+
+    // **With no badge behind it, the badge's colour becomes the text's.** It is
+    // the colour the owner already chose for this thing, and the alternative —
+    // falling through to a readable ink over a ground that is not there — would
+    // compute contrast against a rectangle nobody can see.
+    if (!drawsGround(shape)) return badge
+
     const rgb = fromHex(badge)
     return rgb === null ? ctx.token('surface') : readableInkOn(rgb)
   }
@@ -475,11 +483,15 @@ function Chip({
         // A burst holds its proportion, so a wide rect would draw the same burst
         // with empty space beside it. It stays square and the label shrinks —
         // the fit ladder's answer everywhere else in this system.
+        // No ground means no padding to leave room for: the words are the whole
+        // element, and a pill's worth of air around them would push a
+        // right-aligned badge off the corner it was anchored to.
+        const padding = drawsGround(shape) ? size * 1.6 : 0
         const width = fit.square
           ? box.height
           : Math.min(
               box.width * 2,
-              Math.max(box.width * 0.5, ctx.measure(row.label, size, '') + size * 1.6)
+              Math.max(box.width * 0.5, ctx.measure(row.label, size, '') + padding)
             )
         const x = row.align === 'end' ? box.x + box.width - width : box.x
         const badge: Rect = { x, y, width, height: box.height }
@@ -487,7 +499,7 @@ function Chip({
 
         return (
           <React.Fragment key={row.key}>
-            {path === null ? (
+            {!drawsGround(shape) ? null : path === null ? (
               <rect {...xywh(badge)} rx={box.height / 2} fill={row.fill} />
             ) : (
               <path

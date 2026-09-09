@@ -6,6 +6,7 @@ import {
   HOLDS_PROPORTION,
   PATH_SHAPES,
   chipPathShape,
+  drawsGround,
   needsEvenOdd,
   shapePath,
   type PathShape,
@@ -159,14 +160,32 @@ describe('the ribbon', () => {
 })
 
 describe('badge shapes', () => {
-  it('offers only the four that can hold a word', () => {
-    expect(CHIP_SHAPES).toEqual(['pill', 'burst', 'ribbon', 'tag'])
+  it('offers no badge, and the four shapes that can hold a word', () => {
+    expect(CHIP_SHAPES).toEqual(['none', 'pill', 'burst', 'ribbon', 'tag'])
+  })
+
+  /**
+   * The same option the price mark has had since E6, where `frame: 'plain'`
+   * drops the ground. `chipPathShape` returns null for both `none` and `pill`
+   * and they are not the same thing — one draws a rect, the other draws
+   * nothing — so a caller that only asks for the path gets it wrong.
+   */
+  it('separates “no path” from “no ground”', () => {
+    expect(chipPathShape('none')).toBeNull()
+    expect(chipPathShape('pill')).toBeNull()
+    expect(drawsGround('none')).toBe(false)
+    expect(drawsGround('pill')).toBe(true)
+  })
+
+  it('lets a bare label use the whole box, since there is no outline to sit inside', () => {
+    expect(CHIP_FIT.none.width).toBe(1)
+    expect(CHIP_FIT.none.height).toBeGreaterThan(CHIP_FIT.pill.height)
   })
 
   /** A pill is a rounded rect in every target — it never becomes a path. */
-  it('draws a pill as a rect and the rest as paths', () => {
+  it('draws a pill as a rect and every drawn shape as a path', () => {
     expect(chipPathShape('pill')).toBeNull()
-    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'pill')) {
+    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'pill' && entry !== 'none')) {
       expect(chipPathShape(shape)).not.toBeNull()
     }
   })
@@ -190,9 +209,9 @@ describe('badge shapes', () => {
     }
   })
 
-  /** Every badge shape leaves less room than a pill: they all take a bite. */
+  /** Every drawn badge leaves less room than a pill: they all take a bite. */
   it('gives every shaped badge a tighter label box than the pill', () => {
-    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'pill')) {
+    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'pill' && entry !== 'none')) {
       expect(CHIP_FIT[shape].width).toBeLessThan(CHIP_FIT.pill.width)
       expect(CHIP_FIT[shape].height).toBeLessThan(CHIP_FIT.pill.height)
     }

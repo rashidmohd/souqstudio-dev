@@ -1597,3 +1597,59 @@ so `migrate dev` will not want a reset later. Railway applies it in its
 `preDeploy` on the next deploy.
 
 **Still not opened in a browser.** Twelve.
+
+---
+
+## 21. A badge with no badge, and the grouping that already existed — 9 September
+
+Three questions: how do I drop the tag and keep the words, how do I put the tier
+on a shape I uploaded, and *"I think we need layer grouping to manage this."*
+
+Two of the three were already answered and one was a real gap.
+
+### The gap: a badge that draws nothing
+
+`ChipShape` gains `none`. **The same option the price mark has had since E6**,
+where `frame: 'plain'` drops the ground and the outline and leaves the digits
+alone — a badge is the loudest thing on a card, and an owner who has drawn their
+own ground does not want ours on top of it.
+
+Two things fall out of it rather than being decided separately:
+
+- **The badge's colour becomes the label's.** With no ground behind it, falling
+  through to the automatic readable ink would compute contrast against a
+  rectangle nobody can see — and the fill is the colour the owner already chose
+  for this thing. Red words on the card, not white words on nothing.
+- **No padding.** A pill's worth of air exists to clear its own rounded ends. Kept
+  with no ground, it would push a badge anchored to a corner off the corner.
+
+`chipPathShape` returning null now means two different things — a pill is a
+rounded rect, `none` is nothing — so `drawsGround` is the question most callers
+actually have, and the test holds the two apart. That distinction is exactly the
+kind that a renderer gets wrong once and nobody notices.
+
+### Already there: the tier on the owner's own shape
+
+§18 built it. Upload the artwork, add a text element, set **Shows → Offer tier**.
+The `chip` element is not involved at all, which was the point: the tier stopped
+being locked inside the one element whose shape the owner did not want.
+
+### Already there: grouping
+
+`groupId` on `ElementBase`, `groupSelected` / `ungroupSelected` in the store,
+Group and Ungroup in the top toolbar, and clicking one member of a group selects
+the whole group — `BlockArtboard` expands the selection on the way in.
+
+So the answer to *"we need layer grouping"* is that it shipped with the designer
+and is not visible enough to be found. Worth noting as a **discoverability**
+finding rather than a missing feature — the same shape as §12's layer-list
+toggle, which also existed and also was not found. Two in a row is a pattern: the
+tool rail and the toolbar are icon strips, and an icon nobody hovers is a feature
+nobody has.
+
+Nothing was built for it here. The honest fix is a layer list that shows a group
+as a group — an indented set under one row — rather than a flat list of members
+that happen to move together. That is a real change and wants its own pass.
+
+**Still not opened in a browser.** Thirteen — and two of the three questions in
+this entry were about things that already work.

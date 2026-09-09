@@ -192,7 +192,7 @@ export function ElementProperties({
           */}
           <Segmented
             label="Badge shape"
-            className="grid w-full grid-cols-4 rounded-control"
+            className="grid w-full grid-cols-5 rounded-control"
             disabled={disabled}
             value={element.shape ?? 'pill'}
             options={CHIP_SHAPE_OPTIONS.map((option) => ({
@@ -401,6 +401,7 @@ function ShapePreview({ variant }: { variant: ShapeVariant }) {
 }
 
 const CHIP_SHAPE_OPTIONS: { value: ChipShape; label: string }[] = [
+  { value: 'none', label: 'Text only' },
   { value: 'pill', label: 'Pill' },
   { value: 'burst', label: 'Burst' },
   { value: 'ribbon', label: 'Ribbon' },
@@ -412,7 +413,14 @@ function ChipShapePreview({ shape }: { shape: ChipShape }) {
   const path = chipPathShape(shape)
   return (
     <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
-      {path === null ? (
+      {shape === 'none' ? (
+        // Two bars for words, and no ground behind them — which is the whole
+        // difference between this option and the pill beside it.
+        <>
+          <rect x={2} y={5} width={12} height={2} rx={1} fill="currentColor" />
+          <rect x={4} y={9} width={8} height={2} rx={1} fill="currentColor" />
+        </>
+      ) : path === null ? (
         <rect x={1} y={4} width={14} height={8} rx={4} fill="currentColor" />
       ) : (
         <path
