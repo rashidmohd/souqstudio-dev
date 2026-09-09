@@ -170,7 +170,12 @@ export function reorderElement(
 export function isBound(element: BlockElement): boolean {
   switch (element.kind) {
     case 'text':
-      return element.source.from === 'product'
+      // **The offer's tier counts.** A text element bound to it reads a fact
+      // about the row it is drawn for, exactly as a product field does — so it
+      // gets the dashed canvas outline, the layer-list mark and the refusal to
+      // sit on a block that is placed once. Leaving it out would give an owner
+      // a live badge on a static panel that silently draws nothing.
+      return element.source.from === 'product' || element.source.from === 'offer'
     case 'image':
       return element.source.from === 'product'
     case 'priceMark':

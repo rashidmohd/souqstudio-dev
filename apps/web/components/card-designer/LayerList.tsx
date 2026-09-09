@@ -235,6 +235,10 @@ export function describe(element: BlockElement): string {
     case 'text':
       if (element.source.from === 'product') return `Product ${element.source.field}`
       if (element.source.from === 'shop') return `Shop ${element.source.field}`
+      // Named for what an owner calls it. "Offer tier" is the label on the
+      // binding control, and a layer list that says something else is a second
+      // vocabulary for one thing.
+      if (element.source.from === 'offer') return 'Offer tier'
       return element.source.textEn === '' ? 'Fixed text' : `“${element.source.textEn}”`
     case 'image':
       return element.source.from === 'product' ? 'Product image' : 'Artwork'

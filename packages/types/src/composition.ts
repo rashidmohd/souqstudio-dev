@@ -302,6 +302,25 @@ export type ImageSource = { from: 'product' } | { from: 'asset'; assetId: string
 export type TextSource =
   | { from: 'product'; field: 'name' | 'spec' | 'brand' | 'origin' | 'packSize' }
   | { from: 'shop'; field: 'name' | 'phone' | 'address' }
+  /**
+   * The offer's own words, as opposed to the product's.
+   *
+   * **This is what lets a badge be anything.** The tier — "Save 20%" — used to
+   * exist only inside the `chip` element, which draws its own background, so an
+   * owner who uploaded their own badge artwork could put nothing live on it: a
+   * static line would say the same thing on every product in the book and go
+   * stale the week the offer changed.
+   *
+   * As a text binding it is an ordinary element. It sits on uploaded artwork, on
+   * a burst, on nothing at all; it takes the type scale, the fit ladder, a
+   * colour and an alignment like every other line. `chip` stays as the
+   * convenient prebuilt badge rather than as the only way to say the tier.
+   *
+   * A separate source from `product` because it is a fact about the *offer* — a
+   * product has no tier until it is put in a book at one — and the vocabulary
+   * should not blur that.
+   */
+  | { from: 'offer'; field: 'tier' }
   | { from: 'static'; textEn: string; textAr: string }
 
 /**

@@ -503,6 +503,9 @@ function TextFields({
                 { value: 'product:brand', label: 'Brand' },
                 { value: 'product:origin', label: 'Country of origin' },
                 { value: 'product:packSize', label: 'Pack size' },
+                // The offer's own words, not the product's. It is what makes a
+                // badge out of artwork the owner uploaded — see `TextSource`.
+                { value: 'offer:tier', label: 'Offer tier' },
               ]
             : []),
           { value: 'shop:name', label: 'Shop name' },
@@ -875,6 +878,7 @@ function parseSource(
   if (from === 'shop' && field !== undefined) {
     return { from: 'shop', field: field as 'name' | 'phone' | 'address' }
   }
+  if (from === 'offer') return { from: 'offer', field: 'tier' }
   return current
 }
 
@@ -884,9 +888,11 @@ function purpose(element: BlockElement): string {
     case 'text':
       return element.source.from === 'product'
         ? 'Follows the catalog. It changes with every product.'
-        : element.source.from === 'shop'
-          ? 'Comes from the shop this book belongs to.'
-          : 'The same on every card.'
+        : element.source.from === 'offer'
+          ? 'The offer’s tier. It changes with every product, and it is what a badge says.'
+          : element.source.from === 'shop'
+            ? 'Comes from the shop this book belongs to.'
+            : 'The same on every card.'
     case 'image':
       return element.source.from === 'product'
         ? 'The packshot, or a reserved space where a product has none.'

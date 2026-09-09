@@ -1385,3 +1385,66 @@ being honoured on a rectangle alone.
 
 Doing that sweep deliberately is cheaper than meeting the list one screenshot at
 a time, which is what the last four entries in this file are.
+
+---
+
+## 18. A badge out of the owner's own artwork — 9 September
+
+*"The offer badge is very tricky now. Imagine one user just wants to show his
+offer in a custom shape that he uploads — how can we make that in our current
+system?"*
+
+The right question, and it answers the badge-box one by making it smaller.
+
+### What the system could already do, and the one thing it could not
+
+Uploading artwork works: an `image` element with `{ from: 'asset', assetId }`,
+put there by the rail's upload button. Layering text on it works.
+
+**What could not happen was the text being the offer.** The tier — "Save 20%" —
+existed only inside the `chip` element, which draws its own background. So an
+owner with their own badge artwork could put a `static` line on it, which says
+the same thing on every product in the book and goes stale the week the offer
+changes. The one thing that makes a badge a badge was locked inside the one
+element whose shape they did not want.
+
+### The fix is a binding, not a feature
+
+`TextSource` gains `{ from: 'offer', field: 'tier' }`. That is it.
+
+A tier is now an ordinary text element: it takes the type scale, the fit ladder,
+a colour, an alignment, a rotation. It sits on uploaded artwork, on a burst, on a
+plain rectangle, or on nothing. **`chip` stops being the only way to say the tier
+and goes back to being the convenient prebuilt badge**, which is what it should
+always have been.
+
+**A separate source from `product`**, deliberately: a product has no tier until
+it is put in a book at one, and blurring that in the vocabulary would make
+"Offer tier" look like a catalog column.
+
+Three things followed from it rather than being decided separately:
+
+- **`isBound` counts it.** It reads a fact about the offer exactly as a product
+  field does, so it gets the dashed canvas outline, the layer-list mark, and the
+  refusal to sit on a block that is placed once — where there is no offer to
+  read. Leaving it out would have given an owner a live badge on a static panel
+  that silently draws nothing.
+- **`fitPolicy` refuses to truncate it.** *"Save 2…"* is not a shorter way of
+  saying "Save 20%", it is a different and wrong claim — the only case in that
+  function where cutting a string would misprice an offer rather than just look
+  bad.
+- **A third copy of the text resolver turned up.** `BookPage` had its own
+  `textFor` for a line-count estimate, and adding a source made it return
+  `undefined` for the new one. The compiler caught it *only* because the return
+  type is declared. `contentFor` is exported from `draw.tsx` now and there is one
+  reading of "what does this text show" again.
+
+### What this does to the badge-box question
+
+It makes it optional. The mismatch between a chip's slot and its drawn pill is
+still there and still worth settling, but an owner who wants a badge that looks
+like their badge no longer has to go through `chip` at all — image, tier text, a
+shape behind it if they want one. The chip is now a shortcut rather than the
+only road.
+
+**Still not opened in a browser.** Ten.

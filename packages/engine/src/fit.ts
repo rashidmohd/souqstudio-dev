@@ -334,6 +334,11 @@ export function fitPolicy(
       : { truncatable: true }
   }
 
+  // **A tier is never cut.** "Save 2…" is not a smaller way of saying "Save
+  // 20%", it is a different and wrong claim — the one case in this function
+  // where truncation would misprice an offer rather than merely look bad.
+  if (source.from === 'offer') return { truncatable: false }
+
   // A shop's own name is not cuttable; its address and phone are.
   if (source.from === 'shop') {
     return source.field === 'name' ? { truncatable: false } : { truncatable: true }

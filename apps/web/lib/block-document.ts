@@ -120,6 +120,9 @@ const textSourceSchema = z.discriminatedUnion('from', [
     field: z.enum(['name', 'spec', 'brand', 'origin', 'packSize']),
   }),
   z.object({ from: z.literal('shop'), field: z.enum(['name', 'phone', 'address']) }),
+  // The offer's own words. A separate source from `product` because a product
+  // has no tier until it is put in a book at one.
+  z.object({ from: z.literal('offer'), field: z.literal('tier') }),
   z.object({
     from: z.literal('static'),
     // Both languages, always. A static line with only an English value is a

@@ -13,6 +13,7 @@ import {
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { resolveScale } from '@/lib/brand-fonts'
 import {
+  contentFor,
   drawElement,
   estimateWidth,
   fitTextElement,
@@ -276,7 +277,7 @@ function neededHeight(
 ): number | null {
   if (element.kind !== 'text') return rect.height
 
-  const content = textFor(element, ctx)
+  const content = contentFor(element, ctx)
   if (content === '') return null
 
   // Line count at the box the block designed. The second fit inside `drawElement`
@@ -289,21 +290,3 @@ function neededHeight(
   return Math.min(rect.height, lines * perLine * step.lineHeight)
 }
 
-function textFor(
-  element: Extract<Parameters<typeof drawElement>[0], { kind: 'text' }>,
-  ctx: DrawContext
-): string {
-  switch (element.source.from) {
-    case 'static':
-      return ctx.ar ? element.source.textAr : element.source.textEn
-    case 'shop':
-      return element.source.field === 'name' ? ctx.shopName : ''
-    case 'product': {
-      if (ctx.offer === undefined) return ''
-      if (element.source.field === 'name') return ctx.offer.name
-      if (element.source.field === 'spec') return ctx.offer.spec ?? ''
-      if (element.source.field === 'brand') return ctx.offer.brand ?? ''
-      return ''
-    }
-  }
-}

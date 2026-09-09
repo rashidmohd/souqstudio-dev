@@ -481,6 +481,8 @@ function resolveText(
 ): string {
   const ar = ctx.direction === 'rtl'
   switch (element.source.from) {
+    case 'offer':
+      return product === undefined ? '' : ar ? product.tier.labelAr : product.tier.labelEn
     case 'static':
       return ar ? element.source.textAr : element.source.textEn
     case 'shop':

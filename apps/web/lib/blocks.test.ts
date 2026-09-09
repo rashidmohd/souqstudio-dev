@@ -355,6 +355,94 @@ describe('the offer shapes', () => {
   })
 })
 
+describe('a badge made of the owner\u2019s own artwork', () => {
+  /**
+   * The question this answers: an owner uploads a shape and wants *their* badge
+   * to say the offer. Before the tier was a text binding it could not — the
+   * label lived inside `chip`, which draws its own background, so artwork could
+   * only carry a static line that says the same thing on every product.
+   */
+  const custom: unknown = [
+    {
+      aspectMin: 0.5,
+      aspectMax: 1.5,
+      elements: [
+        {
+          id: 'badge-art',
+          kind: 'image',
+          box: { start: 0.04, top: 0.04, width: 0.3, height: 0.3 },
+          source: { from: 'asset', assetId: 'img_1' },
+        },
+        {
+          id: 'badge-text',
+          kind: 'text',
+          box: { start: 0.06, top: 0.14, width: 0.26, height: 0.1 },
+          source: { from: 'offer', field: 'tier' },
+          level: 'h3',
+          align: 'center',
+        },
+      ],
+    },
+  ]
+
+  it('is an ordinary image with an ordinary text element on it', () => {
+    expect(toArrangements(custom)).not.toBeNull()
+  })
+
+  it('takes no shape of its own — the artwork is the shape', () => {
+    const parsed = toArrangements(custom)!
+    const art = parsed[0]!.elements[0]!
+    expect(art.kind).toBe('image')
+  })
+
+  /**
+   * A seeded block may not use it — not because of the binding, but because the
+   * artwork is one shop's upload. The binding itself names no colour, so the
+   * text half is fine on its own.
+   */
+  it('lets a seeded block bind text to the tier', () => {
+    const parsed = toArrangements([
+      {
+        aspectMin: 0.5,
+        aspectMax: 1.5,
+        elements: [
+          {
+            id: 'tier',
+            kind: 'text',
+            box: { start: 0.06, top: 0.14, width: 0.26, height: 0.1 },
+            source: { from: 'offer', field: 'tier' },
+            level: 'h3',
+            align: 'center',
+          },
+        ],
+      },
+    ])
+    expect(parsed).not.toBeNull()
+    expect(usesOnlyRoles(parsed!)).toBe(true)
+  })
+
+  it('refuses an offer field that does not exist', () => {
+    expect(
+      toArrangements([
+        {
+          aspectMin: 0.5,
+          aspectMax: 1.5,
+          elements: [
+            {
+              id: 't',
+              kind: 'text',
+              box: { start: 0, top: 0, width: 1, height: 0.1 },
+              source: { from: 'offer', field: 'savings' },
+              level: 'h3',
+              align: 'center',
+            },
+          ],
+        },
+      ])
+    ).toBeNull()
+  })
+})
+
 describe('the offer badge', () => {
   const withChip = (shape: unknown): unknown => [
     {

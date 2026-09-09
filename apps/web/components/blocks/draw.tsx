@@ -760,11 +760,25 @@ function Text({
  * means, and drawing sample text there would invent content the book does not
  * have.
  */
-function contentFor(
+/**
+ * What a text element says.
+ *
+ * **Exported because it was written twice.** `BookPage` had its own copy for a
+ * line-count estimate, and adding the offer tier to the vocabulary made that
+ * copy return `undefined` for the new source — caught by the compiler here and
+ * only because the return type is declared. A second reading of "what does this
+ * text show" is the same class of divergence `packages/engine` exists to stop,
+ * arriving in the app rather than in a renderer.
+ */
+export function contentFor(
   element: Extract<BlockElement, { kind: 'text' }>,
   ctx: DrawContext
 ): string {
   switch (element.source.from) {
+    // The offer's own words rather than the product's — see `TextSource`. This
+    // is what puts a live tier on artwork the owner uploaded.
+    case 'offer':
+      return ctx.offer?.tierLabel ?? ''
     case 'static':
       return ctx.ar ? element.source.textAr : element.source.textEn
     case 'shop':

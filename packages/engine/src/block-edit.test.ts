@@ -280,3 +280,29 @@ describe('validateBlock — the seeded library is the case that matters', () => 
     expect(problems.map((problem) => problem.code)).toContain('duplicate-element-id')
   })
 })
+
+describe('a tier binding is bound', () => {
+  const tierText = {
+    id: 'tier',
+    kind: 'text' as const,
+    box: { start: 0, top: 0, width: 0.4, height: 0.1 },
+    source: { from: 'offer' as const, field: 'tier' as const },
+    level: 'h3' as const,
+    align: 'center' as const,
+  }
+
+  /**
+   * It reads a fact about the offer, so it earns the dashed canvas outline and
+   * the layer-list mark — and, more importantly, the refusal to sit on a block
+   * that is placed once, where there is no offer to read.
+   */
+  it('marks a tier binding the way it marks a product field', () => {
+    expect(isBound(tierText)).toBe(true)
+  })
+
+  it('still leaves a typed line unbound', () => {
+    expect(
+      isBound({ ...tierText, source: { from: 'static', textEn: 'Sale', textAr: 'تخفيض' } })
+    ).toBe(false)
+  })
+})
