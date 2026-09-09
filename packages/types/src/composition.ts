@@ -427,6 +427,16 @@ export type BlockElement =
        * one the label may use.
        */
       shape?: 'pill' | 'burst' | 'ribbon' | 'tag' | undefined
+      /**
+       * The label's colour. Worked out from the badge when omitted.
+       *
+       * **The badge used to draw its label in the surface colour, always.** That
+       * is right for a saturated tier tint and wrong the moment an owner picks a
+       * pale one — white on pale sand is a badge with nothing written on it, and
+       * nothing anywhere said so. A text element has had both halves of this
+       * since E6: an override, and a rule for when there is none.
+       */
+      ink?: FlatColor | undefined
     })
   | (ElementBase & { kind: 'logo' })
   | (ElementBase & {

@@ -210,6 +210,14 @@ export function ElementProperties({
             {...color}
             onChange={(fill) => onChange({ ...element, fill })}
           />
+          <ColorControl
+            label="Label colour"
+            value={element.ink}
+            fallback={token('surface')}
+            hint="Left alone, it picks whichever of black or white reads on the badge."
+            {...color}
+            onChange={(ink) => onChange({ ...element, ink })}
+          />
         </>
       ) : null}
 

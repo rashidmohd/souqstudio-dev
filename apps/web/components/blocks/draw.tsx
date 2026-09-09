@@ -26,7 +26,7 @@ import {
   type TextMeasurer,
 } from '@souqstudio/engine'
 import { fontStack, type resolveScale } from '@/lib/brand-fonts'
-import { ARTBOARD_PLACEHOLDER } from '@/lib/color'
+import { ARTBOARD_PLACEHOLDER, fromHex, readableInkOn } from '@/lib/color'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 
 /**
@@ -409,6 +409,25 @@ function Chip({
   const gap = box.height * 0.25
   const rows: { key: string; label: string; fill: string; align: 'start' | 'end' }[] = []
 
+  /**
+   * What the label reads in.
+   *
+   * **An owner's choice, then contrast, then the old rule.** The badge drew in
+   * the surface colour unconditionally, which is right for a saturated tier tint
+   * and invisible on a pale one — and an owner who picks a pale badge gets a
+   * badge with nothing written on it and no control that would have fixed it.
+   *
+   * The automatic branch only fires on a colour this can actually read: a tier
+   * token resolves to `var(--sq-…)`, which has no luminance until the browser
+   * paints it. That case keeps the old answer, which is the one it was designed
+   * for anyway.
+   */
+  const inkFor = (badge: string): string => {
+    if (element.ink !== undefined) return paint(ctx, element.ink)
+    const rgb = fromHex(badge)
+    return rgb === null ? ctx.token('surface') : readableInkOn(rgb)
+  }
+
   if (tier !== '') {
     rows.push({
       key: 'tier',
@@ -482,7 +501,7 @@ function Chip({
               y={y + box.height / 2}
               fontSize={size}
               fontWeight={700}
-              fill={ctx.token('surface')}
+              fill={inkFor(row.fill)}
               textAnchor="middle"
               dominantBaseline="middle"
             >

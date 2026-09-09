@@ -1327,3 +1327,61 @@ both warn about. The badge shows the *tier*, which is a fact about the offer, an
 what it draws around that word is now the shop's.
 
 **Still not opened in a browser.** Nine.
+
+---
+
+## 17. Is this a fundamental problem in the template? — 9 September
+
+The owner, after four rounds of *"this is fixed to one option"*: is the model
+itself wrong?
+
+**No, and the evidence is what the last four changes cost.** Gradients were four
+lines of type plus one resolve seam. Six shapes were one engine file and two
+renderer branches. Badge shapes were one optional field and one table. None of
+them touched fraction coordinates, the arrangement/aspect model, the binding
+rules or the document's structure, and none needed a migration. A model with a
+fundamental problem does not absorb three feature additions in a day without
+moving.
+
+**What is real is two patterns, and neither is structural.**
+
+### Scope was set by the seeded library, not by the owner
+
+The fifty-nine blocks were built from a kit that used flat role colours, three
+primitives and a pill badge — so the model got exactly those and stopped. The
+designer then exposes the model. Every gap found in the last four rounds is the
+same gap wearing different clothes: **the tool can express what we shipped, and
+slightly less than what an owner reaches for.** That is a process problem — what
+decides scope — rather than a defect in the composition model.
+
+### Decisions a painter makes that no field ever expressed
+
+The sharper half, and the one worth acting on. The badge's shape was never a
+decision anybody recorded: it was `<rect rx={height/2}>` inside a renderer. There
+is no missing field to notice, no `undefined` anywhere, and nothing in the type
+that looks incomplete — so it stays invisible until someone opens the product and
+asks. That is the whole reason these arrived one screenshot at a time.
+
+**One was still live, and found while answering the question.** The badge drew
+its label in `token('surface')` unconditionally. Right for a saturated tier tint;
+on a pale badge colour it is white on pale sand, a badge with nothing written on
+it. A text element has had both halves of this since E6 — an owner override, then
+a rule — and the chip had neither. It now takes an `ink`, and falls back to
+whichever of black or white actually reads on the badge, which is a thing
+`lib/color.ts` has been able to answer all along.
+
+The automatic branch only fires on a colour it can read: a tier token resolves to
+`var(--sq-…)` and has no luminance until the browser paints it, so that case
+keeps the old answer — which is the one it was designed for.
+
+### What to do about it
+
+Not a redesign. **A sweep of both painters for every visual decision that is not
+in the model**, judged one at a time: some are deliberate and belong to the
+engine — the price mark's raised minor, the fit ladder's steps — and some are
+accidents of the first draft, like the badge's shape and its ink. Candidates
+already visible: the chip stack's gap, the chip label's weight, and `radius`
+being honoured on a rectangle alone.
+
+Doing that sweep deliberately is cheaper than meeting the list one screenshot at
+a time, which is what the last four entries in this file are.

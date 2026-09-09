@@ -391,6 +391,31 @@ describe('the offer badge', () => {
   it('is a pill when it says nothing, which is every block already drawn', () => {
     expect(toArrangements(withChip(undefined))).not.toBeNull()
   })
+
+  /**
+   * The badge drew its label in the surface colour unconditionally — right for a
+   * saturated tier tint, invisible on a pale one, and with no control that would
+   * have fixed it. A text element has had both halves since E6.
+   */
+  it('takes a label colour of its own', () => {
+    const parsed = toArrangements([
+      {
+        aspectMin: 0.5,
+        aspectMax: 1.5,
+        elements: [
+          {
+            id: 'chip',
+            kind: 'chip',
+            box: { start: 0, top: 0, width: 0.4, height: 0.12 },
+            anchor: 'TOP_START',
+            fill: { from: 'hex', hex: '#F5F0E1' },
+            ink: { from: 'hex', hex: '#1A1A1A' },
+          },
+        ],
+      },
+    ])
+    expect(parsed).not.toBeNull()
+  })
 })
 
 describe('gradients', () => {
