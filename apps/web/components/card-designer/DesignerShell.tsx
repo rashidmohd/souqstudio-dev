@@ -10,6 +10,7 @@ import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { FREE_ELEMENTS } from '@/lib/block-elements'
 import { assetResolver } from '@/lib/block-assets'
 import { MAX_ARRANGEMENTS } from '@/lib/block-document'
+import { ArtworkDialog } from '@/components/card-designer/ArtworkDialog'
 import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
 import { InlineSelect } from '@/components/ui/inline-select'
 import { Button } from '@/components/ui/button'
@@ -129,6 +130,7 @@ export function DesignerShell({
    * session, `lib/rail-preference.ts` is the pattern to copy.
    */
   const [layersOpen, setLayersOpen] = React.useState(true)
+  const [picking, setPicking] = React.useState(false)
 
   React.useEffect(() => {
     hydrate({
@@ -235,7 +237,6 @@ export function DesignerShell({
   )
   const asset = React.useMemo(() => assetResolver(assetBaseUrl), [assetBaseUrl])
   const [uploading, setUploading] = React.useState(false)
-  const fileInput = React.useRef<HTMLInputElement | null>(null)
 
   /**
    * Upload artwork, then place it.
@@ -245,7 +246,15 @@ export function DesignerShell({
    * through a serverless function fails on the platform's own body limit rather
    * than on anything the owner did.
    */
-  async function upload(file: File) {
+  /**
+   * Upload a file and return its key, or null.
+   *
+   * **It no longer adds the element itself.** Choosing artwork and uploading
+   * artwork used to be one action, which is why every use was a fresh upload —
+   * the dialog does the choosing now, and this is the half that puts bytes in
+   * the bucket.
+   */
+  async function upload(file: File): Promise<string | null> {
     setUploading(true)
     try {
       /**
@@ -258,15 +267,11 @@ export function DesignerShell({
       if (file.type === 'image/svg+xml') {
         const raster = await fetch('/api/v1/blocks/artwork/vector', {
           method: 'POST',
-          headers: { 'content-type': 'image/svg+xml' },
+          headers: { 'content-type': 'image/svg+xml', 'x-filename': encodeURIComponent(file.name) },
           body: file,
         })
         const drawn = (await raster.json()) as { data: { assetId: string } | null }
-        if (drawn.data === null) return
-        const vector = FREE_ELEMENTS.artwork(drawn.data.assetId)
-        store.setElements(addElement(elements, vector))
-        store.select([vector.id])
-        return
+        return drawn.data?.assetId ?? null
       }
 
       const authorise = await fetch('/api/v1/blocks/artwork', {
@@ -277,21 +282,36 @@ export function DesignerShell({
       const body = (await authorise.json()) as {
         data: { uploadUrl: string; assetId: string } | null
       }
-      if (body.data === null) return
+      if (body.data === null) return null
 
       const put = await fetch(body.data.uploadUrl, {
         method: 'PUT',
         headers: { 'content-type': file.type },
         body: file,
       })
-      if (!put.ok) return
+      if (!put.ok) return null
 
-      const element = FREE_ELEMENTS.artwork(body.data.assetId)
-      store.setElements(addElement(elements, element))
-      store.select([element.id])
+      // **The completion step, and the upload is not finished without it.** The
+      // bytes went browser → R2, so nothing on the server knows the file's shape
+      // until it reads the object back — and a row is what makes this artwork
+      // appear in the picker next time instead of being re-uploaded.
+      const record = await fetch('/api/v1/blocks/assets', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetId: body.data.assetId, filename: file.name }),
+      })
+      if (!record.ok) return null
+
+      return body.data.assetId
     } finally {
       setUploading(false)
     }
+  }
+
+  function addArtwork(assetId: string) {
+    const element = FREE_ELEMENTS.artwork(assetId)
+    store.setElements(addElement(elements, element))
+    store.select([element.id])
   }
 
   function align(how: Alignment) {
@@ -407,6 +427,20 @@ export function DesignerShell({
         </p>
       ) : null}
 
+      <ArtworkDialog
+        open={picking}
+        onOpenChange={setPicking}
+        onPick={(assetId) => {
+          addArtwork(assetId)
+          setPicking(false)
+        }}
+        onUpload={async (file) => {
+          const assetId = await upload(file)
+          if (assetId !== null) addArtwork(assetId)
+          return assetId
+        }}
+      />
+
       <CanvasDrawerToggles
         open={drawer.open}
         onToggle={drawer.toggle}
@@ -438,7 +472,7 @@ export function DesignerShell({
             onSelectNone={() => store.select([])}
             layersOpen={layersOpen}
             onToggleLayers={() => setLayersOpen((open) => !open)}
-            onUpload={editable ? () => fileInput.current?.click() : undefined}
+            onUpload={editable ? () => setPicking(true) : undefined}
             onAdd={(element, atBottom) => {
               // Paint order is array order, so "behind everything" is the front
               // of the list. A background appended like anything else covers
@@ -457,21 +491,6 @@ export function DesignerShell({
                 : 'flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-3 lg:hidden'
             }
           >
-
-            {/* Hidden, and driven by the palette's own button: a bare file input
-                is the one control in the product nobody can style, and the
-                palette entry has to look like every other entry beside it. */}
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (file !== undefined) void upload(file)
-              }}
-            />
 
             <section className="flex flex-col gap-2">
               {/*

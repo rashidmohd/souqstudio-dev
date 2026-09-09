@@ -83,6 +83,7 @@ model Organization {
   promoTiers            PromoTier[]
   /// Blocks this organization authored. A seeded block has no organization.
   blocks                Block[]
+  blockAssets           BlockAsset[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -1300,6 +1301,46 @@ model Block {
 
   @@index([organizationId, status])
   @@map("blocks")
+}
+
+/// Artwork a shop uploaded, and the motifs SouqStudio ships. E7-C.
+///
+/// **The row is a record, not an address.** `ImageSource.assetId` in a block
+/// document holds the R2 object key and always will: `assetResolver` turns that
+/// key straight into a URL with no query, which is what keeps a block document
+/// portable and keeps Prisma out of the render path. Pointing a document at this
+/// table's `id` instead would put a lookup inside every draw.
+///
+/// So `key` is unique and is the join. What the table adds is everything a *key*
+/// cannot answer — what the file is called, how big it is, who owns it, and
+/// above all **what artwork exists**. Without it there is no listing, so there is
+/// no reuse: an owner who uploads a badge for one block re-uploads it for the
+/// next, and every use leaves another object nothing references.
+///
+/// `organizationId` null is the overlay library — crescents, lanterns, National
+/// Day motifs — on the same seeded/authored split `blocks` already uses, so one
+/// picker shows both and neither is a special case.
+model BlockAsset {
+  id             String  @id @default(cuid())
+  /// Null for the motifs we ship. Set for artwork an owner uploaded.
+  organizationId String?
+  /// The R2 object key. What a block document stores, and the join to it.
+  key            String  @unique
+  /// What the owner sees in the picker. Their filename, less the extension.
+  name           String
+  /// Of the stored PNG. A picker draws each asset at its own proportion, and a
+  /// grid of squares would lie about what a wide banner is.
+  width          Int
+  height         Int
+  bytes          Int
+  /// Only the seeded motifs carry one — `ramadan`, `national-day`. An owner's
+  /// own artwork has no category and needs none, exactly as their blocks do not.
+  category       String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("block_assets")
 }
 
 model BlockVersion {

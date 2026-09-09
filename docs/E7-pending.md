@@ -259,10 +259,12 @@ Recorded here rather than edited into the epic.
    owed for the reason given here: the editor composes a book from the seeded
    grid rather than from a chosen block, so there is no composer picker to
    promote into. Build that when the composer chooses.
-3. **The overlay asset library.** Crescents, lanterns, National Day motifs.
-   `ImageSource` already has `{ from: 'asset'; assetId }` and the designer does
-   not offer it, because there is no asset library to point at and a picker over
-   an empty set teaches nothing.
+3. ~~**The overlay asset library.**~~ **The table and the picker are built, 9
+   September — §20.** `block_assets` exists and the designer has a picker over
+   it. What is still missing is the *content*: crescents, lanterns and National
+   Day motifs are rows with `organizationId: null` and nobody has drawn them.
+   The objection here — "a picker over an empty set teaches nothing" — stopped
+   applying the moment the set included the owner's own uploads.
 4. **Thumbnails.** `blocks.thumbnailUrl` is still null on every row. The library
    draws a live preview through the engine instead, which is better and is what
    makes a thumbnail unnecessary until there are enough blocks for the page to
@@ -375,10 +377,11 @@ because there is no scale step to fall to.
    panel is designed here and reaches a book as a **pin**, which already
    displaces products rather than consuming them. A first-class cover is a book
    decision rather than a designer one.
-3. **It did not build an asset table.** `ImageSource.assetId` holds the R2 object
-   key for owner artwork, resolved by `lib/block-assets.ts`. `image_assets`
-   exists but every row on it hangs off a catalog product, and a table for block
-   artwork is a schema decision rather than an upload route's business.
+3. ~~**It did not build an asset table.**~~ **Built, 9 September — §20.** The
+   reasoning here held for as long as artwork was write-only. `ImageSource.assetId`
+   still holds the R2 object key and still resolves with no query; `block_assets`
+   is a *record* beside it rather than an address, which is what let the render
+   path stay unchanged.
 
 ### What is still owed
 
@@ -1514,3 +1517,83 @@ not a drawing is refused. `Content-Type` is not trusted anywhere — it is a str
 the client chose, and whether sharp can rasterise the bytes is what decides.
 
 **Still not opened in a browser.** Eleven.
+
+---
+
+## 20. The asset table, and the reuse that was never possible — 9 September
+
+E7-C's first half. §6.3 and §8 both deferred this, and the reasoning was right
+until it wasn't: **artwork was write-only.**
+
+`ImageSource.assetId` holds an R2 object key, which is enough to *draw* a piece
+of artwork and not enough to *find* one. There was no listing, so there was no
+picker, so there was no reuse — an owner who uploaded a badge for one block
+re-uploaded it for the next, and every use left another object in the bucket that
+nothing referenced. §19 made that worse by inviting people to upload more.
+
+### The row is a record, not an address
+
+**`assetId` still holds the key.** Pointing a block document at `block_assets.id`
+would have been tidier and would have put a database lookup inside every draw —
+`assetResolver`'s own note is explicit that a block document must resolve to a
+URL with no query, because the export worker draws the same block and a resolver
+that needed Prisma would put it back in the render path.
+
+So `key` is unique and is the join. The table carries what a key cannot answer:
+a name, a size, an owner, and above all *what exists*. The render path is
+unchanged — not adapted, unchanged.
+
+### Where the metadata comes from
+
+**Read from the bytes, never from the client.** A tile draws each asset at its
+own proportion, so a wrong width makes the tile the wrong shape — which presents
+as a rendering bug rather than as bad data, and nothing else would catch it.
+
+That forced a completion step on the raster path, and it is the same shape the
+logo path already has: the bytes go browser → R2 without touching a route, so
+nothing on this side knows the file until it reads the object back. The vector
+route records inline, because it made the PNG and has it in hand.
+
+**The completion route checks the key's prefix.** It arrives from the client, and
+without that check a manager could record — and then see in their own picker —
+any object in the bucket, including another shop's artwork.
+
+**The write is an upsert on the key.** Two paths can arrive and a retry must not
+make a second row for one object; `update: {}` rather than overwriting, so a
+retry cannot undo a rename.
+
+### One picker, both collections
+
+The same shape `/brand/blocks` uses: our motifs and the shop's uploads in one
+grid, marked. `BlockImportDialog` learned the *opposite* lesson about blocks —
+sixty-seven of ours drowned four of theirs — and it does not apply yet, where the
+shipped set is empty and the owner's is the one that grows. When there are sixty
+motifs, revisit it there.
+
+Uploading and choosing used to be one action, which is precisely why every use
+was a fresh upload. They are two now: the dialog chooses, and `upload` puts bytes
+in the bucket and returns a key.
+
+### What is not done
+
+- **The motifs themselves.** Crescents, lanterns, National Day — rows with
+  `organizationId: null` and nobody has drawn them. That is design work, and the
+  table is no longer what blocks it.
+- **Deletion.** Deliberately absent. A block document names a key directly, so
+  removing an asset silently empties every element that used it, and finding
+  those means scanning documents. That wants a decision, not an endpoint.
+- **The objects uploaded before this migration** have no row and will not appear
+  in the picker. They keep drawing, because a document names the key. The keys
+  are recoverable from block documents; a filename and a size are not, and
+  inventing either would put a wrong name in front of an owner.
+
+### Before this runs
+
+**`pnpm db:migrate`.** The migration is written and was *not* applied — a schema
+change to a shared dev database is not mine to make unasked. It is additive:
+one `CREATE TABLE`, two indexes, one foreign key. Verified against
+`prisma migrate diff --from-empty` and byte-identical to what Prisma generates,
+so `migrate dev` will not want a reset later. Railway applies it in its
+`preDeploy` on the next deploy.
+
+**Still not opened in a browser.** Twelve.

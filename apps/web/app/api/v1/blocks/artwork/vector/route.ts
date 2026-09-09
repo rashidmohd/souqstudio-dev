@@ -4,6 +4,7 @@ import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
 import { rasteriseVector } from '@/lib/artwork'
+import { assetName, measurePng, recordAsset } from '@/lib/block-asset-store'
 import { MAX_VECTOR_BYTES, publicUrl, putObject } from '@/lib/r2'
 
 /**
@@ -57,6 +58,18 @@ export async function POST(request: NextRequest) {
   // `badge.svg` do not land on the same object.
   const key = `${session.user.organizationId}/blocks/${randomBytes(12).toString('hex')}`
   await putObject(key, png, 'image/png')
+
+  // Recorded inline rather than through the completion route: this one has the
+  // PNG in hand, because it made it. Nothing to read back.
+  const size = await measurePng(png)
+  await recordAsset({
+    organizationId: session.user.organizationId,
+    key,
+    name: assetName(request.headers.get('x-filename') ?? 'Artwork'),
+    width: size?.width ?? 0,
+    height: size?.height ?? 0,
+    bytes: png.byteLength,
+  })
 
   return ok({ assetId: key, url: publicUrl(key) })
 }
