@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       case 'wrong_code':
         return fail(
           'wrong_code',
-          `That code is not right. Check your email and try again — ${OTP_MAX_ATTEMPTS} tries per code.`,
+          `That code is not right. Check your email and try again. ${OTP_MAX_ATTEMPTS} tries per code.`,
           400
         )
     }

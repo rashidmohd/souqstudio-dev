@@ -72,7 +72,7 @@ const BOUND: Entry[] = [
   {
     key: 'product-name',
     label: 'Product name',
-    hint: 'Never typed in — it follows the catalog',
+    hint: 'Never typed in, it follows the catalog',
     icon: Type,
     make: BOUND_ELEMENTS['product-name'],
   },

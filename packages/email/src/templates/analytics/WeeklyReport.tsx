@@ -30,10 +30,10 @@ export function WeeklyReportEmail({
   const changeSign = viewsChange >= 0 ? '+' : ''
 
   return (
-    <Base preview={`${shopName} — ${totalViews} views this week`} >
+    <Base preview={`${shopName}: ${totalViews} views this week`} >
       <Section style={section}>
         <Text style={eyebrow}>{dateRange.from} – {dateRange.to}</Text>
-        <Heading style={heading}>Weekly report — {shopName}</Heading>
+        <Heading style={heading}>Weekly report for {shopName}</Heading>
 
         {/* Stats row */}
         <Row style={statsRow}>

@@ -57,7 +57,7 @@ Raise it instead.
 
 ## Manual — the machine cannot check these
 
-Thirteen questions. If any answer is no, the work is not done.
+Fourteen questions. If any answer is no, the work is not done.
 
 ### Structure
 
@@ -101,7 +101,12 @@ Thirteen questions. If any answer is no, the work is not done.
 
 12. **Does every state exist?** Empty, loading, error, and the populated one. An empty
     state is an invitation with a verb CTA, never "Nothing here yet."
-13. **Is machine-generated content visibly marked?** Generated characters, covers,
+13. **Is every em dash gone from the copy?** Grep the diff for `—`. None belongs in a
+    heading, body line, hint, label, empty state, toast, validation message, user-facing
+    error or email template. Recast to a full stop, a colon, parentheses or a
+    conjunction; see SKILL.md → Voice. Comments, test names and log lines are exempt. En
+    dash for numeric ranges only; a blank table cell takes a plain hyphen.
+14. **Is machine-generated content visibly marked?** Generated characters, covers,
     suggested groupings and auto-written copy get the `MachineOutput` treatment. The
     owner must always be able to tell what a model authored. This is a functional
     requirement, not decoration.

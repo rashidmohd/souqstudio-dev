@@ -11,7 +11,7 @@ export interface PaymentSucceededProps {
 
 export function PaymentSucceededEmail({ organizationName, amount, invoiceUrl, period }: PaymentSucceededProps) {
   return (
-    <Base preview={`Payment confirmed — ${amount}`}>
+    <Base preview={`Payment confirmed: ${amount}`}>
       <Section style={section}>
         <Heading style={heading}>Payment confirmed</Heading>
         <Text style={body}>

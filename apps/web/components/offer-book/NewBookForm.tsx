@@ -45,13 +45,13 @@ export type ImportOption = {
 }
 
 const FORMATS = [
-  { value: 'leaflet', label: 'Leaflet — A4' },
-  { value: 'catalog', label: 'Catalog — A4' },
-  { value: 'a3', label: 'Poster — A3' },
-  { value: 'instagram_post', label: 'Instagram post — square' },
-  { value: 'story', label: 'Story — vertical' },
-  { value: 'whatsapp', label: 'WhatsApp — square' },
-  { value: 'print', label: 'Print — A4' },
+  { value: 'leaflet', label: 'Leaflet (A4)' },
+  { value: 'catalog', label: 'Catalog (A4)' },
+  { value: 'a3', label: 'Poster (A3)' },
+  { value: 'instagram_post', label: 'Instagram post (square)' },
+  { value: 'story', label: 'Story (vertical)' },
+  { value: 'whatsapp', label: 'WhatsApp (square)' },
+  { value: 'print', label: 'Print (A4)' },
 ]
 
 const LANGUAGES = [
@@ -218,7 +218,7 @@ export function NewBookForm({ hasShop, imports }: Props) {
               onSelect={() => setSource('import')}
               icon={<FileSpreadsheet className="size-4" aria-hidden="true" strokeWidth={1.75} />}
               title="From a spreadsheet"
-              body="A CSV you already imported — the book arrives with its prices."
+              body="A CSV you already imported. The book arrives with its prices."
             />
           </div>
         </fieldset>
@@ -230,7 +230,7 @@ export function NewBookForm({ hasShop, imports }: Props) {
           required
           options={imports.map((option) => ({
             value: option.id,
-            label: `${option.filename} — ${option.usableRows} products, ${option.pricedRows} priced`,
+            label: `${option.filename} (${option.usableRows} products, ${option.pricedRows} priced)`,
           }))}
           value={importId}
           onChange={(event) => setImportId(event.target.value)}

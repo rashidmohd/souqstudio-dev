@@ -1454,13 +1454,13 @@ export const CARD_BLOCKS: CardBlock[] = [
   {
     id: 'blk_feature',
     name: 'Feature card',
-    description: 'Brand line, big name, big price. Designed for a merged two-by-two — your lead deal.',
+    description: 'Brand line, big name, big price. Designed for a merged two-by-two: your lead deal.',
     arrangements: feature({ ground: 'surface' }),
   },
   {
     id: 'blk_burst',
     name: 'Price burst card',
-    description: 'The price in a disc over the packshot. Loud on purpose — one to a page.',
+    description: 'The price in a disc over the packshot. Loud on purpose, so one to a page.',
     arrangements: burst({ ground: 'surface', accent: 'accent' }),
   },
   {
@@ -1532,7 +1532,7 @@ export const CARD_BLOCKS: CardBlock[] = [
   {
     id: 'blk_split_vertical',
     name: 'Split card',
-    description: 'Half photograph, half words — at every shape, not only when the region is wide.',
+    description: 'Half photograph, half words. At every shape, not only when the region is wide.',
     arrangements: splitVertical({ ground: 'surface' }),
   },
   {

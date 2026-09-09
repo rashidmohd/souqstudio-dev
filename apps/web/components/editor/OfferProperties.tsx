@@ -176,7 +176,7 @@ const FLAG_TEXT: Record<ComposedOffer['flags'][number], string> = {
   'no-price': 'This offer has no price yet.',
   'missing-name-ar': 'This product has no Arabic name, so it cannot publish in Arabic.',
   'no-image': 'This product has no photo.',
-  'fallback-image': 'This photo still has its background — the cutout is not ready.',
+  'fallback-image': 'This photo still has its background. The cutout is not ready.',
   'fit-escalated':
     'The text on this card does not fit, even at its smallest. Shorten a name, or give it more room.',
 }

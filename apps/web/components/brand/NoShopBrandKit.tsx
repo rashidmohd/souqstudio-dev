@@ -20,7 +20,7 @@ export function NoShopBrandKit() {
     <EmptyState
       kind="empty"
       title="No shop to brand yet"
-      body="A brand kit belongs to a shop — its logo, its colours, and the look of every offer book it makes."
+      body="A brand kit belongs to a shop: its logo, its colours, and the look of every offer book it makes."
       action={{
         label: 'Add a shop',
         onClick: () => router.push('/settings/shops'),

@@ -83,7 +83,7 @@ export function BlockLibrary({ blocks, kit, canEdit, country }: Props) {
         <EmptyState
           kind="empty"
           title="No blocks of your own yet"
-          body={`Start from one of the ${seeded.length} we ship — an offer card, a header, a footer, a seasonal band. Add the ones you want and change them from there.`}
+          body={`Start from one of the ${seeded.length} we ship: an offer card, a header, a footer, a seasonal band. Add the ones you want and change them from there.`}
           action={{
             label: 'Add from library',
             ...(canEdit

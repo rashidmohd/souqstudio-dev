@@ -53,7 +53,7 @@ export function BlockProperties({
         <p className="font-ui text-body-sm text-muted">
           {repeats
             ? 'Drawn once for every product in a book.'
-            : 'Placed once — a header, a footer, a message.'}
+            : 'Placed once: a header, a footer, a message.'}
         </p>
       </div>
 
@@ -89,8 +89,8 @@ export function BlockProperties({
           </legend>
 
           <p className="font-ui text-body-sm text-muted">
-            Used when the space it lands in is between these shapes — width
-            divided by height. A tall booklet cell is about 0.7, a square post
+            Used when the space it lands in is between these shapes. Shape is
+            width divided by height. A tall booklet cell is about 0.7, a square post
             is 1, a two-column merge is 2.
           </p>
 

@@ -147,7 +147,7 @@ export function ColorControl(props: Props) {
 
       {props.allowGradient ? (
         <Segmented
-          label={`${label} — solid or gradient`}
+          label={`${label}, solid or gradient`}
           value={isGradient ? 'gradient' : 'solid'}
           options={[
             { value: 'solid', label: 'Solid' },

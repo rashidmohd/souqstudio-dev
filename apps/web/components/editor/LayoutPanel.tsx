@@ -256,7 +256,7 @@ function Pins({
           {/* The arithmetic, out loud. Composition model §6.3: an owner must be
               able to see that nothing was dropped to make room. */}
           <p className="font-ui text-body-sm text-muted">
-            <Figure value={offerCount} size="data-sm" /> offers + this panel — the
+            <Figure value={offerCount} size="data-sm" /> offers + this panel. The
             products it covers move on rather than being dropped.
           </p>
 

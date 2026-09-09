@@ -204,7 +204,7 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, on
     if (body.data.skipped.length > 0) {
       setSelected(new Set(body.data.skipped))
       setError(
-        `${body.data.created.length} added. ${body.data.skipped.length} could not be — they may need a higher plan.`
+        `${body.data.created.length} added. ${body.data.skipped.length} could not be. They may need a higher plan.`
       )
       onImported()
       return
@@ -226,7 +226,7 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, on
       onOpenChange={onOpenChange}
       size="lg"
       title="Add blocks to your library"
-      description="Pick the ones you want. Each becomes a block of your own — yours to edit, and available in every book this organization makes."
+      description="Pick the ones you want. Each becomes a block of your own, yours to edit and available in every book this organization makes."
       // **No action row until something is picked**, rather than a primary that
       // is there and does nothing. `Dialog` has no `disabled` on its action and
       // should not grow one: a confirm dialog's primary *is* the decision, so a

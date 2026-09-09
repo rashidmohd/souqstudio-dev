@@ -321,7 +321,7 @@ export function CatalogBrowser({
           placeholder={
             trail ? `Search in ${trail.category.name}` : 'Product name, brand or barcode'
           }
-          hint="Search in English or Arabic — both find the same products."
+          hint="Search in English or Arabic. Both find the same products."
         />
 
         {trail ? (

@@ -184,8 +184,8 @@ export function BrandOverrideField({
           link safe to add. */}
       {value !== 'inherit' ? (
         <p className="font-ui text-body-sm text-muted">
-          Switching back to your organization’s brand keeps this shop’s own settings —
-          they stop being used, and come back if you change your mind. To delete
+          Switching back to your organization’s brand keeps this shop’s own settings.
+          They stop being used, and come back if you change your mind. To delete
           them for good, reset the brand kit from this shop’s brand kit screen.
         </p>
       ) : null}

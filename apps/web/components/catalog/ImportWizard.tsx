@@ -333,7 +333,7 @@ function UploadStep({
         onFile={onPick}
         // Both limits stated before the drop rather than as a rejection after
         // it: the format we cannot read yet, and the size the route refuses.
-        hint="A CSV with one product per row, up to 5MB. Excel files are not supported yet — save as CSV first."
+        hint="A CSV with one product per row, up to 5MB. Excel files are not supported yet, so save as CSV first."
       />
 
       <p className="font-ui text-body-sm text-muted">
@@ -370,7 +370,7 @@ function MappingStep({
         <h2 className="font-display text-heading text-primary">What is in each column?</h2>
         <p className="font-ui text-body text-secondary">
           We have guessed from the headings in <strong>{parsed.filename}</strong>.
-          Correct anything we got wrong — a column we read as a barcode when it is your own
+          Correct anything we got wrong. A column we read as a barcode when it is your own
           stock code would match every row against the wrong number.
         </p>
       </div>
@@ -549,7 +549,7 @@ function ReviewStep({
         <p role="status" className="font-ui text-body-sm text-muted">
           <Figure value={undrawn} /> more rows are not drawn here, to keep this page
           responsive. They are still part of the import and the decision below counts
-          them — use the buttons above to set them all at once.
+          them. Use the buttons above to set them all at once.
         </p>
       ) : null}
 

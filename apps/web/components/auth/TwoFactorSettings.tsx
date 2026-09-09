@@ -260,7 +260,7 @@ export function TwoFactorSettings({
               </h2>
               <p className="font-ui text-body-sm text-secondary">
                 Everyone in your organization is asked to set up two-factor
-                before they can use SouqStudio. Nobody is locked out — they are
+                before they can use SouqStudio. Nobody is locked out. They are
                 sent here to set it up.
               </p>
               {orgRequired && orgRequiredSince ? (

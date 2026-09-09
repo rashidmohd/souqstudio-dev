@@ -58,8 +58,8 @@ export default function Error({
       <div className="flex max-w-sm flex-col gap-1">
         <h1 className="font-display text-title text-primary">That did not load</h1>
         <p className="font-ui text-body text-secondary">
-          Something went wrong on our side. Nothing you saved has been lost —
-          try again, and if it keeps happening the code below will help support
+          Something went wrong on our side. Nothing you saved has been lost.
+          Try again, and if it keeps happening the code below will help support
           find it.
         </p>
       </div>

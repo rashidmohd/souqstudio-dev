@@ -249,7 +249,7 @@ function Chips({ bookId, offer }: Props) {
     <Section title="Chips">
       {offer.chips.length === 0 && !open ? (
         <p className="font-ui text-body-sm text-muted">
-          Small flashes on the card — “Limit 2”, “Product of UAE”.
+          Small flashes on the card: “Limit 2”, “Product of UAE”.
         </p>
       ) : null}
 
@@ -397,7 +397,7 @@ function Footnotes({ bookId, offer }: Props) {
     <Section title="Notes">
       {offer.footnotes.length === 0 && !open ? (
         <p className="font-ui text-body-sm text-muted">
-          Small print — “While stocks last”. Numbered automatically when the book
+          Small print: “While stocks last”. Numbered automatically when the book
           is drawn.
         </p>
       ) : null}

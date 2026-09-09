@@ -162,7 +162,7 @@ export function ShopAccessField({
                   </span>
                   <span className="truncate font-ui text-body-sm text-secondary">
                     {person.name ? person.email : null}
-                    {isOwner ? 'Owner — has every shop' : null}
+                    {isOwner ? 'Owner: has every shop' : null}
                   </span>
                 </span>
               </label>

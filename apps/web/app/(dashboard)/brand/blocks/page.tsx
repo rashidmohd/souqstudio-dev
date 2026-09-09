@@ -94,7 +94,7 @@ function Header() {
       </Link>
       <h1 className="font-display text-title text-primary">Blocks</h1>
       <p className="font-ui text-body text-secondary">
-        The building blocks your offer books are made of — an offer card, a
+        The building blocks your offer books are made of: an offer card, a
         header, a footer. Drawn in your own colours and typefaces.
       </p>
     </div>

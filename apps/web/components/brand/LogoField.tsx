@@ -164,7 +164,7 @@ export function LogoField({
             {status === 'processing' ? (
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Removing the background — you can carry on.
+                Removing the background. You can carry on.
               </>
             ) : status === 'ready' ? (
               <>

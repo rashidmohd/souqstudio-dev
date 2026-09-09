@@ -235,7 +235,7 @@ function StyleDialog({
             // Stated, never blocked: it is the shop's brand.
             hint={
               italicIsSynthetic(draft)
-                ? `${draft.family} has no italic — this will be slanted`
+                ? `${draft.family} has no italic, so this will be slanted`
                 : undefined
             }
           />

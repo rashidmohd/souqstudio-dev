@@ -81,7 +81,7 @@ export function ShopList({
       <EmptyState
         kind="empty"
         title="No shops yet"
-        body="A shop is one branch — its own offer books, its own team, and the brand it inherits from you."
+        body="A shop is one branch: its own offer books, its own team, and the brand it inherits from you."
         action={{ label: 'Add your first shop', onClick: () => setAdding(true) }}
       />
     )

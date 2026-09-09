@@ -142,8 +142,8 @@ export function ElementProperties({
           value={element.fit ?? 'contain'}
           hint="A packshot fits inside. A background photo fills and crops."
           options={[
-            { value: 'contain', label: 'Fit inside — nothing is cut off' },
-            { value: 'cover', label: 'Fill the box — the edges crop' },
+            { value: 'contain', label: 'Fit inside, nothing is cut off' },
+            { value: 'cover', label: 'Fill the box, the edges crop' },
           ]}
           onChange={(event) =>
             onChange({ ...element, fit: event.target.value as 'contain' | 'cover' })
@@ -299,9 +299,9 @@ function PriceMarkFields({
       <p className="flex items-start gap-2 rounded-control bg-sand-tint p-3 font-ui text-body-sm text-secondary">
         <Lock className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
         <span>
-          How the number itself is set — the raised fils, the currency, the way
-          it reads in Arabic — stays ours, so every price in every book is read
-          the same way. Everything else about it is yours.
+          How the number itself is set stays ours: the raised fils, the currency,
+          the way it reads in Arabic. Every price in every book is read the
+          same way. Everything else about it is yours.
         </span>
       </p>
     </>
@@ -777,7 +777,7 @@ function purpose(element: BlockElement): string {
     case 'priceMark':
       return 'The offer price, the was-price and the badge, as one piece.'
     case 'chip':
-      return 'The promo tier — “Half price”, “2 for 1”. Set per offer.'
+      return 'The promo tier: “Half price”, “2 for 1”. Set per offer.'
     case 'logo':
       return 'Your logo, from the brand kit.'
     case 'shape':

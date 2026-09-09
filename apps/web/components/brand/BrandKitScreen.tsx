@@ -179,7 +179,7 @@ export function BrandKitScreen({
       setFeedback({
         section: 'colors',
         kind: 'error',
-        message: 'Give every colour a name — it is how you will recognise it later.',
+        message: 'Give every colour a name. It is how you will recognise it later.',
       })
       return
     }
@@ -295,7 +295,7 @@ export function BrandKitScreen({
           <BrandCard
             icon={Shapes}
             title="Blocks"
-            description="The building blocks your offer books are made of — an offer card, a header, a footer."
+            description="The building blocks your offer books are made of: an offer card, a header, a footer."
             state={<><span data-figure>{blocks.length}</span> blocks</>}
             note={null}
           >
@@ -360,7 +360,7 @@ export function BrandKitScreen({
 
 function sourceNote(level: BrandLevel): string {
   return level === 'org'
-    ? 'From your organization — changing it changes every shop that inherits it.'
+    ? 'From your organization. Changing it changes every shop that inherits it.'
     : 'Set on this shop.'
 }
 

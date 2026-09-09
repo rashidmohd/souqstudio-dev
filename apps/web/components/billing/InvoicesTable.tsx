@@ -49,7 +49,7 @@ export function InvoicesTable({ invoices }: { invoices: InvoiceSummary[] }) {
 
   const rows: Row[] = invoices.map((invoice) => ({
     id: invoice.id,
-    number: invoice.number ?? '—',
+    number: invoice.number ?? '-',
     date: formatDate(invoice.createdAt),
     // Thin space between the code and the amount, per the currency rule.
     // Written as the escape rather than typed: a literal one is invisible in

@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     }
     return fail(
       'wrong_code',
-      `That code is not right. Check your app and try again — ${attemptsRemaining} tries left.`,
+      `That code is not right. Check your app and try again. ${attemptsRemaining} tries left.`,
       400
     )
   }

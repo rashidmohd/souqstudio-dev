@@ -92,8 +92,8 @@ export default async function ShopSettingsPage({
           {shop.archivedAt
             ? 'This shop has been removed. Its offer books are archived.'
             : shop.isActive
-              ? 'Active — making offer books.'
-              : 'Paused — its data is kept and it makes nothing new.'}
+              ? 'Active: making offer books.'
+              : 'Paused: its data is kept and it makes nothing new.'}
         </p>
       </div>
 

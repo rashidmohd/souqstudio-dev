@@ -565,6 +565,26 @@ Skip "successfully", "please", "simply", "just", "easy". Errors say what happene
 
 Shop owners are frequently working in their second or third language. Short sentences beat clever ones.
 
+**No em dashes in interface copy.** Not in headings, body text, hints, labels, option
+labels, empty states, toasts, validation messages, error strings that reach a screen, or
+email templates. An em dash asks the reader to hold a clause open, which is exactly the
+demand short sentences are meant to remove, and it reads as machine-written. Recast
+instead:
+
+| Instead of | Write |
+| --- | --- |
+| `Nobody is locked out — they are sent here to set it up.` | Two sentences. `Nobody is locked out. They are sent here to set it up.` |
+| `The building blocks your offer books are made of — an offer card, a header.` | A colon, when what follows is a list or a definition. `…are made of: an offer card, a header.` |
+| `Leaflet — A4` | Parentheses, for a qualifier on a label. `Leaflet (A4)` |
+| `Excel files are not supported yet — save as CSV first.` | A conjunction. `Excel files are not supported yet, so save as CSV first.` |
+| `Fit inside — nothing is cut off` | A comma, for a short trailing gloss. `Fit inside, nothing is cut off` |
+
+Prefer the full stop. If a sentence needs a dash to hold together, it is two sentences.
+
+En dashes are allowed for numeric ranges only (`2–4 weeks`). A missing value in a table
+cell is a plain hyphen, not a dash. This rule is about copy, not code: comments, test
+names and log lines are unaffected.
+
 ## Known gaps
 
 Raise these rather than inventing values:
