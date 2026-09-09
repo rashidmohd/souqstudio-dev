@@ -1037,3 +1037,76 @@ merge cannot be relied on to know that `w-pane-start` and `w-tool-rail` conflict
 
 **Still not opened in a browser.** Four entries in a row now, and this one is
 entirely about how things look and how a pointer behaves.
+
+---
+
+## 12. The properties pane was overflowing, and the cause was one flex item — 9 September
+
+Four more from the screen: the gradient control still reads badly, *"right window
+overflow and a scroll appearing"*, the two bars of chrome over the canvas should
+be one card with a dropdown, and the layer list still is not collapsible.
+
+### The overflow, which was also three other bugs
+
+**One flex item was setting the minimum width of the whole pane.** The eight
+direction segments want about 330px in a row; `--sq-pane-end` is 320 with 288
+inside it. A flex item does not shrink below its content — `min-width: auto` is
+the default — so the pane's content box grew to 330, a horizontal scrollbar
+appeared, and *everything right-aligned in the panel went off the edge with it*.
+
+That one fact explains three separate complaints:
+
+- The opacity **slider looked missing**. It was there. Its readout is
+  right-aligned and its thumb was at 100%, so both sat in the overflowed strip.
+- The **remove button was cut to "Rem"**, for the same reason.
+- The **scrollbar** was the symptom the owner actually named, and it was the only
+  one pointing at the cause.
+
+The `overflow-x-auto` wrapper that was supposed to contain the row could not: a
+scroll container still reports its content's min-width to the flex layout unless
+it is told it may shrink. The row is a 4×2 grid inside the same bordered shell
+now — still one control, and it has no min-width to impose. `flex-wrap` was tried
+first and breaks six and two at this width, which looks like a mistake rather
+than a layout.
+
+**Worth generalising.** Any control wider than ~288px placed directly in the
+properties pane will do this again, and it will present as something unrelated
+going missing on the right-hand side rather than as a width problem.
+
+### The gradient control
+
+Beyond the overflow: the handles were `--sq-swatch` at 28px on a 48px bar, which
+read as swatches parked on the ramp rather than as handles in it — 20px now. The
+two-line instruction under the bar is one short line. And the colour rows now say
+**which stop they edit**: without that they are three rows of swatches with no
+stated subject, and an owner clicks one, sees a colour change somewhere on the
+bar, and has to work out which handle moved by watching.
+
+### One card at the top
+
+The shape picker floated on the dark surround above a separate pill of tools —
+two bars of chrome over one canvas. They answer the two halves of one question:
+what am I designing, and what am I doing to it.
+
+`CanvasToolbar` takes a `leading` slot and the shape control goes in it: a
+`Select` for a block placed once, the layout tabs for a repeating one. A card
+rather than a pill, because a pill is the shape of a row of icons and this row
+now starts with a field. It is `sticky` so a tall card scrolling under it does
+not take the tools off the screen.
+
+**`ArrangementTabs` had to lose `text-inverse`**, which existed for the dark
+surround and would have been white on white the moment the tabs moved onto a
+light card. Nothing would have failed — the tabs would simply have been invisible,
+which is this codebase's most repeated failure mode written in a different colour.
+
+### The layer list toggle nobody found
+
+The toggle from §11 works; it is at the bottom of the tool rail, which is where
+the *reopen* control has to live and is not where anyone looks to close a panel.
+So the heading carries one too. A close control belongs on the thing being
+closed; the rail keeps its copy because once the pane is gone, a control inside
+it is gone with it.
+
+**Still not opened in a browser.** Five entries now. Every finding in this one
+came from a screenshot, and the overflow — the single cause of three of them —
+was invisible to typecheck, lint, 694 tests, the build and `check:classes` alike.

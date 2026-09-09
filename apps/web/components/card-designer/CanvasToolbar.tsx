@@ -29,9 +29,17 @@ import { Figure } from '@/components/ui/figure'
  * Alignment is **logical** — start and end rather than left and right — so the
  * same button means the same thing in an Arabic edition. That is the rule the
  * whole artboard follows and this is not the place to break it.
+ *
+ * **The canvas shape sits in here too, in `leading`.** It used to be a separate
+ * row floating above this one on the dark surround — two bars of chrome over one
+ * canvas, and the owner asked for one. They are the same kind of thing: what am
+ * I designing, and what am I doing to it. A card rather than a pill now, because
+ * a pill is the shape of a row of icons and this row starts with a field.
  */
 
 type Props = {
+  /** The canvas shape control — a shape picker, or the layout tabs. */
+  leading?: React.ReactNode
   count: number
   zoom: number
   disabled: boolean
@@ -51,6 +59,7 @@ const ALIGNMENTS: { how: Alignment; label: string; icon: typeof Group; rotate?: 
 ]
 
 export function CanvasToolbar({
+  leading,
   count,
   zoom,
   disabled,
@@ -63,8 +72,15 @@ export function CanvasToolbar({
   const canDistribute = !disabled && count >= 3
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-pill bg-surface px-2 py-1">
-      <div className="flex items-center gap-1" role="group" aria-label="Align">
+    <div className="flex flex-wrap items-end gap-2 rounded-card bg-surface px-2 py-2">
+      {leading === undefined ? null : (
+        <>
+          {leading}
+          <Divider />
+        </>
+      )}
+
+      <div className="flex items-center gap-1 pb-1" role="group" aria-label="Align">
         {ALIGNMENTS.map((entry) => (
           <Button
             key={entry.how}
@@ -104,7 +120,7 @@ export function CanvasToolbar({
         </Button>
       </div>
 
-      <span className="h-4 w-px bg-border-subtle" aria-hidden="true" />
+      <Divider />
 
       <Button
         type="button"
@@ -113,6 +129,7 @@ export function CanvasToolbar({
         aria-label="Group"
         disabled={!canAlign}
         onClick={onGroup}
+        className="mb-1"
       >
         <Group className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </Button>
@@ -123,13 +140,14 @@ export function CanvasToolbar({
         aria-label="Ungroup"
         disabled={disabled || count === 0}
         onClick={onUngroup}
+        className="mb-1"
       >
         <Ungroup className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </Button>
 
-      <span className="h-4 w-px bg-border-subtle" aria-hidden="true" />
+      <Divider />
 
-      <div className="flex items-center gap-1" role="group" aria-label="Zoom">
+      <div className="flex items-center gap-1 pb-1" role="group" aria-label="Zoom">
         <Button
           type="button"
           variant="ghost"
@@ -160,3 +178,8 @@ export function CanvasToolbar({
     </div>
   )
 }
+
+/** Between groups. `self-center` so it does not stretch with an `items-end` row. */
+const Divider = () => (
+  <span className="h-4 w-px self-center bg-border-subtle" aria-hidden="true" />
+)

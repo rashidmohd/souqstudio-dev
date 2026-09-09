@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Copy, Plus, Redo2, TriangleAlert, Undo2 } from 'lucide-react'
+import { ArrowLeft, Copy, PanelLeftClose, Plus, Redo2, TriangleAlert, Undo2 } from 'lucide-react'
 import type { Alignment, BlockProblem } from '@souqstudio/engine'
 import type { Arrangement, BlockElement, BrandKit } from '@souqstudio/types'
 import { addElement, alignBoxes, reorderElement, validateBlock } from '@souqstudio/engine'
@@ -10,7 +10,7 @@ import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { FREE_ELEMENTS } from '@/lib/block-elements'
 import { assetResolver } from '@/lib/block-assets'
 import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
-import { Segmented } from '@/components/ui/segmented'
+import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { BlockArtboard } from '@/components/card-designer/BlockArtboard'
 import { BlockProperties } from '@/components/card-designer/BlockProperties'
@@ -437,9 +437,28 @@ export function DesignerShell({
             />
 
             <section className="flex flex-col gap-2">
-              <h2 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">
-                Layers
-              </h2>
+              {/*
+                **The heading is the toggle, and the rail carries the other
+                half.** A close control belongs on the thing being closed —
+                that is where anyone looks for it, and the rail button alone was
+                a way out nobody found. The rail keeps its copy because once
+                this pane is gone, a control inside it is gone with it.
+              */}
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">
+                  Layers
+                </h2>
+                <button
+                  type="button"
+                  aria-label="Hide layers"
+                  aria-expanded={layersOpen}
+                  title="Hide layers"
+                  onClick={() => setLayersOpen(false)}
+                  className="hidden rounded-control p-1 text-secondary hover:bg-stone-100 lg:block"
+                >
+                  <PanelLeftClose className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              </div>
               <LayerList
                 elements={elements}
                 selectedIds={store.selectedIds}
@@ -464,26 +483,32 @@ export function DesignerShell({
         </CanvasDrawer>
 
         <div ref={stage} className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
-          {repeats ? (
-            <ArrangementTabs />
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-ui text-body-sm text-inverse">Designing for</span>
-              <Segmented
-                label="Canvas shape"
-                value={pageShape}
-                className="bg-surface"
-                options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
-                  value: shape,
-                  label: PAGE_SHAPES[shape].label,
-                }))}
-                onChange={setPageShape}
-              />
-            </div>
-          )}
-
-          {editable ? (
+          {/*
+            **One card, and it stays at the top.** The shape picker used to float
+            on the dark surround above a second pill of tools — two bars of
+            chrome over one canvas. They answer the two halves of the same
+            question, so they are one control now, and `sticky` keeps it there
+            when a tall card scrolls under it rather than taking the tools off
+            the screen with it.
+          */}
+          <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center justify-center gap-2">
             <CanvasToolbar
+              leading={
+                repeats ? (
+                  <ArrangementTabs />
+                ) : (
+                  <Select
+                    label="Designing for"
+                    className="w-field-select"
+                    value={pageShape}
+                    options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
+                      value: shape,
+                      label: PAGE_SHAPES[shape].label,
+                    }))}
+                    onChange={(event) => setPageShape(event.target.value as PageShape)}
+                  />
+                )
+              }
               count={store.selectedIds.length}
               zoom={store.zoom}
               disabled={!editable}
@@ -492,7 +517,7 @@ export function DesignerShell({
               onUngroup={store.ungroupSelected}
               onZoom={store.setZoom}
             />
-          ) : null}
+          </div>
 
           <figure
             className="flex w-full flex-col items-center gap-2"
@@ -649,6 +674,8 @@ function ArrangementTabs() {
     }))
   }
 
+  // On a light card since the toolbar absorbed it — `text-inverse` here was
+  // for the dark canvas surround and would now be white on white.
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div role="tablist" aria-label="Layouts" className="flex flex-wrap items-center gap-1">
@@ -661,8 +688,8 @@ function ArrangementTabs() {
             onClick={() => select(i)}
             className={
               i === index
-                ? 'rounded-pill bg-surface px-3 py-1 font-ui text-body-sm text-primary'
-                : 'rounded-pill px-3 py-1 font-ui text-body-sm text-inverse hover:bg-stone-800'
+                ? 'rounded-pill bg-selected-bg px-3 py-1 font-ui text-body-sm text-selected-fg'
+                : 'rounded-pill px-3 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100'
             }
           >
             {shapeName(item)}
@@ -671,7 +698,7 @@ function ArrangementTabs() {
       </div>
 
       {editable ? (
-        <Button type="button" variant="ghost" onClick={add} className="text-inverse">
+        <Button type="button" variant="ghost" onClick={add}>
           <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Add a layout
         </Button>

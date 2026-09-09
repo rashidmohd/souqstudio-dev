@@ -421,15 +421,15 @@ function GradientEditor({
               }}
               className={
                 position === index
-                  ? 'absolute size-swatch cursor-grab rounded-control border-2 border-border-focus'
-                  : 'absolute size-swatch cursor-grab rounded-control border-hairline border-stone-0'
+                  ? 'absolute size-icon-lg cursor-grab rounded-control border-2 border-border-focus'
+                  : 'absolute size-icon-lg cursor-grab rounded-control border-hairline border-stone-0'
               }
             />
           ))}
         </div>
 
         <p className="font-ui text-body-sm text-muted">
-          Drag a handle to move it. Click the bar to add one, arrow keys to nudge.
+          Drag a handle. Click the bar to add one.
         </p>
       </div>
 
@@ -439,19 +439,42 @@ function GradientEditor({
         of these, and the bar above shows the answer immediately. The document
         stores any angle 0–360, so a value set elsewhere survives a round trip
         even though this offers eight of them.
+
+        **Four across and two down, and that fixed the whole panel.** Eight
+        segments in a row want about 330px; the properties pane is 320 with 288
+        inside it. A flex item will not shrink below its content, so the row was
+        setting the pane's minimum width and every right-aligned thing in it —
+        a slider's readout, the remove button — was pushed off the edge with a
+        horizontal scrollbar underneath.
+
+        A grid rather than `flex-wrap`, which at this width breaks six and two.
+        Still one bordered shell, so it is still one control.
       */}
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
-        <Segmented
-          label="Direction"
-          value={String(value.angle)}
-          options={DIRECTIONS.map((direction) => ({
-            value: String(direction.angle),
-            label: direction.label,
-            icon: direction.icon,
-          }))}
-          onChange={(next) => write({ angle: Number(next) })}
-        />
-      </div>
+      <Segmented
+        label="Direction"
+        className="grid w-full grid-cols-4 rounded-control"
+        value={String(value.angle)}
+        options={DIRECTIONS.map((direction) => ({
+          value: String(direction.angle),
+          label: direction.label,
+          icon: direction.icon,
+        }))}
+        onChange={(next) => write({ angle: Number(next) })}
+      />
+
+      {/*
+        **Says which stop these rows are editing.** Without it the swatches under
+        a gradient are three rows of colours with no stated subject — an owner
+        clicks one and a colour changes somewhere on the bar, and which handle
+        moved is something they have to work out by watching.
+      */}
+      <p className="font-ui text-label font-medium text-primary">
+        Stop {index + 1} of {stops.length}
+        <span className="font-ui text-body-sm font-normal text-muted">
+          {' '}
+          · {Math.round(active.at * 100)}% along
+        </span>
+      </p>
 
       <FlatPicker
         value={active.color}
@@ -474,7 +497,7 @@ function GradientEditor({
         onValueChange={(next) => setStop(index, { opacity: next / 100 })}
       />
 
-      <div className="flex justify-end">
+      <div className="flex">
         <Button
           type="button"
           variant="ghost"
