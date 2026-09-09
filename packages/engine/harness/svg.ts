@@ -188,7 +188,10 @@ function shape(
       : `<defs><linearGradient id="g-${element.id}"` +
         ` x1="${paint.x1}" y1="${paint.y1}" x2="${paint.x2}" y2="${paint.y2}">` +
         paint.stops
-          .map((stop) => `<stop offset="${stop.at}" stop-color="${stop.css}"/>`)
+          .map(
+            (stop) =>
+              `<stop offset="${stop.at}" stop-color="${stop.css}" stop-opacity="${stop.opacity}"/>`
+          )
           .join('') +
         `</linearGradient></defs>`
   const fill = paint.kind === 'flat' ? paint.css : `url(#g-${element.id})`

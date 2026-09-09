@@ -65,7 +65,8 @@ export type Paint =
       y1: number
       x2: number
       y2: number
-      stops: { at: number; css: string }[]
+      /** `opacity` is always present here — the document's default resolved. */
+      stops: { at: number; css: string; opacity: number }[]
     }
 
 /**
@@ -125,6 +126,9 @@ export function resolvePaint(
     .map((stop) => ({
       at: Math.min(1, Math.max(0, stop.at)),
       css: resolveColor(stop.color, token, palette),
+      // Defaulted here rather than at every renderer, so "no opacity written"
+      // and "opacity 1" cannot mean different things in two painters.
+      opacity: Math.min(1, Math.max(0, stop.opacity ?? 1)),
     }))
 
   if (stops.length === 0) return { kind: 'flat', css: token('ink') }

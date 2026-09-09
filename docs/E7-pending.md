@@ -882,3 +882,80 @@ keeps happening, a one-line env-var escape hatch in `next.config.mjs` is the fix
 **Still not opened in a browser.** Typecheck, lint, 746 tests and the class check
 all pass, and the build compiles every route — but §8's own lesson is that those
 four things were green for every defect a browser found in ten minutes.
+
+---
+
+## 10. The gradient control was a form, and the model had no alpha — 9 September
+
+The owner's verdict on §9: *"we don't have transparency in the colours, we need
+rgba or something, and the interface is poor."* Both right, and the second one is
+the same mistake §8 already recorded — a labelled list of fields is a form, and a
+form is what was rejected the first time.
+
+### Alpha, and why the six-digit rule bends here and nowhere else
+
+The rule in `block-document.ts` was **"alpha belongs to the element's
+`opacity`"**, and its reasoning is sound: a flat fill at half alpha and an element
+at half opacity are the same picture, so two controls saying one thing is two
+that eventually disagree.
+
+**That reasoning stops at the edge of a gradient.** A ground that fades out is
+opaque at one end and gone at the other. Element opacity fades the whole thing
+uniformly and cannot express it, so the missing feature was not a variation on an
+existing control — it was a design nothing in the model could describe. Fading a
+ground out is also not an exotic ask; it is most of what people reach for
+gradients to do.
+
+So `GradientStop` carries an `opacity`, and the six-digit hex rule is untouched
+everywhere else — including *inside* a gradient, where a stop's colour is still
+six digits.
+
+- **A field, not `#RRGGBBAA`.** Eight-digit hex would carry alpha only on a
+  literal. A stop names its colour the same three ways everything else does, so
+  "fade my brand's primary to nothing" — the exact thing owners want — would be
+  the one gradient the palette could not express, and the escape hatch would
+  become the only route to a common design.
+- **It maps to SVG's own `stop-opacity`**, so the painter carries colour and
+  alpha as the two separate things they already are. `resolvePaint` defaults it
+  once, so "not written" and "1" cannot come to mean different things in two
+  renderers.
+- **The CSS preview is the only place they get combined**, because a CSS gradient
+  has nowhere to put alpha except inside the colour. That conversion lives with
+  the control and never touches the artboard.
+
+### The control: on the ramp, not beside it
+
+The first version had a row of swatches disconnected from the preview, a
+percentage typed into a number field, and an angle typed into another. Three
+fields describing a picture that was sitting right above them.
+
+- **Handles on the bar, dragged to move.** The position of a stop is a spatial
+  fact and a spatial fact should not be typed. Click the bar to add one; arrow
+  keys nudge, because a control that only answers to a pointer is one that half
+  the people using it cannot reach.
+- **The stops are held in document order, not sorted.** Sorting on every write
+  renumbers them mid-drag, so dragging one past its neighbour would leave the
+  pointer holding a different stop — the handle jumping out from under the
+  cursor. `resolvePaint` sorts when it paints, which is the only place order
+  matters. This was a bug waiting in the first version's `[...stops].sort()`.
+- **A checkerboard behind the ramp**, or a stop at zero opacity reads as white
+  and the owner cannot tell transparent from the colour of the paper.
+- **Eight directions instead of a degree field.** An angle in degrees is a number
+  an owner has to imagine. The arrows are physical and deliberately do *not*
+  mirror in an Arabic interface — `Segmented` has a `mirror` flag for glyphs that
+  point somewhere and it is deliberately not set, because the angle is measured
+  against the artboard and an owner who aimed a run at the bottom-right corner
+  meant that corner. The document still stores any angle 0–360, so a value set
+  elsewhere survives a round trip.
+- **No new control was invented.** Opacity is a percent `Input`, exactly as the
+  element's own opacity already is in `Appearance`; the direction picker is the
+  existing `Segmented`. §8 ended with four hand-rolled segmented controls being
+  collapsed into one, and adding a fifth one-off here to avoid reusing two
+  existing ones would have been that mistake with the ink still wet.
+
+**Still not opened in a browser** — and this is now the third entry in a row
+ending that way, on a control whose entire substance is pointer behaviour. The
+drag, the pointer capture, the click-to-add and the checkerboard are precisely
+the class of thing every test here is blind to. Typecheck, lint, 429 web tests,
+265 engine tests and `check:classes` at 65 utilities all pass, and none of them
+has ever seen a handle move.

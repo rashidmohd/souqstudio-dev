@@ -60,6 +60,13 @@ const familySchema = z.enum(['headline', 'display', 'price', 'body'])
  * people typing CSS and this value is written by a colour picker; alpha belongs
  * to the element's `opacity`, where it is one control an owner can find rather
  * than two ways of saying the same thing that disagree.
+ *
+ * **One exception, and it is on the gradient stop rather than here** — a stop
+ * carries its own `opacity`. The rule above holds because a flat colour at half
+ * alpha and an element at half opacity are the same picture. That stops being
+ * true across a run: a ground that fades out is opaque at one end and gone at
+ * the other, and no element-wide opacity can say it. The exception is granted
+ * exactly where the reasoning runs out and nowhere else.
  */
 const flatColorSchema = z.discriminatedUnion('from', [
   z.object({ from: z.literal('role'), ref: tokenRefSchema }),
@@ -84,6 +91,12 @@ const flatColorSchema = z.discriminatedUnion('from', [
 const gradientStopSchema = z.object({
   at: z.number().min(0).max(1),
   color: flatColorSchema,
+  /**
+   * The one place alpha is accepted. See `GradientStop` for why it is a field
+   * rather than an eight-digit hex, and why the six-digit rule still holds
+   * everywhere else.
+   */
+  opacity: z.number().min(0).max(1).optional(),
 })
 
 const colorSchema = z.union([

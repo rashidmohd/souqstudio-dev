@@ -414,6 +414,38 @@ describe('gradients', () => {
     expect(usesOnlyRoles(roles!)).toBe(false)
   })
 
+  it('takes a per-stop opacity — the one place alpha exists', () => {
+    expect(
+      toArrangements(
+        withFill(
+          gradient([
+            { at: 0, color: { from: 'role', ref: 'primary' } },
+            { at: 1, color: { from: 'role', ref: 'primary' }, opacity: 0 },
+          ])
+        )
+      )
+    ).not.toBeNull()
+  })
+
+  it('refuses an opacity outside 0 to 1', () => {
+    expect(
+      toArrangements(withFill(gradient([{ at: 0, color: two[0]!.color, opacity: 2 }, two[1]])))
+    ).toBeNull()
+  })
+
+  /**
+   * Alpha on a *flat* colour is still refused. A colour at half alpha and an
+   * element at half opacity are the same picture, and two controls that say the
+   * same thing are two that eventually disagree — the rule only bends where an
+   * element-wide opacity genuinely cannot express the design.
+   */
+  it('still refuses an eight-digit hex, inside a gradient and out', () => {
+    expect(toArrangements(withFill({ from: 'hex', hex: '#143CD2FF' }))).toBeNull()
+    expect(
+      toArrangements(withFill(gradient([{ at: 0, color: { from: 'hex', hex: '#143CD2FF' } }, two[1]])))
+    ).toBeNull()
+  })
+
   it('reads an out-of-order document rather than refusing it', () => {
     // An owner drags one stop past another and the array stops being sorted.
     // Sorting belongs to `resolvePaint`, which every renderer goes through.

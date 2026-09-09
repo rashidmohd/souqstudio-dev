@@ -217,6 +217,25 @@ export type FlatColor =
 export interface GradientStop {
   at: number
   color: FlatColor
+  /**
+   * 0 to 1, opaque when omitted.
+   *
+   * **This is the one place alpha exists, and the six-digit hex rule still
+   * stands everywhere else.** That rule's reason — alpha belongs to the
+   * element's `opacity`, where it is one control an owner can find rather than
+   * two that disagree — is true of a flat fill, where a colour at half alpha
+   * and an element at half opacity are the same picture. It is false here: a
+   * ground that fades *out* across the card is opaque at one end and gone at
+   * the other, and no element-wide opacity can say that.
+   *
+   * A field rather than an eight-digit hex, because a stop names its colour the
+   * same three ways everything else does. `#RRGGBBAA` would carry alpha only on
+   * a literal, so "fade my brand's primary to nothing" — the thing owners
+   * actually reach for — would be the one gradient the palette could not
+   * express, and the escape hatch would become the only way to build a common
+   * design. It maps to SVG's own `stop-opacity`.
+   */
+  opacity?: number | undefined
 }
 
 /**

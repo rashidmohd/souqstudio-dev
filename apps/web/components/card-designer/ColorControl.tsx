@@ -1,14 +1,27 @@
 'use client'
 
 import * as React from 'react'
-import { Check, Palette, Plus, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowDownLeft,
+  ArrowDownRight,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpLeft,
+  ArrowUpRight,
+  Check,
+  Palette,
+  Trash2,
+} from 'lucide-react'
 import type { BrandColor, ColorValue, FlatColor, GradientStop, TokenRef } from '@souqstudio/types'
 import { resolveColor } from '@souqstudio/engine'
 import { ColorField } from '@/components/ui/color-field'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
 import { MAX_GRADIENT_STOPS } from '@/lib/block-document'
-import { NEW_COLOR_HEX } from '@/lib/color'
+import { NEW_COLOR_HEX, fromHex } from '@/lib/color'
 
 /**
  * Picking a colour in the block designer.
@@ -71,6 +84,25 @@ const MECHANICS: { ref: TokenRef; label: string }[] = [
   { ref: 'ink', label: 'Text' },
   { ref: 'inkMuted', label: 'Muted' },
 ]
+
+/**
+ * The eight runs on offer, as directions on the card rather than as degrees.
+ *
+ * These are physical and do **not** mirror in an Arabic edition: the angle is
+ * measured against the artboard and an owner who pointed a gradient at the
+ * bottom-right corner meant that corner. Naming them "down and right" rather
+ * than "down and end" is the honest version of that.
+ */
+const DIRECTIONS = [
+  { angle: 0, label: 'Right', icon: ArrowRight },
+  { angle: 45, label: 'Down and right', icon: ArrowDownRight },
+  { angle: 90, label: 'Down', icon: ArrowDown },
+  { angle: 135, label: 'Down and left', icon: ArrowDownLeft },
+  { angle: 180, label: 'Left', icon: ArrowLeft },
+  { angle: 225, label: 'Up and left', icon: ArrowUpLeft },
+  { angle: 270, label: 'Up', icon: ArrowUp },
+  { angle: 315, label: 'Up and right', icon: ArrowUpRight },
+] as const
 
 /**
  * The gradient an owner gets when they switch a flat fill to one.
@@ -241,18 +273,24 @@ function FlatPicker({
 }
 
 /**
- * A gradient, edited one stop at a time.
+ * A gradient, edited on the run itself.
  *
- * **Select a stop, then change it** — the pattern every design tool uses, and
- * the reason is the panel: a full colour picker inlined per stop is three rows
- * of swatches times up to eight stops, which buries the rest of the element's
- * properties under one control. The strip is the selection, the picker below is
- * the edit.
+ * **The first version of this was a form and the owner was right to reject it**
+ * — a row of swatches disconnected from the preview, a percentage typed into a
+ * number field, and an angle typed into another. Every design tool draws the
+ * stops *on* the ramp and lets you drag them, for the good reason that the
+ * position of a stop is a spatial fact and a spatial fact should not be typed.
  *
- * The stops are shown **in the order they run**, sorted here as the renderer
- * sorts them, so dragging one past another does not leave the strip disagreeing
- * with the card. Positions are typed as percentages because that is how a
- * person says where a colour lands; the document stores the fraction.
+ * So: handles on the bar, dragged to move; click the bar to add one; the
+ * selected handle's colour and opacity underneath. Arrow keys move a handle too,
+ * because a control that only answers to a pointer is a control half the people
+ * using it cannot reach.
+ *
+ * **The stops are kept in document order here, not sorted.** Sorting on every
+ * write would renumber them mid-drag — drag one stop past its neighbour and the
+ * index the pointer is holding would suddenly address a different stop, which
+ * reads as the handle jumping out from under the cursor. `resolvePaint` sorts
+ * when it paints, which is the only place order actually matters.
  */
 function GradientEditor({
   value,
@@ -270,100 +308,150 @@ function GradientEditor({
   onChange: (next: ColorValue) => void
 }) {
   const [custom, setCustom] = React.useState(false)
+  const bar = React.useRef<HTMLDivElement | null>(null)
+  const dragging = React.useRef<number | null>(null)
 
-  const stops = [...value.stops].sort((a, b) => a.at - b.at)
-  const index = Math.min(activeStop, stops.length - 1)
+  // **A gradient with no stops cannot be stored** — the schema's floor is two —
+  // so this is only reachable from a document written by something else. It
+  // repairs rather than throws, for the reason a deleted palette entry falls
+  // back to the ink: a panel that crashes is harder to recover from than a
+  // colour that came out wrong, and the owner is one click from fixing it.
+  const stops = value.stops.length === 0 ? seedGradient(undefined).stops : value.stops
+  const index = Math.max(0, Math.min(activeStop, stops.length - 1))
   const active = stops[index]!
-  const css = (stop: GradientStop) => resolveColor(stop.color, token, palette)
 
+  const css = (stop: GradientStop) => resolveColor(stop.color, token, palette)
   const write = (next: Partial<{ angle: number; stops: GradientStop[] }>) =>
     onChange({ ...value, ...next })
+  const setStop = (position: number, patch: Partial<GradientStop>) =>
+    write({ stops: stops.map((stop, at) => (at === position ? { ...stop, ...patch } : stop)) })
+
+  /**
+   * Where along the bar a pointer is, 0 to 1.
+   *
+   * Physical left-to-right even in an Arabic interface. The bar is a picture of
+   * the run rather than a piece of prose, the angle it is showing is measured
+   * against the *card* and does not mirror — see `ColorValue` — so a bar that
+   * flipped with the panel would disagree with the artboard beside it.
+   */
+  const atFrom = (clientX: number): number => {
+    const rect = bar.current?.getBoundingClientRect()
+    if (rect === undefined || rect.width === 0) return 0
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+  }
+
+  const ramp = [...stops]
+    .sort((a, b) => a.at - b.at)
+    .map((stop) => `${withAlpha(css(stop), stop.opacity ?? 1)} ${Math.round(stop.at * 100)}%`)
+    .join(', ')
 
   return (
     <div className="flex flex-col gap-2">
-      {/*
-        The run itself. An inline style rather than a class for the same reason
-        the swatch uses one: it is the owner's data, not a design decision, and
-        no token describes a colour they invented. CSS measures its angle from
-        "up" and the document measures from "along the start edge", so the two
-        differ by a quarter turn — `gradientVector` in the engine is what the
-        card is actually painted from, and this only has to agree with it.
-      */}
-      <div
-        aria-hidden="true"
-        className="h-8 rounded-control border-hairline border-border-subtle"
-        style={{
-          backgroundImage: `linear-gradient(${value.angle + 90}deg, ${stops
-            .map((stop) => `${css(stop)} ${Math.round(stop.at * 100)}%`)
-            .join(', ')})`,
-        }}
-      />
-
-      <div className="flex flex-wrap items-center gap-1">
-        {stops.map((stop, position) => (
-          <Swatch
-            key={position}
-            hex={css(stop)}
-            label={`Stop ${position + 1}, at ${Math.round(stop.at * 100)}%`}
-            selected={position === index}
-            onSelect={() => onActiveStop(position)}
+      <div className="flex flex-col gap-1">
+        {/*
+          The checkerboard, so a stop fading to nothing looks like nothing rather
+          than like white. Built from two stone tokens in an inline style for the
+          same reason the swatch sets its own background: it is showing a value,
+          and there is no utility for "absence of colour".
+        */}
+        <div
+          ref={bar}
+          onPointerDown={(event) => {
+            // A click on the bar itself adds a stop where it landed, taking the
+            // colour already there so the ramp does not change shape — the owner
+            // asked for a handle, not a new colour.
+            if (stops.length >= MAX_GRADIENT_STOPS) return
+            const at = atFrom(event.clientX)
+            const nearest = stops.reduce((best, stop) =>
+              Math.abs(stop.at - at) < Math.abs(best.at - at) ? stop : best
+            )
+            write({ stops: [...stops, { ...nearest, at }] })
+            onActiveStop(stops.length)
+          }}
+          className="relative h-12 cursor-copy overflow-hidden rounded-control border-hairline border-border-subtle"
+          style={{
+            backgroundImage:
+              'repeating-conic-gradient(var(--sq-stone-200) 0% 25%, var(--sq-stone-0) 0% 50%)',
+            backgroundSize: '12px 12px',
+          }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{ backgroundImage: `linear-gradient(${value.angle + 90}deg, ${ramp})` }}
           />
-        ))}
 
-        <button
-          type="button"
-          disabled={stops.length >= MAX_GRADIENT_STOPS}
-          aria-label="Add a stop"
-          title="Add a stop"
-          onClick={() => {
-            // Halfway between the selected stop and the one after it, which is
-            // where an owner clicking "add" is looking. At the end, halfway
-            // between it and the end of the run.
-            const after = stops[index + 1]
-            const at = after === undefined ? Math.min(1, (active.at + 1) / 2) : (active.at + after.at) / 2
-            const next = [...stops, { at, color: active.color }].sort((a, b) => a.at - b.at)
-            onActiveStop(next.findIndex((stop) => stop.at === at))
-            write({ stops: next })
-          }}
-          className="flex size-swatch items-center justify-center rounded-control border-hairline border-border-strong hover:bg-stone-100 disabled:opacity-disabled"
-        >
-          <Plus className="size-4 text-secondary" strokeWidth={1.75} aria-hidden="true" />
-        </button>
+          {stops.map((stop, position) => (
+            <button
+              key={position}
+              type="button"
+              aria-label={`Stop ${position + 1}, ${Math.round(stop.at * 100)} percent along`}
+              aria-pressed={position === index}
+              title={`${Math.round(stop.at * 100)}%`}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+                event.currentTarget.setPointerCapture(event.pointerId)
+                dragging.current = position
+                onActiveStop(position)
+              }}
+              onPointerMove={(event) => {
+                if (dragging.current !== position) return
+                setStop(position, { at: atFrom(event.clientX) })
+              }}
+              onPointerUp={(event) => {
+                event.currentTarget.releasePointerCapture(event.pointerId)
+                dragging.current = null
+              }}
+              onKeyDown={(event) => {
+                const step = event.shiftKey ? 0.1 : 0.01
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                  event.preventDefault()
+                  const delta = event.key === 'ArrowLeft' ? -step : step
+                  setStop(position, { at: Math.min(1, Math.max(0, stop.at + delta)) })
+                }
+              }}
+              // Positioned as a physical percentage for the reason in `atFrom`.
+              // Centred on the bar by transform rather than by a spacing step:
+              // the handle is 28px on a 48px bar, and no step on the scale is
+              // 10px. A value that has to be exact is not a token.
+              style={{
+                left: `${stop.at * 100}%`,
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                backgroundColor: css(stop),
+              }}
+              className={
+                position === index
+                  ? 'absolute size-swatch cursor-grab rounded-control border-2 border-border-focus'
+                  : 'absolute size-swatch cursor-grab rounded-control border-hairline border-stone-0'
+              }
+            />
+          ))}
+        </div>
 
-        <button
-          type="button"
-          // Two is the floor the schema enforces. One stop is a flat colour
-          // written the expensive way, and the way back to a flat colour is the
-          // Solid segment above rather than deleting until it collapses.
-          disabled={stops.length <= 2}
-          aria-label="Remove this stop"
-          title="Remove this stop"
-          onClick={() => {
-            const next = stops.filter((_, position) => position !== index)
-            onActiveStop(Math.max(0, index - 1))
-            write({ stops: next })
-          }}
-          className="flex size-swatch items-center justify-center rounded-control border-hairline border-border-strong hover:bg-stone-100 disabled:opacity-disabled"
-        >
-          <Trash2 className="size-4 text-secondary" strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        <p className="font-ui text-body-sm text-muted">
+          Drag a handle to move it. Click the bar to add one, arrow keys to nudge.
+        </p>
       </div>
 
-      <Input
-        label="Position"
-        type="number"
-        min={0}
-        max={100}
-        step={1}
-        figure
-        hint="Where this colour lands along the run, as a percentage."
-        value={Math.round(active.at * 100)}
-        onChange={(event) => {
-          const at = Math.min(1, Math.max(0, Number(event.target.value) / 100))
-          const next = stops.map((stop, position) => (position === index ? { ...stop, at } : stop))
-          write({ stops: next })
-        }}
-      />
+      {/*
+        Eight directions rather than a number field. An angle typed in degrees is
+        a number an owner has to imagine; the run they want is almost always one
+        of these, and the bar above shows the answer immediately. The document
+        stores any angle 0–360, so a value set elsewhere survives a round trip
+        even though this offers eight of them.
+      */}
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <Segmented
+          label="Direction"
+          value={String(value.angle)}
+          options={DIRECTIONS.map((direction) => ({
+            value: String(direction.angle),
+            label: direction.label,
+            icon: direction.icon,
+          }))}
+          onChange={(next) => write({ angle: Number(next) })}
+        />
+      </div>
 
       <FlatPicker
         value={active.color}
@@ -372,26 +460,57 @@ function GradientEditor({
         token={token}
         custom={custom}
         onCustom={setCustom}
-        onChange={(color) =>
-          write({
-            stops: stops.map((stop, position) => (position === index ? { ...stop, color } : stop)),
-          })
-        }
+        onChange={(color) => setStop(index, { color })}
       />
 
-      <Input
-        label="Angle"
-        type="number"
-        min={0}
-        max={360}
-        step={15}
-        figure
-        hint="Degrees. 0 runs along the card, 90 runs down it."
-        value={value.angle}
-        onChange={(event) => write({ angle: Math.min(360, Math.max(0, Number(event.target.value))) })}
-      />
+      <div className="grid grid-cols-2 items-end gap-3">
+        <Input
+          label="Opacity"
+          type="number"
+          min={0}
+          max={100}
+          step={5}
+          figure
+          hint="Percent"
+          value={Math.round((active.opacity ?? 1) * 100)}
+          onChange={(event) =>
+            setStop(index, {
+              opacity: Math.min(100, Math.max(0, Number(event.target.value))) / 100,
+            })
+          }
+        />
+
+        <Button
+          type="button"
+          variant="ghost"
+          // Two is the floor the schema enforces: one stop is a flat colour
+          // written the expensive way, and the way back to one is the Solid
+          // segment above rather than deleting until it collapses.
+          disabled={stops.length <= 2}
+          onClick={() => {
+            onActiveStop(Math.max(0, index - 1))
+            write({ stops: stops.filter((_, position) => position !== index) })
+          }}
+        >
+          <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          Remove stop
+        </Button>
+      </div>
     </div>
   )
+}
+
+/**
+ * A resolved hex at a given alpha, for the CSS preview only.
+ *
+ * The artboard does not go through this — SVG carries `stop-opacity` as its own
+ * attribute and never needs the colour and the alpha combined. This is here
+ * because a CSS gradient has nowhere to put an alpha except inside the colour.
+ */
+function withAlpha(hex: string, opacity: number): string {
+  const rgb = fromHex(hex)
+  if (rgb === null) return hex
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`
 }
 
 /**

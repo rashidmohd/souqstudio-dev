@@ -131,7 +131,7 @@ export function fillPaint(
           y2={resolved.y2}
         >
           {resolved.stops.map((stop, index) => (
-            <stop key={index} offset={stop.at} stopColor={stop.css} />
+            <stop key={index} offset={stop.at} stopColor={stop.css} stopOpacity={stop.opacity} />
           ))}
         </linearGradient>
       </defs>

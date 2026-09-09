@@ -88,8 +88,8 @@ describe('resolvePaint', () => {
     expect(paint.kind).toBe('gradient')
     if (paint.kind !== 'gradient') return
     expect(paint.stops).toEqual([
-      { at: 0, css: '#123456' },
-      { at: 1, css: '#d4af37' },
+      { at: 0, css: '#123456', opacity: 1 },
+      { at: 1, css: '#d4af37', opacity: 1 },
     ])
   })
 
@@ -115,6 +115,51 @@ describe('resolvePaint', () => {
       '#000000',
       '#ffffff',
     ])
+  })
+
+  /**
+   * The one place alpha exists in the model. A ground that fades out is opaque
+   * at one end and gone at the other, and no element-wide opacity says that —
+   * which is why the six-digit hex rule holds everywhere else and not here.
+   */
+  it('carries a per-stop opacity, defaulted to opaque', () => {
+    const paint = resolvePaint(
+      {
+        from: 'gradient',
+        angle: 90,
+        stops: [
+          { at: 0, color: { from: 'role', ref: 'primary' } },
+          { at: 1, color: { from: 'role', ref: 'primary' }, opacity: 0 },
+        ],
+      },
+      token
+    )
+
+    expect(paint.kind === 'gradient' && paint.stops.map((stop) => stop.opacity)).toEqual([1, 0])
+  })
+
+  it('resolves the default once, so two painters cannot read it differently', () => {
+    const paint = resolvePaint(
+      { from: 'gradient', angle: 0, stops: [{ at: 0, color: { from: 'hex', hex: '#000000' } }, { at: 1, color: { from: 'hex', hex: '#ffffff' } }] },
+      token
+    )
+    // Not `undefined` — every stop the renderers see carries a number.
+    expect(paint.kind === 'gradient' && paint.stops.every((stop) => stop.opacity === 1)).toBe(true)
+  })
+
+  it('clamps an opacity outside the range rather than emitting it', () => {
+    const paint = resolvePaint(
+      {
+        from: 'gradient',
+        angle: 0,
+        stops: [
+          { at: 0, color: { from: 'hex', hex: '#000000' }, opacity: 4 },
+          { at: 1, color: { from: 'hex', hex: '#ffffff' }, opacity: -1 },
+        ],
+      },
+      token
+    )
+    expect(paint.kind === 'gradient' && paint.stops.map((stop) => stop.opacity)).toEqual([1, 0])
   })
 
   it('collapses a one-stop gradient to that colour rather than drawing nothing', () => {
