@@ -355,6 +355,44 @@ describe('the offer shapes', () => {
   })
 })
 
+describe('the offer badge', () => {
+  const withChip = (shape: unknown): unknown => [
+    {
+      aspectMin: 0.5,
+      aspectMax: 1.5,
+      elements: [
+        {
+          id: 'chip',
+          kind: 'chip',
+          box: { start: 0, top: 0, width: 0.4, height: 0.12 },
+          anchor: 'TOP_START',
+          shape,
+        },
+      ],
+    },
+  ]
+
+  it('takes the four shapes a badge may be', () => {
+    for (const shape of ['pill', 'burst', 'ribbon', 'tag']) {
+      expect(toArrangements(withChip(shape))).not.toBeNull()
+    }
+  })
+
+  /**
+   * A corner flash has no interior, an arrow's is a shaft and a star's is a
+   * third of its box. They are shapes, not badges, and the schema says so.
+   */
+  it('refuses the shape-element variants that cannot hold a word', () => {
+    for (const shape of ['flash', 'arrow', 'star', 'rect']) {
+      expect(toArrangements(withChip(shape))).toBeNull()
+    }
+  })
+
+  it('is a pill when it says nothing, which is every block already drawn', () => {
+    expect(toArrangements(withChip(undefined))).not.toBeNull()
+  })
+})
+
 describe('gradients', () => {
   const gradient = (stops: unknown, angle: unknown = 90): unknown => ({
     from: 'gradient',

@@ -13,6 +13,8 @@ import {
   fitPolicy,
   fitText,
   layoutPriceMark,
+  CHIP_FIT,
+  chipPathShape,
   needsEvenOdd,
   placeText,
   resolveColor,
@@ -403,6 +405,7 @@ function Chip({
   // `docs/E6-pending.md`. Stacking downward is direction-neutral: the box itself
   // has already been mirrored by `resolveBlock`, so an Arabic edition puts the
   // whole stack on the correct corner with no second rule.
+  const shape = element.shape ?? 'pill'
   const gap = box.height * 0.25
   const rows: { key: string; label: string; fill: string; align: 'start' | 'end' }[] = []
 
@@ -442,23 +445,38 @@ function Chip({
         // Sized to its own label rather than to the slot: "Limit 2 per customer"
         // and "Halal" are not the same width, and a stack of identical pills
         // padded to the longest reads as a table.
-        const size = Math.min(box.height * 0.52, (box.width * 0.86) / (row.label.length * 0.56))
-        const width = Math.min(
-          box.width * 2,
-          Math.max(box.width * 0.5, ctx.measure(row.label, size, '') + size * 1.6)
-        )
+        //
+        // **How much of the badge the label may use comes from `CHIP_FIT`**, not
+        // from a number here: a word centred in the *bounding box* of a burst
+        // runs over the spikes, and every renderer inventing its own padding is
+        // two badges that disagree about where the text sits.
+        const fit = CHIP_FIT[shape]
+        const size = Math.min(box.height * fit.height, (box.width * fit.width) / (row.label.length * 0.56))
+
+        // A burst holds its proportion, so a wide rect would draw the same burst
+        // with empty space beside it. It stays square and the label shrinks —
+        // the fit ladder's answer everywhere else in this system.
+        const width = fit.square
+          ? box.height
+          : Math.min(
+              box.width * 2,
+              Math.max(box.width * 0.5, ctx.measure(row.label, size, '') + size * 1.6)
+            )
         const x = row.align === 'end' ? box.x + box.width - width : box.x
+        const badge: Rect = { x, y, width, height: box.height }
+        const path = chipPathShape(shape)
 
         return (
           <React.Fragment key={row.key}>
-            <rect
-              x={x}
-              y={y}
-              width={width}
-              height={box.height}
-              rx={box.height / 2}
-              fill={row.fill}
-            />
+            {path === null ? (
+              <rect {...xywh(badge)} rx={box.height / 2} fill={row.fill} />
+            ) : (
+              <path
+                d={shapePath(path, badge, ctx.direction)}
+                fill={row.fill}
+                {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
+              />
+            )}
             <text
               x={x + width / 2}
               y={y + box.height / 2}

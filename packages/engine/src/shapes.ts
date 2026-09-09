@@ -212,3 +212,48 @@ export function shapePath(shape: PathShape, rect: Rect, direction: Direction = '
 
 /** `tag` punches a hole, so it is the one shape that needs the even-odd rule. */
 export const needsEvenOdd = (shape: PathShape): boolean => shape === 'tag'
+
+/**
+ * The shapes an offer badge may take. E7.
+ *
+ * **Four, not nine.** A badge is a container for a word, and most of the shape
+ * kit is a bad one: a corner flash has no interior to speak of, an arrow's is a
+ * shaft, and a star's usable area is about a third of its box — a badge drawn as
+ * a star is a badge whose label is illegible or whose star is enormous. These
+ * four hold a word.
+ */
+export type ChipShape = 'pill' | 'burst' | 'ribbon' | 'tag'
+
+export const CHIP_SHAPES: ChipShape[] = ['pill', 'burst', 'ribbon', 'tag']
+
+/**
+ * How much of a badge its label may use, and whether the badge is square.
+ *
+ * **This table is the shared contract, and that is why it is here.** A badge's
+ * outline comes from `shapePath`, so every renderer already agrees about the
+ * drawing — but a label centred in the *bounding box* of a burst runs straight
+ * over the spikes, and each painter guessing its own padding is two badges that
+ * disagree about where the text sits. The formula stays with the renderer; the
+ * numbers do not.
+ *
+ * `width` and `height` are fractions of the badge's rect. `pill`'s reproduce
+ * exactly what the pill did before it had company, so nothing that already
+ * exists moved.
+ *
+ * `square` is the burst's, and it is the reason a burst badge does not grow
+ * sideways for a long label: a burst holds its proportion, so a wide rect would
+ * draw the same burst with empty space beside it. It stays the slot's height
+ * across and the label shrinks — which is what the fit ladder does everywhere
+ * else in this system.
+ */
+export const CHIP_FIT: Record<ChipShape, { width: number; height: number; square: boolean }> = {
+  pill: { width: 0.86, height: 0.52, square: false },
+  burst: { width: 0.52, height: 0.34, square: true },
+  ribbon: { width: 0.7, height: 0.46, square: false },
+  tag: { width: 0.74, height: 0.48, square: false },
+}
+
+/** The path shape a badge draws as. A pill is a rounded rect, not a path. */
+export function chipPathShape(shape: ChipShape): PathShape | null {
+  return shape === 'pill' ? null : shape
+}

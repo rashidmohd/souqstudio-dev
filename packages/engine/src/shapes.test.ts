@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { Rect } from './geometry'
-import { HOLDS_PROPORTION, PATH_SHAPES, needsEvenOdd, shapePath, type PathShape } from './shapes'
+import {
+  CHIP_FIT,
+  CHIP_SHAPES,
+  HOLDS_PROPORTION,
+  PATH_SHAPES,
+  chipPathShape,
+  needsEvenOdd,
+  shapePath,
+  type PathShape,
+} from './shapes'
 
 /**
  * The shapes are checked by their *properties* rather than against recorded path
@@ -146,5 +155,46 @@ describe('the ribbon', () => {
     const xs = points(shapePath('ribbon', long)).map((point) => point.x)
     const notch = xs.filter((x) => x > 0 && x < 300).sort((a, b) => a - b)[0] ?? 0
     expect(notch).toBeLessThan(long.width / 4)
+  })
+})
+
+describe('badge shapes', () => {
+  it('offers only the four that can hold a word', () => {
+    expect(CHIP_SHAPES).toEqual(['pill', 'burst', 'ribbon', 'tag'])
+  })
+
+  /** A pill is a rounded rect in every target — it never becomes a path. */
+  it('draws a pill as a rect and the rest as paths', () => {
+    expect(chipPathShape('pill')).toBeNull()
+    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'pill')) {
+      expect(chipPathShape(shape)).not.toBeNull()
+    }
+  })
+
+  /**
+   * The pill's numbers are the ones the badge used before it had company.
+   * Changing them would silently restyle every block already drawn.
+   */
+  it('leaves the pill exactly as it was', () => {
+    expect(CHIP_FIT.pill).toEqual({ width: 0.86, height: 0.52, square: false })
+  })
+
+  /**
+   * A burst holds its proportion, so a badge that grew sideways for a long
+   * label would draw the same burst with empty space beside it.
+   */
+  it('makes the burst square and nothing else', () => {
+    expect(CHIP_FIT.burst.square).toBe(true)
+    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'burst')) {
+      expect(CHIP_FIT[shape].square).toBe(false)
+    }
+  })
+
+  /** Every badge shape leaves less room than a pill: they all take a bite. */
+  it('gives every shaped badge a tighter label box than the pill', () => {
+    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'pill')) {
+      expect(CHIP_FIT[shape].width).toBeLessThan(CHIP_FIT.pill.width)
+      expect(CHIP_FIT[shape].height).toBeLessThan(CHIP_FIT.pill.height)
+    }
   })
 })

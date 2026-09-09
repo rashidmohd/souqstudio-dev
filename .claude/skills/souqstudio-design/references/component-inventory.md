@@ -541,6 +541,7 @@ type Segment<T extends string> = {
   icon?: LucideIcon
   glyph?: string         // a typographic mark: `TT`, `Aa`
   mirror?: boolean       // flips in RTL, for glyphs that point somewhere
+  render?: () => React.ReactNode   // a mark this component cannot name
 }
 
 type SegmentedProps<T> = {
@@ -579,6 +580,15 @@ with a mode prop hides exactly that.
 `glyph` exists because the mark for uppercase **is** type. `TT` is what every
 design tool draws and no icon set carries it; an icon of letterforms at 16px is
 a worse version of the letterforms the interface already has.
+
+`render` is the same argument one step further. The block designer's shape picker
+offers a burst, a ribbon and a tag, and the honest mark for a burst is *the
+burst* — drawn by `shapePath`, the function that draws it on the card. Any icon
+set's version would be a second drawing of a shape the engine already knows how
+to draw, which is the divergence `packages/engine` exists to prevent arriving
+through an icon. Reach for it only when the mark is something the product itself
+draws; a picture that merely has no lucide equivalent is a picture, and belongs
+in an icon file.
 
 Not `Tabs`. Tabs navigate between panels and are underlined; this sets a value.
 

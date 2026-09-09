@@ -10,7 +10,13 @@ import type {
   TypeLevel,
 } from '@souqstudio/types'
 import { TYPE_LEVELS } from '@souqstudio/types'
-import { needsEvenOdd, shapePath, type Rect } from '@souqstudio/engine'
+import {
+  chipPathShape,
+  needsEvenOdd,
+  shapePath,
+  type ChipShape,
+  type Rect,
+} from '@souqstudio/engine'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
@@ -177,6 +183,24 @@ export function ElementProperties({
             onChange={(event) =>
               onChange({ ...element, anchor: event.target.value as typeof element.anchor })
             }
+          />
+          {/*
+            **Four shapes, not the nine a shape element gets.** A badge is a
+            container for a word — see `ChipShape`. The marks are drawn through
+            the same path function the badge itself uses, so the button and the
+            card cannot disagree.
+          */}
+          <Segmented
+            label="Badge shape"
+            className="grid w-full grid-cols-4 rounded-control"
+            disabled={disabled}
+            value={element.shape ?? 'pill'}
+            options={CHIP_SHAPE_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+              render: () => <ChipShapePreview shape={option.value} />,
+            }))}
+            onChange={(shape) => onChange({ ...element, shape })}
           />
           <ColorControl
             label="Badge colour"
@@ -362,6 +386,31 @@ function ShapePreview({ variant }: { variant: ShapeVariant }) {
           d={shapePath(variant, PREVIEW)}
           fill="currentColor"
           {...(needsEvenOdd(variant) ? { fillRule: 'evenodd' as const } : {})}
+        />
+      )}
+    </svg>
+  )
+}
+
+const CHIP_SHAPE_OPTIONS: { value: ChipShape; label: string }[] = [
+  { value: 'pill', label: 'Pill' },
+  { value: 'burst', label: 'Burst' },
+  { value: 'ribbon', label: 'Ribbon' },
+  { value: 'tag', label: 'Tag' },
+]
+
+/** A badge outline at button size, drawn by the function the badge uses. */
+function ChipShapePreview({ shape }: { shape: ChipShape }) {
+  const path = chipPathShape(shape)
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
+      {path === null ? (
+        <rect x={1} y={4} width={14} height={8} rx={4} fill="currentColor" />
+      ) : (
+        <path
+          d={shapePath(path, PREVIEW)}
+          fill="currentColor"
+          {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
         />
       )}
     </svg>

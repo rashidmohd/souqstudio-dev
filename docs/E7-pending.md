@@ -1202,3 +1202,128 @@ those existed only to cope with a label sitting above a field, and there is no
 label above anything in the bar now.
 
 **Still not opened in a browser.** Seven.
+
+---
+
+## 15. The shapes an offer card is actually made of — 9 September
+
+*"We have many shapes that usually people use in the offer, I think we have to
+include that."* Right: rectangle, ellipse and line are a wireframing kit, and an
+owner who has to fake a starburst out of a circle produces a card that looks
+faked.
+
+Six, chosen as the ones a grocery or pharmacy book actually uses: **burst,
+ribbon, tag, corner flash, star, arrow.**
+
+### The paths are in the engine, and that is the whole design
+
+`packages/engine/src/shapes.ts`. `apps/web` draws these on screen and the export
+worker will draw them into a PDF, and **a burst with eleven points in one and
+twelve in the other is drift that survives every review, because both pictures
+look like a burst.** Every renderer asks `shapePath` for the same `d` string —
+the same rule as `gradientVector`, for the same reason.
+
+The three primitives keep their own SVG elements. Turning a rectangle into a path
+would lose `radius` and buy nothing.
+
+### Two decisions worth not reversing
+
+**Each shape declares whether it stretches.** A ribbon, a tag and an arrow are
+things whose length is the point. A burst or a star squashed to 4:1 is not a wide
+star, it is a broken one — those take the largest centred square and draw in
+that. It is a property of the shape rather than a control, because an owner
+asking for "a star, but wider" is asking for a different shape.
+
+**Three of them mirror in an Arabic edition and three do not.** A corner flash
+sits in the corner the eye lands on first and an arrow points the way the line
+runs, so both flip; a burst does not have a start edge. This is deliberately
+*unlike* a gradient's angle, which does not mirror — an owner who aimed a run at
+the bottom-right corner meant that corner, while an owner who put a flash "in the
+corner" meant the corner reading begins at, and that corner moves.
+
+### What the type system did not catch, and why the tests are properties
+
+Adding the variants to the union **compiled cleanly with both renderers unchanged**
+— their `switch` falls through to the rectangle — so a burst would have drawn as a
+plain box with nothing failing anywhere. The branch is explicit in both painters
+now, and the schema test asserts that a variant nothing can draw is refused.
+
+The tests check properties rather than recorded path strings. A snapshot of a `d`
+attribute locks in the arithmetic and says nothing useful when it breaks; *"every
+point is inside the box the owner dragged"* is what actually has to hold, and it
+holds at every size. Two of the three initial failures were in the test's own
+path reader — it counted an arc's sweep flag as a coordinate — and the third was
+a wrong assumption of mine, that a five-point star's bounding box is square. It
+is not, and asserting it would have been testing the arithmetic rather than the
+rule.
+
+### Where they live in the interface
+
+**One on the rail, five in the panel.** A burst is what an offer card is usually
+*about*, and a shape nobody knows exists is a shape nobody uses — but putting all
+six on the rail makes a strip of nineteen tools out of one that is already long.
+
+The shape picker is a 3×3 grid, and **every mark in it is the shape itself**,
+drawn through `shapePath`. Nine in a row will not fit a 288px pane — §12 taught
+that — and no icon set has a mark that means "burst" other than a picture
+somebody drew of one, which would be a second drawing of a shape the engine
+already knows. `Segmented` grew a `render` slot for it, with the inventory entry
+updated to say when to reach for it and when not to.
+
+### Not done, deliberately
+
+**A burst is a ground, not a price treatment.** E6 §3 and §3 of this file stand:
+the price mark is not lego. A burst is something you put *behind* a price mark,
+and a burst that grew its own number would be exactly the erosion those notes
+warn about.
+
+**Still not opened in a browser.** Eight — and this is the first entry where that
+matters less than usual, since the shapes are checked by geometry rather than by
+eye. It still has not been seen.
+
+---
+
+## 16. The offer badge takes a shape — 9 September
+
+*"The offer badge is just one shape. If I want to change that to a burst, or a
+ribbon, is that possible?"* It was not — `Chip` drew a hard-coded pill — and it
+is now: **pill, burst, ribbon, tag.**
+
+### Four of the nine, and the reason is that a badge holds a word
+
+A shape element gets all nine. A badge does not, because it is a container: a
+corner flash has no interior to speak of, an arrow's is a shaft, and a star's
+usable area is about a third of its box. A badge drawn as a star is a badge whose
+label is illegible or whose star is enormous. These four hold a word.
+
+### What is shared, and what deliberately is not
+
+The outline comes from `shapePath`, so the drawing was already settled. **The new
+shared thing is `CHIP_FIT`** — how much of each badge its label may use.
+
+That table has to be shared for a reason the outline does not make obvious: a
+word centred in the *bounding box* of a burst runs straight over the spikes, and
+each renderer picking its own padding gives two badges that agree about the
+outline and disagree about where the text sits. That is a worse failure than
+disagreeing outright, because it looks like a font problem.
+
+The formula stays in the renderer. Only the numbers are shared, and **the pill's
+are exactly the ones it used before it had company** — a test asserts it, because
+changing them would restyle every block already drawn and nothing would say so.
+
+### The burst does not grow sideways
+
+Every other badge sizes to its label. A burst holds its proportion, so a wide
+rect would draw the same burst with empty space beside it — it stays the slot's
+height across and the label shrinks instead, which is the fit ladder's answer
+everywhere else in this system. `square` on the table is that decision, and the
+tests hold it to the burst alone.
+
+### Not done, and it is the same rule as last time
+
+**The price mark still is not lego.** A burst behind a price is a shape element;
+a badge that grew its own number would be the erosion E6 §3 and §3 of this file
+both warn about. The badge shows the *tier*, which is a fact about the offer, and
+what it draws around that word is now the shop's.
+
+**Still not opened in a browser.** Nine.

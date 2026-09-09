@@ -67,10 +67,14 @@ export { validateGrid, type GridProblem, type GridProblemCode } from './validate
 // The shapes an offer card is made of. Paths, computed here so the screen and
 // the export cannot draw a different burst. See the file.
 export {
+  CHIP_FIT,
+  CHIP_SHAPES,
   HOLDS_PROPORTION,
   PATH_SHAPES,
+  chipPathShape,
   needsEvenOdd,
   shapePath,
+  type ChipShape,
   type PathShape,
 } from './shapes'
 // When a seasonal block is in season — computed rather than stored, because

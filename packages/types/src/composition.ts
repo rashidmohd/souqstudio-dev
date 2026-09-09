@@ -414,7 +414,20 @@ export type BlockElement =
       color?: FlatColor | undefined
     })
   | (ElementBase & { kind: 'priceMark'; style?: PriceMarkStyle | undefined })
-  | (ElementBase & { kind: 'chip'; anchor: ChipAnchorRef; fill?: FlatColor | undefined })
+  | (ElementBase & {
+      kind: 'chip'
+      anchor: ChipAnchorRef
+      fill?: FlatColor | undefined
+      /**
+       * The badge's outline. A pill unless it says otherwise.
+       *
+       * **Four of the nine shapes, because a badge holds a word.** A corner
+       * flash has no interior, an arrow's is a shaft, and a star's usable area
+       * is a third of its box. `CHIP_FIT` in the engine carries how much of each
+       * one the label may use.
+       */
+      shape?: 'pill' | 'burst' | 'ribbon' | 'tag' | undefined
+    })
   | (ElementBase & { kind: 'logo' })
   | (ElementBase & {
       kind: 'shape'
