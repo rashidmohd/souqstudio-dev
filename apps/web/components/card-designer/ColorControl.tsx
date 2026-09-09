@@ -18,7 +18,7 @@ import type { BrandColor, ColorValue, FlatColor, GradientStop, TokenRef } from '
 import { resolveColor } from '@souqstudio/engine'
 import { ColorField } from '@/components/ui/color-field'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Slider } from '@/components/ui/slider'
 import { Segmented } from '@/components/ui/segmented'
 import { MAX_GRADIENT_STOPS } from '@/lib/block-document'
 import { NEW_COLOR_HEX, fromHex } from '@/lib/color'
@@ -463,23 +463,18 @@ function GradientEditor({
         onChange={(color) => setStop(index, { color })}
       />
 
-      <div className="grid grid-cols-2 items-end gap-3">
-        <Input
-          label="Opacity"
-          type="number"
-          min={0}
-          max={100}
-          step={5}
-          figure
-          hint="Percent"
-          value={Math.round((active.opacity ?? 1) * 100)}
-          onChange={(event) =>
-            setStop(index, {
-              opacity: Math.min(100, Math.max(0, Number(event.target.value))) / 100,
-            })
-          }
-        />
+      <Slider
+        label="Opacity"
+        unit="%"
+        min={0}
+        max={100}
+        step={1}
+        hint="Zero fades this end of the run out entirely."
+        value={Math.round((active.opacity ?? 1) * 100)}
+        onValueChange={(next) => setStop(index, { opacity: next / 100 })}
+      />
 
+      <div className="flex justify-end">
         <Button
           type="button"
           variant="ghost"

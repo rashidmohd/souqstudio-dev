@@ -959,3 +959,81 @@ drag, the pointer capture, the click-to-add and the checkerboard are precisely
 the class of thing every test here is blind to. Typecheck, lint, 429 web tests,
 265 engine tests and `check:classes` at 65 utilities all pass, and none of them
 has ever seen a handle move.
+
+---
+
+## 11. Five notes from the designer on screen — 9 September
+
+The owner, looking at the real thing: the tool rail needs a start border, the
+layer list should collapse the way the navigation does, *"what you value like
+1–100 should be slider"*, the selection outline is too heavy, and the mid-edge
+handles are too big.
+
+All five are the same class of finding as §8's — things only visible on a screen,
+and none of them reachable by any test in this repo.
+
+### The selection was competing with the card
+
+A 1.5px minimum at full opacity draws a hard blue box around the thing the owner
+is trying to look at. On a photograph it reads as part of the design. The outline
+is thinner and part-transparent now; the handles keep full opacity, because they
+are targets rather than decoration and a target you have to hunt for is worse
+than a line that is slightly loud.
+
+**Mid-edge handles are drawn at 62% of a corner's size, and their hit area did
+not change.** A corner resizes both axes and is the one reached for most, so it
+earns the larger mark — that is what every tool this is modelled on does. Each
+handle now has a transparent hit rect at half again the full size behind the
+visible square, because shrinking the thing you have to grab is how "tidier"
+becomes "harder to use on a trackpad", and that difference does not show in a
+screenshot either.
+
+### A slider, and the rule for when to use one
+
+`components/ui/slider.tsx`, with an inventory entry, because §8 ended by
+collapsing four hand-rolled segmented controls into one and the next one-off
+would have been that mistake with the ink still wet.
+
+**The rule is whether the number or the result is the point.** An owner setting
+opacity is looking at the card and stops when it looks right; a field makes them
+convert that judgement into a number and back. An owner setting a rotation or a
+corner radius has a number in mind. So opacity — the element's, and a gradient
+stop's — is a slider, and `Turn`, radius, price and every count stay fields.
+
+Native `<input type="range">` styled under `.sq-slider` in `globals.css`, the
+same arrangement as `.sq-swatch` and for the same reason: track and thumb are
+vendor pseudo-elements no utility class reaches. The readout is always shown —
+a slider without one leaves an owner unable to say what they set.
+
+### The rail had a border on one side only
+
+`border-e-hairline` and nothing on the start edge, so the rail met the dashboard
+navigation — the one dark surface in the product — with no line between them.
+Two panels meeting like that read as one panel with a colour change in the
+middle.
+
+### The layer list collapses, and the toggle is on the rail
+
+**Not in the list.** A toggle inside the panel can only ever close it; the way
+back has to be somewhere still on screen, which is why the dashboard navigation
+keeps its own toggle on the strip. The pane narrows to the tool rail's width from
+`lg` up, and below `lg` the list always shows — there the pane is a drawer the
+owner opened on purpose, and hiding the list would leave them holding a drawer
+full of tools they could already reach.
+
+**The state is not persisted**, unlike the dashboard rail's cookie. That one is a
+cookie because the shell renders on the server and the width has to be right
+before the first paint; this pane is inside a client component reached from one
+screen. If owners turn out to collapse it every session,
+`lib/rail-preference.ts` is the pattern to copy.
+
+### The width prop, and why it is not a class name
+
+`CanvasDrawer` grew an `lgWidth` prop rather than taking the override through
+`className`. Both values are project tokens rather than stock Tailwind, so `cn`'s
+merge cannot be relied on to know that `w-pane-start` and `w-tool-rail` conflict
+— and a width silently losing to another width is precisely the failure
+`check:classes` was written to catch after the fact rather than prevent.
+
+**Still not opened in a browser.** Four entries in a row now, and this one is
+entirely about how things look and how a pointer behaves.

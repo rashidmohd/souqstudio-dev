@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { Segmented, ToggleBar } from '@/components/ui/segmented'
+import { Slider } from '@/components/ui/slider'
 import { describe } from '@/components/card-designer/LayerList'
 
 /**
@@ -318,7 +319,14 @@ function Appearance({
   onChange: (element: BlockElement) => void
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="flex flex-col gap-3">
+      {/*
+        **Turn stays a field and opacity became a slider**, and the split is not
+        arbitrary: an owner setting a rotation has a number in mind — square it
+        up, tip it five degrees — while an owner setting opacity is looking at
+        the card and stops when it looks right. A field makes that second
+        judgement a round trip through a number they never wanted. See `Slider`.
+      */}
       <Input
         label="Turn"
         type="number"
@@ -333,19 +341,15 @@ function Appearance({
           onChange({ ...element, rotation: clamp(Number(event.target.value), -180, 180) })
         }
       />
-      <Input
+      <Slider
         label="Opacity"
-        type="number"
+        unit="%"
         min={0}
         max={100}
-        step={5}
-        figure
+        step={1}
         disabled={disabled}
         value={Math.round((element.opacity ?? 1) * 100)}
-        hint="Percent"
-        onChange={(event) =>
-          onChange({ ...element, opacity: clamp(Number(event.target.value), 0, 100) / 100 })
-        }
+        onValueChange={(next) => onChange({ ...element, opacity: clamp(next, 0, 100) / 100 })}
       />
     </div>
   )

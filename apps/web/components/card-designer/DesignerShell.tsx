@@ -117,6 +117,17 @@ export function DesignerShell({
   const elements = useElements()
   const selectedElement = useSelectedElement()
   const drawer = useCanvasDrawer()
+  /**
+   * Whether the layer list shows beside the tool rail.
+   *
+   * **Not persisted, unlike the dashboard rail.** That one is a cookie because
+   * the shell renders on the server and the width has to be right before the
+   * first paint; this pane is inside a client component that is only ever
+   * reached from one screen, so a cookie would buy a preference that survives
+   * navigation an owner rarely makes. If it turns out they collapse it every
+   * session, `lib/rail-preference.ts` is the pattern to copy.
+   */
+  const [layersOpen, setLayersOpen] = React.useState(true)
 
   React.useEffect(() => {
     hydrate({
@@ -372,13 +383,24 @@ export function DesignerShell({
         {/* Tools on the far edge, layers beside them — the arrangement every
             application this is modelled on uses, and the reason an owner who has
             opened one of them knows where to look. */}
-        <CanvasDrawer side="start" open={drawer.open === 'start'} onClose={drawer.close}>
+        <CanvasDrawer
+          side="start"
+          open={drawer.open === 'start'}
+          onClose={drawer.close}
+          // Collapsed, the pane *is* the rail. Below `lg` it is a drawer the
+          // owner opened on purpose, so it always shows the list — hiding it
+          // there would leave a drawer containing a strip of tools they can
+          // already reach.
+          lgWidth={layersOpen ? 'lg:w-pane-start' : 'lg:w-tool-rail'}
+        >
           <ToolRail
             repeats={repeats}
             disabled={!editable}
             uploading={uploading}
             idle={store.selectedIds.length === 0}
             onSelectNone={() => store.select([])}
+            layersOpen={layersOpen}
+            onToggleLayers={() => setLayersOpen((open) => !open)}
             onUpload={editable ? () => fileInput.current?.click() : undefined}
             onAdd={(element, atBottom) => {
               // Paint order is array order, so "behind everything" is the front
@@ -391,7 +413,13 @@ export function DesignerShell({
             }}
           />
 
-          <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-3">
+          <div
+            className={
+              layersOpen
+                ? 'flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-3'
+                : 'flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-3 lg:hidden'
+            }
+          >
 
             {/* Hidden, and driven by the palette's own button: a bare file input
                 is the one control in the product nobody can style, and the

@@ -14,6 +14,8 @@ import {
   Square,
   Stamp,
   Store,
+  PanelLeftClose,
+  PanelLeftOpen,
   Tag,
   Type,
 } from 'lucide-react'
@@ -57,6 +59,9 @@ type Props = {
   /** True while nothing is selected — the pointer tool's resting state. */
   idle: boolean
   onSelectNone: () => void
+  /** Whether the layer list beside the rail is showing. */
+  layersOpen: boolean
+  onToggleLayers: () => void
 }
 
 type Tool = {
@@ -96,13 +101,19 @@ export function ToolRail({
   uploading,
   idle,
   onSelectNone,
+  layersOpen,
+  onToggleLayers,
 }: Props) {
   return (
     <div
       role="toolbar"
       aria-orientation="vertical"
       aria-label="Tools"
-      className="flex w-tool-rail shrink-0 flex-col items-center gap-1 border-e-hairline border-border-subtle bg-surface py-2"
+      // A hairline on the *start* edge too. The rail sits directly against the
+      // dashboard navigation, which is the one dark surface in the product, and
+      // two panels meeting with no line between them read as one panel with a
+      // colour change in the middle.
+      className="flex w-tool-rail shrink-0 flex-col items-center gap-1 border-s-hairline border-e-hairline border-border-subtle bg-surface py-2"
     >
       {/* The pointer, first and always. It is the tool an owner returns to, and
           every one of these applications puts it at the top — here it clears the
@@ -152,6 +163,25 @@ export function ToolRail({
           ))}
         </>
       ) : null}
+
+      {/*
+        The panel toggle, last and below a divider — it is chrome rather than a
+        tool, and grouping it with the shapes would say it makes something.
+
+        **It lives on the rail because the rail is what survives the collapse.**
+        A toggle inside the layer list can only ever close it; the way back has
+        to be somewhere that is still on screen, which is the same reason the
+        dashboard navigation keeps its own toggle on the strip rather than in
+        the panel.
+      */}
+      <Divider />
+      <ToolButton
+        label={layersOpen ? 'Hide layers' : 'Show layers'}
+        icon={layersOpen ? PanelLeftClose : PanelLeftOpen}
+        active={!layersOpen}
+        disabled={false}
+        onClick={onToggleLayers}
+      />
     </div>
   )
 }

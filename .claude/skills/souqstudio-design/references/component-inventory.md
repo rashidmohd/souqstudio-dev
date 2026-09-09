@@ -582,6 +582,50 @@ a worse version of the letterforms the interface already has.
 
 Not `Tabs`. Tabs navigate between panels and are underlined; this sets a value.
 
+### Slider
+
+| | |
+| --- | --- |
+| File | `components/ui/slider.tsx` |
+| Status | `built` — apps/web only |
+| Governs | a bounded quantity an owner sets by eye |
+
+```tsx
+type SliderProps = {
+  label: string          // required, as on every control here
+  hint?: string
+  value: number
+  min?: number           // 0
+  max?: number           // 100
+  step?: number          // 1
+  unit?: string          // rendered after the readout: `%`, `°`
+  onValueChange: (value: number) => void
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>,
+         'value' | 'min' | 'max' | 'step' | 'onChange' | 'type'>
+```
+
+**Slider or `Input` is decided by whether the number or the result is the
+point.** An owner setting opacity is looking at the card and stops when it looks
+right; a field makes them convert that judgement into a number and back. An owner
+setting a corner radius or a rotation has a number in mind. Opacity is a slider;
+`Turn`, radius, price and every count stay fields.
+
+**A native `<input type="range">`, styled in `globals.css` under `.sq-slider`** —
+the same arrangement as `.sq-swatch`, and for the same reason: the track and
+thumb are vendor pseudo-elements no utility class reaches. Native rather than a
+JS control because the platform already has the drag, the keyboard steps and the
+accessibility tree, and this is a control a shop owner mostly uses with a thumb.
+
+**The value is always shown.** A slider with no readout leaves an owner unable to
+say what they set — "about three quarters" is not something you can report, or
+match on a second block.
+
+Added when the block designer's opacity fields were called out as the wrong
+control. It is deliberately one component rather than one per surface: the
+designer's element opacity and a gradient stop's opacity are the same question,
+and `Segmented` is already the cautionary tale about what happens when they are
+not shared.
+
 ### StatusPill
 
 | | |

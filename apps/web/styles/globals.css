@@ -83,3 +83,75 @@ html, body {
 .sq-swatch::-moz-color-swatch {
   border: 0;
 }
+
+/* ── Slider ────────────────────────────────────────────────────────────────
+   A native `<input type="range">` draws its track and thumb as vendor
+   pseudo-elements, which no utility class can reach — the same problem
+   `.sq-swatch` above solves for the colour input, and the same answer.
+
+   Native rather than a JS control on purpose: the platform already has the
+   drag, the keyboard steps and the accessibility tree, and this is a control a
+   shop owner will mostly use with a thumb on a phone.
+
+   Every value is a token. The thumb is `--sq-h-control` tall at half width so
+   it stays a comfortable target without becoming a slab, and the focus ring
+   matches every other control's rather than the browser's.                  */
+.sq-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: var(--sq-space-4);
+  background: transparent;
+  cursor: pointer;
+}
+
+.sq-slider::-webkit-slider-runnable-track {
+  height: var(--sq-space-1);
+  border-radius: var(--sq-radius-pill);
+  background: var(--sq-stone-200);
+}
+
+.sq-slider::-moz-range-track {
+  height: var(--sq-space-1);
+  border-radius: var(--sq-radius-pill);
+  background: var(--sq-stone-200);
+}
+
+.sq-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--sq-space-4);
+  height: var(--sq-space-4);
+  /* Centres the thumb on a 4px track: half the thumb, less half the track. */
+  margin-top: calc((var(--sq-space-1) - var(--sq-space-4)) / 2);
+  border: 0.5px solid var(--sq-ui-border-strong);
+  border-radius: var(--sq-radius-pill);
+  background: var(--sq-ui-surface);
+}
+
+.sq-slider::-moz-range-thumb {
+  width: var(--sq-space-4);
+  height: var(--sq-space-4);
+  border: 0.5px solid var(--sq-ui-border-strong);
+  border-radius: var(--sq-radius-pill);
+  background: var(--sq-ui-surface);
+}
+
+.sq-slider:focus-visible {
+  outline: none;
+}
+
+.sq-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--sq-ui-border-focus);
+  outline-offset: 2px;
+}
+
+.sq-slider:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--sq-ui-border-focus);
+  outline-offset: 2px;
+}
+
+.sq-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}

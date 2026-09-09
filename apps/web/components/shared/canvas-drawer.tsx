@@ -112,12 +112,24 @@ export function CanvasDrawer({
   side,
   open,
   onClose,
+  lgWidth,
   className,
   children,
 }: {
   side: DrawerSide
   open: boolean
   onClose: () => void
+  /**
+   * The width class from `lg` up, when the pane is not its usual size — the
+   * designer's start pane narrows to the tool rail alone when the layer list is
+   * hidden.
+   *
+   * A prop rather than something passed through `className`: both values are
+   * project tokens rather than stock Tailwind, so `cn`'s merge cannot be relied
+   * on to know they conflict, and a width silently losing to another width is
+   * the exact failure `check:classes` exists to catch after the fact.
+   */
+  lgWidth?: string | undefined
   className?: string
   children: React.ReactNode
 }) {
@@ -144,9 +156,8 @@ export function CanvasDrawer({
             : 'end-0 w-pane-end border-s-hairline border-border-subtle',
           // From lg: back in the flow, and the row lays the three out.
           'lg:static lg:z-auto lg:flex lg:max-w-none',
-          side === 'start'
-            ? 'lg:order-first lg:w-pane-start lg:border-e-hairline'
-            : 'lg:w-pane-end lg:border-s-hairline',
+          side === 'start' ? 'lg:order-first lg:border-e-hairline' : 'lg:border-s-hairline',
+          lgWidth ?? (side === 'start' ? 'lg:w-pane-start' : 'lg:w-pane-end'),
           className
         )}
       >

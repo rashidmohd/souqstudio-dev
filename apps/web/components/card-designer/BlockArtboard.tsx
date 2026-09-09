@@ -491,7 +491,32 @@ function Selection({
   // 4%-tall caption has to stay big enough to grab, and one on a full-bleed
   // shape must not become a slab.
   const size = scale * 0.018
-  const stroke = Math.max(1.5, scale * 0.004)
+
+  /**
+   * **The outline is furniture, not content, and it was competing with the
+   * card.** A 1.5px minimum at full opacity draws a hard blue box around the
+   * thing the owner is trying to look at — on a photograph it reads as part of
+   * the design. Thinner and part-transparent still says "this one is selected"
+   * without repainting its edges.
+   *
+   * The handles keep full opacity: they are targets rather than decoration, and
+   * a target you have to hunt for is worse than a line that is slightly loud.
+   */
+  const stroke = Math.max(1, scale * 0.0022)
+  const OUTLINE_OPACITY = 0.55
+
+  /**
+   * The mid-edge handles are drawn smaller than the corners, which is what
+   * every tool this is modelled on does — a corner resizes both axes and is the
+   * one reached for most, so it earns the larger mark.
+   *
+   * **Only the drawing shrinks.** Each handle keeps a transparent hit rect at
+   * the full size, so a smaller square is not a smaller target: shrinking the
+   * thing you have to grab is how "tidier" becomes "harder to use" on a
+   * trackpad, and none of this is visible in a screenshot.
+   */
+  const edgeSize = size * 0.62
+  const hit = size * 1.5
 
   return (
     <>
@@ -502,6 +527,7 @@ function Selection({
           fill="none"
           stroke="var(--sq-ui-selected-ring)"
           strokeWidth={stroke}
+          strokeOpacity={OUTLINE_OPACITY}
           pointerEvents="none"
         />
       ))}
@@ -515,6 +541,7 @@ function Selection({
             y2={box.y - size * 1.6}
             stroke="var(--sq-ui-selected-ring)"
             strokeWidth={stroke}
+            strokeOpacity={OUTLINE_OPACITY}
             pointerEvents="none"
           />
           <circle
@@ -528,21 +555,39 @@ function Selection({
             onPointerDown={onRotate}
           />
 
-          {HANDLES.map(({ handle, fx, fy, cursor }) => (
-            <rect
-              key={handle}
-              x={box.x + box.width * fx - size / 2}
-              y={box.y + box.height * fy - size / 2}
-              width={size}
-              height={size}
-              rx={size * 0.25}
-              fill="var(--sq-ui-surface)"
-              stroke="var(--sq-ui-selected-ring)"
-              strokeWidth={stroke}
-              style={{ cursor }}
-              onPointerDown={(event) => onHandle(handle, event)}
-            />
-          ))}
+          {HANDLES.map(({ handle, fx, fy, cursor }) => {
+            // A corner names both axes; an edge names one. `fx`/`fy` at 0.5 is
+            // exactly what "on an edge" means, so the table does not need a
+            // column for it.
+            const edge = fx === 0.5 || fy === 0.5
+            const drawn = edge ? edgeSize : size
+            const cx = box.x + box.width * fx
+            const cy = box.y + box.height * fy
+
+            return (
+              <g key={handle} style={{ cursor }} onPointerDown={(event) => onHandle(handle, event)}>
+                {/* The target, invisible and full size. */}
+                <rect
+                  x={cx - hit / 2}
+                  y={cy - hit / 2}
+                  width={hit}
+                  height={hit}
+                  fill="transparent"
+                />
+                <rect
+                  x={cx - drawn / 2}
+                  y={cy - drawn / 2}
+                  width={drawn}
+                  height={drawn}
+                  rx={drawn * 0.25}
+                  fill="var(--sq-ui-surface)"
+                  stroke="var(--sq-ui-selected-ring)"
+                  strokeWidth={stroke}
+                  pointerEvents="none"
+                />
+              </g>
+            )
+          })}
         </>
       ) : null}
     </>
