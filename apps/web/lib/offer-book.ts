@@ -1,8 +1,10 @@
 import 'server-only'
 
 import { prisma } from '@souqstudio/db'
-import { bookletGrid, flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
-import type { Block, Pin, SlotOverride } from '@souqstudio/types'
+import { flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
+import type { Block, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
+import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
+import { autoTitle } from '@/lib/book-title'
 import {
   composeOffer,
   pageSizeFor,
@@ -10,6 +12,7 @@ import {
   type ComposedOffer,
   type Edition,
 } from '@/lib/offer-book-compose'
+import { gridForKind } from '@/lib/offer-book-grid'
 import { readOverrides } from '@/lib/offer-book-overrides'
 import { publicUrl } from '@/lib/r2'
 import { randomBytes } from 'node:crypto'
@@ -343,38 +346,71 @@ async function loadBlocks(
 
 export interface CreateBookInput {
   shopId: string
-  title: string
-  /** One of `OfferBookFormat`. Decides the artboard rectangle, nothing else. */
-  format: string
+  /**
+   * What the owner said they were making. Decides the format that is stored,
+   * the page rectangle and the grid. `lib/book-kind.ts`.
+   *
+   * **This replaced a `format` field**, which was a page size an owner was being
+   * asked to pick out of seven values, three of which were the same sheet.
+   * `docs/E6-create-flow.md` §2.1.
+   */
+  kind: BookKind
   language: 'en' | 'ar'
-  /** Catalog products, in the order they should appear. One offer each. */
-  productIds: string[]
+  /**
+   * Absent for every call from the creation flow, which is the point: nobody is
+   * asked to name a thing that does not exist yet. `autoTitle` supplies one and
+   * the editor renames it. `lib/book-title.ts`, and §6 of the flow doc.
+   *
+   * Present only where a caller genuinely has a name to give — `duplicateBook`
+   * has the original's.
+   */
+  title?: string
+  /**
+   * The repeating offer card the grid is built from.
+   *
+   * **Resolved against the session before it reaches the grid**, never trusted:
+   * it arrives from a client and could name another organization's block or one
+   * behind a higher plan. Undefined means the engine's own default, which is the
+   * card every book created before this existed used.
+   */
+  cardBlockId?: string
   perRow?: number
   bodyRows?: number
 }
 
+export interface CreateFromCatalogInput extends CreateBookInput {
+  /** Catalog products, in the order they should appear. One offer each. */
+  productIds: string[]
+}
+
+export interface CreateFromRowsInput extends CreateBookInput {
+  /**
+   * Products the owner matched from a price list, with the price the sheet gave
+   * for each. Order is the sheet's order.
+   */
+  rows: Array<{ catalogProductId: string; price: string | null }>
+}
+
+/** One offer to write: a product, and what it costs. */
+interface PendingOffer {
+  catalogProductId: string
+  /** A decimal string, or null for "the owner has not said yet". */
+  price: string | null
+}
+
 /**
- * Create a book, its master grid and one offer per product, in one transaction.
+ * Everything the three creators need before they can open a transaction.
  *
- * **The first write path in E6, and the thing every other part of it waits on.**
- * `offer_books` has held zero rows since the table was migrated, so the
- * composition model has only ever been checked against literals.
- *
- * **Every product becomes its own single-item offer.** Grouping two products
- * under one price is a deliberate authoring action — E6-02's connector — and
- * guessing it at creation would produce cards nobody asked for. The owner
- * combines them in the tray afterwards.
- *
- * **Prices start at zero and are flagged, not defaulted to something plausible.**
- * `offers.price` is NOT NULL and a catalog product carries no price, because a
- * price belongs to an offer. Zero is the only honest placeholder; `composeOffer`
- * raises `no-price` for it, and that flag is what has to block publishing. A
- * seeded "sensible" price would print a number nobody chose.
+ * **Extracted because there were two copies of it and there were about to be
+ * three.** `createBook` and `createBookFromImport` each resolved the shop,
+ * found the promo tier, built the grid and wrote the same six columns, and the
+ * two had already drifted: only one of them checked the block id, because only
+ * one of them had ever been given one.
  */
-export async function createBook(
+async function prepareBook(
   input: CreateBookInput,
   organizationId: string
-): Promise<{ id: string } | null> {
+): Promise<{ shopId: string; tierId: string; title: string; master: PageGrid } | null> {
   const shop = await prisma.shop.findFirst({
     where: { id: input.shopId, organizationId },
     select: { id: true },
@@ -397,35 +433,67 @@ export async function createBook(
     )
   }
 
-  // Products are read before the transaction and filtered to what this
-  // organization can actually see: its own rows plus the universal catalog.
-  // Without it a caller could name another tenant's private product and have it
-  // rendered into their book.
-  const visible = await prisma.catalogProduct.findMany({
-    where: {
-      id: { in: input.productIds },
-      archivedAt: null,
-      OR: [{ organizationId: null }, { organizationId }],
-    },
-    select: { id: true },
-  })
-  const allowed = new Set(visible.map((product) => product.id))
-  // The caller's order is the book's order — `offers.position` is what the
-  // engine paginates from — so this filters the input rather than using the
-  // query's own ordering.
-  const ordered = input.productIds.filter((id) => allowed.has(id))
-
-  const gridOptions = {
-    ...(input.perRow === undefined ? {} : { perRow: input.perRow }),
-    ...(input.bodyRows === undefined ? {} : { bodyRows: input.bodyRows }),
+  return {
+    shopId: shop.id,
+    tierId: tier.id,
+    title: input.title ?? (await nextTitle(input.kind, shop.id)),
+    master: gridForKind({
+      kind: input.kind,
+      ...(input.cardBlockId === undefined ? {} : { cardBlockId: input.cardBlockId }),
+      ...(input.perRow === undefined ? {} : { perRow: input.perRow }),
+      ...(input.bodyRows === undefined ? {} : { bodyRows: input.bodyRows }),
+    }),
   }
-  const master = bookletGrid(gridOptions)
+}
 
-  const book = await prisma.$transaction(async (tx) => {
+/**
+ * A generated name clear of the ones this shop already has.
+ *
+ * **Scoped to the shop rather than the organization**, because that is the list
+ * the name has to be distinguishable in: `/` shows one shop's books, and two
+ * branches both running a week 37 promotion is normal rather than a collision.
+ */
+async function nextTitle(kind: BookKind, shopId: string): Promise<string> {
+  const existing = await prisma.offerBook.findMany({
+    where: { shopId },
+    select: { title: true },
+    // A generated name is always the current week or the current day, so a
+    // collision can only be with something recent. Reading every title a shop
+    // has ever made to discover that is a query that grows forever.
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+
+  return autoTitle(kind, existing.map((book) => book.title), new Date())
+}
+
+/**
+ * Write the book, its master grid and one offer per pending product.
+ *
+ * **Two statements for the offers, not two per offer.** The first version of
+ * this created one offer at a time with its item nested, and it did not survive
+ * contact with eleven products: a round trip per offer against a hosted database
+ * took 5,174ms and the interactive transaction closes at 5,000. A real book is
+ * hundreds of offers. This is the third time the same lesson has been learned in
+ * this codebase — the spreadsheet import fans out over `unnest` and the Open
+ * Food Facts importer resolves brands three queries per batch, both for exactly
+ * this reason.
+ *
+ * `createManyAndReturn` is what makes it two rather than one-plus-N:
+ * `createMany` alone cannot give back the ids the items need.
+ */
+async function insertBook(
+  prepared: { shopId: string; tierId: string; title: string; master: PageGrid },
+  input: { format: string; language: 'en' | 'ar' },
+  offers: readonly PendingOffer[]
+): Promise<{ id: string }> {
+  const { master } = prepared
+
+  return prisma.$transaction(async (tx) => {
     const created = await tx.offerBook.create({
       data: {
-        shopId: shop.id,
-        title: input.title,
+        shopId: prepared.shopId,
+        title: prepared.title,
         format: input.format,
         language: input.language,
         shortCode: await uniqueShortCode(tx),
@@ -449,24 +517,23 @@ export async function createBook(
       select: { id: true },
     })
 
-    // **Two statements, not two per product.** The first version created one
-    // offer at a time with its item nested, and it did not survive contact with
-    // eleven products: a round trip per offer against a hosted database took
-    // 5,174ms and the interactive transaction closes at 5,000. A real book is
-    // hundreds of offers. This is the third time the same lesson has been
-    // learned in this codebase — the spreadsheet import fans out over `unnest`
-    // and the Open Food Facts importer resolves brands three queries per batch,
-    // both for exactly this reason.
-    //
-    // `createManyAndReturn` is what makes it two rather than one-plus-N:
-    // `createMany` alone cannot give back the ids the items need.
-    const offers = await tx.offer.createManyAndReturn({
-      data: ordered.map((_, position) => ({
+    const written = await tx.offer.createManyAndReturn({
+      data: offers.map((offer, position) => ({
         bookId: created.id,
         position,
-        price: 0,
+        // **Prices start at zero and are flagged, never defaulted to something
+        // plausible.** `offers.price` is NOT NULL and a catalog product carries
+        // no price, because a price belongs to an offer. Zero is the only honest
+        // placeholder; `composeOffer` raises `no-price` for it, and that flag is
+        // what blocks publishing. A seeded "sensible" price prints a number
+        // nobody chose.
+        //
+        // A price from a sheet arrives as a string and stays one the whole way
+        // to Prisma's Decimal — going through a float to store money is how 9.95
+        // becomes 9.949999999999999.
+        price: offer.price ?? 0,
         currency: 'AED',
-        promoTierId: tier.id,
+        promoTierId: prepared.tierId,
       })),
       select: { id: true, position: true },
     })
@@ -477,19 +544,114 @@ export async function createBook(
     // changed, and a mispaired offer prints the wrong price against the wrong
     // product — the same class of silent failure the CSV parser's paired arrays
     // guard against.
-    const byPosition = new Map(offers.map((offer) => [offer.position, offer.id]))
+    const byPosition = new Map(written.map((offer) => [offer.position, offer.id]))
 
     await tx.offerItem.createMany({
-      data: ordered.flatMap((productId, position) => {
+      data: offers.flatMap((offer, position) => {
         const offerId = byPosition.get(position)
-        return offerId === undefined ? [] : [{ offerId, catalogProductId: productId, position: 0 }]
+        return offerId === undefined
+          ? []
+          : [{ offerId, catalogProductId: offer.catalogProductId, position: 0 }]
       }),
     })
 
     return created
   })
+}
 
-  return book
+/**
+ * Catalog products this organization may actually put in a book: its own rows
+ * plus the universal catalog, and nothing archived.
+ *
+ * Without it a caller could name another tenant's private product and have it
+ * rendered into their book.
+ */
+async function visibleProductIds(
+  ids: readonly string[],
+  organizationId: string
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+
+  const visible = await prisma.catalogProduct.findMany({
+    where: {
+      id: { in: [...ids] },
+      archivedAt: null,
+      OR: [{ organizationId: null }, { organizationId }],
+    },
+    select: { id: true },
+  })
+
+  return new Set(visible.map((product) => product.id))
+}
+
+/**
+ * Create a book from catalog products, one single-item offer each, at zero
+ * price.
+ *
+ * **Every product becomes its own single-item offer.** Grouping two products
+ * under one price is a deliberate authoring action — E6-02's connector — and
+ * guessing it at creation would produce cards nobody asked for. The owner
+ * combines them in the tray afterwards.
+ */
+export async function createBook(
+  input: CreateFromCatalogInput,
+  organizationId: string
+): Promise<{ id: string } | null> {
+  const prepared = await prepareBook(input, organizationId)
+  if (prepared === null) return null
+
+  const allowed = await visibleProductIds(input.productIds, organizationId)
+  // The caller's order is the book's order — `offers.position` is what the
+  // engine paginates from — so this filters the input rather than using the
+  // query's own ordering.
+  const offers = input.productIds
+    .filter((id) => allowed.has(id))
+    .map((catalogProductId): PendingOffer => ({ catalogProductId, price: null }))
+
+  return insertBook(prepared, { format: KIND_SPEC[input.kind].format, language: input.language }, offers)
+}
+
+/**
+ * Create a book from a price list the owner matched against the catalog.
+ * E6 — `docs/E6-create-flow.md` §2.3.
+ *
+ * **A book made this way arrives priced**, which is the whole point: the
+ * search-and-pick path writes zero and flags every offer, because a catalog
+ * product has no price. A sheet has one per row.
+ *
+ * **It writes nothing to the catalog**, and that is the difference from
+ * `createBookFromImport`. This is the inline path in the creation flow: the
+ * owner uploaded a sheet to make a flyer, `matchImportRows` found each name in
+ * the catalog they already have, and no `catalog_imports` row is created. A
+ * flyer is not an inventory update.
+ *
+ * Rows with no price still become offers at zero and carry the flag. Dropping
+ * them would silently shorten a book the owner assembled in a spreadsheet, and
+ * a missing price is exactly what the flag exists to surface.
+ */
+export async function createBookFromRows(
+  input: CreateFromRowsInput,
+  organizationId: string
+): Promise<{ id: string; offers: number } | null> {
+  const prepared = await prepareBook(input, organizationId)
+  if (prepared === null) return null
+
+  // The client sent these product ids, so they get the same filter the
+  // search-and-pick path gets. A matched row is still a client-supplied id.
+  const allowed = await visibleProductIds(
+    input.rows.map((row) => row.catalogProductId),
+    organizationId
+  )
+  const offers = input.rows.filter((row) => allowed.has(row.catalogProductId))
+  if (offers.length === 0) return null
+
+  const book = await insertBook(
+    prepared,
+    { format: KIND_SPEC[input.kind].format, language: input.language },
+    offers
+  )
+
+  return { id: book.id, offers: offers.length }
 }
 
 /**
@@ -543,6 +705,15 @@ export interface ImportSummary {
  * has a `catalogProductId`, so neither can become an offer. `SKIPPED` is the
  * owner saying no. Counting them here would promise offers the book cannot
  * contain.
+ *
+ * **No caller as of `docs/E6-create-flow.md`.** The creation screen used to read
+ * this to decide whether to offer "from a spreadsheet" at all, and that choice
+ * is gone: the flow now takes a price list inline through
+ * `POST /api/v1/offer-books/match`, which needs no committed import and writes
+ * nothing to the catalog. Kept because the natural caller is E5-06's own commit
+ * screen offering "make a book from this" at the end of an import, which is the
+ * one place an owner has a committed import in hand. `createBookFromImport` is
+ * still reachable through the `importId` branch of the create route.
  */
 export async function listImportsForBook(organizationId: string): Promise<ImportSummary[]> {
   const imports = await prisma.catalogImport.findMany({
@@ -590,23 +761,9 @@ export async function listImportsForBook(organizationId: string): Promise<Import
  * a missing price is exactly what the flag exists to surface.
  */
 export async function createBookFromImport(
-  input: {
-    shopId: string
-    title: string
-    format: string
-    language: 'en' | 'ar'
-    importId: string
-    perRow?: number
-    bodyRows?: number
-  },
+  input: CreateBookInput & { importId: string },
   organizationId: string
 ): Promise<{ id: string; offers: number } | null> {
-  const shop = await prisma.shop.findFirst({
-    where: { id: input.shopId, organizationId },
-    select: { id: true },
-  })
-  if (shop === null) return null
-
   // The import is scoped to the organization in the same predicate, so another
   // tenant's sheet cannot be read into this book.
   const source = await prisma.catalogImport.findFirst({
@@ -624,76 +781,81 @@ export async function createBookFromImport(
   })
   if (source === null || source.rows.length === 0) return null
 
-  const tier = await prisma.promoTier.findFirst({
-    where: { organizationId },
-    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-    select: { id: true },
-  })
-  if (tier === null) {
-    throw new Error(`createBookFromImport: organization "${organizationId}" has no promo tiers`)
-  }
-
-  const gridOptions = {
-    ...(input.perRow === undefined ? {} : { perRow: input.perRow }),
-    ...(input.bodyRows === undefined ? {} : { bodyRows: input.bodyRows }),
-  }
-  const master = bookletGrid(gridOptions)
-
-  const rows = source.rows.filter(
-    (row): row is { catalogProductId: string; price: typeof row.price } =>
-      row.catalogProductId !== null
-  )
-
-  const book = await prisma.$transaction(async (tx) => {
-    const created = await tx.offerBook.create({
-      data: {
-        shopId: shop.id,
-        title: input.title,
-        format: input.format,
-        language: input.language,
-        shortCode: await uniqueShortCode(tx),
-        grids: {
-          create: {
-            role: 'master',
-            cols: master.cols,
-            rows: master.rows,
-            gap: master.gap,
-            margin: master.margin ?? 0,
-            regions: master.regions as unknown as object[],
-          },
-        },
-      },
-      select: { id: true },
-    })
-
-    // Two statements, not two per row — the same reason `createBook` fans out.
-    const offers = await tx.offer.createManyAndReturn({
-      data: rows.map((row, position) => ({
-        bookId: created.id,
-        position,
-        // The sheet's price, as text. Prisma's Decimal takes a string and never
-        // sees a float — the same care the import took reading it.
-        price: row.price === null ? 0 : row.price.toString(),
-        currency: 'AED',
-        promoTierId: tier.id,
-      })),
-      select: { id: true, position: true },
-    })
-
-    const byPosition = new Map(offers.map((offer) => [offer.position, offer.id]))
-    await tx.offerItem.createMany({
-      data: rows.flatMap((row, position) => {
-        const offerId = byPosition.get(position)
-        return offerId === undefined
+  return createBookFromRows(
+    {
+      ...input,
+      rows: source.rows.flatMap((row) =>
+        row.catalogProductId === null
           ? []
-          : [{ offerId, catalogProductId: row.catalogProductId, position: 0 }]
-      }),
-    })
+          : [
+              {
+                catalogProductId: row.catalogProductId,
+                // Prisma returns Decimal; it stays a string the whole way back
+                // to Prisma, exactly as the import took care to read it.
+                price: row.price === null ? null : row.price.toString(),
+              },
+            ]
+      ),
+    },
+    organizationId
+  )
+}
 
-    return created
+// ─── Renaming and discarding ──────────────────────────────────────────────────
+
+/**
+ * Rename a book. E6 — `docs/E6-create-flow.md` §4.
+ *
+ * **This is what makes the auto-generated name defensible**, and it is why it
+ * shipped in the same change. A book arriving called "Week 37 offers" is fine
+ * only if the owner can call it something else once they have seen it; without
+ * this, every book a shop owns has the same name forever and the list they pick
+ * from is unusable. The screen it used to be asked on is gone.
+ *
+ * The tenant is a filter in the query, not a check after the fact — `updateMany`
+ * rather than `update`, because `update` takes a unique `where` and cannot carry
+ * the shop join that scopes it.
+ */
+export async function renameBook(
+  bookId: string,
+  organizationId: string,
+  title: string
+): Promise<{ id: string; title: string } | null> {
+  const changed = await prisma.offerBook.updateMany({
+    where: { id: bookId, shop: { organizationId } },
+    data: { title },
   })
 
-  return { id: book.id, offers: rows.length }
+  return changed.count === 0 ? null : { id: bookId, title }
+}
+
+/**
+ * Discard a draft. E6 — `docs/E6-create-flow.md` §2.4.
+ *
+ * **Draft only, and that bound is the whole safety argument.** A published book
+ * has a short code that is on a printed flyer and possibly on a shop door, an
+ * export job, view counts and a share link; deleting one is E10's problem and
+ * needs a dialog that names it. A draft the owner rejected at the preview two
+ * seconds after creating it has none of that hanging off it.
+ *
+ * It is a hard delete rather than an archive because `offer_books` has no
+ * archive column and inventing one for this would mean every list in the product
+ * grows a filter. The alternative — leaving it — is a home screen that fills
+ * with abandoned attempts and teaches the owner to ignore the list.
+ *
+ * Returns false rather than throwing when the book is not theirs, is already
+ * gone, or is published. All four are the same answer to the caller: nothing was
+ * deleted.
+ */
+export async function deleteDraftBook(
+  bookId: string,
+  organizationId: string
+): Promise<boolean> {
+  const deleted = await prisma.offerBook.deleteMany({
+    where: { id: bookId, status: 'draft', shop: { organizationId } },
+  })
+
+  return deleted.count > 0
 }
 
 // ─── Duplicating a book ───────────────────────────────────────────────────────

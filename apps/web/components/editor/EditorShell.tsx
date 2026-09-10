@@ -15,6 +15,7 @@ import {
   useFlaggedCount,
 } from '@/components/editor/OfferProperties'
 import { UndoRedo } from '@/components/editor/UndoRedo'
+import { BookTitle } from '@/components/editor/BookTitle'
 import {
   CanvasDrawer,
   CanvasDrawerToggles,
@@ -132,7 +133,9 @@ export function EditorShell({
           Offer books
         </Link>
 
-        <h1 className="font-ui text-subhead text-primary">{title}</h1>
+        <h1>
+          <BookTitle bookId={bookId} title={title} />
+        </h1>
 
         <span className="rounded-pill bg-sand px-2 py-px font-ui text-eyebrow uppercase text-secondary">
           {status}

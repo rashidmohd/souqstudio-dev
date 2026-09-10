@@ -1,0 +1,483 @@
+# E6 — the creation flow, revisited
+
+What `/editor/new` is, what is wrong with it, and the four-step flow that replaces it.
+
+Written 10 September 2026, and **built the same day** — §9 is the record of what shipped
+and what changed on contact. This supersedes E6-02's account of starting a book and the
+screen that shipped for it, `components/offer-book/NewBookForm.tsx`, which is deleted. It
+does not touch the composition model or anything E6 does after a book exists, beyond
+adding the rename the editor was missing.
+
+Read `docs/composition-model.md` first. This document assumes its vocabulary — a block is
+a designed building block, a page is a spreadsheet of regions filled with blocks, products
+flow through it.
+
+---
+
+## 1. What ships today, and why it is being replaced
+
+`/editor/new` is one form on one screen. A title input, a format select, a language
+select, a source choice that only appears when the organization happens to have a
+committed spreadsheet, a search box, and a list of what has been picked. Submit posts to
+`POST /api/v1/offer-books` and the browser lands on `/editor/[id]`.
+
+It works. Real books on dev were made through it. Four things are wrong with it anyway.
+
+**It asks for a name first.** The title input is the first field on the screen and the
+submit handler refuses without it — `NewBookForm.tsx`, *"Give the book a title."* An owner
+who came to make this week's flyer is asked to name a thing that does not exist yet,
+before being shown anything about it. The name is also the one decision on that screen
+that is trivially reversible and completely inconsequential, and it is asked first.
+
+**"Format" is not the question the owner is holding.** The select offers seven values —
+`leaflet`, `catalog`, `a3`, `instagram_post`, `story`, `whatsapp`, `print` — which are
+page sizes wearing product names. Three of them are the same 1240×1754 rectangle
+(`PAGE_SIZE` in `lib/offer-book-compose.ts:431`) and two more are the same 1080 square. An
+owner does not arrive wanting a format; they arrive wanting *a flyer*, *a post*, or *a
+status*. The list makes them translate.
+
+**The block is never chosen, and cannot be.** `bookletGrid` hardcodes two ids —
+
+```ts
+const OFFER_CARD = byId('blk_offer_card')
+const FOOTER = byId('blk_footer')
+```
+
+— `packages/engine/src/library.ts:126`. Every book ever created by this product uses the
+same offer card. Sixty-five blocks were seeded in E7 and twenty-five of them are offer
+cards; not one is reachable from the flow that makes a book. The library is a gallery an
+owner can browse at `/brand/blocks` and cannot act on.
+
+**The CSV path is not a path, it is a precondition.** "From a spreadsheet" appears only
+when `listImportsForBook` returns something (`lib/offer-book.ts:547`), which requires the
+owner to have already gone to `/catalog/import`, mapped columns, reviewed matches, and
+committed the import *into their catalog* — a three-step wizard on another route, with a
+different purpose, finished on an earlier visit. An owner holding the price list they were
+going to make a flyer from has no way to say so.
+
+---
+
+## 2. The flow
+
+Four steps, on `/editor/new`, in the dashboard shell. Each step answers one question and
+shows its answer once answered, so the screen accumulates rather than replaces.
+
+```
+┌─ 1 ─────────────┐  ┌─ 2 ──────────────┐  ┌─ 3 ─────────────────┐  ┌─ 4 ──────────┐
+│ What are you    │  │ Which design?    │  │ Which products?     │  │ Preview      │
+│ making?         │→ │                  │→ │                     │→ │              │
+│                 │  │  ▢ ▢ ▢ ▢         │  │  ○ Search catalog   │  │  ▢ ▢         │
+│ Booklet Post    │  │  ▢ ▢ ▢ ▢         │  │  ○ Upload a price   │  │  ▢ ▢         │
+│ Status  Poster  │  │  ▢ ▢ ▢ ▢         │  │    list (CSV)       │  │              │
+└─────────────────┘  └──────────────────┘  └─────────────────────┘  └──────────────┘
+                                              [ Create ] ──────────────┘   │
+                                                                    [Open editor]
+```
+
+No step asks for a name. §6.
+
+### 2.1 Step 1 — what are you making?
+
+Four selectable cards. Each is a **kind**, and a kind decides three things the owner never
+sees: the stored `format`, the page rectangle, and the grid the book starts from.
+
+| Card | Reads as | `format` | Page | Starting grid | Cell aspect |
+| --- | --- | --- | --- | --- | --- |
+| **Offer booklet** | A multi-page flyer, print or share | `leaflet` | 1240×1754 | 3 × 3 + footer | 0.769 |
+| **Post** | One square image for Instagram or WhatsApp | `instagram_post` | 1080×1080 | 3 × 2, no footer | 0.645 |
+| **Status** | A vertical image for WhatsApp status or a story | `story` | 1080×1920 | 2 × 3, no footer | 0.807 |
+| **Poster** | A single large sheet to print | `a3` | 1754×2480 | 4 × 4 + footer | 0.744 |
+
+**Those four grids are measured, not chosen**, and §7's `SQUARISH` risk is what decided
+them. Every cell lands inside `TALL` (0.35–0.85), which is a band the seeded cards
+actually design for. `lib/offer-book-grid.test.ts` recomputes the column from the engine's
+own output and fails if any kind leaves the band.
+
+`catalog`, `whatsapp` and `print` stay in the enum — books already carry them — and stop
+being offered. They are duplicates of rectangles the four cards already cover, and a fifth
+and sixth card that produce a byte-identical result is a menu that punishes reading it.
+
+The kind is a client-side concept. **Nothing new is stored**: the wire still carries
+`format`, and `lib/features.ts` gains no flag, because all four rectangles already render.
+
+### 2.2 Step 2 — which design?
+
+A grid of block thumbnails, drawn by `BlockPreview`, filtered to what this kind can use.
+The shop's own blocks first, then the seeded library — the ordering `listBlocks` already
+returns (`lib/blocks.ts:184`, `orderBy: [{ organizationId: 'desc' }, { name: 'asc' }]`).
+
+**What is being chosen is the repeating offer card**, for all four kinds. That is the
+block that draws once per offer, and it is the one an owner would recognise as "what my
+offers look like". Headers, footers and panels are placed once and are the editor's job —
+adding them to this step would be asking four questions inside one.
+
+So the filter is `category === 'offer-card'` in every kind. Twenty-five seeded blocks plus
+whatever the shop has designed.
+
+**A locked block is shown and not selectable**, with the plan named — the same treatment
+`BlockImportDialog` already gives (`source.locked` in `app/api/v1/blocks/route.ts`). A
+grid that silently omits the designs a shop is one upgrade away from is a grid that
+undersells the product.
+
+**One block is preselected** — `blk_offer_card`, what every book uses today — so an owner
+who does not care can press Continue. A step that cannot be skipped by not caring is a
+step that will be resented by the majority who do not.
+
+> **This was the one real risk in the plan, and it is closed for the shipped defaults.**
+> The seeded offer cards carry two arrangements each, `TALL` (0.35–0.85) and `WIDE`
+> (1.35–2.6), and **no card defines a `SQUARISH` one**. §7 has the resolution: the track
+> counts were chosen so every kind's cells land in `TALL`. It stays open for any grid an
+> owner builds by hand in the editor's layout panel.
+
+> **Not the same thing as the `social-post` blocks.** The eight square blocks in
+> `library-panels.ts:378` are static — `repeats: false`, no product field, and
+> `validateBlock` refuses one. They are the announcement, the opening hours, the
+> thank-you: a post with no offers on it. A flow whose next step asks for products is not
+> the flow that reaches them. Making one is a separate action and is out of scope here.
+
+### 2.3 Step 3 — which products?
+
+Two ways, offered as two cards, always both — not conditionally, as today.
+
+**Search the catalog.** The existing control, unchanged: a debounced query against
+`/api/v1/catalog/search`, results added one at a time, a running list of what is in.
+Prices are not asked for and are set in the editor, for the reason `NewBookForm` already
+states: setting eleven prices before seeing a single card is the wrong order.
+
+**Upload a price list.** A CSV of product names and prices. We match each name against the
+catalog and show what we found:
+
+```
+CSV                        Result
+─────────────────────────  ──────────────────────────
+Basmati Rice 5kg   19.50   ✓ Basmati Rice 5kg
+Sunflower Oil 1.8L 12.00   ? 2 matches — pick one
+Al Ain Water 1.5L   2.00   ✓ Al Ain Water 1.5L
+House blend tea     8.00   ✗ not in the catalog
+```
+
+**This reuses the E5-06 matcher and creates no import.** `matchImportRows`
+(`lib/catalog.ts:747`) resolves a whole sheet in two queries that fan out over `unnest` —
+tsvector for recall, trigram `similarity()` for a true 0..1 score — and `resolveRow`
+(`lib/catalog-import.ts:268`) turns that into `MATCHED` / `AMBIGUOUS` / `UNMATCHED`
+against thresholds already tuned for this exact asymmetry: *an extra ambiguous row costs
+one click, a wrong matched row puts the wrong product on a printed flyer at the right
+price.* Both are pure functions over data the caller supplies. Neither needs a
+`catalog_imports` row to run.
+
+That matters, because a book made this way should not silently edit the shop's catalog. It
+is a flyer, not an inventory update.
+
+Column mapping is inferred and not asked about. `inferColumnMap`
+(`lib/catalog-import.ts:96`) already guesses name and price columns from the header
+spellings that turn up in real sheets, in English and Arabic. If the guess is wrong the
+owner sees it immediately in the match table, and a "change columns" control opens the
+mapping. A mapping screen shown to everyone to serve the sheets it gets wrong is E5-06's
+answer for the catalog import, where the stakes are permanent; here the stakes are one
+flyer and the recovery is re-uploading.
+
+**Prices carry.** This is the whole point of the path, and the same one
+`createBookFromImport` makes: the search path writes zero and flags every offer, because a
+catalog product has no price; a sheet has one per row.
+
+> **Open — what happens to an unmatched row.** Two readings, both defensible, deferred by
+> decision on 10 September. See §8.1. Nothing else in this document depends on the answer.
+
+### 2.4 Step 4 — create, then preview
+
+Create writes the book, and the browser lands on a preview of it — the composed pages, at
+whatever size fits, drawn by the same renderer the editor uses. Two actions on it: **Open
+editor**, and **Discard**.
+
+The book is a real `draft` row before the preview is drawn. `loadBook` runs the layout
+engine over database rows and there is no second path that composes from a request body;
+building one so the preview could precede the write would mean two composition paths that
+must agree forever, and the one nobody looks at is the one that drifts.
+
+**Discard deletes it.** A draft an owner rejected at the preview should not be waiting for
+them on the home screen — that is a list that fills with abandoned attempts and teaches
+the owner to ignore it. This is the one delete in the flow and it needs `DELETE
+/api/v1/offer-books/[id]`, which does not exist. §5.
+
+---
+
+## 3. What the flow does not ask
+
+**Language.** Today's third select. It stays a real property of the book — the artboard
+follows the book's language and never the interface's, which `loadBook` is careful about
+— and it defaults to the interface language instead of being asked. An owner working in an
+Arabic UI is overwhelmingly making an Arabic flyer, and the one who is not can change it
+in the editor.
+
+**Density.** `perRow` and `bodyRows` are accepted by the API today and never sent by the
+form. The kind supplies them (§2.1) and the editor's layout panel already changes them.
+
+**A name.** §6.
+
+---
+
+## 4. Auto-naming
+
+The book is named when it is created, from the kind and the date:
+
+| Kind | Name |
+| --- | --- |
+| Offer booklet | `Week 37 offers` |
+| Post | `Post · 10 September` |
+| Status | `Status · 10 September` |
+| Poster | `Poster · 10 September` |
+
+Week number is ISO-8601, which is what a shop that runs weekly promotions counts in.
+
+**A second book of the same kind in the same week gets a suffix** — `Week 37 offers 2` —
+by the rule `copyName` already implements for blocks (`lib/blocks.ts`). Two rows with the
+same name in a list is a list you cannot use, and this is the one flow that will reliably
+produce them.
+
+Names are English-only at first, because `offer_books.title` is one column and the
+schema has nowhere to put a second. An Arabic-interface owner gets an English default they
+can immediately rename, which is worse than a localised default and better than blocking
+the flow on a migration.
+
+**Dropping the name prompt requires adding a rename**, and there is nowhere to rename a
+book today: `EditorShell.tsx:135` draws the title as a static `<h1>`, and
+`/api/v1/offer-books/[id]/route.ts` exports `GET` and nothing else. This is not optional
+scope — without it, every book a shop owns is called `Week 37 offers` forever. §5.
+
+---
+
+## 5. What has to be built
+
+Ordered so that each piece is useful before the next exists.
+
+### 5.1 Engine — `packages/engine/src/library.ts`
+
+**`bookletGrid` takes the block ids.** Today it closes over two module constants; it needs
+`cardBlockId` and `footerBlockId`, defaulting to what it hardcodes now so every existing
+caller and the render harness are unaffected.
+
+```ts
+export function bookletGrid(options: {
+  perRow?: number
+  bodyRows?: number
+  cardBlockId?: string
+  footerBlockId?: string
+} = {}): PageGrid
+```
+
+**`postGrid` is new** — a grid with no footer band, for the kinds that are one page rather
+than a book of them. The harness has had a local `carousel()` for this since the engine
+existed (`harness/main.ts:98`); it moves here, for the reason `SEED_BLOCKS` and
+`bookletGrid` are already here: two consumers need the same bytes, and a second copy is
+one that drifts from the layout that was checked.
+
+Both are covered by `library.test.ts`.
+
+### 5.2 Server — `apps/web/lib/offer-book.ts`
+
+**`CreateBookInput` gains `cardBlockId`**, passed to `bookletGrid`. The id must be checked
+against `loadBlock` for tenancy and plan before it reaches a grid — a client naming
+another organization's block, or a locked one, is exactly the check `POST
+/api/v1/blocks` already makes on `fromId`.
+
+**`createBookFromRows`** — a third creator, beside `createBook` and
+`createBookFromImport`, taking `Array<{ catalogProductId: string; price: string | null }>`.
+It is `createBookFromImport` with the rows supplied rather than read from
+`catalog_import_rows`, and the two should share their transaction body rather than being
+copied: the `createManyAndReturn` + keyed-by-position fan-out in both is the thing that
+was learned by blowing the 5,000ms transaction limit, and it must not be learned a fourth
+time.
+
+**A rename**, and **a delete** for Discard. Both scoped by `shop: { organizationId }` in
+the query rather than compared after the fact.
+
+### 5.3 API — `apps/web/app/api/v1/`
+
+| Route | Method | Why |
+| --- | --- | --- |
+| `offer-books` | `POST` | Third branch on the union: `rows`. `cardBlockId` on `baseSchema`. |
+| `offer-books/[id]` | `PATCH` | Rename. `{ title }`, trimmed, 1–160, matching the existing bound. |
+| `offer-books/[id]` | `DELETE` | Discard from the preview. Draft-only. |
+| `offer-books/match` | `POST` | New. A sheet's rows in, matches and candidates out. Nothing written. |
+
+`offer-books/match` is a read that takes a body, which is why it is a `POST` — the sheet
+does not fit in a query string. It is rate-limited and bounded at the same 200 rows
+`createSchema` already caps `productIds` at.
+
+### 5.4 UI — `apps/web/components/offer-book/`
+
+`NewBookForm.tsx` is replaced by a step container and four step components. The pieces
+that already work move rather than being rewritten: the debounced catalog search and the
+picked list are step 3's first card almost verbatim, and `SourceChoice` is the selectable
+card pattern steps 1 and 3 both need — it goes to `components/ui/` under the name the
+design skill's component inventory settles on, because a third copy of a radio-in-a-card
+is how two APIs for one component happen.
+
+The block grid in step 2 is `BlockImportDialog`'s body without the dialog and without
+multi-select. Both want the same thing — a filtered, previewed grid of blocks — and the
+selection cardinality is the only difference.
+
+Read `.claude/skills/souqstudio-design/references/component-inventory.md` before writing
+any of it, and `references/layout-map.md` before the route changes shape.
+
+### 5.5 Editor
+
+The rename control, on `EditorShell`. A book arriving with a name nobody chose is the
+whole premise of §4, so the place it is changed has to exist in the same release.
+
+---
+
+## 6. Why the name goes, stated once
+
+A name is the least consequential and most reversible decision on the current screen, and
+it is asked first, before anything exists to name. Every other field on that form changes
+what gets made; this one changes what it is called in a list.
+
+The counter-argument is that an auto-named book is one an owner cannot find later. That is
+true of `Week 37 offers` only if there is no rename — which is why §5.5 is in the required
+scope and not in a follow-up. With a rename in the editor, the owner names the book when
+they have seen it, which is when they know what to call it.
+
+---
+
+## 7. Risks
+
+**The `SQUARISH` gap was the real one, and it is closed for the four shipped grids.** The
+twenty-five seeded offer cards define `TALL` and `WIDE` and nothing between them, and
+`pickArrangement` falls back to the nearest rather than failing — so a grid whose cells
+land near 1.0 renders a tall design stretched into a square, with no error anywhere.
+
+The resolution was the cheap one of the three: **choose track counts whose cells fall in
+`TALL`.** What made that possible was measuring instead of estimating. The first pass at
+this document guessed the aspects by eye and got two of four wrong — it proposed 3 × 4 for
+the poster (1.017, `SQUARISH`) and 2 × 2 for the post (1.000, `SQUARISH`). Computing them
+against the real page rectangle, gap and margin gave 4 × 4 and 3 × 2 instead.
+
+`lib/offer-book-grid.test.ts` now recomputes every kind's aspect from `flowBook`'s own
+output and fails if one leaves a band a card designs for. It asserts the band rather than
+the number, so the counts stay changeable and the property does not.
+
+**It stays open for hand-built grids.** The editor's layout panel takes arbitrary track
+counts and can still reach `SQUARISH`. That predates this flow and this flow cannot fix
+it; the fix is arrangements on the cards. Whoever adds them should check the result with
+`pnpm --filter @souqstudio/engine gallery`, which is the only thing in the toolchain that
+finds a design defect rather than a correctness one.
+
+**An off-system class name generates no CSS and no error.** Four defects shipped that way,
+three of them the same one. Run `pnpm build && pnpm --filter @souqstudio/web
+check:classes` before calling any of this done — it is not part of `pnpm check` because it
+needs a build to compare against.
+
+**Four steps is more clicks than one form**, for the owner who wanted the default
+everything. Mitigated by preselecting in every step that has a defensible default — kind
+does not, block does, source does — so Continue, Continue, search, Create is the floor.
+If that floor still reads as long once it is built, the answer is collapsing steps 1 and
+2 onto one screen, not removing the block choice.
+
+---
+
+## 8. Open
+
+### 8.1 What happens to a CSV row whose product is not in the catalog
+
+**Deferred 10 September, deliberately.** Two readings:
+
+- **Match only.** Unmatched rows are listed and skipped; the catalog is never written. The
+  flow stays a flyer-making flow. An owner whose sheet is mostly own-brand products gets a
+  short book and an explanation.
+- **Offer to add them.** Each unmatched row gets a "create this product" control, reusing
+  `createImportedProducts` (`lib/catalog.ts:844`) and the E5-06 commit path. More powerful,
+  and it drags catalog editing into a flow whose purpose is a flyer — plus a permission
+  question, since adding a catalog product is a different bar from making a book.
+
+Everything in §2.3 holds either way: the matcher, the thresholds, the inferred column map
+and the two-query fan-out are the same. This decides what the table's fourth row can do,
+and nothing else.
+
+### 8.2 Smaller ones
+
+- **Does Discard hard-delete or archive?** `offer_books` has no archive column and E9's
+  export jobs and E10's share links are book-scoped. A draft that has never been exported
+  or shared has nothing hanging off it, which is an argument for a hard delete bounded to
+  `status: 'draft'`.
+- **Does the preview paginate?** A twelve-offer booklet at 3×3 is two pages. Showing both
+  is right; showing forty is not. A cap with a count is probably the answer.
+- **Arabic auto-names** need a second title column or a stored kind + date the UI
+  formats. Neither is worth a migration until someone asks.
+
+
+---
+
+## 9. What shipped, 10 September
+
+Built the same day this was written. `pnpm typecheck`, `pnpm lint`, `pnpm test`
+(**929 tests**, up from 883), `pnpm build` and `check:classes` all pass.
+
+### 9.1 The files
+
+| Layer | File | What |
+| --- | --- | --- |
+| Engine | `packages/engine/src/library.ts` | `bookletGrid` takes `cardBlockId` and `footerBlockId`; `postGrid` is new; `offerRegions` shared |
+| Vocabulary | `apps/web/lib/book-kind.ts` | The four kinds, their formats and their measured track counts |
+| Grid | `apps/web/lib/offer-book-grid.ts` | `gridForKind`, `gridForFormat` |
+| Naming | `apps/web/lib/book-title.ts` | `isoWeek`, `baseTitle`, `autoTitle` |
+| Server | `apps/web/lib/offer-book.ts` | `prepareBook` / `insertBook` / `visibleProductIds` shared by three creators; `createBookFromRows`; `renameBook`; `deleteDraftBook` |
+| API | `offer-books/route.ts` | `kind` replaces `format`, `title` optional, `cardBlockId` added and gated, `rows` branch |
+| API | `offer-books/[id]/route.ts` | `PATCH` rename, `DELETE` discard |
+| API | `offer-books/match/route.ts` | New. Matches a price list, writes nothing |
+| UI | `components/offer-book/` | `NewBookWizard`, `WizardStep`, `ChoiceCard`, `DesignPicker`, `ProductSearch`, `PriceListMatcher`, `BookPreview` |
+| UI | `components/editor/BookTitle.tsx` | Rename in place, in the editor header |
+| Route | `editor/[id]/preview/page.tsx` | New |
+| Deleted | `components/offer-book/NewBookForm.tsx` | Replaced |
+
+### 9.2 What changed from the plan
+
+**The grids.** §7 above. Two of the four track counts in the first draft were wrong and
+were found by computing rather than by reading.
+
+**`ChoiceCard` stayed local.** The plan said to promote the selectable card to
+`components/ui/`. The component inventory's rule is that a composition one screen needs
+stays with that screen and comes through the inventory only if a second screen wants it —
+the `BrandCard` precedent. Both users are this wizard, so it is one screen. If the picker
+is wanted elsewhere, it goes through `component-inventory.md` first.
+
+**Three creators became one transaction.** `createBook` and `createBookFromImport` each
+carried their own copy of resolve-shop, find-tier, build-grid, write-book, fan-out-offers,
+and the two had already drifted. `createBookFromImport` is now a thin read that delegates
+to `createBookFromRows`, and all three share `prepareBook` and `insertBook`. The lesson the
+comments in there record — two statements for the offers, never two per offer, because a
+round trip per offer blew the 5,000ms transaction limit at eleven products — is now
+recorded in one place instead of two.
+
+**Language is not asked and not offered.** The plan said it defaults to the interface
+language. It ships hardcoded to `en` at the page, because the interface language is not
+plumbed to this route yet. The field is real on the wire and in the column, and the editor
+is where an owner changes it.
+
+### 9.3 Two defects found on the way
+
+**`size-chip` generated no CSS**, and `IconChip` — the component whose entire job is to be
+a 28px square — has been shipping unsized on `/catalog` and `/brand`. `height` and `width`
+have carried `chip` since the token existed; `theme.extend.size` did not. Fixed in
+`packages/config/tailwind.config.ts`. This is the fifth instance of `STATUS.md` §1.0.
+
+**`check:classes` could not have caught it.** Its regex is
+`\b(size|gap|p|w|h|…)-[0-9]+\b` — numeric suffixes only. `size-7` is caught; `size-chip`,
+`w-pane-start` and every other *named* token utility are invisible to it, which is the
+larger half of this design system. Extending it to named tokens is not done and is worth
+doing: the check exists precisely because nothing else in the toolchain can see this.
+
+### 9.4 Still owed
+
+- **§8.1 is still open**, as agreed: an unmatched CSV row is listed and skipped, and the
+  catalog is never written. That is the interim behaviour, not a decision.
+- **`listImportsForBook` has no caller.** The old screen was its only one. Kept because
+  E5-06's commit screen offering "make a book from this" is the natural caller, and
+  `createBookFromImport` is still reachable through the API's `importId` branch. Noted in
+  its own docstring so it does not read as dead code.
+- **Nothing has been opened in a browser.** Everything above is typecheck, lint, 929 tests
+  and a production build, which is exactly the evidence `STATUS.md` §1.0 says was not
+  enough four times running. The wizard, the design tiles, the match table and the preview
+  need a real page before this is called done. Arabic at real string lengths is part of
+  that, and so is the `check:classes` blind spot in §9.3.
+- **`docs/STATUS.md` and `docs/E6-pending.md` do not link here yet.**

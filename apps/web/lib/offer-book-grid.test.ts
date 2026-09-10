@@ -1,0 +1,142 @@
+import { describe, expect, it } from 'vitest'
+import { flowBook, validateGrid } from '@souqstudio/engine'
+import { BOOK_KINDS, KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
+import { gridForFormat, gridForKind } from '@/lib/offer-book-grid'
+import { pageSizeFor } from '@/lib/offer-book-compose'
+
+/**
+ * The grid each kind starts from, and the one thing about it that cannot be
+ * checked by reading it.
+ *
+ * **A cell's aspect ratio is not visible in the numbers that produce it.** It
+ * falls out of the page rectangle, the track counts, the gap and the margin —
+ * four values in three files — and it decides which arrangement the renderer
+ * picks. `3 × 4` on an A3 poster reads as the obvious choice and gives 1.017,
+ * which is in the `SQUARISH` band, and **no seeded offer card defines a
+ * `SQUARISH` arrangement**. `pickArrangement` falls back to the nearest instead
+ * of failing, so that grid renders a design drawn tall, stretched into a square.
+ * It does not error, no test that asserts on track counts would catch it, and it
+ * is exactly the class of defect `docs/STATUS.md` §1.0 was written about.
+ *
+ * So this file recomputes the aspect from the geometry the engine actually
+ * produces, rather than from the arithmetic that was done when the counts were
+ * chosen.
+ */
+
+/** `library-kit.ts`. The two bands the twenty-five seeded offer cards design for. */
+const TALL = { min: 0.35, max: 0.85 }
+const WIDE = { min: 1.35, max: 2.6 }
+
+const inBand = (aspect: number, band: { min: number; max: number }): boolean =>
+  aspect >= band.min && aspect <= band.max
+
+/**
+ * The aspect of a flowing cell on page one, measured off the engine's output.
+ *
+ * `flowBook` is asked for a real book rather than the grid being read directly,
+ * because the rectangle a placement occupies is `spanRect`'s answer and not the
+ * track size — a merged region swallows the gap between its tracks, and reading
+ * `cols[0].size` would quietly stop describing the page the day anything merges.
+ */
+function cellAspect(kind: BookKind): number {
+  const grid = gridForKind({ kind })
+  const page = pageSizeFor(KIND_SPEC[kind].format)
+
+  const flow = flowBook({
+    master: grid,
+    // One offer per body cell, so page one is full and nothing is compacted away.
+    offerIds: grid.regions.filter((region) => region.fill === 'flow').map((_, i) => `o${i}`),
+    pins: [],
+    page,
+    direction: 'ltr',
+  })
+
+  const placed = flow.pages[0]?.placements.find(
+    (candidate) => candidate.kind === 'flow' && candidate.offerId !== null
+  )
+  if (placed === undefined) {
+    throw new Error(`cellAspect: ${kind} flowed no offer into page one`)
+  }
+
+  return placed.rect.width / placed.rect.height
+}
+
+describe('gridForKind', () => {
+  /**
+   * The assertion this file exists for. It is deliberately a band rather than a
+   * number: the counts may change, and what must not change is that they land
+   * somewhere a card was actually designed for.
+   */
+  it.each(BOOK_KINDS)('gives %s a cell some card was designed for', (kind) => {
+    const aspect = cellAspect(kind)
+    const ok = inBand(aspect, TALL) || inBand(aspect, WIDE)
+
+    expect(
+      ok,
+      `${kind} cells are ${aspect.toFixed(3)}, which is in no band any seeded offer card ` +
+        `designs for. TALL is ${TALL.min}–${TALL.max}, WIDE is ${WIDE.min}–${WIDE.max}. ` +
+        `Change perRow/bodyRows in KIND_SPEC, or give the cards a SQUARISH arrangement.`
+    ).toBe(true)
+  })
+
+  /** The table in `KIND_SPEC`'s comment, held to what the engine actually does. */
+  it.each([
+    ['booklet', 0.769],
+    ['post', 0.645],
+    ['status', 0.807],
+    ['poster', 0.744],
+  ] as const)('puts %s cells at %f', (kind, expected) => {
+    expect(cellAspect(kind)).toBeCloseTo(expected, 2)
+  })
+
+  it('produces a grid the engine considers valid, for every kind', () => {
+    for (const kind of BOOK_KINDS) {
+      expect(validateGrid(gridForKind({ kind }))).toEqual([])
+    }
+  })
+
+  /*
+   * The structural difference between the two grids. A footer is print
+   * furniture; a post is looked at once in a feed, at thumbnail size first.
+   */
+  it('gives a booklet and a poster a footer band, and a post and a status none', () => {
+    const hasFooter = (kind: BookKind): boolean =>
+      gridForKind({ kind }).regions.some((region) => region.id === 'footer')
+
+    expect(hasFooter('booklet')).toBe(true)
+    expect(hasFooter('poster')).toBe(true)
+    expect(hasFooter('post')).toBe(false)
+    expect(hasFooter('status')).toBe(false)
+  })
+
+  it('composes from the card it is given', () => {
+    const grid = gridForKind({ kind: 'booklet', cardBlockId: 'blk_price_first' })
+    const flowing = grid.regions.filter((region) => region.fill === 'flow')
+
+    expect(flowing.length).toBeGreaterThan(0)
+    expect(flowing.every((region) => region.blockId === 'blk_price_first')).toBe(true)
+  })
+
+  it('lets the caller override the kind"s own counts', () => {
+    const grid = gridForKind({ kind: 'booklet', perRow: 2, bodyRows: 2 })
+
+    expect(grid.cols).toHaveLength(2)
+    // Two body rows plus the footer band.
+    expect(grid.rows).toHaveLength(3)
+  })
+})
+
+describe('gridForFormat', () => {
+  /**
+   * The three formats the wizard stopped offering. Books carrying them exist,
+   * and a grid rebuilt for one has to be the grid it already had.
+   */
+  it.each([
+    ['catalog', 'booklet'],
+    ['print', 'booklet'],
+    ['whatsapp', 'post'],
+  ] as const)('reads a stored %s as a %s', (format, kind) => {
+    expect(kindOf(format)).toBe(kind)
+    expect(gridForFormat(format)).toEqual(gridForKind({ kind }))
+  })
+})

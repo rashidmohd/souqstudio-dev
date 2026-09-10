@@ -132,7 +132,33 @@ const FOOTER = byId('blk_footer')
 // ─── Seeded grids ─────────────────────────────────────────────────────────────
 
 /**
- * The master grid a new book starts from.
+ * The body of a grid: `perRow` × `bodyRows` cells, every one of them flowing.
+ *
+ * Shared by both grids below rather than written twice. The region ids are what
+ * `slotOverrides` keys against — `offer-book-overrides.ts` stores a nudge by
+ * `regionId` + `offerId` — so `r0c0` meaning the top-start cell has to be one
+ * fact and not two that happen to agree.
+ */
+function offerRegions(perRow: number, bodyRows: number, blockId: string): Region[] {
+  const regions: Region[] = []
+  for (let row = 0; row < bodyRows; row += 1) {
+    for (let col = 0; col < perRow; col += 1) {
+      regions.push({
+        id: `r${row}c${col}`,
+        colStart: col,
+        colEnd: col,
+        rowStart: row,
+        rowEnd: row,
+        blockId,
+        fill: 'flow',
+      })
+    }
+  }
+  return regions
+}
+
+/**
+ * The master grid a booklet, a leaflet or a poster starts from.
  *
  * **Here rather than in whichever caller needed it first, for the same reason
  * `SEED_BLOCKS` is here:** two consumers need the same bytes. The render harness
@@ -148,25 +174,26 @@ const FOOTER = byId('blk_footer')
  * **Not a density setting.** E6 §5's density profiles are gone: density is the
  * consequence of track count at a given page size, and two controls that can
  * disagree is one too many. A denser book is more tracks.
+ *
+ * **The two block ids are parameters now, and default to what this function
+ * hardcoded for its whole life.** Twenty-five offer cards were seeded in E7 and
+ * every book ever created used exactly one of them, because the id was a module
+ * constant closed over here. `docs/E6-create-flow.md` §5.1. Defaulting rather
+ * than requiring is what keeps the harness and `library.test.ts` describing the
+ * same grid they always did.
  */
-export function bookletGrid(options: { perRow?: number; bodyRows?: number } = {}): PageGrid {
+export function bookletGrid(
+  options: {
+    perRow?: number
+    bodyRows?: number
+    cardBlockId?: string
+    footerBlockId?: string
+  } = {}
+): PageGrid {
   const perRow = options.perRow ?? 3
   const bodyRows = options.bodyRows ?? 3
 
-  const regions: Region[] = []
-  for (let row = 0; row < bodyRows; row += 1) {
-    for (let col = 0; col < perRow; col += 1) {
-      regions.push({
-        id: `r${row}c${col}`,
-        colStart: col,
-        colEnd: col,
-        rowStart: row,
-        rowEnd: row,
-        blockId: OFFER_CARD.id,
-        fill: 'flow',
-      })
-    }
-  }
+  const regions = offerRegions(perRow, bodyRows, options.cardBlockId ?? OFFER_CARD.id)
 
   regions.push({
     id: 'footer',
@@ -174,7 +201,7 @@ export function bookletGrid(options: { perRow?: number; bodyRows?: number } = {}
     colEnd: perRow - 1,
     rowStart: bodyRows,
     rowEnd: bodyRows,
-    blockId: FOOTER.id,
+    blockId: options.footerBlockId ?? FOOTER.id,
     fill: 'static',
   })
 
@@ -184,5 +211,43 @@ export function bookletGrid(options: { perRow?: number; bodyRows?: number } = {}
     gap: 0.022,
     margin: 0.04,
     regions,
+  }
+}
+
+/**
+ * The master grid a **single-image** book starts from: a square post, a story, a
+ * WhatsApp status.
+ *
+ * **The difference from `bookletGrid` is the footer, and that is the whole of
+ * it.** A footer band is a page-furniture convention that belongs to something
+ * printed and paginated. A post is looked at once, in a feed, at thumbnail size
+ * first; a strip of shop address across the bottom of it spends a tenth of the
+ * only impression it gets on something nobody reads at that scale. The shop's
+ * name reaches the viewer from the account posting it.
+ *
+ * The harness has had this grid as a local `carousel()` since the engine
+ * existed. It moves here for the reason the file opens with: two consumers, one
+ * set of bytes. `docs/E6-create-flow.md` §5.1.
+ *
+ * **A post still flows.** Twelve offers at 2 × 2 is three posts, which is a
+ * carousel — the same pagination a booklet gets, and the reason this returns a
+ * master grid rather than a one-off rectangle.
+ *
+ * The margin is wider than a booklet's and the gap is wider with it. A booklet
+ * is held; a post is cropped by whatever app is showing it, and the safe area is
+ * smaller than the canvas.
+ */
+export function postGrid(
+  options: { perRow?: number; bodyRows?: number; cardBlockId?: string } = {}
+): PageGrid {
+  const perRow = options.perRow ?? 2
+  const bodyRows = options.bodyRows ?? 2
+
+  return {
+    cols: Array.from({ length: perRow }, () => 1),
+    rows: Array.from({ length: bodyRows }, () => 1),
+    gap: 0.028,
+    margin: 0.05,
+    regions: offerRegions(perRow, bodyRows, options.cardBlockId ?? OFFER_CARD.id),
   }
 }

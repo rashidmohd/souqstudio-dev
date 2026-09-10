@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockElement } from '@souqstudio/types'
-import { SEED_BLOCKS, bookletGrid } from './library'
+import { SEED_BLOCKS, bookletGrid, postGrid } from './library'
 import { usesOnlyRoles } from './roles'
 import { validateBlock } from './block-edit'
 import { validateGrid } from './validate'
@@ -174,5 +174,67 @@ describe('bookletGrid', () => {
     expect(validateGrid(grid)).toEqual([])
     expect(grid.regions.filter((region) => region.blockId === 'blk_offer_card')).toHaveLength(9)
     expect(grid.regions.find((region) => region.id === 'footer')?.blockId).toBe('blk_footer')
+  })
+
+  /*
+   * The point of the parameter. Every book this product has ever created used
+   * `blk_offer_card`, because the id was a module constant this function closed
+   * over — twenty-five seeded cards and one reachable. `E6-create-flow.md` §5.1.
+   */
+  it('composes from the card it is given, leaving the footer alone', () => {
+    const grid = bookletGrid({ cardBlockId: 'blk_price_first' })
+    expect(validateGrid(grid)).toEqual([])
+    expect(grid.regions.filter((region) => region.blockId === 'blk_price_first')).toHaveLength(9)
+    expect(grid.regions.find((region) => region.id === 'footer')?.blockId).toBe('blk_footer')
+  })
+
+  it('takes a footer too', () => {
+    const grid = bookletGrid({ footerBlockId: 'blk_footer_center' })
+    expect(grid.regions.find((region) => region.id === 'footer')?.blockId).toBe(
+      'blk_footer_center'
+    )
+  })
+
+  it('names every cell for its position, so an override outlives a re-flow', () => {
+    const grid = bookletGrid({ perRow: 2, bodyRows: 2 })
+    expect(grid.regions.map((region) => region.id)).toEqual([
+      'r0c0',
+      'r0c1',
+      'r1c0',
+      'r1c1',
+      'footer',
+    ])
+  })
+})
+
+describe('postGrid', () => {
+  /*
+   * The one structural difference from a booklet, and the reason the function
+   * exists rather than a `footer: false` flag on the other one.
+   */
+  it('has no footer band', () => {
+    const grid = postGrid()
+    expect(validateGrid(grid)).toEqual([])
+    expect(grid.regions).toHaveLength(4)
+    expect(grid.regions.every((region) => region.fill === 'flow')).toBe(true)
+    expect(grid.regions.find((region) => region.id === 'footer')).toBeUndefined()
+  })
+
+  it('has one track per cell, so nothing is a short row', () => {
+    const grid = postGrid({ perRow: 2, bodyRows: 3 })
+    expect(validateGrid(grid)).toEqual([])
+    expect(grid.cols).toEqual([1, 1])
+    expect(grid.rows).toEqual([1, 1, 1])
+    expect(grid.regions).toHaveLength(6)
+  })
+
+  it('composes from the card it is given', () => {
+    const grid = postGrid({ cardBlockId: 'blk_price_first' })
+    expect(grid.regions.every((region) => region.blockId === 'blk_price_first')).toBe(true)
+  })
+
+  /* Cropped by whatever app shows it, so the safe area is smaller than the page. */
+  it('keeps a wider margin than a booklet', () => {
+    expect(postGrid().margin ?? 0).toBeGreaterThan(bookletGrid().margin ?? 0)
   })
 })

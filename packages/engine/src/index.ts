@@ -149,4 +149,4 @@ export {
   type BlockCategory,
   type MagicCategory,
 } from './block-category'
-export { SEED_BLOCKS, bookletGrid, type SeedBlock } from './library'
+export { SEED_BLOCKS, bookletGrid, postGrid, type SeedBlock } from './library'

@@ -194,6 +194,14 @@ const config: Config = {
         'icon-lg': 'var(--sq-icon-lg)',
         'control-lg': 'var(--sq-h-control-lg)',
         swatch: 'var(--sq-swatch)',
+        // `height` and `width` have carried `chip` since the token existed and
+        // this list did not, so `size-chip` generated nothing — and `IconChip`,
+        // the component whose whole job is to be a 28px square, has been
+        // shipping unsized on /catalog and /brand. Fifth instance of the defect
+        // in `docs/STATUS.md` §1.0, and the first one `check:classes` could not
+        // see: its regex matches numeric suffixes only, so `size-7` is caught
+        // and `size-chip` is not.
+        chip: 'var(--sq-size-chip)',
       },
       borderWidth: {
         hairline: '0.5px',
