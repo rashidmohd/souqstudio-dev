@@ -39,6 +39,37 @@ const schema = z.object({
    * is a startup error now rather than a note in `docs/STATUS.md`.
    */
   R2_ENDPOINT:                        z.string().url(),
+  /**
+   * The prefix this environment's block library is published to and read from —
+   * `https://assets.souqstudio.com/library/production/`, say.
+   *
+   * **Optional, and its absence is a complete library rather than a broken
+   * one.** Unset means the repo: the generated blocks plus
+   * `packages/engine/blocks/*.json`, which is what a laptop with no credentials
+   * gets and what the harness draws. Set means R2 is the source of truth and the
+   * compiled-in library is not consulted at all.
+   *
+   * **The environment's prefix is written out here rather than derived from
+   * `NODE_ENV`.** `docs/block-library-from-r2.md` §5 asks which prefix dev reads,
+   * and a path assembled in code is one typo away from putting a half-finished
+   * design in front of every shop — with nothing visible until it ships. A URL
+   * on the Railway dashboard can be read and checked by a person.
+   */
+  BLOCK_LIBRARY_URL:                  z.string().url().optional(),
+  /**
+   * What authorises a write to that prefix.
+   *
+   * **Not a session, and not a role.** Anything that can write there puts a
+   * block document in front of every shop on the platform — §5's trust boundary
+   * — and the highest role this app has is the owner of one organization, which
+   * is nowhere near that. A shared secret is a placeholder for E13's admin auth
+   * and is documented as one; what it must never become is `requireOrgRole`.
+   *
+   * Optional so that an environment without it still boots. The publish and sync
+   * routes refuse when it is unset, which is the right answer for a deployment
+   * that is not meant to publish.
+   */
+  LIBRARY_PUBLISH_TOKEN:              z.string().min(32).optional(),
   REDIS_URL:                          z.string().min(1),
   RESEND_API_KEY:                     z.string().startsWith('re_'),
   // Resend requires a verified sender. Accepts a bare address or the

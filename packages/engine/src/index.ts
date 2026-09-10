@@ -125,9 +125,18 @@ export {
   type Placement,
 } from './flow'
 
-// The rule a *seeded* block is held to: every colour a role the kit fills. The
-// web app re-exports it, so an API request and a loaded file meet one rule.
-// `library-source.ts` is deliberately NOT exported here — it reads a filesystem.
+// What a block document may contain, and the rule a *seeded* one is held to.
+// Three writers meet these: `PATCH /api/v1/blocks/:id`, a committed file, and an
+// object fetched from R2. See `document.ts` for why they live here and not in
+// the web app. `library-source.ts` is deliberately NOT exported — it reaches a
+// filesystem and a network, and nothing in a browser build may follow it there.
+export {
+  MAX_ARRANGEMENTS,
+  MAX_ELEMENTS,
+  MAX_GRADIENT_STOPS,
+  arrangementsSchema,
+  toArrangements,
+} from './document'
 export { usesOnlyRoles } from './roles'
 // The vocabulary, exported from its own module rather than through `library`.
 // Re-exporting it from there would put the designs back in the graph of anyone

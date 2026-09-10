@@ -10,16 +10,19 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "harness": "tsx harness/main.ts",
-    "gallery": "tsx harness/gallery.ts"
+    "gallery": "tsx harness/gallery.ts",
+    "blocks:publish": "tsx --env-file-if-exists=../../apps/web/.env.local scripts/publish-library.ts"
   },
   "dependencies": {
-    "@souqstudio/types": "workspace:*"
+    "@souqstudio/types": "workspace:*",
+    "zod": "^3.0.0"
   },
   "devDependencies": {
     "@souqstudio/config": "workspace:*",
     "typescript": "^5.0.0",
     "vitest": "^2",
     "tsx": "^4.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "@aws-sdk/client-s3": "^3"
   }
 }

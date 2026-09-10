@@ -42,3 +42,10 @@ export {
 export type { CreditAction, CreditSnapshot, SpendResult } from './credits'
 export { queues, enqueueEmail, enqueuePdf, enqueueAiJob, enqueueBgRemove, enqueueEnrich } from './queue-client'
 export type { EmailJobPayload, PdfJobPayload, AiJobPayload, BgRemovePayload } from './queue-client'
+/**
+ * Writing the block library into `blocks` — one implementation, two callers: the
+ * seed on every deploy, and `POST /api/v1/library/sync` when somebody publishes
+ * a design and will not wait for a release. See the file.
+ */
+export { syncLibrary } from './library-sync'
+export type { LibrarySyncResult } from './library-sync'

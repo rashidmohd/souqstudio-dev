@@ -350,7 +350,13 @@ importers:
       '@souqstudio/types':
         specifier: workspace:*
         version: link:../types
+      zod:
+        specifier: ^3.0.0
+        version: 3.25.76
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3
+        version: 3.1107.0
       '@souqstudio/config':
         specifier: workspace:*
         version: link:../config

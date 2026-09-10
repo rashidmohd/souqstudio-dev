@@ -2,9 +2,10 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SEED_BLOCKS } from './library'
-import { loadAuthoredBlocks, loadLibrary } from './library-source'
+import { resolveSource } from './library-source'
+import { loadAuthoredBlocks, loadLibrary } from './library-load'
 
 /**
  * The loader seam. `docs/block-library-from-r2.md` §8 step 1.
@@ -39,7 +40,8 @@ const valid = (overrides: Record<string, unknown> = {}) => ({
         {
           id: 'ground',
           kind: 'shape',
-          shape: 'rect',
+          variant: 'rect',
+          radius: 0,
           box: box(0, 0, 1, 1),
           fill: { from: 'role', ref: 'primary' },
         },
@@ -91,7 +93,7 @@ describe('the authored arm', () => {
     // Order is the picker's order. A design somebody drew on purpose is not a
     // variant of a card and must not land among the seventeen structures.
     await write('a.json', valid())
-    const library = await loadLibrary(url)
+    const library = await loadLibrary({ kind: 'local', dir: url })
 
     expect(library).toHaveLength(SEED_BLOCKS.length + 1)
     expect(library[library.length - 1]?.id).toBe('blk_authored_test')
@@ -171,7 +173,8 @@ describe('what it refuses, and what it says', () => {
               {
                 id: 'ground',
                 kind: 'shape',
-                shape: 'rect',
+                variant: 'rect',
+                radius: 0,
                 box: box(0, 0, 1, 1),
                 fill: { from: 'hex', hex: '#143CD2' },
               },
@@ -192,13 +195,15 @@ describe('what it refuses, and what it says', () => {
             aspectMin: 0.4,
             aspectMax: 6,
             elements: [
-              { id: 'ground', kind: 'shape', shape: 'rect', box: { start: 0, top: 0 } },
+              { id: 'ground', kind: 'shape', variant: 'rect', radius: 0, box: { start: 0, top: 0 } },
             ],
           },
         ],
       })
     )
-    expect(message).toContain('"box"')
+    // The schema names the path it failed at, which is the difference between
+    // a person fixing their document and a person guessing.
+    expect(message).toContain('box')
   })
 
   it('refuses an element kind the painter has never heard of', async () => {
@@ -233,6 +238,156 @@ describe('what it refuses, and what it says', () => {
     // so two blocks answering to one id is a book drawing whichever was written
     // last.
     await write('a.json', valid({ id: 'blk_footer' }))
-    await expect(loadLibrary(url)).rejects.toThrow(/collides/)
+    await expect(loadLibrary({ kind: 'local', dir: url })).rejects.toThrow(/collides/)
+  })
+})
+
+/**
+ * The R2 arm.
+ *
+ * **What is worth testing is the prune's blast radius, not the happy path.** The
+ * seed removes a seeded block the library no longer lists — archived if a book
+ * uses it, deleted if not — so any read that comes back *short* is
+ * indistinguishable from "those blocks were withdrawn". A 500 from a CDN would
+ * then take blocks out of every shop on the platform. Every test below is a way
+ * of arriving short, and every one of them must refuse before a row is written.
+ */
+describe('reading the library from R2', () => {
+  const base = new URL('https://assets.example.com/library/test/')
+
+  const manifest = (blocks: { id: string; category: string }[], overrides = {}) => ({
+    version: '2026-09-10T00:00:00.000Z',
+    count: blocks.length,
+    blocks,
+    ...overrides,
+  })
+
+  /** A bucket, as a map of URL → body. Anything absent 404s. */
+  const bucket = (objects: Record<string, unknown>) => {
+    vi.stubGlobal('fetch', async (input: URL | string) => {
+      const key = String(input).replace(base.href, '')
+      const body = objects[key]
+      if (body === undefined) return new Response('nope', { status: 404 })
+      return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status: 200 })
+    })
+  }
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  const entry = { id: 'blk_authored_test', category: 'panel' }
+
+  it('reads a manifest and the documents it names', async () => {
+    bucket({
+      'manifest.json': manifest([entry]),
+      'blk_authored_test.json': valid(),
+    })
+
+    const library = await loadLibrary({ kind: 'r2', base })
+
+    expect(library).toHaveLength(1)
+    expect(library[0]?.id).toBe('blk_authored_test')
+  })
+
+  it('does NOT add the generated blocks — the bucket is the whole library', async () => {
+    // Two arms would mean a deploy and a sync could disagree about what the
+    // library is. Whatever is in the bucket is what every shop gets.
+    bucket({ 'manifest.json': manifest([entry]), 'blk_authored_test.json': valid() })
+
+    const library = await loadLibrary({ kind: 'r2', base })
+    expect(library.map((block) => block.id)).not.toContain('blk_offer_card')
+  })
+
+  it('refuses when a document 404s, rather than seeding what arrived', async () => {
+    // The one that matters: seeding one block here would prune the other
+    // fifty-eight out of every shop.
+    bucket({
+      'manifest.json': manifest([entry, { id: 'blk_missing', category: 'footer' }]),
+      'blk_authored_test.json': valid(),
+    })
+
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/blk_missing/)
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/partial library/)
+  })
+
+  it('refuses an empty manifest instead of pruning the library away', async () => {
+    bucket({ 'manifest.json': manifest([]) })
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/empty/)
+  })
+
+  it('refuses a manifest whose count disagrees with its own list', async () => {
+    // An interrupted publish, caught by the publisher's own bookkeeping.
+    bucket({ 'manifest.json': manifest([entry], { count: 59 }) })
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/interrupted publish/)
+  })
+
+  it('refuses when there is no manifest at the prefix', async () => {
+    // Overwhelmingly the wrong prefix, so the message says so.
+    bucket({})
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/no manifest/)
+  })
+
+  it('holds a fetched document to the same bar as a committed file', async () => {
+    // Nothing reviewed this document. It gets the schema, the structure, the
+    // no-warnings rule and roles-only, exactly like a file in the repo.
+    bucket({
+      'manifest.json': manifest([entry]),
+      'blk_authored_test.json': valid({
+        arrangements: [
+          {
+            aspectMin: 0.4,
+            aspectMax: 6,
+            elements: [
+              {
+                id: 'ground',
+                kind: 'shape',
+                variant: 'rect',
+                radius: 0,
+                box: box(0, 0, 1, 1),
+                fill: { from: 'hex', hex: '#143CD2' },
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/role/)
+  })
+
+  it('refuses a document that is not the block the manifest named', async () => {
+    bucket({
+      'manifest.json': manifest([entry]),
+      'blk_authored_test.json': valid({ id: 'blk_something_else' }),
+    })
+
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/half-finished publish/)
+  })
+})
+
+describe('choosing a source', () => {
+  const original = process.env['BLOCK_LIBRARY_URL']
+  afterEach(() => {
+    if (original === undefined) delete process.env['BLOCK_LIBRARY_URL']
+    else process.env['BLOCK_LIBRARY_URL'] = original
+  })
+
+  it('is the repo when nothing is configured', () => {
+    delete process.env['BLOCK_LIBRARY_URL']
+    expect(resolveSource()).toEqual({ kind: 'local' })
+  })
+
+  it('is R2 when a prefix is given, trailing slash or not', () => {
+    // A prefix written without a slash must not silently fetch
+    // `library/manifest.json` instead of `library/production/manifest.json`.
+    process.env['BLOCK_LIBRARY_URL'] = 'https://assets.example.com/library/production'
+    expect(resolveSource()).toEqual({
+      kind: 'r2',
+      base: new URL('https://assets.example.com/library/production/'),
+    })
+  })
+
+  it('treats an empty variable as unset rather than as a bucket at ""', () => {
+    process.env['BLOCK_LIBRARY_URL'] = '  '
+    expect(resolveSource()).toEqual({ kind: 'local' })
   })
 })

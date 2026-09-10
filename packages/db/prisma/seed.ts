@@ -1,11 +1,11 @@
-import { Prisma } from '@prisma/client'
-import { BLOCK_OCCASION } from '@souqstudio/engine'
-// **The seam.** Deep import rather than through the barrel because this module
-// reads a filesystem and must never reach a browser build — see the file. Today
-// it returns the generated blocks plus a folder of committed JSON; if the
-// library ever moves to a bucket, this import is what will be pointing at it,
-// and nothing below here changes. `docs/block-library-from-r2.md` §7.
-import { loadLibrary } from '@souqstudio/engine/src/library-source'
+import { syncLibrary } from '../src/library-sync'
+// **The seam, and it is now pointing at R2.** Deep import rather than through
+// the barrel because this module reaches a filesystem and a network, and nothing
+// in a browser build may follow it there. Which source it reads is
+// `BLOCK_LIBRARY_URL`'s decision, made once in `resolveSource()` and reported
+// below. `docs/block-library-from-r2.md` §7.
+import { resolveSource } from '@souqstudio/engine/src/library-source'
+import { loadLibrary } from '@souqstudio/engine/src/library-load'
 import { DEFAULT_PROMO_TIERS } from '../src/promo-tiers'
 import { PrismaClient } from '@prisma/client'
 import { CATALOG_CATEGORIES } from '../src/catalog-categories'
@@ -163,109 +163,33 @@ async function backfillPromoTiers() {
 }
 
 async function seedBlocks() {
-  // Awaited once and passed down, rather than loaded again by the prune: the
-  // upsert and the prune must agree about what the library *is*, and reading it
-  // twice is two answers that can differ if a file lands between them.
-  const library = await loadLibrary()
+  // **Read once, and passed down to the prune.** The upsert and the prune must
+  // agree about what the library *is*; reading it twice is two answers that can
+  // differ if a publish lands between them — and the second answer being shorter
+  // is a prune that deletes real blocks out of every shop.
+  //
+  // Anything short or unreachable throws before this line returns. That is the
+  // design: a deploy that fails loudly is recoverable, and a prune that ran
+  // against a partial library is not. See `library-source.ts`.
+  const source = resolveSource()
+  const library = await loadLibrary(source)
 
-  for (const block of library) {
-    const data = {
-      name: block.name,
-      description: block.description,
-      repeats: block.repeats,
-      // `Arrangement[]` is JSON-shaped but is an interface, and an interface has
-      // no implicit index signature, so it is not assignable to Prisma's mapped
-      // JSON input type. Same assertion as `lib/brand-kit.ts` in the web app.
-      arrangements: block.arrangements as unknown as Prisma.InputJsonValue,
-      status: 'published',
-      // For an occasion rather than for a week. `activeFrom` and `activeTo` stay
-      // null on purpose: Ramadan and both Eids move against the Gregorian
-      // calendar, so a fixed window is a block that hides itself in the wrong
-      // month from its second year. See `library-seasonal.ts`.
-      isSeasonal: block.isSeasonal,
-      // **On the row because the app can no longer ask the library.** It used
-      // to be looked up in code — `SEED_BLOCKS.map(id → category)` — which
-      // worked while the library was a TypeScript constant the web app could
-      // import. It is a loaded document now, and one day may be a loaded
-      // document from somewhere else entirely; the row is the only place the
-      // picker can learn what group a block is in. Exactly the argument that
-      // put `occasion` here a day earlier.
-      category: block.category,
-      // Which occasion, so an imported copy can carry it. The *window* is still
-      // computed from it — see `packages/engine/src/seasonal.ts`.
-      occasion: BLOCK_OCCASION[block.id] ?? null,
-      // Null organizationId is what makes a block seeded rather than authored.
-      organizationId: null,
-    }
+  // **Said out loud, because reading the wrong prefix is invisible otherwise.**
+  // A deploy that quietly seeded from the repo when it should have read the
+  // bucket looks exactly like a successful deploy, right up until somebody asks
+  // why the design they published last night is not in the picker.
+  console.log(
+    source.kind === 'r2'
+      ? `[seed] library from R2: ${source.base.href}`
+      : '[seed] library from the repo (BLOCK_LIBRARY_URL is not set)'
+  )
 
-    await prisma.block.upsert({
-      where: { id: block.id },
-      update: data,
-      create: { id: block.id, ...data },
-    })
-  }
-
-  await pruneSeededBlocks(library)
-
-  console.log(`[seed] ${library.length} blocks`)
-}
-
-/**
- * Seeded blocks that are no longer in the library.
- *
- * **Upserting is not enough once the library can shrink.** The seed writes what
- * `SEED_BLOCKS` holds and has never removed anything, so the fourteen cards cut
- * on 8 September — colour swaps of their neighbours, and variants that differed
- * by a hairline — would sit in every database for ever, still listed in the
- * picker, still importable. A library that can only grow is how the thing an
- * owner complained about comes back.
- *
- * **Referenced blocks are archived, never deleted.** A page grid names its block
- * by id inside `regions` JSON, which Prisma cannot enforce, so deleting one that
- * a live book draws would leave a hole in a page rather than an error anywhere.
- * `book_pins` has a real foreign key and the delete would simply fail. Archiving
- * takes it out of the picker and leaves every book that uses it intact.
- *
- * A shop's own copy is a separate row with its own id and is never touched —
- * importing is copying, so nothing an owner has taken is taken back.
- */
-async function pruneSeededBlocks(library: readonly { id: string }[]) {
-  const current = new Set(library.map((block) => block.id))
-  const seeded = await prisma.block.findMany({
-    where: { organizationId: null },
-    select: { id: true, name: true, status: true },
-  })
-  const stale = seeded.filter((block) => !current.has(block.id))
-  if (stale.length === 0) return
-
-  const [grids, pins] = await Promise.all([
-    prisma.pageGrid.findMany({ select: { regions: true } }),
-    prisma.bookPin.findMany({ select: { blockId: true } }),
-  ])
-
-  const inUse = new Set(pins.map((pin) => pin.blockId))
-  for (const grid of grids) {
-    for (const region of grid.regions as unknown as { blockId?: string }[]) {
-      if (typeof region.blockId === 'string') inUse.add(region.blockId)
-    }
-  }
-
-  const archived = stale.filter((block) => inUse.has(block.id))
-  const removable = stale.filter((block) => !inUse.has(block.id))
-
-  if (archived.length > 0) {
-    await prisma.block.updateMany({
-      where: { id: { in: archived.map((block) => block.id) } },
-      data: { status: 'archived' },
-    })
-  }
-  if (removable.length > 0) {
-    await prisma.block.deleteMany({ where: { id: { in: removable.map((b) => b.id) } } })
-  }
+  const result = await syncLibrary(library)
 
   console.log(
-    `[seed] pruned ${removable.length} retired blocks` +
-      (archived.length > 0 ? `, archived ${archived.length} still used by a book` : '')
+    `[seed] ${result.written} blocks` +
+      (result.deleted > 0 ? `, pruned ${result.deleted} retired` : '') +
+      (result.archived > 0 ? `, archived ${result.archived} still used by a book` : '')
   )
 }
 

@@ -1,6 +1,17 @@
 /**
  * Where the library comes from. **This file is the seam.**
  *
+ * ## Two files, and the split is structural rather than tidy
+ *
+ * This half reaches the *network* and validates what comes back. `library-load.ts`
+ * is the other half: it reaches the *filesystem* and dispatches between the two
+ * sources. They are separate modules because `POST /api/v1/library/sync` imports
+ * this one, and a Next build follows every import — webpack resolves
+ * `new URL('../blocks/', import.meta.url)` at build time and fails on it, which
+ * is how the split was discovered rather than designed. It is the right shape
+ * anyway: the web app has no business reaching a folder in the repo, and now it
+ * structurally cannot.
+ *
  * `docs/block-library-from-r2.md` §7 asks for one thing above all others: that
  * choosing R2 later be a change to a *loader* rather than to the seed, the
  * prune, the picker, the plan gate and everything else downstream. This is that
@@ -32,100 +43,205 @@
  * seam is only cheap to cross if it is already the right shape.
  */
 
-import { readFile, readdir } from 'node:fs/promises'
-import type { Arrangement, BlockElement, Box } from '@souqstudio/types'
 import { BLOCK_CATEGORIES, type BlockCategory } from './block-category'
 import { validateBlock } from './block-edit'
-import { SEED_BLOCKS, type SeedBlock } from './library'
+import { arrangementsSchema } from './document'
+import type { SeedBlock } from './library'
 import { usesOnlyRoles } from './roles'
 
 /**
- * The folder of authored documents, relative to this file.
+ * Where a library is read from.
  *
- * `packages/engine/blocks/` — beside the engine that validates and draws them
- * rather than beside the seed that writes them, for the same reason
- * `SEED_BLOCKS` is here: two consumers need the same bytes, and a second copy
- * is one that drifts.
+ * **`r2` is the source of truth wherever it is configured**, and in that mode
+ * the generated blocks are *not* added from code — they are in the bucket,
+ * because `blocks:publish` put them there. Two arms would mean a deploy could
+ * disagree with a sync about what the library is, which is the whole failure
+ * this design exists to avoid.
+ *
+ * `local` is the repo: generated blocks plus `blocks/*.json`. It is what the
+ * harness and a laptop with no credentials get, and it is how the bucket's
+ * contents are produced in the first place.
  */
-const AUTHORED_DIR = new URL('../blocks/', import.meta.url)
+export type LibrarySource = { kind: 'local'; dir?: URL } | { kind: 'r2'; base: URL }
 
 /**
- * The whole library: the generated blocks, then the authored ones.
+ * Which source this process should use, from the environment.
  *
- * **Order is the picker's order**, so authored designs land after the generated
- * families rather than interleaved into them. A design somebody drew on purpose
- * is not a variant of a card, and putting it among the seventeen structures
- * would read as one.
+ * **One variable decides it, and its absence is not a silent fallback to
+ * nothing** — it is the repo, which is a complete library. A seed on a laptop
+ * with no R2 credentials still works and still writes fifty-nine blocks. A seed
+ * on Railway with `BLOCK_LIBRARY_URL` set reads the bucket and only the bucket.
+ *
+ * **The variable carries the environment's prefix, rather than the code
+ * deriving one.** §5 asks "which prefix does dev read?" and the honest answer is
+ * that nothing in the code should be guessing: a bucket path assembled from
+ * `NODE_ENV` is one typo away from a half-finished design in every shop, and the
+ * typo is invisible until it ships. An explicit URL per environment can be read
+ * off the Railway dashboard and checked.
  */
-export async function loadLibrary(from: URL = AUTHORED_DIR): Promise<SeedBlock[]> {
-  const authored = await loadAuthoredBlocks(from)
+export function resolveSource(): LibrarySource {
+  const base = process.env['BLOCK_LIBRARY_URL']
+  if (base === undefined || base.trim() === '') return { kind: 'local' }
 
-  const seen = new Set(SEED_BLOCKS.map((block) => block.id))
-  for (const block of authored) {
-    if (seen.has(block.id)) {
-      throw new Error(
-        `library: authored block "${block.id}" collides with a generated one. ` +
-          `An id is what the seed upserts on and what a live book names inside its ` +
-          `page grid, so two blocks answering to one id is a book drawing whichever ` +
-          `was written last.`
-      )
-    }
-    seen.add(block.id)
-  }
-
-  return [...SEED_BLOCKS, ...authored]
+  // A trailing slash or its absence must not change which objects are fetched.
+  return { kind: 'r2', base: new URL(base.endsWith('/') ? base : `${base}/`) }
 }
 
 /**
- * The authored arm. **Swap this function to change where the library lives.**
+ * The manifest: one object that says what the library is.
  *
- * Reading a folder today; fetching a manifest and then the documents it names,
- * from a per-environment prefix, tomorrow. What it returns — validated
- * `SeedBlock`s — is the contract, and nothing above this line needs to know
- * which it was.
+ * **It exists so that a reader never has to list a bucket.** Listing is a
+ * credentialed operation, it is eventually consistent, and it cannot tell you
+ * whether what you got is the whole thing. One document naming every block, with
+ * a count, can: fetch it, fetch what it names, and compare. That comparison is
+ * the entire safety property of this path — see `loadFromR2`.
+ *
+ * `version` is the publish's timestamp. It is not used for cache invalidation
+ * (the fetches ask for no cache at all) — it is there so that a person looking
+ * at a bucket, or at a sync that went wrong, can tell which publish they are
+ * holding.
  */
-export async function loadAuthoredBlocks(from: URL = AUTHORED_DIR): Promise<SeedBlock[]> {
-  const files = (await readAuthored(from)).sort((a, b) => a.name.localeCompare(b.name))
+export interface LibraryManifest {
+  version: string
+  count: number
+  blocks: { id: string; category: BlockCategory }[]
+}
 
-  const blocks: SeedBlock[] = []
-  const seen = new Set<string>()
+/**
+ * The R2 arm. **This is the function §7 said would be the whole of the change,
+ * and it is.**
+ *
+ * Reads over plain HTTPS from the bucket's public origin — no SDK, no
+ * credentials, no bucket listing. Writing needs keys; reading a library that
+ * every shop is about to receive does not, and keeping the read path
+ * credential-free is what lets the engine do it without an AWS dependency.
+ *
+ * ## All of it, or none of it
+ *
+ * **The dangerous failure here is not an outage, it is a partial read.** The
+ * seed prunes: a seeded block the library no longer lists is archived if a book
+ * uses it and deleted if not. So a manifest that fetched but a document that did
+ * not would look exactly like *"that block was removed from the library"* — and
+ * the prune would remove it from every shop on the platform, for a 500 from a
+ * CDN.
+ *
+ * Every refusal below therefore happens **before a single row is written**, and
+ * the message says what was expected and what arrived. A deploy that fails
+ * loudly is recoverable; a prune that ran on a partial library is not.
+ */
+export async function loadFromR2(base: URL): Promise<SeedBlock[]> {
+  const manifest = await readManifest(base)
 
-  for (const file of files) {
-    const block = parseSeedBlock(file.name, file.text)
-    if (seen.has(block.id)) {
-      throw new Error(`library: two authored documents claim the id "${block.id}"`)
-    }
-    seen.add(block.id)
-    blocks.push(block)
+  const documents = await Promise.all(
+    manifest.blocks.map(async (entry) => ({
+      entry,
+      text: await fetchText(new URL(`${entry.id}.json`, base)),
+    }))
+  )
+
+  const missing = documents.filter((document) => document.text === null)
+  if (missing.length > 0) {
+    throw new Error(
+      `library: ${missing.length} of ${manifest.count} documents could not be fetched ` +
+        `from ${base.href} (${missing.map((document) => document.entry.id).join(', ')}). ` +
+        `Refusing to seed a partial library: the prune would treat every one of them ` +
+        `as removed and take it out of every shop.`
+    )
+  }
+
+  const blocks = documents.map((document) =>
+    // The manifest is an index, not an authority. Every document is held to the
+    // same bar a committed file is — schema, structure, no warnings, roles only.
+    parseSeedBlock(`${document.entry.id}.json`, document.text as string)
+  )
+
+  // The manifest said what it contains; the documents say what they are. If
+  // those disagree, something published half a library or a document was
+  // overwritten by a different block, and neither is a thing to seed through.
+  const listed = manifest.blocks.map((entry) => entry.id).sort()
+  const arrived = blocks.map((block) => block.id).sort()
+  if (listed.join('\n') !== arrived.join('\n')) {
+    throw new Error(
+      `library: the manifest at ${base.href} lists ids the documents do not match. ` +
+        `Listed ${listed.length}, arrived ${arrived.length}. This is a half-finished ` +
+        `publish; nothing has been written.`
+    )
   }
 
   return blocks
 }
 
-/**
- * The bytes, and the only part that knows about a filesystem.
- *
- * A missing folder is not an error: the library is currently entirely
- * generated, and an empty authored arm is the honest description of that rather
- * than a failure to report.
- */
-async function readAuthored(from: URL): Promise<{ name: string; text: string }[]> {
-  let names: string[]
-  try {
-    names = await readdir(from)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw error
+/** The manifest, validated as strictly as a block document is. */
+async function readManifest(base: URL): Promise<LibraryManifest> {
+  const url = new URL('manifest.json', base)
+  const text = await fetchText(url)
+
+  if (text === null) {
+    throw new Error(
+      `library: no manifest at ${url.href}. BLOCK_LIBRARY_URL points at this prefix, ` +
+        `so either it is the wrong prefix or nothing has been published to it yet — ` +
+        `run \`pnpm --filter @souqstudio/web blocks:publish\` against it.`
+    )
   }
 
-  return Promise.all(
-    names
-      .filter((name) => name.endsWith('.json'))
-      .map(async (name) => ({
-        name,
-        text: await readFile(new URL(name, from), 'utf8'),
-      }))
-  )
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch (error) {
+    throw new Error(`library: the manifest at ${url.href} is not valid JSON (${(error as Error).message})`)
+  }
+
+  if (!isRecord(raw) || !Array.isArray(raw['blocks']) || typeof raw['count'] !== 'number') {
+    throw new Error(`library: the manifest at ${url.href} is not a manifest`)
+  }
+
+  const blocks: LibraryManifest['blocks'] = []
+  for (const entry of raw['blocks']) {
+    if (!isRecord(entry) || typeof entry['id'] !== 'string' || !isCategory(entry['category'])) {
+      throw new Error(`library: the manifest at ${url.href} has a malformed entry`)
+    }
+    blocks.push({ id: entry['id'], category: entry['category'] })
+  }
+
+  // **The count is not decoration.** It is written by the publisher from what it
+  // actually uploaded, so a manifest whose list is shorter than its own count is
+  // a publish that was interrupted partway through writing this file.
+  if (blocks.length !== raw['count']) {
+    throw new Error(
+      `library: the manifest at ${url.href} claims ${String(raw['count'])} blocks and ` +
+        `lists ${blocks.length}. That is an interrupted publish, not a library.`
+    )
+  }
+
+  if (blocks.length === 0) {
+    throw new Error(
+      `library: the manifest at ${url.href} is empty. Seeding it would prune every ` +
+        `seeded block from every shop, so it is refused as a mistake rather than obeyed.`
+    )
+  }
+
+  return { version: typeof raw['version'] === 'string' ? raw['version'] : 'unknown', count: blocks.length, blocks }
+}
+
+/**
+ * One object, or null if it is not there.
+ *
+ * **Asks for a fresh copy, deliberately.** A sync is triggered precisely because
+ * something changed; a CDN edge that served a cached manifest would report
+ * success and change nothing, which is the worst of the available outcomes.
+ * Freshness matters more than the request here — this runs once per deploy or
+ * per explicit sync, not per render.
+ *
+ * A `cache-control` header rather than `RequestInit.cache`, which Node's fetch
+ * types do not carry: this has to run under `tsx` in the seed and under Next in
+ * the sync route, and the header is what both of them honour.
+ */
+async function fetchText(url: URL): Promise<string | null> {
+  const response = await fetch(url, {
+    headers: { 'cache-control': 'no-cache' },
+  }).catch(() => null)
+  if (response === null || !response.ok) return null
+  return response.text()
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -138,15 +254,18 @@ async function readAuthored(from: URL): Promise<{ name: string; text: string }[]
  * so the refusal has to name the file and say what is wrong with it, or the
  * failure arrives as a stack trace in a deploy log with nothing to act on.
  *
- * **What is checked here is the skeleton, not every field.** The exhaustive,
- * per-kind schema is `arrangementsSchema` in `apps/web/lib/block-document.ts`,
- * where it guards the API. Two schemas is one too many and unifying them is
- * real work — it is a genuine prerequisite for step 5 of that document's list,
- * and is recorded there rather than pretended away here. What this does check is
- * everything the *engine* reads while drawing, plus the two rules a shipped
- * block is held to that an owner's is not: no warnings, and colours by role.
+ * **Every field, not a skeleton.** This used to check only what the engine
+ * dereferences while drawing, on the argument that a committed file is reviewed
+ * in a diff before it merges. A document fetched from a bucket is reviewed by
+ * nobody: it reaches every shop on the next sync with no diff, no CI and no
+ * compiler anywhere in its path. So `arrangementsSchema` — the same zod schema
+ * that guards `PATCH /api/v1/blocks/:id` — moved into the engine and runs here.
+ * There is one definition of a legal block document and three doors into it.
+ *
+ * On top of the schema, the two rules a *shipped* block is held to and an
+ * owner's own is not: no warnings, and every colour a role.
  */
-function parseSeedBlock(file: string, text: string): SeedBlock {
+export function parseSeedBlock(file: string, text: string): SeedBlock {
   const refuse = (why: string): never => {
     throw new Error(`library: ${file} is not a block document — ${why}`)
   }
@@ -184,7 +303,15 @@ function parseSeedBlock(file: string, text: string): SeedBlock {
     return refuse(`"category" must be one of ${BLOCK_CATEGORIES.map((c) => `"${c}"`).join(', ')}`)
   }
 
-  const arrangements = parseArrangements(raw['arrangements'], refuse)
+  const parsed = arrangementsSchema.safeParse(raw['arrangements'])
+  if (!parsed.success) {
+    // The zod message names the path — `0.elements.3.box.width` — which is the
+    // difference between a person fixing their document and a person guessing.
+    const first = parsed.error.errors[0]
+    const at = first?.path.join('.') ?? 'arrangements'
+    return refuse(`"arrangements" is not a valid document at ${at}: ${first?.message ?? 'invalid'}`)
+  }
+  const arrangements = parsed.data
 
   // The structural bar every block clears, owner-authored ones included.
   const errors = validateBlock({ repeats, arrangements }).filter(
@@ -219,79 +346,9 @@ function parseSeedBlock(file: string, text: string): SeedBlock {
   return { id, name, description, repeats, category, isSeasonal, arrangements }
 }
 
-/**
- * The arrangement skeleton: what `pickArrangement` and the painter walk.
- *
- * Each element keeps the fields of its own kind unchecked — see the note on
- * `parseSeedBlock`. The cast at the end is the one place that is true, and it
- * is narrow: everything the engine dereferences without a guard has been
- * checked above it.
- */
-function parseArrangements(value: unknown, refuse: (why: string) => never): Arrangement[] {
-  if (!Array.isArray(value) || value.length === 0) {
-    return refuse('"arrangements" must be a non-empty array')
-  }
-
-  for (const [index, arrangement] of value.entries()) {
-    const where = `arrangement ${index}`
-    if (!isRecord(arrangement)) return refuse(`${where} is not an object`)
-
-    const { aspectMin, aspectMax } = arrangement
-    if (!isFinite_(aspectMin) || !isFinite_(aspectMax) || aspectMin <= 0) {
-      return refuse(`${where} needs positive finite "aspectMin" and "aspectMax"`)
-    }
-    if (aspectMin > aspectMax) return refuse(`${where} has aspectMin above aspectMax`)
-
-    const elements = arrangement['elements']
-    if (!Array.isArray(elements)) return refuse(`${where} has no "elements" array`)
-
-    for (const [at, element] of elements.entries()) {
-      if (!isRecord(element)) return refuse(`${where}, element ${at} is not an object`)
-      if (typeof element['id'] !== 'string' || element['id'] === '') {
-        return refuse(`${where}, element ${at} has no "id"`)
-      }
-      if (!isKind(element['kind'])) {
-        return refuse(`${where}, element ${at} has an unknown "kind" (${String(element['kind'])})`)
-      }
-      if (!isBox(element['box'])) {
-        return refuse(
-          `${where}, element ${element['id']} needs a "box" of four finite numbers — ` +
-            `start, top, width, height, each a fraction of the block rather than a pixel`
-        )
-      }
-    }
-  }
-
-  // Checked field by field above for everything the engine reads without a
-  // guard; the per-kind options are the schema's job, as documented on
-  // `parseSeedBlock`.
-  return value as Arrangement[]
-}
-
-const ELEMENT_KINDS: readonly BlockElement['kind'][] = [
-  'image',
-  'text',
-  'priceMark',
-  'chip',
-  'logo',
-  'shape',
-]
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const isFinite_ = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value)
-
-const isKind = (value: unknown): value is BlockElement['kind'] =>
-  typeof value === 'string' && (ELEMENT_KINDS as readonly string[]).includes(value)
 
 const isCategory = (value: unknown): value is BlockCategory =>
   typeof value === 'string' && (BLOCK_CATEGORIES as readonly string[]).includes(value)
 
-const isBox = (value: unknown): value is Box =>
-  isRecord(value) &&
-  isFinite_(value['start']) &&
-  isFinite_(value['top']) &&
-  isFinite_(value['width']) &&
-  isFinite_(value['height'])

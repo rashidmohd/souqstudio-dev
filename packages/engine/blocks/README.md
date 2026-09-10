@@ -1,11 +1,24 @@
 # Authored blocks
 
 Individual designs, one JSON file each. `library-source.ts` reads this folder,
-validates every document, and hands the result to `pnpm db:seed` — which upserts
-it into `blocks` with a null `organizationId`, exactly like a generated one.
+validates every document, and hands the result to whatever is writing the
+library — `pnpm db:seed`, or `blocks:publish` on its way to R2.
 
 **Adding a design is adding a file here.** No TypeScript, no entry in a list, no
 generated index. Nothing else changes.
+
+## Where this folder sits now
+
+The library has two sources, and `BLOCK_LIBRARY_URL` picks between them:
+
+- **unset** — the repo. The generated blocks plus this folder. What a laptop
+  with no credentials gets, and what the render harness draws.
+- **set** — R2, and *only* R2. The compiled-in library is not consulted at all.
+
+So a file here reaches shops in two hops rather than one: publish it to the
+bucket (`pnpm --filter @souqstudio/engine blocks:publish`), then sync
+(`POST /api/v1/library/sync`, or the next deploy's seed). See
+`docs/block-library-from-r2.md` §10.
 
 ## Why this is not where the whole library lives
 
@@ -33,7 +46,8 @@ band with a deadline, a cover for one campaign.
         {
           "id": "ground",
           "kind": "shape",
-          "shape": "rect",
+          "variant": "rect",
+          "radius": 0,
           "box": { "start": 0, "top": 0, "width": 1, "height": 1 },
           "fill": { "from": "role", "ref": "primary" }
         }

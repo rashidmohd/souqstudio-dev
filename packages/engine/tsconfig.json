@@ -2,7 +2,8 @@
   "extends": "@souqstudio/config/tsconfig.base.json",
   "include": [
     "src/**/*",
-    "harness/**/*"
+    "harness/**/*",
+    "scripts/**/*"
   ],
   "exclude": [
     "node_modules",

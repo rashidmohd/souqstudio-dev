@@ -25,7 +25,7 @@ import type { Block } from '@souqstudio/types'
 import { type Placement } from '../src/index'
 // Awaited at module scope: the library is a loaded document, and the gallery's
 // whole job is to draw every block that exists. See `harness/blocks.ts`.
-import { loadLibrary } from '../src/library-source'
+import { loadLibrary } from '../src/library-load'
 
 const SEED_BLOCKS = await loadLibrary()
 import { FRIENDLY, WORST_CASE } from './dummy'

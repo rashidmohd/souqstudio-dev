@@ -11,7 +11,7 @@
  */
 
 import type { Block, BlockElement } from '@souqstudio/types'
-import { loadLibrary } from '../src/library-source'
+import { loadLibrary } from '../src/library-load'
 
 /**
  * The seeded library, as `Block` rows.

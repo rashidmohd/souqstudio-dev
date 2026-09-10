@@ -184,8 +184,8 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   Fabric text object, or every bounding box is measured against the fallback.
 - **The layout engine is what everything draws through.** `packages/engine` carries track
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation, the
-  flow engine, the fit ladder, the price mark, bounded overrides, snapping and the seeded
-  block library of **59 blocks** — **232 tests**. Four surfaces render from it and all four share one
+  flow engine, the fit ladder, the price mark, bounded overrides, snapping, the block
+  document schema and the seeded block library of **59 blocks** — **338 tests**. Four surfaces render from it and all four share one
   painter, `components/blocks/draw.tsx`: `/brand`'s block preview, the editor's page, the
   designer's canvas and its worst-case panel. `pnpm --filter @souqstudio/engine harness`
   draws sample pages to SVG from the seeded blocks and both invented products and **real
@@ -238,6 +238,21 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   E7-03 computes its window from the calendar rather than reading a stored date,
   because Ramadan and both Eids move against the Gregorian one; the composer's
   half is still owed. `E7-pending.md` §9.
+- **The block library is distributed through R2, and `BLOCK_LIBRARY_URL` is what
+  decides.** Unset means the repo — the generated blocks plus
+  `packages/engine/blocks/*.json` — which is a complete library and what a laptop
+  and the harness get. Set means R2 is the source of truth and the compiled-in
+  library is not read at all. `pnpm --filter @souqstudio/engine blocks:publish`
+  writes a prefix; `POST /api/v1/library/sync` gives it to every shop without
+  waiting for a deploy; `POST /api/v1/library/publish` publishes one designed
+  block. Both routes are authorised by `LIBRARY_PUBLISH_TOKEN` and **never by a
+  session or a role** — writing that prefix reaches every organization, and the
+  highest role this app has is one organization's owner. That token is a
+  placeholder for E13. **Nothing is published to a production prefix yet and no
+  deployment sets the variable**, so today every environment still seeds from the
+  repo; `docs/block-library-from-r2.md` §11 is the procedure to change that, and
+  unsetting the variable is the one-line rollback. Rendering still reads Postgres
+  and always will — §2a of that note is dead.
 - **Rate limiting** — unspecified, including on public tracking endpoints. `POST
   /api/v1/auth/2fa/enroll` runs bcrypt unthrottled behind a valid session.
 - **Token encryption key management** — undecided. Blocks E10. Also decides

@@ -2,14 +2,16 @@
 
 *A design note on a proposal, not a plan of record. Written 9 September 2026.*
 
-> **Status, 9 September 2026 — steps 1 to 3 of §8 are built.** The recommendation
-> in §7 was taken: committed files, behind a loader. What exists now is
-> `packages/engine/src/library-source.ts` (the seam), `packages/engine/blocks/`
-> (the folder, with its format documented in its README), and
-> `GET /api/v1/blocks/{id}/export`. The library is out of the client bundle. §5
-> and §8 below have been corrected where building it proved them wrong; the
-> corrections are marked. **Step 4 is still where the commitment starts, and no
-> commitment has been made.**
+> **Status, 10 September 2026 — §2b is built, end to end.** Steps 1 to 6 of §8
+> exist. The commitment §7 advised against was made deliberately and with the
+> reasons on the record; this note is kept as the argument that was had rather
+> than rewritten to agree with the outcome. §10 records what was decided and
+> what it cost.
+>
+> The library is published to R2 by `pnpm --filter @souqstudio/engine
+> blocks:publish`, read from there by the seed and by `POST /api/v1/library/sync`,
+> and a single design is published by `POST /api/v1/library/publish`. Where
+> building it proved this note wrong, the correction is marked.
 
 **The proposal:** block documents are JSON files. Ours are a library; when a shop
 imports one it is written into that shop's own folder. R2 holds them.
@@ -283,3 +285,122 @@ happens next, is that a design can be authored without writing TypeScript today.
 - `docs/E7-pending.md` §20 — the asset table, and why `assetId` stayed an R2 key
   rather than becoming a row id. Same reasoning as §2a here, reached from the
   other direction.
+
+---
+
+## 10. What was actually built, and what it cost
+
+*Added 10 September 2026, after §2b was built.*
+
+§7 recommended committed files and named two triggers for revisiting. Neither had
+fired. The decision to go to R2 anyway was made explicitly, so what follows is
+the record of what that bought and what it now costs — not a retro-justification.
+
+### The shape
+
+```
+pnpm blocks:publish ─┐                        ┌─→ pnpm db:seed (every deploy)
+  generated in TS    ├─→ R2: <prefix>/        ├─→ POST /api/v1/library/sync
+  + blocks/*.json    │     manifest.json      │     (no deploy needed — §4)
+                     │     blk_*.json  × 59   │
+POST /library/publish┘                        └─→ syncLibrary() → blocks table
+  one row → one object                              upsert + prune → every shop
+```
+
+**Postgres is still what rendering reads.** §2a stayed dead: the render path has
+no network in it, a save is still one `prisma.$transaction`, and `assetResolver`
+still resolves by string concatenation. R2 is the distribution channel and
+nothing else — which is exactly what §2b proposed.
+
+**`BLOCK_LIBRARY_URL` decides the source, per environment, explicitly.** Unset is
+the repo — a complete library, which is what a laptop and the harness get. Set
+means R2 is the source of truth and the compiled-in library is not consulted at
+all. §5 asked which prefix dev reads; the answer is that nothing in the code
+guesses, because a path assembled from `NODE_ENV` is one typo away from a
+half-finished design in every shop.
+
+### The costs §5 named, as they actually landed
+
+**The trust boundary is real and is held by a shared secret.** `LIBRARY_PUBLISH_TOKEN`,
+checked in constant time, never a session and never a role. The highest role this
+app has is the owner of one organization, and publishing here reaches every
+organization — so `requireOrgRole` is the one thing this must never become. That
+is a placeholder for E13 and is written down as one in `lib/library-auth.ts`.
+
+**Validation did have to move, and it moved.** §5 said the checks were
+`arrangementsSchema` and `usesOnlyRoles` and that only their location changed.
+That was too kind to the earlier state: the loader had a hand-written skeleton
+check, and `arrangementsSchema` — the real one — was 250 lines of zod stranded in
+`apps/web`. It is `packages/engine/src/document.ts` now, and the loader runs it.
+One definition of a legal block document, three doors into it: the `PATCH` route,
+a committed file, an object from the bucket.
+
+**The harness still works offline.** §3's table predicted it would not. It does,
+because unset `BLOCK_LIBRARY_URL` is the repo rather than an error.
+
+**§4 was right, and the sync route is the answer to it.** R2 changed what the
+seed reads and not when it runs. `POST /api/v1/library/sync` is the missing half,
+and publishing is deliberately two steps — write the object, then give it to
+everybody — so that three designs are three writes and one sync, and so the two
+decisions are separately reversible.
+
+### The one property everything rests on
+
+**A short read must never be mistaken for a withdrawal.** The prune archives a
+seeded block a book uses and deletes one it does not, so a manifest that fetched
+while a document 500'd looks exactly like *"that block was removed"* — and a CDN
+hiccup would take blocks out of every shop on the platform.
+
+So the load is all-or-nothing and refuses before a single row is written: a
+missing document, a manifest whose count disagrees with its own list, an empty
+manifest, a document that is not the block the manifest named. Verified against
+the real bucket by deleting one object and loading:
+
+```
+library: 1 of 59 documents could not be fetched from
+https://blocks-dev.souqstudio.com/library/test/ (blk_footer).
+Refusing to seed a partial library: the prune would treat every one of
+them as removed and take it out of every shop.
+```
+
+A deploy that fails loudly is recoverable. A prune that ran against a partial
+library is not.
+
+### What is still not true
+
+- **Nothing is published to a production prefix, and no deployment reads one.**
+  `BLOCK_LIBRARY_URL` is unset everywhere, so today every environment still seeds
+  from the repo. Going live is §11.
+- **One writer, assumed rather than enforced.** `publishDocument` read-modify-writes
+  the manifest, so two publishes landing together can lose one. Survivable while
+  the token means there is exactly one publisher; the first thing that must
+  change if publishing opens up. E13.
+- **No UI publishes.** Both routes are `curl`. The designer has an action bar
+  with room in it.
+- **Admin auth (E13) is still step 7** and still unbuilt. Until it exists, the
+  token *is* the admin.
+
+---
+
+## 11. Going live
+
+Nothing below has been done. Each step is reversible by undoing the one before.
+
+1. **Publish to a real prefix.**
+   `pnpm --filter @souqstudio/engine blocks:publish -- --prefix library/production --dry-run`
+   first; it prints the manifest and writes nothing.
+2. **Check the objects are there** before anything reads them —
+   `<R2_PUBLIC_URL>/library/production/manifest.json` should list 59.
+3. **Set `BLOCK_LIBRARY_URL`** on that environment to the same prefix. The seed
+   logs which source it used on every deploy, so a wrong prefix is visible in the
+   deploy log rather than three weeks later.
+4. **Set `LIBRARY_PUBLISH_TOKEN`** — 32 characters minimum, or the routes refuse
+   to exist. Without it, publishing stays a laptop job, which is a legitimate
+   place to stop.
+5. **Deploy.** `preDeployCommand` runs `db:migrate && db:seed`; the seed now
+   reads the bucket and will fail the deploy rather than seed a partial library.
+
+**The one-line rollback is unsetting `BLOCK_LIBRARY_URL`.** The compiled-in
+library is complete and still there, so the next deploy seeds from the repo and
+the bucket becomes irrelevant. That is the property worth keeping — do not remove
+the generated arm from the code.
