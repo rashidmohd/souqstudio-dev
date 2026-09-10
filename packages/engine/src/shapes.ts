@@ -267,6 +267,34 @@ export const CHIP_FIT: Record<ChipShape, { width: number; height: number; square
 }
 
 /**
+ * How much of its box the **price mark's digits** may use inside each ground.
+ *
+ * The same idea as `CHIP_FIT` and deliberately a separate table, because a badge
+ * holds a short word and a mark holds the biggest thing on the card. A burst
+ * that fits "BOGO" comfortably crushes "AED 24.50", so the price is given more
+ * of the shape and the shape is expected to be drawn larger to compensate.
+ *
+ * `square` is the same rule: a burst and a star are read as circular objects, so
+ * they take the largest square in the box and centre; a ribbon, a tag and an
+ * arrow are things whose length is the point.
+ */
+export const MARK_FIT: Record<
+  'none' | 'box' | PathShape,
+  { width: number; height: number; square: boolean }
+> = {
+  /** No ground. The digits own the whole box — this is `frame: 'plain'`. */
+  none: { width: 1, height: 1, square: false },
+  /** The rounded rectangle. Padding only, which is what it always had. */
+  box: { width: 0.86, height: 0.82, square: false },
+  burst: { width: 0.6, height: 0.42, square: true },
+  star: { width: 0.5, height: 0.36, square: true },
+  ribbon: { width: 0.76, height: 0.52, square: false },
+  tag: { width: 0.7, height: 0.54, square: false },
+  flash: { width: 0.64, height: 0.46, square: false },
+  arrow: { width: 0.66, height: 0.52, square: false },
+}
+
+/**
  * The path a badge draws as, or null when it does not draw one.
  *
  * Null covers two different things and the caller has to tell them apart: a

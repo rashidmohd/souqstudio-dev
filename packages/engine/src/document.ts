@@ -184,6 +184,17 @@ const priceMarkStyleSchema = z.strictObject({
   tint: flatColorSchema.optional(),
   ink: flatColorSchema.optional(),
   surface: flatColorSchema.optional(),
+  /**
+   * The shape behind the digits — the same kit a badge draws from.
+   *
+   * `box` is the rounded rectangle and the default, so a document written
+   * before this existed is unchanged. `frame` below is the older spelling and
+   * is still accepted, because organization blocks already carry it and this
+   * object is strict: refusing the field would refuse a shop's saved work.
+   */
+  ground: z
+    .enum(['none', 'box', 'burst', 'ribbon', 'tag', 'flash', 'star', 'arrow'])
+    .optional(),
   frame: z.enum(['tag', 'plain']).optional(),
   tab: z.enum(['attached', 'none']).optional(),
 })

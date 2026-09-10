@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import type { PriceMark } from '@souqstudio/types'
 import {
   CAP_RATIO,
-  MAX_ROTATION,
   layoutPriceMark,
+  markGround,
+  MAX_ROTATION,
   minorDigits,
   splitAmount,
   toPriceMark,
@@ -185,5 +186,78 @@ describe('the currency code', () => {
     const l = layoutPriceMark(mark({ currency: 'KWD', major: '8' }), BOX)
     const gap = l.major.x - (l.currency.x + l.currency.text.length * l.currency.fontSize * 0.74)
     expect(gap).toBeGreaterThan(0)
+  })
+})
+
+describe('the ground the mark draws on', () => {
+  const priced = { tierId: 't', major: '24', minor: '50', currency: 'AED' as const, currencyPlacement: 'PREFIX' as const, shape: 'TAG' as const }
+  const box = { x: 0, y: 0, width: 200, height: 120 }
+
+  it('defaults to the rounded box, so nothing already drawn moves', () => {
+    const before = layoutPriceMark(priced, box, {})
+    const asked = layoutPriceMark(priced, box, { ground: 'box' })
+    expect(before.groundShape).toBe('box')
+    expect(before.mark).toEqual(asked.mark)
+  })
+
+  it('reads the older `frame` spelling', () => {
+    // Organization blocks already hold documents carrying it, and the schema is
+    // strict — refusing the field would refuse a shop's saved work.
+    expect(markGround({ frame: 'plain' })).toBe('none')
+    expect(markGround({ frame: 'tag' })).toBe('box')
+    expect(markGround(undefined)).toBe('box')
+    // `ground` wins where a document carries both.
+    expect(markGround({ frame: 'plain', ground: 'burst' })).toBe('burst')
+  })
+
+  it('squares a burst rather than stretching it', () => {
+    // A star stretched to 3:1 is not a wide star, it is a broken one — the same
+    // rule `HOLDS_PROPORTION` applies to a badge.
+    const wide = layoutPriceMark(priced, { x: 0, y: 0, width: 300, height: 100 }, { ground: 'burst' })
+    expect(wide.mark.width).toBeCloseTo(wide.mark.height, 5)
+    // …and centres it in the box it was given.
+    expect(wide.mark.x + wide.mark.width / 2).toBeCloseTo(150, 5)
+  })
+
+  it('does not square a ribbon, whose length is the point', () => {
+    const wide = layoutPriceMark(priced, { x: 0, y: 0, width: 300, height: 100 }, { ground: 'ribbon' })
+    expect(wide.mark.width).toBeGreaterThan(wide.mark.height)
+  })
+
+  it('fits the digits inside the shape, not inside its bounding box', () => {
+    // A burst's usable interior is a fraction of the box it occupies. Digits
+    // sized against the box run into the spikes.
+    const burst = layoutPriceMark(priced, box, { ground: 'burst' })
+    const plain = layoutPriceMark(priced, box, { ground: 'none' })
+    expect(burst.digits.width).toBeLessThan(plain.digits.width)
+    expect(burst.major.fontSize).toBeLessThan(plain.major.fontSize)
+  })
+
+  it('keeps every piece inside the digit box', () => {
+    // The defect the gallery caught: a compare price placed against the ground
+    // printed across a spike.
+    const withCompare = { ...priced, comparePrice: '32.00' }
+    for (const ground of ['none', 'box', 'burst', 'star', 'ribbon', 'tag', 'flash', 'arrow'] as const) {
+      const l = layoutPriceMark(withCompare, box, { ground })
+      const pieces = [l.currency, l.major, l.minor, l.compare].filter((x) => x !== null)
+      for (const piece of pieces) {
+        expect({ ground, inside: piece!.x >= l.digits.x - 0.5 }).toEqual({ ground, inside: true })
+        expect({
+          ground,
+          within: piece!.x + piece!.width <= l.digits.x + l.digits.width + 0.5,
+        }).toEqual({ ground, within: true })
+      }
+    }
+  })
+
+  it('centres the was-price in a round ground and ends it in a rectangle', () => {
+    const withCompare = { ...priced, comparePrice: '32.00' }
+    const burst = layoutPriceMark(withCompare, box, { ground: 'burst' })
+    const boxed = layoutPriceMark(withCompare, box, { ground: 'box' })
+
+    const centreOf = (l: typeof burst) => l.compare!.x + l.compare!.width / 2
+    expect(centreOf(burst)).toBeCloseTo(burst.digits.x + burst.digits.width / 2, 5)
+    // The rectangle keeps the end-aligned treatment it always had.
+    expect(centreOf(boxed)).toBeGreaterThan(boxed.digits.x + boxed.digits.width / 2)
   })
 })

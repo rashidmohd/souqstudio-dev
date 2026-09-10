@@ -12,20 +12,21 @@
 
 import type { Block, BlockElement, Currency, TokenRef } from '@souqstudio/types'
 import {
+  compactBlock,
   fitPolicy,
+  fitText,
+  layoutPriceMark,
+  markGround,
+  needsEvenOdd,
+  PATH_SHAPES,
+  placeText,
+  resolveBlock,
   resolveColor,
   resolvePaint,
   shapePath,
-  needsEvenOdd,
-  PATH_SHAPES,
-  type PathShape,
-  fitText,
-  compactBlock,
-  layoutPriceMark,
-  placeText,
-  resolveBlock,
   type CompactionPolicy,
   type MarkPiece,
+  type PathShape,
   type Placement,
   type Rect,
 } from '../src/index'
@@ -324,14 +325,13 @@ function priceMark(
   rect: Rect,
   product: HarnessProduct
 ): string {
-  // The composition stays ours; the skin is the shop's. `plain` drops the ground
-  // and the outline so the digits sit straight on a tinted card, and `tab: none`
-  // hides the tier badge for the cards that carry it as a chip instead.
+  // The composition stays ours; the skin is the shop's. `ground: 'none'` drops
+  // the shape and the outline so the digits sit straight on a tinted card, and
+  // `tab: 'none'` hides the tier badge for the cards that carry it as a chip.
   const style = element.style ?? {}
   const tint = style.tint === undefined ? color(product.tier.token) : resolveColor(style.tint, color)
   const ink = style.ink === undefined ? KIT.ink : resolveColor(style.ink, color)
   const plate = style.surface === undefined ? KIT.surface : resolveColor(style.surface, color)
-  const framed = style.frame !== 'plain'
   const l = layoutPriceMark(
     {
       tierId: 'harness',
@@ -343,7 +343,7 @@ function priceMark(
       ...(product.comparePrice === undefined ? {} : { comparePrice: product.comparePrice }),
     },
     rect,
-    { tierLabel: product.tier.labelEn.toUpperCase() }
+    { tierLabel: product.tier.labelEn.toUpperCase(), ground: markGround(style) }
   )
 
   // Every piece is LTR with Western numerals, in an AR edition too.
@@ -359,11 +359,20 @@ function priceMark(
       ` text-anchor="middle" dominant-baseline="middle">${esc(l.tab.text)}</text>`
     : ''
 
-  const frame = framed
-    ? rounded(l.mark, plate, 3) +
-      `<rect x="${l.mark.x}" y="${l.mark.y}" width="${l.mark.width}" height="${l.mark.height}"` +
-      ` rx="3" fill="none" stroke="${tint}" stroke-width="${Math.max(1, l.mark.height * 0.035)}"/>`
-    : ''
+  // The same shape kit the badge draws from, through the same generator — a
+  // burst here and a burst in `draw.tsx` have to be one burst, or the gallery
+  // is checking a picture the product does not draw.
+  const stroke = Math.max(1, l.mark.height * 0.035)
+  const frame =
+    l.groundShape === 'none'
+      ? ''
+      : l.groundShape === 'box'
+        ? rounded(l.mark, plate, 3) +
+          `<rect x="${l.mark.x}" y="${l.mark.y}" width="${l.mark.width}" height="${l.mark.height}"` +
+          ` rx="3" fill="none" stroke="${tint}" stroke-width="${stroke}"/>`
+        : `<path d="${shapePath(l.groundShape, l.mark, 'ltr')}" fill="${plate}"/>` +
+          `<path d="${shapePath(l.groundShape, l.mark, 'ltr')}" fill="none"` +
+          ` stroke="${tint}" stroke-width="${stroke}"/>`
 
   return [
     tab,

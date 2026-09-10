@@ -514,7 +514,41 @@ export interface PriceMarkStyle {
   ink?: FlatColor | undefined
   /** The ground the mark sits on. */
   surface?: FlatColor | undefined
-  /** `plain` drops the ground and the outline: digits alone on the card. */
+  /**
+   * The shape behind the digits.
+   *
+   * **The mark was the one element denied the shape kit, and it was denied by
+   * omission rather than by argument.** `shape` carries nine variants and a
+   * badge may draw four of them; the price — the loudest thing on a retail card
+   * and the element a flyer is actually built around — drew a rounded rectangle
+   * or nothing. Forty of the hundred arrangements in the shipped library
+   * answered that by switching the ground off and hand-placing a `disc` behind
+   * the digits, which decouples the shape from what it contains: a longer price,
+   * a three-decimal currency or a compare line relayouts the digits inside their
+   * box while the hand-placed disc stays where it was put.
+   *
+   * Drawn by `layoutPriceMark` now, so it tracks its contents.
+   *
+   * `box` is the rounded rectangle and stays the default — nothing already
+   * drawn changes. `none` is digits alone. The rest are the path shapes from
+   * `shapes.ts`, the same ones a badge draws.
+   *
+   * **What this does *not* open is the anatomy.** The raised minor at the
+   * major's cap height, the three-decimal branch, tabular figures, LTR in an
+   * Arabic edition and the tier deriving from the offer are what make output
+   * read as a real offer book, and E6 §3 is still right about them. The
+   * rectangle behind the digits was never one of them.
+   */
+  ground?: 'none' | 'box' | 'burst' | 'ribbon' | 'tag' | 'flash' | 'star' | 'arrow' | undefined
+  /**
+   * The older spelling of the same idea, still read.
+   *
+   * `plain` is `ground: 'none'` and `tag` is `ground: 'box'` — note that `tag`
+   * here meant the rounded rectangle, while `ground: 'tag'` is the tag-shaped
+   * path. Kept because organization blocks already hold documents carrying it
+   * and the schema is strict: dropping the field would refuse a shop's own
+   * saved work. `ground` wins where both are present.
+   */
   frame?: 'tag' | 'plain' | undefined
   /** `none` hides the tier tab. The chip element is the other place it shows. */
   tab?: 'attached' | 'none' | undefined

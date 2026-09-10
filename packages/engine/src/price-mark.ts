@@ -11,9 +11,10 @@
  * something else draws them, which is the same split as the rest of the engine.
  */
 
-import type { Currency, PriceMark } from '@souqstudio/types'
+import type { Currency, PriceMark, PriceMarkStyle } from '@souqstudio/types'
 import { THREE_DECIMAL_CURRENCIES } from '@souqstudio/types'
 import type { Rect } from './geometry'
+import { MARK_FIT, type PathShape } from './shapes'
 
 /**
  * Cap height as a fraction of font size.
@@ -42,6 +43,24 @@ export interface PriceMarkOptions {
   capRatio?: number | undefined
   /** Tier label for the attached tab. Omitted renders no tab. */
   tierLabel?: string | undefined
+  /** The shape behind the digits. Defaults to the rounded box. */
+  ground?: MarkGround | undefined
+}
+
+export type MarkGround = 'none' | 'box' | PathShape
+
+/**
+ * Which ground a style asks for, old spelling included.
+ *
+ * One reader for both fields so no renderer has to remember the history:
+ * `frame: 'plain'` was `ground: 'none'` and `frame: 'tag'` was the rounded box,
+ * which is `ground: 'box'` and *not* `ground: 'tag'` — that is the tag-shaped
+ * path. `ground` wins where a document carries both.
+ */
+export function markGround(style: PriceMarkStyle | undefined): MarkGround {
+  if (style?.ground !== undefined) return style.ground
+  if (style?.frame === 'plain') return 'none'
+  return 'box'
 }
 
 export interface MarkPiece {
@@ -57,8 +76,21 @@ export interface MarkPiece {
 export interface PriceMarkLayout {
   /** The attached tier tab. Null when no tier label was given. */
   tab: { rect: Rect; fontSize: number; text: string } | null
-  /** The mark body — the bordered or filled shape the digits sit in. */
+  /** The mark body — the shape the digits sit in. Draw it as `groundShape`. */
   mark: Rect
+  /**
+   * What that body is drawn as. `box` is the rounded rectangle every mark drew
+   * before the kit was opened up; `none` draws nothing and leaves the digits.
+   */
+  groundShape: MarkGround
+  /**
+   * The interior the digits were fitted into — `mark` inset by `MARK_FIT`.
+   *
+   * Reported rather than kept private because it is the number that explains a
+   * layout: a burst's usable area is a fraction of its box, and a price that
+   * looks small inside one is fitting correctly rather than misbehaving.
+   */
+  digits: Rect
   currency: MarkPiece
   major: MarkPiece
   /** Null on a whole-currency price. */
@@ -119,6 +151,48 @@ export function toPriceMark(
 }
 
 /**
+ * The rect the ground is drawn in.
+ *
+ * **A burst and a star take the largest square in the box and centre**, the
+ * same rule `HOLDS_PROPORTION` applies to a badge and for the same reason: the
+ * eye reads both as circular objects, and one stretched to 3:1 is not a wide
+ * burst, it is a broken one. Everything else fills what it was given.
+ */
+function groundRect(outer: Rect, shape: MarkGround): Rect {
+  const fit = MARK_FIT[shape]
+  if (!fit.square) return outer
+
+  const side = Math.min(outer.width, outer.height)
+  return {
+    x: outer.x + (outer.width - side) / 2,
+    y: outer.y + (outer.height - side) / 2,
+    width: side,
+    height: side,
+  }
+}
+
+/**
+ * The box the digits get inside that ground.
+ *
+ * `MARK_FIT` says how much of the shape the price may use — a burst's usable
+ * interior is a fraction of its bounding box, and digits run to the spikes
+ * without this. Centred, because the mark lays its pieces out centred as a
+ * group already.
+ */
+function digitRect(ground: Rect, shape: MarkGround): Rect {
+  const fit = MARK_FIT[shape]
+  const width = ground.width * fit.width
+  const height = ground.height * fit.height
+
+  return {
+    x: ground.x + (ground.width - width) / 2,
+    y: ground.y + (ground.height - height) / 2,
+    width,
+    height,
+  }
+}
+
+/**
  * Lay the mark out inside the rectangle its block element gave it.
  *
  * Three rules are load-bearing and every one of them is asserted in the tests:
@@ -151,12 +225,29 @@ export function layoutPriceMark(
   const tabHeight = label ? container.height * 0.26 : 0
   const overlap = tabHeight * 0.14
   const markTop = container.y + tabHeight - overlap
-  const mark: Rect = {
+  const outer: Rect = {
     x: container.x,
     y: markTop,
     width: container.width,
     height: container.height - (tabHeight - overlap),
   }
+
+  /**
+   * The ground, and then the box the digits actually get.
+   *
+   * **Computed here rather than placed by hand, which is the whole change.** The
+   * shipped library drew its own disc behind the price and switched this off,
+   * so the shape and the digits were two boxes tuned by eye — and a longer
+   * price, a three-decimal currency or a compare line moved one and not the
+   * other. Deriving both from the same rect is what makes a burst track what is
+   * inside it.
+   */
+  const groundShape = options.ground ?? 'box'
+  // `mark` keeps its meaning — the body a renderer draws — so nothing reading
+  // it has to change. What is new is the shape it is drawn as, and the smaller
+  // box the digits were fitted into.
+  const mark = groundRect(outer, groundShape)
+  const digits = digitRect(mark, groundShape)
 
   const currencyText = price.currency
   const CURRENCY_RATIO = 0.3
@@ -172,11 +263,11 @@ export function layoutPriceMark(
     GAP_RATIO +
     price.major.length * DIGIT_WIDTH +
     minorText.length * MINOR_RATIO * DIGIT_WIDTH
-  const majorSize = Math.min(mark.height * 0.58, (mark.width * 0.86) / demand)
+  const majorSize = Math.min(digits.height * 0.58, (digits.width * 0.86) / demand)
   const minorSize = majorSize * MINOR_RATIO
   const currencySize = majorSize * CURRENCY_RATIO
 
-  const baseline = mark.y + mark.height * 0.74
+  const baseline = digits.y + digits.height * 0.74
   const capTop = baseline - majorSize * capRatio
 
   const currencyWidth = currencyText.length * currencySize * LETTER_WIDTH + majorSize * GAP_RATIO
@@ -185,7 +276,7 @@ export function layoutPriceMark(
 
   // Centred as a group, laid out start-to-end. This ordering is fixed: the mark
   // does not mirror.
-  const groupStart = mark.x + (mark.width - (currencyWidth + majorWidth + minorWidth)) / 2
+  const groupStart = digits.x + (digits.width - (currencyWidth + majorWidth + minorWidth)) / 2
 
   const currency: MarkPiece = {
     text: currencyText,
@@ -216,15 +307,37 @@ export function layoutPriceMark(
           width: minorWidth,
         }
 
-  const topLineSize = Math.min(currencySize * 0.95, mark.height * 0.2)
-  const topLineBaseline = mark.y + mark.height * 0.26
+  /**
+   * The was-price and the FROM/EACH line, above the digits.
+   *
+   * **Measured against the digit box, not the ground.** On a rounded box the two
+   * are the same rect and this changes nothing; on a burst the ground's edge is
+   * spikes, and a compare price placed there prints across them. The gallery
+   * showed exactly that the first time a burst drew its own ground.
+   */
+  const topLineSize = Math.min(currencySize * 0.95, digits.height * 0.2)
+  const topLineBaseline = digits.y + digits.height * (MARK_FIT[groundShape].square ? 0.18 : 0.26)
 
   const compare: MarkPiece | null =
     price.comparePrice === undefined
       ? null
       : {
           text: price.comparePrice,
-          x: mark.x + mark.width * 0.94 - price.comparePrice.length * topLineSize * DIGIT_WIDTH,
+          /**
+           * Hard to the end on a rectangle, centred inside a round ground.
+           *
+           * **A right-aligned was-price is a rectangle idiom.** A burst's usable
+           * area is a circle, so the top-right corner of any box inscribed in it
+           * points straight at a spike — the gallery showed "32.00" printing
+           * across one. Centring is also what a burst wants typographically:
+           * everything in it reads off a single vertical axis.
+           */
+          x: MARK_FIT[groundShape].square
+            ? digits.x +
+              (digits.width - price.comparePrice.length * topLineSize * DIGIT_WIDTH) / 2
+            : digits.x +
+              digits.width * 0.98 -
+              price.comparePrice.length * topLineSize * DIGIT_WIDTH,
           baseline: topLineBaseline,
           fontSize: topLineSize,
           width: price.comparePrice.length * topLineSize * DIGIT_WIDTH,
@@ -236,13 +349,14 @@ export function layoutPriceMark(
       ? null
       : {
           text: prefixText,
-          x: mark.x + mark.width * 0.06,
+          x: digits.x + digits.width * 0.02,
           baseline: topLineBaseline,
           fontSize: topLineSize,
           width: prefixText.length * topLineSize * DIGIT_WIDTH,
         }
 
   return {
+    groundShape,
     tab:
       label === undefined
         ? null
@@ -252,6 +366,7 @@ export function layoutPriceMark(
             text: label,
           },
     mark,
+    digits,
     currency,
     major,
     minor,

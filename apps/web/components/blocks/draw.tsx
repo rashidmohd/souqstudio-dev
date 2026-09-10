@@ -10,18 +10,19 @@ import type {
   TypeStep,
 } from '@souqstudio/types'
 import {
-  fitPolicy,
-  fitText,
-  layoutPriceMark,
   CHIP_FIT,
   chipPathShape,
   drawsGround,
+  fitPolicy,
+  fitText,
+  layoutPriceMark,
+  markGround,
   needsEvenOdd,
+  PATH_SHAPES,
   placeText,
   resolveColor,
   resolvePaint,
   shapePath,
-  PATH_SHAPES,
   type PathShape,
   type Rect,
   type TextMeasurer,
@@ -561,11 +562,14 @@ function PriceMark({
         : ctx.token('accent')
   const ink = style.ink === undefined ? ctx.token('ink') : paint(ctx, style.ink)
   const ground = style.surface === undefined ? ctx.token('surface') : paint(ctx, style.surface)
-  const framed = style.frame !== 'plain'
   const family = fontStack(ctx.scale.families.price)
 
   const l = layoutPriceMark(ctx.offer.priceMark, box, {
     tierLabel: ctx.offer.tierLabel.toUpperCase(),
+    // The shape kit, which the mark was the one element denied. `markGround`
+    // reads the old `frame` spelling too, so a document written before this
+    // draws exactly as it did.
+    ground: markGround(style),
   })
 
   return (
@@ -587,7 +591,20 @@ function PriceMark({
         </>
       ) : null}
 
-      {framed ? (
+      {/*
+        * The ground, drawn as whatever shape it asked for.
+        *
+        * **One `d` string, from the same generator the badge uses.** A burst
+        * here and a burst on a chip have to be the same burst, and a second
+        * implementation is how the screen and the PDF stop matching — which is
+        * the whole reason `shapes.ts` lives in the engine.
+        *
+        * **`ltr`, never the edition's direction.** The mark does not mirror —
+        * E6 §6, and `price-mark.test.ts` asserts the pieces lay out start to
+        * end at every size. A ribbon or an arrow flipped for an Arabic edition
+        * would point away from digits that had not moved.
+        */}
+      {l.groundShape === 'none' ? null : l.groundShape === 'box' ? (
         <>
           <rect {...xywh(l.mark)} rx={3} fill={ground} />
           <rect
@@ -598,7 +615,17 @@ function PriceMark({
             strokeWidth={Math.max(1, l.mark.height * 0.035)}
           />
         </>
-      ) : null}
+      ) : (
+        <>
+          <path d={shapePath(l.groundShape, l.mark, 'ltr')} fill={ground} />
+          <path
+            d={shapePath(l.groundShape, l.mark, 'ltr')}
+            fill="none"
+            stroke={tint}
+            strokeWidth={Math.max(1, l.mark.height * 0.035)}
+          />
+        </>
+      )}
 
       {/* Western numerals, LTR, in an Arabic edition too. E6 §6. */}
       <text

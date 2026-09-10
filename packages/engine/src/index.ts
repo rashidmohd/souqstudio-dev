@@ -138,6 +138,7 @@ export {
   toArrangements,
 } from './document'
 export { usesOnlyRoles } from './roles'
+export { markGround, type MarkGround } from './price-mark'
 // The vocabulary, exported from its own module rather than through `library`.
 // Re-exporting it from there would put the designs back in the graph of anyone
 // importing it — which is the bundle problem it was split up to fix.

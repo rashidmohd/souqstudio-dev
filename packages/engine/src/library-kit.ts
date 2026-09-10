@@ -20,6 +20,7 @@
  * `docs/composition-model.md` §3.
  */
 
+import type { Skin } from './library-cards'
 import type {
   Arrangement,
   BlockElement,
@@ -315,8 +316,43 @@ export const price = (
 /** `plain` drops the ground and the outline: digits alone on a tinted card. */
 export const PLAIN_PRICE: PriceMarkStyle = { frame: 'plain', tab: 'none' }
 /** The mark on a coloured band, reading in the surface colour. */
+/**
+ * A mark that draws its own ground, in one of the shape kit's shapes.
+ *
+ * **This retires a two-element idiom.** The library used to draw a `disc`
+ * behind the price and switch the mark's own ground off — forty of a hundred
+ * arrangements did — which left the shape and the digits as two boxes tuned by
+ * eye. A longer price, a three-decimal currency or a compare line moved the
+ * digits inside their box and left the disc where it was put. One element now,
+ * and `layoutPriceMark` fits the digits to the shape.
+ *
+ * `tab: 'none'` because a shaped ground has nowhere to attach a tab; the tier
+ * goes on a chip, which is what these cards did anyway.
+ */
+export const markOn = (
+  ground: NonNullable<PriceMarkStyle['ground']>,
+  fill: TokenRef
+): PriceMarkStyle => ({
+  ground,
+  surface: role(fill),
+  ink: role('surface'),
+  tab: 'none',
+})
+
+/**
+ * The mark's skin on a card that already carries a badge.
+ *
+ * **Two elements drew the promo tier and nobody chose that.** A chip and the
+ * mark's attached tab both render it, so 43 of the shipped library's 100
+ * arrangements printed "HALF PRICE" at the corner and again on the price —
+ * `blk_offer_card` among them. The tab yields rather than the chip: a badge can
+ * be one of five shapes and sit anywhere on the card, while the tab is welded
+ * to the top of the mark. `validateBlock` warns on it now.
+ */
+export const noTab = (skin: Skin): PriceMarkStyle => ({ ...(skin.price ?? {}), tab: 'none' })
+
 export const REVERSED_PRICE: PriceMarkStyle = {
-  frame: 'plain',
+  ground: 'none',
   tab: 'none',
   ink: role('surface'),
 }

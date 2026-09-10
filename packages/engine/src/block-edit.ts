@@ -198,6 +198,7 @@ export type BlockProblemCode =
   | 'degenerate-box'
   | 'out-of-bounds'
   | 'duplicate-price-mark'
+  | 'duplicate-tier'
   | 'product-binding-on-static-block'
   | 'no-price-mark'
   | 'duplicate-element-id'
@@ -272,6 +273,8 @@ function arrangementProblems(
   }
 
   let priceMarks = 0
+  let attachedTabs = 0
+  let badges = 0
   const ids = new Set<string>()
 
   arrangement.elements.forEach((element, elementIndex) => {
@@ -322,7 +325,11 @@ function arrangementProblems(
       })
     }
 
-    if (element.kind === 'priceMark') priceMarks += 1
+    if (element.kind === 'priceMark') {
+      priceMarks += 1
+      if (element.style?.tab !== 'none') attachedTabs += 1
+    }
+    if (element.kind === 'chip' && element.shape !== 'none') badges += 1
 
     // The binding vocabulary is what `repeats` decides — a static block has no
     // product in scope, so a product field there is not merely empty, it is a
@@ -339,6 +346,31 @@ function arrangementProblems(
       })
     }
   })
+
+  /**
+   * The tier, drawn twice.
+   *
+   * **A defect the shipped library carried in 43 of its 100 arrangements**,
+   * including `blk_offer_card` — the default every shop starts from. A chip and
+   * the mark's attached tab both render the promo tier, so an offer with one
+   * gets "HALF PRICE" at the corner and again on the price. Nothing caught it:
+   * the tests assert the tab *is* attached, which is a correctness rule and
+   * passes, and in the gallery it reads as a design choice unless you know it
+   * is not one.
+   *
+   * A warning rather than an error. It draws, and an owner who genuinely wants
+   * the tier twice may keep it — but it should never be something a block does
+   * without anybody choosing it.
+   */
+  if (badges > 0 && attachedTabs > 0) {
+    problems.push({
+      code: 'duplicate-tier',
+      message:
+        'The promo tier draws twice here — once on the badge and once on the price. Hide one of them',
+      arrangementIndex: index,
+      severity: 'warning',
+    })
+  }
 
   if (priceMarks > 1) {
     problems.push({
