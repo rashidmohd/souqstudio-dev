@@ -77,13 +77,16 @@ loads it — never in the colours of the card you were shown:
 - inkMuted — a softer neutral for secondary text
 
 So a card with a red band across the foot is \`accent\` or \`primary\`, not red.
-A white card is \`ground: surface\`. A card that is entirely one strong colour is
-\`ground: primary\` with \`onTint: true\`, because text on it has to invert.
 
-Set \`onTint\` when the ground is dark or saturated enough that dark text on it
-would not read. Set \`outlined\` only when there is a visible border around the
-whole card. Set \`priceFrame\` to "tag" when the price sits in a shape — a tag, a
-box, a roundel — and "plain" when it is just digits on the card.
+\`ground\` is the **card's own ground** — the colour behind the product name, not
+the colour of a band or a badge sitting on top of it. A white card with a red
+price band across the foot is \`ground: surface\` and \`accent: accent\`; get this
+one wrong and the card is drawn with white type on a white ground. A card that is
+entirely one strong colour edge to edge is \`ground: primary\`.
+
+Set \`outlined\` only when there is a visible border around the whole card. Set
+\`priceFrame\` to "tag" when the price sits in a shape — a tag, a box, a roundel —
+and "plain" when it is just digits on the card.
 
 ## When it is not an offer card
 
@@ -116,10 +119,33 @@ you matched and anything you were unsure about.`
  * keeps meaning what it says.
  */
 export function interpret(raw: unknown): MagicChoice {
-  const parsed = magicChoiceSchema.safeParse(raw)
-  if (!parsed.success) throw new UnreadableDesignError()
+  return interpretFirst([raw])
+}
 
-  if (!parsed.data.isOfferCard) throw new NotAnOfferCardError(parsed.data.notes)
+/**
+ * The first candidate that validates, out of several readings of one reply.
+ *
+ * **The schema is the discriminator, and it has to be.** A model that corrects
+ * itself mid-reply leaves more than one object in the response, and *parsing* is
+ * not enough to tell them apart — the first live failure produced wreckage that
+ * was still syntactically valid JSON, an object carrying half a sentence as a
+ * key. It parsed. It was not the answer. Only the schema knows the difference,
+ * so the candidates are tried against it in order rather than JSON.parse being
+ * trusted to have found the right one.
+ *
+ * Order is the caller's: `vision-qwen.ts` offers the whole reply first and then
+ * each balanced object latest-first, because a correction comes after the thing
+ * it corrects.
+ */
+export function interpretFirst(candidates: readonly unknown[]): MagicChoice {
+  for (const candidate of candidates) {
+    const parsed = magicChoiceSchema.safeParse(candidate)
+    if (!parsed.success) continue
 
-  return parsed.data
+    if (!parsed.data.isOfferCard) throw new NotAnOfferCardError(parsed.data.notes)
+
+    return parsed.data
+  }
+
+  throw new UnreadableDesignError()
 }

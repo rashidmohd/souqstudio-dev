@@ -173,12 +173,6 @@ export const magicChoiceSchema = z.object({
   ground: tokenRef,
   /** The band, disc, rail or tab the structure paints, when it paints one. */
   accent: tokenRef.optional(),
-  /**
-   * Set when the ground is dark enough that ink on it would not read. It inverts
-   * every bound string at once rather than one colour per element — which is the
-   * whole reason `Skin` carries it.
-   */
-  onTint: z.boolean(),
   /** A hairline border around the card. */
   outlined: z.boolean(),
   /**
@@ -234,6 +228,15 @@ export function arrangementsFromChoice(choice: MagicChoice): Arrangement[] {
 /**
  * The skin, assembled.
  *
+ * **`onTint` is derived from the ground, and that is a fix for a defect a real
+ * model produced on its first run.** Asked whether the card inverts its type, it
+ * looked at a white card with a red price band, saw white type *on the band*,
+ * and said yes — which is a fair reading of the picture and the wrong answer to
+ * this question. `onTint` inverts every bound string on the card at once, so on
+ * a `surface` ground it paints white text on a white card. The ground already
+ * decides it: every tinted card in `library-cards.ts` sets it and no white one
+ * does. So it is not asked for.
+ *
  * **`chipFill` is derived rather than chosen, and that is a fix for a defect the
  * gallery found.** A promo-tier pill draws in one of the shop's brand colours,
  * so on a brand-grounded card the pill and the ground can be the same colour —
@@ -243,24 +246,24 @@ export function arrangementsFromChoice(choice: MagicChoice): Arrangement[] {
  * rediscover that, per card, from a photograph.
  */
 function skinFromChoice(choice: MagicChoice): Skin {
+  const tinted = choice.ground !== 'surface'
+
   const price: PriceMarkStyle | undefined =
     choice.priceFrame === 'plain' ? { frame: 'plain' } : undefined
 
   // On a tinted ground the mark needs its own surface behind it, the same as
   // every tinted card in `library-cards.ts` does.
-  const priceOnTint: PriceMarkStyle | undefined = choice.onTint
+  const priceOnTint: PriceMarkStyle | undefined = tinted
     ? { ...price, surface: { from: 'role', ref: 'surface' } }
     : price
 
   const stroke: Stroke | undefined = choice.outlined
-    ? { color: { from: 'role', ref: choice.onTint ? 'surface' : 'primary' }, width: 0.005 }
+    ? { color: { from: 'role', ref: tinted ? 'surface' : 'primary' }, width: 0.005 }
     : undefined
-
-  const tinted = choice.ground !== 'surface'
 
   return {
     ground: choice.ground,
-    onTint: choice.onTint,
+    onTint: tinted,
     ...(choice.accent === undefined ? {} : { accent: choice.accent }),
     ...(priceOnTint === undefined ? {} : { price: priceOnTint }),
     ...(stroke === undefined ? {} : { stroke }),

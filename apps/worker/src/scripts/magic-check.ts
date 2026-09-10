@@ -80,7 +80,7 @@ for (const [blockId, expected] of CASES) {
     const hit = choice.structure === expected ? 'MATCH  ' : 'differs'
     console.log(
       `${hit}  ${blockId}: expected ${expected}, got ${choice.structure} ` +
-        `(ground ${choice.ground}, onTint ${choice.onTint}, ${choice.confidence})`
+        `(ground ${choice.ground}, accent ${choice.accent ?? '—'}, ${choice.confidence})`
     )
     console.log(`         name: "${choice.name}"`)
     for (const note of choice.notes) console.log(`         · ${note}`)

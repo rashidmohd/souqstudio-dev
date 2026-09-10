@@ -191,10 +191,42 @@ offer card would produce a card full of bindings it cannot fill. The model sets
 `isOfferCard: false` and the job reports it rather than guessing — and that
 branch is never retried, because the picture will not have changed.
 
+### What the first live run found — 10 September 2026
+
+Run against Qwen with a real key: three seeded cards rendered, fed back, and the
+structure compared to the one they were built from. **Two of three matched at
+high confidence; the third chose an adjacent layout at *medium***, which is the
+model reporting its own uncertainty rather than failing. The notes it wrote were
+accurate enough to read as a description of the card.
+
+It also found two defects, both in this code rather than in the model.
+
+**A white product name on a white card.** Asked whether the card inverts its
+type, the model looked at a white card with a red price band, saw white type *on
+the band*, and said yes. A fair reading of the picture and the wrong answer to
+the question — `onTint` inverts every bound string at once, so the result would
+have been an invisible product name. `onTint` is no longer asked for: the ground
+decides it, exactly as it does across the seeded library, and `magic.test.ts`
+pins it in both directions. This is the class of thing the gallery catches and
+the tests do not — the enumeration passed the broken combination happily,
+because an invisible card is structurally valid.
+
+**A reply that corrected itself, thrown away.** The model emitted a malformed
+`notes` array, abandoned it, and re-emitted the whole object correctly — nested
+*inside* the broken one, which had never closed. Its answer was right both
+times. Two attempts at recovering it were wrong before one was right: collecting
+only top-level spans found just the wreckage, and then preferring the first
+candidate that *parsed* still returned the wreckage, because mismatched quotes
+had turned half a sentence into a key and left the outer object syntactically
+valid JSON carrying the right structure name and a `notes` that was a string.
+Only the schema separates them, so `interpretFirst()` validates every reading in
+order. `vision-qwen.test.ts` holds the verbatim payload.
+
 **What is not built:** no UI. The upload, the poll and the result are three
 `curl` calls today. Nothing renders a thumbnail for the generated block, so it
-shows in the library without a preview until someone opens it. And no live model
-call has ever succeeded — see the note in the root `CLAUDE.md`.
+shows in the library without a preview until someone opens it. **And the Claude
+path has still never completed a call** — `ANTHROPIC_API_KEY` is a placeholder,
+so the two providers have never actually been compared.
 
 ### E8-05 Background Removal
 

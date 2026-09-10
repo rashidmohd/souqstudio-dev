@@ -22,9 +22,9 @@ import { usesOnlyRoles } from './roles'
  * making produces a block that cannot be drawn.**
  *
  * The output space is small enough to enumerate, so it is enumerated: every
- * structure against every ground, both inversions, both price frames, outlined
- * and not. If that grid is clean then the schema is the only thing standing
- * between a model and a valid block, and the schema is machine-checked.
+ * structure against every ground, both price frames, outlined and not. If that
+ * grid is clean then the schema is the only thing standing between a model and a
+ * valid block, and the schema is machine-checked.
  */
 
 const GROUNDS = ['primary', 'secondary', 'accent', 'surface', 'ink', 'inkMuted'] as const
@@ -33,7 +33,6 @@ const choice = (over: Partial<MagicChoice> = {}): MagicChoice => ({
   isOfferCard: true,
   structure: 'stacked',
   ground: 'surface',
-  onTint: false,
   outlined: false,
   priceFrame: 'tag',
   name: 'Test card',
@@ -47,22 +46,19 @@ const choice = (over: Partial<MagicChoice> = {}): MagicChoice => ({
 function* everyChoice(): Generator<MagicChoice> {
   for (const structure of MAGIC_STRUCTURES) {
     for (const ground of GROUNDS) {
-      for (const onTint of [false, true]) {
-        for (const outlined of [false, true]) {
-          for (const priceFrame of ['tag', 'plain'] as const) {
-            // `accent` is optional, and both branches reach different code:
-            // `overlay` reads it for its scrim, and `skinFromChoice` only sets
-            // `chipFill` when the ground is tinted.
-            for (const accent of [undefined, 'accent' as const]) {
-              yield choice({
-                structure,
-                ground,
-                onTint,
-                outlined,
-                priceFrame,
-                ...(accent === undefined ? {} : { accent }),
-              })
-            }
+      for (const outlined of [false, true]) {
+        for (const priceFrame of ['tag', 'plain'] as const) {
+          // `accent` is optional, and both branches reach different code:
+          // `overlay` reads it for its scrim, and `skinFromChoice` only sets
+          // `chipFill` when the ground is tinted.
+          for (const accent of [undefined, 'accent' as const]) {
+            yield choice({
+              structure,
+              ground,
+              outlined,
+              priceFrame,
+              ...(accent === undefined ? {} : { accent }),
+            })
           }
         }
       }
@@ -124,8 +120,8 @@ describe('every choice a model can make', () => {
   const all = [...everyChoice()]
 
   it('covers the whole output space', () => {
-    // 25 structures × 6 grounds × 2 × 2 × 2 × 2.
-    expect(all.length).toBe(MAGIC_STRUCTURES.length * GROUNDS.length * 16)
+    // 25 structures × 6 grounds × outlined × priceFrame × accent.
+    expect(all.length).toBe(MAGIC_STRUCTURES.length * GROUNDS.length * 8)
   })
 
   it('builds a block with no structural errors', () => {
@@ -185,6 +181,38 @@ describe('every choice a model can make', () => {
         })
       }
     }
+  })
+
+  it('never paints bound text the colour of the ground it sits on', () => {
+    /**
+     * **The defect a real model produced on its first live run.**
+     *
+     * Shown a white card with a red price band, it was asked whether the card
+     * inverts its type, saw white type *on the band*, and answered yes. That is
+     * a fair reading of the picture and the wrong answer to the question:
+     * `onTint` inverts every bound string at once, so the result was a white
+     * product name on a white card.
+     *
+     * `onTint` is no longer asked for — it follows from the ground — and this
+     * pins it in both directions. `stacked` is the probe because it paints its
+     * product text through `ink(skin)`, which is the helper the inversion runs
+     * through.
+     */
+    const textColours = (c: MagicChoice) =>
+      arrangementsFromChoice(c)
+        .flatMap((arrangement) => arrangement.elements)
+        .filter((element) => element.kind === 'text')
+        .map((element) => (element.kind === 'text' ? element.color : undefined))
+
+    const onWhite = textColours(choice({ structure: 'stacked', ground: 'surface' }))
+    for (const colour of onWhite) {
+      expect(colour?.from === 'role' && colour.ref === 'surface').toBe(false)
+    }
+
+    // And the other way: a brand-grounded card has to invert, or the same text
+    // is ink on a dark ground.
+    const onTinted = textColours(choice({ structure: 'stacked', ground: 'primary' }))
+    expect(onTinted.some((colour) => colour?.from === 'role' && colour.ref === 'surface')).toBe(true)
   })
 
   it('gives a tinted card a pill that is not the colour of its ground', () => {

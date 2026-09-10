@@ -6,7 +6,7 @@ import {
   UnreadableDesignError,
   type VisionImage,
   type VisionReader,
-  interpret,
+  interpretFirst,
 } from './magic-prompt'
 
 /**
@@ -100,25 +100,89 @@ export const readWithQwen: VisionReader = async (image: VisionImage) => {
   const content = body.choices?.[0]?.message?.content
   if (typeof content !== 'string' || content.trim() === '') throw new UnreadableDesignError()
 
-  let raw: unknown
-  try {
-    raw = JSON.parse(stripFence(content))
-  } catch {
-    throw new UnreadableDesignError()
-  }
-
-  return interpret(raw)
+  // Every reading of the reply, in preference order. The schema picks.
+  return interpretFirst(candidateObjects(content))
 }
 
 /**
- * A code fence around the JSON, which `json_object` mode is supposed to prevent
- * and models produce anyway.
+ * Every way the reply might be read, in preference order.
  *
- * Tolerated rather than refused: the answer inside is usually correct, and
- * failing a good match over three backticks would spend an owner's credits to
- * punish the provider's formatting.
+ * **It returns candidates rather than an answer, and that distinction was
+ * earned.** `json_object` mode is supposed to make this unnecessary and does
+ * not; two tolerances came out of the first live run:
+ *
+ * - **A code fence**, which is cheap to strip. Failing a good match over three
+ *   backticks would spend an owner's credits to punish formatting.
+ * - **A broken object with a corrected one nested inside it.** The model emitted
+ *   a `notes` array with mismatched quotes, abandoned it, and re-emitted the
+ *   whole object correctly — *before the first one had closed*. Its answer was
+ *   right both times; only the first serialisation was malformed.
+ *
+ * The trap is that the wreckage still parsed. Mismatched quotes turned half a
+ * sentence into a key, and the outer object was valid JSON carrying a valid
+ * `structure` and a `notes` that was a string. So picking "the first thing that
+ * parses" returns junk with the right structure name in it. Only the schema can
+ * tell the two apart, which is why this hands `interpretFirst` a list.
+ *
+ * This is recovery, not leniency: every candidate is still held to the schema,
+ * and a reply naming a structure the library does not have is still refused.
  */
-function stripFence(content: string): string {
-  const fenced = content.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)
-  return fenced?.[1] ?? content
+export function candidateObjects(content: string): unknown[] {
+  const text = content.trim()
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)
+
+  const parsed: unknown[] = []
+  for (const candidate of [fenced?.[1] ?? text, ...balancedObjects(text)]) {
+    try {
+      const value: unknown = JSON.parse(candidate)
+      if (typeof value === 'object' && value !== null) parsed.push(value)
+    } catch {
+      // Not JSON. Try the next reading.
+    }
+  }
+
+  return parsed
+}
+
+/**
+ * Every balanced `{...}` span in the text, **at any depth**, latest first.
+ *
+ * **Depth is the whole point, and collecting only top-level spans was a bug.**
+ * When the model corrected itself it did not emit two objects side by side — it
+ * emitted a broken one, and the corrected object arrived *inside* it, before the
+ * broken one had closed. So there was exactly one top-level span, it ran from
+ * the first brace to the last, and it was the malformed one. The good object was
+ * nested in the wreckage.
+ *
+ * Latest start first, because a correction comes after the thing it corrects.
+ *
+ * Brace counting rather than a regular expression, because the braces nest and a
+ * string value may legitimately contain one. Quoted spans are skipped so a brace
+ * inside `description` cannot end an object early.
+ */
+function balancedObjects(text: string): string[] {
+  const found: { start: number; span: string }[] = []
+  const open: number[] = []
+  let inString = false
+  let escaped = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+
+    if (ch === '"') inString = true
+    else if (ch === '{') open.push(i)
+    else if (ch === '}') {
+      const start = open.pop()
+      if (start !== undefined) found.push({ start, span: text.slice(start, i + 1) })
+    }
+  }
+
+  return found.sort((a, b) => b.start - a.start).map((entry) => entry.span)
 }
