@@ -61,11 +61,39 @@ type Phase =
 export function MagicBlockDialog({ open, onOpenChange, kit, credits, onCreated }: Props) {
   const [phase, setPhase] = React.useState<Phase>({ at: 'choose' })
 
+  /**
+   * Whether the page behind owes itself a re-read, deferred until this closes.
+   *
+   * **Refreshing while the dialog is open closes the dialog**, and the route
+   * from one to the other is not obvious. `onCreated` is `router.refresh()`,
+   * which re-renders the server tree; on `/brand/blocks` the new draft flips
+   * the library from its empty state to a list, the `<dialog>` element is torn
+   * down in that reconciliation, and a native dialog fires `close` when it goes
+   * — which `Dialog` faithfully reports as `onOpenChange(false)`.
+   *
+   * `BlockImportDialog` never met this because it refreshes and closes in the
+   * same breath. This one stays open to show the owner what it matched, which
+   * is the whole point of it, so the refresh is what has to move.
+   *
+   * A ref rather than state: nothing renders differently because of it, and a
+   * re-render here is exactly what is being avoided.
+   */
+  const pendingRefresh = React.useRef(false)
+
   // A dialog that reopens showing the last run's result would be reporting on
   // something the owner has already dealt with.
   React.useEffect(() => {
     if (open) setPhase({ at: 'choose' })
   }, [open])
+
+  /** The page behind catches up once it is visible again. */
+  function change(next: boolean) {
+    if (!next && pendingRefresh.current) {
+      pendingRefresh.current = false
+      onCreated()
+    }
+    onOpenChange(next)
+  }
 
   const affordable = credits >= COST
 
@@ -80,9 +108,9 @@ export function MagicBlockDialog({ open, onOpenChange, kit, credits, onCreated }
       }
 
       setPhase({ at: 'done', result: result.block })
-      // The block exists from here on, so the library behind must re-read even
-      // if the owner closes without opening the designer.
-      onCreated()
+      // The block exists from here on, so the library behind owes itself a
+      // re-read — but not yet. See `pendingRefresh`.
+      pendingRefresh.current = true
     } catch (error) {
       setPhase({ at: 'choose', error: message(error) })
     }
@@ -91,7 +119,7 @@ export function MagicBlockDialog({ open, onOpenChange, kit, credits, onCreated }
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={change}
       size="lg"
       title="Match a card from a picture"
       description="Upload a card you like — from a flyer, a post, or last year's print run. We work out which layout it is and add it to your blocks, drawn in your own colours."
