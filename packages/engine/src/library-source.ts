@@ -330,9 +330,23 @@ export function parseSeedBlock(file: string, text: string): SeedBlock {
     (problem) => problem.severity === 'warning'
   )
   if (warnings.length > 0) {
+    /**
+     * **The message names the fix, because of when it is read.**
+     *
+     * A warning added to `validateBlock` invalidates every document already in
+     * the bucket — the "no warnings" bar makes the warning set part of the
+     * published contract, so a stricter rule and a published library have to
+     * move together, exactly like a migration. When they do not, this refusal
+     * is what a deploy fails with, and the person reading it is looking at a
+     * red deploy log wondering why a block that was fine yesterday is not.
+     *
+     * `duplicate-tier` cost a dev deploy on 10 September that way.
+     */
     return refuse(
       `it draws with warnings (${warnings.map((problem) => problem.code).join(', ')}), ` +
-        `which a block every account loads may not`
+        `which a block every account loads may not. If this library was published ` +
+        `before the check that is refusing it, republish it — ` +
+        `pnpm --filter @souqstudio/engine blocks:publish -- --prefix <this one>`
     )
   }
 

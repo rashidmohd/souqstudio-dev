@@ -404,3 +404,40 @@ Nothing below has been done. Each step is reversible by undoing the one before.
 library is complete and still there, so the next deploy seeds from the repo and
 the bucket becomes irrelevant. That is the property worth keeping — do not remove
 the generated arm from the code.
+
+---
+
+## 12. Stricter validation is a breaking change to a published library
+
+*Added 10 September 2026, after it took the dev deploy down.*
+
+`parseSeedBlock` refuses a shipped block that draws **any** warning. That is the
+right bar — §10 argues it — and it has a consequence nothing said out loud until
+it happened: **the set of warnings is part of the published contract.** Add a
+check to `validateBlock` and every object already in the bucket becomes
+un-loadable, without anything in the bucket changing.
+
+What that looks like in practice, because it does not look like what it is:
+
+```
+Railway says:  build failed
+Actually:      the build passed; `preDeployCommand` ran `db:seed`, which read R2
+The log says:  library: blk_offer_card.json is not a block document —
+               it draws with warnings (duplicate-tier, …)
+```
+
+`duplicate-tier` was added the same afternoon the shipped library was fixed to
+stop drawing the promo tier twice. The repo was correct and the bucket held the
+designs from before it. The seed refused them, correctly, and the deploy failed.
+
+**So a validation change and a republish are one change, in this order:**
+
+1. Make the code change and let the tests pass.
+2. `pnpm --filter @souqstudio/engine blocks:publish -- --prefix <the environment's>`
+3. *Then* deploy.
+
+Doing 3 before 2 fails the deploy every time. There is no way to make the two
+independent — a stricter reader and an older library genuinely disagree — so the
+sequencing is the mitigation, the same as it is for a database migration. The
+loader's refusal now names the republish, because the person reading it is
+looking at a red deploy log rather than at this file.

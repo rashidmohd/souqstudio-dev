@@ -186,6 +186,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   its chances** — so `interpretFirst()` validates every reading of a reply against the
   schema, and nothing downstream knows which answered. Unsetting the variable is the
   rollback.
+  **A new `validateBlock` warning is a breaking change to a published library** —
+  the loader refuses a shipped block that draws any warning, so the bucket and the
+  code must move together: publish, *then* deploy. `duplicate-tier` took the dev
+  deploy down on 10 September, and Railway reported it as "build failed" when the
+  build had passed and `preDeployCommand` had not. `docs/block-library-from-r2.md` §12.
   **The DashScope path is `/compatible-mode/v1`, not `/api/v1`** — the latter 404s with an
   empty body, which is what a wrong `DASHSCOPE_BASE_URL` looks like. Beijing and Singapore
   are also different hosts and an account is not authorised on the other; that failure is
