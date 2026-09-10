@@ -5,6 +5,7 @@ import { prisma } from '@souqstudio/db'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
+import { getCreditSnapshot } from '@souqstudio/db'
 import { listBlocks } from '@/lib/blocks'
 import { NoShopBrandKit } from '@/components/brand/NoShopBrandKit'
 import { BlockLibrary } from '@/components/blocks/BlockLibrary'
@@ -43,13 +44,17 @@ export default async function BlocksPage() {
     select: { planId: true, country: true },
   })
 
-  const [brand, blocks] = await Promise.all([
+  const [brand, blocks, credits] = await Promise.all([
     readEffectiveBrand({
       organizationId: shop.organizationId,
       shopId: shop.id,
       brandOverride: shop.brandOverride,
     }),
     listBlocks(session.user.organizationId, organization?.planId ?? null),
+    // Read here rather than fetched by the dialog: the cost of matching a card
+    // has to be answerable before the owner commits to it, and a balance that
+    // arrives after the dropzone does is a balance they act without.
+    getCreditSnapshot(session.user.organizationId),
   ])
 
   // Authoring a block changes what every future book looks like, so it is a
@@ -80,6 +85,7 @@ export default async function BlocksPage() {
         // The seasonal blocks are promoted against a calendar, and the national
         // day is a different date in every one of them. E7-03.
         country={organization?.country ?? 'AE'}
+        credits={credits.total}
       />
     </div>
   )

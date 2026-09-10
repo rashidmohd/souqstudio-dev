@@ -222,11 +222,39 @@ valid JSON carrying the right structure name and a `notes` that was a string.
 Only the schema separates them, so `interpretFirst()` validates every reading in
 order. `vision-qwen.test.ts` holds the verbatim payload.
 
-**What is not built:** no UI. The upload, the poll and the result are three
-`curl` calls today. Nothing renders a thumbnail for the generated block, so it
-shows in the library without a preview until someone opens it. **And the Claude
-path has still never completed a call** — `ANTHROPIC_API_KEY` is a placeholder,
-so the two providers have never actually been compared.
+### The interface — built 10 September
+
+`MagicBlockDialog`, reached from **two places**: `/brand/blocks` beside "Add
+from library", and the blocks card on `/brand`. Both open the same dialog rather
+than one linking to the other — sending an owner to a second screen to start
+teaches them the feature lives somewhere else.
+
+**Secondary in both, never primary.** Starting from the shipped library is free,
+instant and always works; matching a picture costs credits and is the
+second-order move. One primary per region, and it is not this.
+
+Four states: choose (a `FileDropzone`, with the balance and the cost stated
+*before* the drop), reading, done, declined. The result is the block itself
+drawn by `BlockPreview` in the shop's own palette — not a description of a card,
+the card — wrapped in `MachineOutput`, with the model's notes under it so the
+owner can tell whether it understood their picture, and a plain sentence when
+confidence is below high. Declining says **"You were not charged"**, because the
+owner will otherwise assume they were.
+
+**`MachineOutput` was `spec` until this shipped** and is now built; this dialog
+is its first caller.
+
+**And a draft now means something.** `listBlocks` served both the library screen
+and the book editor, drafts included, so the designer's "hidden while you work
+on it" was not true. Harmless while nothing created drafts — duplicating and
+importing both write `published` — and not harmless the moment a model could
+create one. The editor now reads with `forComposing: true`.
+
+**What is not built:** no thumbnail is written for a generated block, which
+costs nothing today because `BlockPreview` draws live from the arrangements and
+ignores `thumbnailUrl` entirely. **And the Claude path has still never completed
+a call** — `ANTHROPIC_API_KEY` is a placeholder, so the two providers have never
+actually been compared.
 
 ### E8-05 Background Removal
 

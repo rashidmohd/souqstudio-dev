@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { prisma } from '@souqstudio/db'
+import { getCreditSnapshot, prisma } from '@souqstudio/db'
 import type { Arrangement } from '@souqstudio/types'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
@@ -45,7 +45,7 @@ export default async function BrandKitPage() {
 
   // Blocks are published rows identical for every shop, so they are read here
   // rather than through an API the client would have to wait on.
-  const [brand, blocks] = await Promise.all([
+  const [brand, blocks, credits] = await Promise.all([
     readEffectiveBrand({
       organizationId: shop.organizationId,
       shopId: shop.id,
@@ -56,6 +56,7 @@ export default async function BrandKitPage() {
       select: { id: true, name: true, description: true, repeats: true, arrangements: true },
       orderBy: { name: 'asc' },
     }),
+    getCreditSnapshot(session.user.organizationId),
   ])
 
   // **A brand is created in the wizard and managed here.** One creation path,
@@ -89,6 +90,7 @@ export default async function BrandKitPage() {
         source={brand.source}
         canEdit={canEdit}
         isOwner={isOwner}
+        credits={credits.total}
         blocks={blocks.map((block) => ({
           id: block.id,
           name: block.name,

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LibraryBig, Lock, Pencil, Trash2 } from 'lucide-react'
+import { LibraryBig, Lock, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 // Type only — erased at compile time, so the library does not follow it into the
 // browser. That it once did is why the category is on the summary at all.
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { BlockImportDialog } from '@/components/blocks/BlockImportDialog'
+import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
 
 /**
  * The block library. E7 — `docs/composition-model.md` §3.6.
@@ -54,11 +55,14 @@ type Props = {
   canEdit: boolean
   /** The organization's country, for the occasions that depend on it. */
   country: string
+  /** Spendable credits, so matching a card can state its cost before spending. */
+  credits: number
 }
 
-export function BlockLibrary({ blocks, kit, canEdit, country }: Props) {
+export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) {
   const router = useRouter()
   const [importing, setImporting] = React.useState(false)
+  const [matching, setMatching] = React.useState(false)
 
   const mine = blocks.filter((block) => block.organizationId !== null)
   const seeded = blocks.filter((block) => block.organizationId === null)
@@ -76,11 +80,22 @@ export function BlockLibrary({ blocks, kit, canEdit, country }: Props) {
         {/* One primary per region: when there is nothing here yet the empty
             state carries the action, so this button would be the second one
             saying the same thing. */}
-        {canEdit && mine.length > 0 ? (
-          <Button type="button" variant="primary" onClick={() => setImporting(true)}>
-            <LibraryBig className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            Add from library
-          </Button>
+        {/* Two actions, one primary. Starting from the shipped library is the
+            move that always works and costs nothing; matching a picture is the
+            paid second-order one, so it is secondary in both senses. */}
+        {canEdit ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" onClick={() => setMatching(true)}>
+              <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Match from a picture
+            </Button>
+            {mine.length > 0 ? (
+              <Button type="button" variant="primary" onClick={() => setImporting(true)}>
+                <LibraryBig className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                Add from library
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -106,6 +121,14 @@ export function BlockLibrary({ blocks, kit, canEdit, country }: Props) {
           ))}
         </ul>
       )}
+
+      <MagicBlockDialog
+        open={matching}
+        onOpenChange={setMatching}
+        kit={kit}
+        credits={credits}
+        onCreated={() => router.refresh()}
+      />
 
       <BlockImportDialog
         open={importing}

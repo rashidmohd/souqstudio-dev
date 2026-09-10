@@ -973,7 +973,7 @@ the rule mechanical instead of remembered.
 | | |
 | --- | --- |
 | File | `components/ui/machine-output.tsx` |
-| Status | `spec` |
+| Status | `built` — apps/web only, E8-07 |
 | Governs | SKILL.md → AI output must be visibly marked |
 
 ```tsx
@@ -985,6 +985,13 @@ type MachineOutputProps = {
 
 Machine fill, 2px inline-start rule, label above. **Never a button. Never wrapping
 something the owner typed.** This is a functional requirement, not decoration.
+
+Built by E8-07, whose magic block dialog is its first caller: a card matched from a
+photograph is drawn in the shop's own palette, so without the mark there is nothing on
+screen to say a machine chose it. The fill and the rule come from `.sq-machine` in the
+token file rather than from utilities here, so the print stylesheet has one thing to
+override where colour is not available. The label is `eyebrow` — it reads as a stamp on
+the content rather than a heading the content sits under.
 
 ### EmptyState
 

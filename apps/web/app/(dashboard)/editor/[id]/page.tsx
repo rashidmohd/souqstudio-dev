@@ -66,7 +66,11 @@ export default async function EditorPage({ params }: { params: { id: string } })
     // Only what this shop may pin: a repeating block reads the offer it was
     // given, and a pin has none, so pinning one would draw a blank card where
     // the owner put a brand panel.
-    listBlocks(session.user.organizationId, organization?.planId ?? null),
+    // Composing, so the organization's drafts are excluded — the designer's
+    // availability control promises exactly that. `lib/blocks.ts`.
+    listBlocks(session.user.organizationId, organization?.planId ?? null, {
+      forComposing: true,
+    }),
   ])
 
   return (

@@ -160,20 +160,39 @@ function toSummary(row: Row, planId: string | null): BlockSummary | null {
 }
 
 /**
- * Every block this organization can compose with: the published seeded library
- * plus its own, drafts included.
+ * The published seeded library plus this organization's own blocks.
  *
  * One query rather than two, because the union is what the screen shows and two
  * round trips to render one list is two chances for them to disagree about
  * ordering. Their own blocks sort first — the library is a place an owner comes
  * back to their own work, not a catalog they browse.
+ *
+ * **`forComposing` is the difference between the two screens that call this, and
+ * it is load-bearing.** The library at `/brand/blocks` shows an owner everything
+ * they have, drafts included — that is where a draft is worked on, so hiding it
+ * there would hide the thing the screen is for. The book editor must not: the
+ * designer's availability control promises that a draft is "hidden while you
+ * work on it", and for a long time it was not, because both screens read this
+ * one function.
+ *
+ * That was harmless while nothing created drafts — duplicating and importing
+ * both write `published` — and stopped being harmless with E8-07, which matches
+ * a block from a photograph and saves it as a draft precisely so a person looks
+ * at it before a customer does. Without this flag that block would be offerable
+ * in a book the moment the model returned.
  */
-export async function listBlocks(organizationId: string, planId: string | null) {
+export async function listBlocks(
+  organizationId: string,
+  planId: string | null,
+  options: { forComposing?: boolean } = {}
+) {
   const rows = await prisma.block.findMany({
     where: {
       OR: [
         { organizationId: null, status: 'published' },
-        { organizationId },
+        options.forComposing === true
+          ? { organizationId, status: 'published' }
+          : { organizationId },
       ],
     },
     select: SELECT,

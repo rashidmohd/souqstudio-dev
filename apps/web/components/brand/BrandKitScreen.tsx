@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { Arrangement, BrandKit, BrandOverride } from '@souqstudio/types'
 import type { BrandFacet, BrandLevel } from '@/lib/brand-inheritance'
 import { Button } from '@/components/ui/button'
@@ -12,7 +13,8 @@ import { TypographyFields } from '@/components/brand/TypographyFields'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
-import { Image as ImageIcon, Palette, Shapes, Type, type LucideIcon } from 'lucide-react'
+import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
+import { Image as ImageIcon, Palette, Shapes, Sparkles, Type, type LucideIcon } from 'lucide-react'
 import { resolveTextStyles, typographyPatch } from '@/lib/brand-typography'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
 import { useBrandStore } from '@/stores/brand-store'
@@ -35,6 +37,8 @@ type Props = {
     repeats: boolean
     arrangements: Arrangement[]
   }>
+  /** Spendable credits, so matching a card can state its cost first. */
+  credits: number
 }
 
 /** Which section a save or an error belongs to. */
@@ -79,8 +83,11 @@ export function BrandKitScreen({
   canEdit,
   isOwner,
   blocks,
+  credits,
 }: Props) {
+  const router = useRouter()
   const { kit, hydrate } = useBrandStore()
+  const [matching, setMatching] = React.useState(false)
 
   // What the server has. Saves advance it; the dirty gates compare against it.
   const [baseline, setBaseline] = React.useState<BrandKit>(brandKit)
@@ -331,17 +338,43 @@ export function BrandKitScreen({
 
             {/* The card shows what a shop composes with; changing it is one
                 route further in, where the canvas can have the width. E7. */}
-            <Link
-              href="/brand/blocks"
-              className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
-            >
-              Manage blocks
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/brand/blocks"
+                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+              >
+                Manage blocks
+              </Link>
+
+              {/* The same action as the library's, because this is the other
+                  place an owner is already looking at their blocks — and the
+                  one they reach first. It opens the same dialog rather than
+                  linking on to it: sending someone to another screen to start
+                  is a step that teaches them the feature lives somewhere else. */}
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => setMatching(true)}
+                  className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+                >
+                  <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                  Match from a picture
+                </button>
+              ) : null}
+            </div>
 
             <p className="font-ui text-body-sm text-muted">
               These come with every account. Duplicate one to design a version
-              of your own.
+              of your own, or match one from a picture.
             </p>
+
+            <MagicBlockDialog
+              open={matching}
+              onOpenChange={setMatching}
+              kit={kit}
+              credits={credits}
+              onCreated={() => router.refresh()}
+            />
           </BrandCard>
 
         </>
