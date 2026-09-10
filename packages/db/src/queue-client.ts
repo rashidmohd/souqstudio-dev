@@ -56,6 +56,18 @@ export interface MagicBlockPayload {
   organizationId: string
   /** R2 object key of the uploaded picture. Never a client-supplied URL. */
   sourceKey: string
+  /**
+   * What kind of thing the owner said the picture is — one of
+   * `MAGIC_CATEGORIES`, validated by the route that queued this.
+   *
+   * **A string here rather than the engine's `MagicCategory`.** This module is
+   * imported by the web app's client bundle through `@souqstudio/db`'s barrel,
+   * and a type import from the engine would be free while a value import is not
+   * — but the worker is what reads it, and the worker validates it against the
+   * real vocabulary before it reaches a model. The route is the gate; this is a
+   * transport.
+   */
+  category: string
 }
 
 export interface BgRemovePayload {

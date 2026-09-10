@@ -33,6 +33,13 @@ export const ILLUSTRATIONS = {
   // rather than figure-led, and the import flow carries no other illustration,
   // so there is nothing for it to sit inconsistently beside.
   'import-upload': 'add-file.svg',
+  // E8-07. The same test `import-upload` passes: a prompt before anything
+  // exists, nothing in progress behind it. Deliberately the *same drawing* —
+  // both slots are "hand us a file", the flow carries no other artwork, and a
+  // second object-led piece from the same set would be a difference the owner
+  // reads as meaning something. The manifest's "reuse a piece already in it"
+  // rule, applied.
+  'magic-block-upload': 'add-file.svg',
 } as const
 
 export type IllustrationKey = keyof typeof ILLUSTRATIONS

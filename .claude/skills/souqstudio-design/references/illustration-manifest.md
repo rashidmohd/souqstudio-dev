@@ -31,6 +31,7 @@ Before marking any piece `ready`, confirm:
 | `error-not-found` | 404, full page | `ready` | `public/illustrations/lost.svg` |
 | `error-generic` | Unhandled error boundary | `ready` | `public/illustrations/problem-solving.svg` |
 | `import-upload` | Spreadsheet import, the choose-a-file step | `ready` | `public/illustrations/add-file.svg` |
+| `magic-block-upload` | Magic block dialog, the choose-a-picture step | `ready` | `public/illustrations/add-file.svg` — the same file as `import-upload` |
 | `empty-team` | Team, single user | `recoloured` | `public/illustrations/meet-the-team.svg` |
 | `empty-analytics` | Analytics, before first publish | `todo` | `statistic-chart` — waits on E11 |
 | `onboarding-brand` | Brand kit setup step | `todo` | `creative-designer` — waits on a slot in the wizard |
@@ -73,6 +74,16 @@ in-screen.
 Object-led rather than figure-led, and the import flow carries no other
 illustration — so the "do not mix object-led into a flow that uses figures" note
 on `My Workspace` does not bite here.
+
+**`magic-block-upload` shares that file rather than introducing a second one.**
+The magic block dialog's first step is the same moment — hand us a file, nothing
+in progress — and the catalog holds literal candidates for it (`polaroid`,
+`photographer`, `images`). None was taken: this manifest's own rule is to reuse a
+piece already in it, `photographer` is figure-led where every shipped piece in a
+flow like this is object-led, and a second drawing for a second "choose a file"
+step is a difference an owner reads as meaning something. Two slots, one file, is
+the indirection working as intended — the day either screen wants its own
+drawing, it is one line here.
 
 ## The checklist and the shipped set disagree about brand blue
 

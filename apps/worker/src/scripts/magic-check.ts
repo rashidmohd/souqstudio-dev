@@ -17,6 +17,7 @@
  * column of them means the prompt in `lib/anthropic.ts` needs work.
  */
 import sharp from 'sharp'
+import type { MagicCategory } from '@souqstudio/engine'
 import { SEED_BLOCKS } from '@souqstudio/engine/src/library'
 import type { Block } from '@souqstudio/types'
 import { renderPage, type RenderContext } from '@souqstudio/engine/harness/svg'
@@ -47,18 +48,34 @@ const context: RenderContext = {
   shopName: 'Al Nakheel Market',
 }
 
-// blockId → the structure it was built from, per library-cards.ts
 console.log(`provider: ${env.MAGIC_BLOCK_PROVIDER}\n`)
 
-const CASES: [string, string][] = [
-  ['blk_price_band', 'priceBand'],
-  ['blk_burst', 'burst'],
-  ['blk_list_row', 'listRow'],
+/**
+ * blockId → the kind it is, and the answer that would be right.
+ *
+ * For a card that is the structure it was built from, per `library-cards.ts`.
+ * For everything else it is the block's own id, because a still design is
+ * matched to itself — feed `blk_footer` back in under "footer" and the right
+ * answer is `blk_footer`. That case is worth having here precisely because it is
+ * the strictest: there is no skin to be generous about, and the model either
+ * picked the design it was shown or it did not.
+ */
+const CASES: [string, MagicCategory, string][] = [
+  ['blk_price_band', 'offer-card', 'priceBand'],
+  ['blk_burst', 'offer-card', 'burst'],
+  ['blk_list_row', 'offer-card', 'listRow'],
+  ['blk_footer', 'footer', 'blk_footer'],
+  ['blk_cover_square', 'social-post', 'blk_cover_square'],
 ]
 
 async function main() {
-for (const [blockId, expected] of CASES) {
-  const size = blockId === 'blk_list_row' ? { width: 540, height: 270 } : { width: 380, height: 380 }
+for (const [blockId, category, expected] of CASES) {
+  // Each block at the shape it was drawn for, or the match is being asked to
+  // read a design out of a crop of itself.
+  const size =
+    blockId === 'blk_list_row' || blockId === 'blk_footer'
+      ? { width: 540, height: 270 }
+      : { width: 380, height: 380 }
   const svg = renderPage(
     [
       {
@@ -76,11 +93,14 @@ for (const [blockId, expected] of CASES) {
   const bytes = await sharp(Buffer.from(svg)).png().toBuffer()
 
   try {
-    const choice = await readCardDesign({ bytes, mediaType: 'image/png' })
+    const choice = await readCardDesign({ bytes, mediaType: 'image/png' }, category)
     const hit = choice.structure === expected ? 'MATCH  ' : 'differs'
+    // The skin is only reported for the kind that has one.
+    const skin =
+      'ground' in choice ? `ground ${choice.ground}, accent ${choice.accent ?? '—'}, ` : ''
     console.log(
-      `${hit}  ${blockId}: expected ${expected}, got ${choice.structure} ` +
-        `(ground ${choice.ground}, accent ${choice.accent ?? '—'}, ${choice.confidence})`
+      `${hit}  ${blockId} (${category}): expected ${expected}, got ${choice.structure} ` +
+        `(${skin}${choice.confidence})`
     )
     console.log(`         name: "${choice.name}"`)
     for (const note of choice.notes) console.log(`         · ${note}`)

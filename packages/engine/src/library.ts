@@ -1,7 +1,7 @@
 import type { PageGrid, Region } from '@souqstudio/types'
 import type { BlockCategory } from './block-category'
 import { CARD_BLOCKS } from './library-cards'
-import { FOOTER_IDS, HEADER_IDS, PANEL_BLOCKS } from './library-panels'
+import { FOOTER_IDS, HEADER_IDS, PANEL_BLOCKS, SOCIAL_IDS } from './library-panels'
 import { SEASONAL_BLOCKS } from './library-seasonal'
 
 /**
@@ -21,7 +21,7 @@ import { SEASONAL_BLOCKS } from './library-seasonal'
  * and every box is a fraction of the block so one design serves a 1080 carousel
  * post and a third of an A4 column.
  *
- * ## Sixty-seven, and why the count is the point
+ * ## Sixty-five, and why the count is the point
  *
  * This started as four. Four is enough to prove the model and not enough to
  * start from: a shop that opens the library, sees one card and one footer, and
@@ -55,7 +55,7 @@ import { SEASONAL_BLOCKS } from './library-seasonal'
  * is the collection they can change.
  *
  * The *vocabulary* is in `block-category.ts` rather than here, so that a client
- * wanting the five words does not import the fifty-nine designs. See that file.
+ * wanting the six words does not import the sixty-five designs. See that file.
  */
 
 export interface SeedBlock {
@@ -77,6 +77,10 @@ export interface SeedBlock {
 const categoryOf = (id: string): BlockCategory => {
   if (HEADER_IDS.has(id)) return 'header'
   if (FOOTER_IDS.has(id)) return 'footer'
+  // A square post is a page rather than a piece of one, which is why it is its
+  // own group and not a corner of `panel`. `library-panels.ts` carries the
+  // reasoning, and the two blocks that moved into it.
+  if (SOCIAL_IDS.has(id)) return 'social-post'
   return 'panel'
 }
 

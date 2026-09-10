@@ -178,6 +178,15 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   placeholder, so **the Claude path has only ever returned a 401** and the two providers
   have never been compared. `pnpm --filter @souqstudio/worker magic:check` is the
   comparison; run it with a real Anthropic key before choosing.
+- **Magic block matches within one kind, and the owner picks it.** The dialog asks what
+  is in the picture — offer card, header, panel, footer or square post — before it asks
+  for the picture, and that choice selects both the list the model is shown and the schema
+  its reply is validated against. It is binding: a footer named under "header" fails the
+  enum, and a picture of the wrong kind comes back declined and uncharged rather than
+  matched to the nearest thing. `seasonal` is not offered — a seasonal block is a design
+  plus an occasion, and a wrong occasion is a shop wishing its customers Eid Mubarak in
+  March. **A re-seed is required**: `social-post` is a new category and two shipped blocks
+  moved into it, and the column is only ever written by `pnpm db:seed`.
 - **Two vision providers, and `MAGIC_BLOCK_PROVIDER` picks.** Unset is Claude; `qwen` is
   Qwen-VL over DashScope's OpenAI-compatible endpoint, and the worker refuses to boot if
   it is set without `DASHSCOPE_API_KEY`. The question, the vocabulary and the schema live
@@ -212,7 +221,7 @@ Tracked, not forgotten. Raise rather than inventing an answer.
 - **The layout engine is what everything draws through.** `packages/engine` carries track
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation, the
   flow engine, the fit ladder, the price mark, bounded overrides, snapping, the block
-  document schema and the seeded block library of **59 blocks** — **338 tests**. Four surfaces render from it and all four share one
+  document schema and the seeded block library of **65 blocks** — **365 tests**. Four surfaces render from it and all four share one
   painter, `components/blocks/draw.tsx`: `/brand`'s block preview, the editor's page, the
   designer's canvas and its worst-case panel. `pnpm --filter @souqstudio/engine harness`
   draws sample pages to SVG from the seeded blocks and both invented products and **real
@@ -259,7 +268,7 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   Still no Fabric: direct manipulation goes through `moveBox`, `resizeBox` and
   `snapBox` in the engine and the same painter as the editor, because a second
   painter is how the PDF stops matching the screen. The seeded gallery is built:
-  fifty-nine blocks, grouped by category on `/brand/blocks`. Gradients are in on
+  sixty-five blocks, grouped by category on `/brand/blocks`. Gradients are in on
   shape fills only — `resolvePaint` in the engine, never `resolveColor`, which is
   narrowed to `FlatColor` so the compiler names any field that tries to widen.
   E7-03 computes its window from the calendar rather than reading a stored date,

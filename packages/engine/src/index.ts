@@ -142,5 +142,11 @@ export { markGround, type MarkGround } from './price-mark'
 // The vocabulary, exported from its own module rather than through `library`.
 // Re-exporting it from there would put the designs back in the graph of anyone
 // importing it — which is the bundle problem it was split up to fix.
-export { BLOCK_CATEGORIES, type BlockCategory } from './block-category'
+export {
+  BLOCK_CATEGORIES,
+  MAGIC_CATEGORIES,
+  categoryRepeats,
+  type BlockCategory,
+  type MagicCategory,
+} from './block-category'
 export { SEED_BLOCKS, bookletGrid, type SeedBlock } from './library'

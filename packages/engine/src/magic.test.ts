@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { pickArrangement } from './arrangement'
+import { MAGIC_CATEGORIES, type MagicCategory, categoryRepeats } from './block-category'
 import { validateBlock } from './block-edit'
 import {
   MAGIC_STRUCTURES,
   STRUCTURE_NOTE,
-  type MagicChoice,
+  type MagicCardChoice,
+  type MagicStillChoice,
   arrangementsFromChoice,
-  magicChoiceSchema,
+  magicOptions,
+  magicSchemaFor,
 } from './magic'
 import { usesOnlyRoles } from './roles'
+
+/** Every kind except the cards, which are matched to a structure instead. */
+const STILL_CATEGORIES = MAGIC_CATEGORIES.filter(
+  (category): category is Exclude<MagicCategory, 'offer-card'> => category !== 'offer-card'
+)
 
 /**
  * Magic block, held to the bar the shipped library clears.
@@ -25,12 +33,20 @@ import { usesOnlyRoles } from './roles'
  * structure against every ground, both price frames, outlined and not. If that
  * grid is clean then the schema is the only thing standing between a model and a
  * valid block, and the schema is machine-checked.
+ *
+ * **The same argument, twice, because there are two halves.** A card is matched
+ * to a generated structure and enumerated below; a header, panel, footer or
+ * square post is matched to a block the library already ships, and the last
+ * block here enumerates those. Their bar is *no problems at all* rather than no
+ * errors — a shipped design that draws a warning is one `library.test.ts` would
+ * already be failing on, so anything this finds is a block the match could reach
+ * and the library never could.
  */
 
 const GROUNDS = ['primary', 'secondary', 'accent', 'surface', 'ink', 'inkMuted'] as const
 
-const choice = (over: Partial<MagicChoice> = {}): MagicChoice => ({
-  isOfferCard: true,
+const choice = (over: Partial<MagicCardChoice> = {}): MagicCardChoice => ({
+  isMatch: true,
   structure: 'stacked',
   ground: 'surface',
   outlined: false,
@@ -43,7 +59,7 @@ const choice = (over: Partial<MagicChoice> = {}): MagicChoice => ({
 })
 
 /** Every choice the schema admits, modulo the free-text fields. */
-function* everyChoice(): Generator<MagicChoice> {
+function* everyChoice(): Generator<MagicCardChoice> {
   for (const structure of MAGIC_STRUCTURES) {
     for (const ground of GROUNDS) {
       for (const outlined of [false, true]) {
@@ -83,7 +99,7 @@ describe('the structure registry', () => {
     // The schema is an enum over the registry's own keys, so this is really a
     // check that the two have not been allowed to drift apart by a rename.
     for (const name of MAGIC_STRUCTURES) {
-      expect(() => arrangementsFromChoice(choice({ structure: name }))).not.toThrow()
+      expect(() => arrangementsFromChoice('offer-card', choice({ structure: name }))).not.toThrow()
     }
   })
 
@@ -94,25 +110,25 @@ describe('the structure registry', () => {
 
 describe('the choice schema', () => {
   it('accepts a well-formed choice', () => {
-    expect(magicChoiceSchema.safeParse(choice()).success).toBe(true)
+    expect(magicSchemaFor('offer-card').safeParse(choice()).success).toBe(true)
   })
 
   it('refuses a structure that is not in the library', () => {
     // The whole safety argument rests on this: a model that could name its own
     // structure could name one nothing draws.
-    expect(magicChoiceSchema.safeParse(choice({ structure: 'nonesuch' })).success).toBe(false)
+    expect(magicSchemaFor('offer-card').safeParse(choice({ structure: 'nonesuch' })).success).toBe(false)
   })
 
   it('refuses a colour that is not a role', () => {
     // A hex here would be a card permanently wearing somebody else's brand.
-    const parsed = magicChoiceSchema.safeParse({ ...choice(), ground: '#ff0000' })
+    const parsed = magicSchemaFor('offer-card').safeParse({ ...choice(), ground: '#ff0000' })
     expect(parsed.success).toBe(false)
   })
 
   it('lets the model decline the picture', () => {
     // Refusing has to be expressible, or the nearest offer card is the only
     // answer a masthead can get.
-    expect(magicChoiceSchema.safeParse(choice({ isOfferCard: false })).success).toBe(true)
+    expect(magicSchemaFor('offer-card').safeParse(choice({ isMatch: false })).success).toBe(true)
   })
 })
 
@@ -126,7 +142,7 @@ describe('every choice a model can make', () => {
 
   it('builds a block with no structural errors', () => {
     for (const c of all) {
-      const arrangements = arrangementsFromChoice(c)
+      const arrangements = arrangementsFromChoice('offer-card', c)
       const errors = validateBlock({ repeats: true, arrangements }).filter(
         (problem) => problem.severity === 'error'
       )
@@ -143,7 +159,7 @@ describe('every choice a model can make', () => {
     // for having been matched from a photograph. `library.test.ts` holds the
     // seeded arm to exactly this.
     for (const c of all) {
-      const arrangements = arrangementsFromChoice(c)
+      const arrangements = arrangementsFromChoice('offer-card', c)
       const warnings = validateBlock({ repeats: true, arrangements }).filter(
         (problem) => problem.severity === 'warning'
       )
@@ -160,7 +176,7 @@ describe('every choice a model can make', () => {
     // emits a literal. Asserted because "by construction" is the property a
     // refactor breaks without failing anything else.
     for (const c of all) {
-      expect({ structure: c.structure, rolesOnly: usesOnlyRoles(arrangementsFromChoice(c)) }).toEqual(
+      expect({ structure: c.structure, rolesOnly: usesOnlyRoles(arrangementsFromChoice('offer-card', c)) }).toEqual(
         { structure: c.structure, rolesOnly: true }
       )
     }
@@ -171,7 +187,7 @@ describe('every choice a model can make', () => {
     // aspect; the block has to work in a merged region too, and it does because
     // the structure it was matched to already carried every shape it claims.
     for (const c of all) {
-      const arrangements = arrangementsFromChoice(c)
+      const arrangements = arrangementsFromChoice('offer-card', c)
       for (const aspect of [0.5, 1, 1.8, 4]) {
         const picked = arrangements[pickArrangement(arrangements, aspect)]
         expect({ structure: c.structure, aspect, elements: (picked?.elements.length ?? 0) > 0 }).toEqual({
@@ -198,8 +214,8 @@ describe('every choice a model can make', () => {
      * product text through `ink(skin)`, which is the helper the inversion runs
      * through.
      */
-    const textColours = (c: MagicChoice) =>
-      arrangementsFromChoice(c)
+    const textColours = (c: MagicCardChoice) =>
+      arrangementsFromChoice('offer-card', c)
         .flatMap((arrangement) => arrangement.elements)
         .filter((element) => element.kind === 'text')
         .map((element) => (element.kind === 'text' ? element.color : undefined))
@@ -220,7 +236,7 @@ describe('every choice a model can make', () => {
     // whose token is `primary`, on a primary-grounded card. Derived rather than
     // chosen, so a model cannot reintroduce it.
     for (const c of all.filter((entry) => entry.ground !== 'surface')) {
-      const chips = arrangementsFromChoice(c)
+      const chips = arrangementsFromChoice('offer-card', c)
         .flatMap((arrangement) => arrangement.elements)
         .filter((element) => element.kind === 'chip')
 
@@ -233,5 +249,101 @@ describe('every choice a model can make', () => {
         })
       }
     }
+  })
+})
+
+describe('every kind that is placed once', () => {
+  const still = (structure: string): MagicStillChoice => ({
+    isMatch: true,
+    structure,
+    name: 'Test block',
+    description: '',
+    notes: [],
+    confidence: 'high',
+  })
+
+  it('offers something to match against, for every kind on the picker', () => {
+    // A kind with an empty vocabulary is one an owner can choose and nothing can
+    // answer — every picture uploaded under it comes back unreadable, and the
+    // credits are spent finding that out.
+    for (const category of MAGIC_CATEGORIES) {
+      expect({ category, offered: magicOptions(category).length > 0 }).toEqual({
+        category,
+        offered: true,
+      })
+    }
+  })
+
+  it('describes everything it offers', () => {
+    // Same rule as the structure notes: an option the model is never told the
+    // shape of is one it picks at random rather than never.
+    for (const category of MAGIC_CATEGORIES) {
+      for (const option of magicOptions(category)) {
+        expect({ category, name: option.name, described: option.note.trim().length > 0 }).toEqual({
+          category,
+          name: option.name,
+          described: true,
+        })
+      }
+    }
+  })
+
+  it('builds a block with no problems at all', () => {
+    for (const category of STILL_CATEGORIES) {
+      for (const option of magicOptions(category)) {
+        const arrangements = arrangementsFromChoice(category, still(option.name))
+        const problems = validateBlock({ repeats: categoryRepeats(category), arrangements })
+        expect({ category, block: option.name, problems }).toEqual({
+          category,
+          block: option.name,
+          problems: [],
+        })
+      }
+    }
+  })
+
+  it('names every colour by role, never by value', () => {
+    for (const category of STILL_CATEGORIES) {
+      for (const option of magicOptions(category)) {
+        const rolesOnly = usesOnlyRoles(arrangementsFromChoice(category, still(option.name)))
+        expect({ category, block: option.name, rolesOnly }).toEqual({
+          category,
+          block: option.name,
+          rolesOnly: true,
+        })
+      }
+    }
+  })
+
+  it('refuses a block that belongs to another kind', () => {
+    /**
+     * **The property that makes the owner's choice binding rather than a hint.**
+     *
+     * Every kind is a separate enum over its own blocks, so a model shown the
+     * headers cannot answer with a footer — not because it was asked not to, but
+     * because that answer does not validate. Without this the narrowing is a
+     * suggestion, and the whole reason the picker exists is that a model
+     * choosing between eight things beats one choosing between fifty-nine.
+     */
+    const footer = magicOptions('footer')[0]
+    expect(footer).toBeDefined()
+    expect(magicSchemaFor('header').safeParse(still(footer?.name ?? '')).success).toBe(false)
+    expect(magicSchemaFor('footer').safeParse(still(footer?.name ?? '')).success).toBe(true)
+  })
+
+  it('hands back a copy rather than the shipped design itself', () => {
+    /**
+     * The arrangements go into a row and then into a designer the owner edits.
+     * Handing out the library's own object would put every shop that matched the
+     * same footer on one shared document — and the harness, the gallery and the
+     * seed are all holding it too.
+     */
+    const option = magicOptions('footer')[0]
+    const first = arrangementsFromChoice('footer', still(option?.name ?? ''))
+    const second = arrangementsFromChoice('footer', still(option?.name ?? ''))
+
+    expect(first).not.toBe(second)
+    expect(first[0]?.elements).not.toBe(second[0]?.elements)
+    expect(first).toEqual(second)
   })
 })

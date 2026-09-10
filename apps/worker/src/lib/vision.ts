@@ -1,3 +1,4 @@
+import type { MagicCategory } from '@souqstudio/engine'
 import type { MagicChoice } from '@souqstudio/engine/src/magic'
 import { env } from './env'
 import type { VisionImage } from './magic-prompt'
@@ -23,12 +24,17 @@ import { readWithQwen } from './vision-qwen'
  * `pnpm --filter @souqstudio/worker magic:check` renders cards whose structure
  * is known and reports what came back. Run it once per provider.
  */
-export async function readCardDesign(image: VisionImage): Promise<MagicChoice> {
-  return env.MAGIC_BLOCK_PROVIDER === 'qwen' ? readWithQwen(image) : readWithAnthropic(image)
+export async function readCardDesign(
+  image: VisionImage,
+  category: MagicCategory
+): Promise<MagicChoice> {
+  return env.MAGIC_BLOCK_PROVIDER === 'qwen'
+    ? readWithQwen(image, category)
+    : readWithAnthropic(image, category)
 }
 
 export {
-  NotAnOfferCardError,
+  NoMatchError,
   UnreadableDesignError,
   type VisionImage,
 } from './magic-prompt'

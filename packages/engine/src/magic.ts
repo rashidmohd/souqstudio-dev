@@ -1,7 +1,26 @@
 /**
- * Magic block — what a model may decide when it reads a picture of a card.
+ * Magic block — what a model may decide when it reads a picture.
  *
- * **It chooses a structure and a skin. It does not draw.** `library-cards.ts`
+ * **The owner says what kind of thing the picture is, and that decides the
+ * vocabulary.** An offer card, a header, a panel, a footer or a square social
+ * post — five kinds, five separate lists to match against, and the model is
+ * never shown more than one of them. That narrowing is not a convenience: a
+ * model choosing between eight headers is a better matcher than the same model
+ * choosing between eight headers and fifty-one other things, and the *cost* of
+ * a wrong match is the same either way. `docs/E8-ai-features.md`.
+ *
+ * The two halves work differently, and the difference is the library's own:
+ *
+ * - **An offer card is matched to a structure and a skin**, because that half
+ *   of the library is generated — twenty-five structures times a skin, for the
+ *   reason below.
+ * - **Everything else is matched to a shipped block**, because that half is
+ *   hand-drawn. There is nothing to parameterise: `library-panels.ts` already
+ *   names every colour by role, so `blk_footer_ink` loaded by a shop already
+ *   wears that shop's palette. Matching returns the design, and the designer is
+ *   where the owner changes it.
+ *
+ * **It chooses. It does not draw.** `library-cards.ts`
  * holds twenty-five structures, each a function from a `Skin` to a full set of
  * arrangements, and `docs/E7-pending.md` §8 records why: the library is
  * structure times skin because thirty hand-drawn cards drifted apart inside a
@@ -35,6 +54,8 @@
  */
 import * as z from 'zod/v4'
 import type { Arrangement, PriceMarkStyle, Stroke, TokenRef } from '@souqstudio/types'
+import type { MagicCategory } from './block-category'
+import { SEED_BLOCKS, type SeedBlock } from './library'
 import {
   type Skin,
   brandLed,
@@ -147,7 +168,82 @@ export const STRUCTURE_NOTE: Readonly<Record<string, string>> = {
 }
 
 /**
- * The choice, and every field in it is closed.
+ * The blocks one still kind can be matched to.
+ *
+ * **Derived from `SEED_BLOCKS`, not from a second list.** The seed already
+ * decides which group a shipped block belongs to — `categoryOf` in `library.ts`
+ * — and a hand-written list here would be a second answer to the same question,
+ * discovered wrong the first time somebody adds a footer and finds it
+ * unmatchable. This asks the library.
+ *
+ * **A known limit, stated rather than discovered.** `SEED_BLOCKS` is the
+ * *generated* arm — what is compiled into this process. A design published only
+ * to R2 (`library-source.ts`) is in the library an owner browses and is not
+ * matchable from a photograph, because reaching the loaded library means a
+ * network call inside the vision path. That is the right trade today: everything
+ * in the bucket got there from `blocks:publish`, which publishes these.
+ */
+const stillBlocks = (category: Exclude<MagicCategory, 'offer-card'>): readonly SeedBlock[] =>
+  SEED_BLOCKS.filter((block) => block.category === category)
+
+/** One thing a model may answer with, and what it looks like. */
+export interface MagicOption {
+  /** The answer itself: a structure name, or a shipped block's id. */
+  name: string
+  /** What it looks like, for someone holding a photograph. */
+  note: string
+}
+
+/**
+ * Everything the model is allowed to say, for one kind.
+ *
+ * This is what the prompt lists and what the schema enumerates, from one call,
+ * so the two cannot disagree about what is on offer — a structure in the enum
+ * and absent from the prompt is one the model can pick and has never been shown.
+ *
+ * The still kinds read their note off the shipped block's own name and
+ * description, which were written for an owner browsing a library rather than
+ * for a model matching a picture. They survive the change of reader better than
+ * the card structures did — "Shop name, logo and the small print" *is* the
+ * arrangement — which is why there is no second table of notes for them.
+ */
+export function magicOptions(category: MagicCategory): readonly MagicOption[] {
+  if (category === 'offer-card') {
+    return MAGIC_STRUCTURES.map((name) => ({ name, note: STRUCTURE_NOTE[name] ?? '' }))
+  }
+
+  return stillBlocks(category).map((block) => ({
+    name: block.id,
+    note: `${block.name} — ${block.description}`,
+  }))
+}
+
+// ─── The choice ───────────────────────────────────────────────────────────────
+
+const tokenRef = z.enum(['primary', 'secondary', 'accent', 'surface', 'ink', 'inkMuted'])
+
+/**
+ * What every answer carries, whichever kind was asked about.
+ *
+ * `isMatch` is the decline path and it must stay one. It used to be
+ * `isOfferCard`, which was the honest name while an offer card was the only
+ * thing this could produce; the question it asks now is **"is this picture the
+ * kind the owner said it was"**, and a masthead uploaded under "footer" has to
+ * be refusable exactly as a masthead uploaded under "offer card" was. Refusing
+ * is better than matching to the nearest thing on a list — the nearest footer to
+ * a photograph of a shelf is still a footer, and the owner paid for it.
+ */
+const common = {
+  isMatch: z.boolean(),
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(200),
+  /** What was read off the picture, in the owner's language, one line each. */
+  notes: z.array(z.string().max(200)).max(6),
+  confidence: z.enum(['high', 'medium', 'low']),
+}
+
+/**
+ * An offer card: a structure and a skin, and every field in it is closed.
  *
  * **Six colours and twenty-five structures is the whole output space**, which is
  * what makes this reliable where "emit a block document" is not. There is no
@@ -155,19 +251,8 @@ export const STRUCTURE_NOTE: Readonly<Record<string, string>> = {
  * owner in the library and nowhere else, and `notes` is shown beside the result
  * so the person can see what was read off their picture and disagree with it.
  */
-const tokenRef = z.enum(['primary', 'secondary', 'accent', 'surface', 'ink', 'inkMuted'])
-
-export const magicChoiceSchema = z.object({
-  /**
-   * Whether this is a repeating offer card at all.
-   *
-   * **False is a real answer and must stay one.** Every structure here repeats
-   * over the product list; a header, a footer or a whole page has no product in
-   * scope and would come back as a card with product bindings it cannot fill.
-   * Refusing is better than matching a masthead to the nearest offer card, so
-   * the model is told to say so and the job reports it.
-   */
-  isOfferCard: z.boolean(),
+export const magicCardChoiceSchema = z.object({
+  ...common,
   structure: z.enum(MAGIC_STRUCTURES),
   /** The card's ground. `surface` is a white card; a brand role is a tinted one. */
   ground: tokenRef,
@@ -184,14 +269,63 @@ export const magicChoiceSchema = z.object({
    * inside a week.
    */
   priceFrame: z.enum(['tag', 'plain']),
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(200),
-  /** What was read off the picture, in the owner's language, one line each. */
-  notes: z.array(z.string().max(200)).max(6),
-  confidence: z.enum(['high', 'medium', 'low']),
 })
 
-export type MagicChoice = z.infer<typeof magicChoiceSchema>
+export type MagicCardChoice = z.infer<typeof magicCardChoiceSchema>
+
+/**
+ * Anything placed once: which shipped design this is, and nothing else.
+ *
+ * **No skin, and that is not an omission.** A card is generated from a structure
+ * and therefore has to be told how to be coloured; a header was drawn by a
+ * person who already decided, in roles, so it arrives wearing the shop's palette
+ * with no further questions. Asking a model to re-skin it would be asking it to
+ * overrule a design decision from a photograph of somebody else's shop — and
+ * every one of those questions is a chance to put white type on a white ground.
+ * The designer is where the owner changes it, on a block they can see.
+ */
+export type MagicStillChoice = {
+  isMatch: boolean
+  /** A shipped block's id, within the kind that was asked about. */
+  structure: string
+  name: string
+  description: string
+  notes: string[]
+  confidence: 'high' | 'medium' | 'low'
+}
+
+export type MagicChoice = MagicCardChoice | MagicStillChoice
+
+/**
+ * The contract for one kind.
+ *
+ * Built once per kind and kept, because both providers ask for it on every call
+ * — Anthropic hands it to the API as the output format, Qwen prints it into the
+ * prompt — and rebuilding an enum over the library on each of those is work
+ * nobody asked for.
+ */
+const cache = new Map<MagicCategory, z.ZodType<MagicChoice>>()
+
+export function magicSchemaFor(category: MagicCategory): z.ZodType<MagicChoice> {
+  const held = cache.get(category)
+  if (held !== undefined) return held
+
+  const built = category === 'offer-card' ? magicCardChoiceSchema : stillSchema(category)
+  cache.set(category, built)
+  return built
+}
+
+function stillSchema(category: Exclude<MagicCategory, 'offer-card'>): z.ZodType<MagicChoice> {
+  const ids = stillBlocks(category).map((block) => block.id)
+  if (ids.length === 0) {
+    // Unreachable while the seeded library carries every kind, and named rather
+    // than assumed: an empty enum is a schema nothing can satisfy, which would
+    // surface as every picture of this kind being unreadable.
+    throw new Error(`magic: the library has no ${category} blocks to match against`)
+  }
+
+  return z.object({ ...common, structure: z.enum(ids as [string, ...string[]]) })
+}
 
 /**
  * The same contract as JSON Schema, for a provider that cannot be handed a zod
@@ -204,25 +338,56 @@ export type MagicChoice = z.infer<typeof magicChoiceSchema>
  * first — a structure added here would be offered to one provider and not the
  * other, and the symptom would be one model quietly never choosing it.
  */
-export const magicChoiceJsonSchema = z.toJSONSchema(magicChoiceSchema)
+export function magicJsonSchemaFor(category: MagicCategory): unknown {
+  return z.toJSONSchema(magicSchemaFor(category))
+}
+
+// ─── The choice, drawn ────────────────────────────────────────────────────────
 
 /**
  * The choice, drawn.
  *
  * Every branch here is a `TokenRef` or a bounded number, so what comes back has
  * already cleared `usesOnlyRoles` by construction — there is no path through
- * this function that produces a literal colour.
+ * this function that produces a literal colour. The still branch inherits the
+ * same property from the shipped design, which `library.test.ts` holds to it.
+ *
+ * **The category is a parameter rather than a field on the choice**, because the
+ * model does not decide it — the owner did, before the picture was uploaded, and
+ * it is what chose the schema the answer was parsed against. A model that could
+ * name its own category could name one whose vocabulary it was never shown.
  */
-export function arrangementsFromChoice(choice: MagicChoice): Arrangement[] {
-  const build = STRUCTURE[choice.structure]
-  if (build === undefined) {
-    // Unreachable through the schema, which is an enum over this same registry.
-    // Named rather than assumed so that adding a structure to one and not the
-    // other fails loudly instead of drawing the first card in the list.
-    throw new Error(`magic: no structure "${choice.structure}"`)
+export function arrangementsFromChoice(
+  category: MagicCategory,
+  choice: MagicChoice
+): Arrangement[] {
+  if (category === 'offer-card') {
+    if (!('ground' in choice)) {
+      // Unreachable through `magicSchemaFor`, which pairs the two. Named so that
+      // a caller passing the wrong pair fails here rather than drawing a card
+      // with an undefined skin.
+      throw new Error('magic: an offer card was matched without a skin')
+    }
+
+    const build = STRUCTURE[choice.structure]
+    if (build === undefined) {
+      // Unreachable through the schema, which is an enum over this same registry.
+      // Named rather than assumed so that adding a structure to one and not the
+      // other fails loudly instead of drawing the first card in the list.
+      throw new Error(`magic: no structure "${choice.structure}"`)
+    }
+
+    return build(skinFromChoice(choice))
   }
 
-  return build(skinFromChoice(choice))
+  const block = stillBlocks(category).find((candidate) => candidate.id === choice.structure)
+  if (block === undefined) {
+    throw new Error(`magic: no ${category} block "${choice.structure}"`)
+  }
+
+  // A copy, because the caller writes this into a row and the original is the
+  // shipped design every other reader in this process is holding.
+  return structuredClone(block.arrangements as Arrangement[])
 }
 
 /**
@@ -245,7 +410,7 @@ export function arrangementsFromChoice(choice: MagicChoice): Arrangement[] {
  * a generated one must too. Asking the model for it would be asking it to
  * rediscover that, per card, from a photograph.
  */
-function skinFromChoice(choice: MagicChoice): Skin {
+function skinFromChoice(choice: MagicCardChoice): Skin {
   const tinted = choice.ground !== 'surface'
 
   const price: PriceMarkStyle | undefined =

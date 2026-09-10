@@ -1,12 +1,13 @@
-import { magicChoiceJsonSchema } from '@souqstudio/engine/src/magic'
+import type { MagicCategory } from '@souqstudio/engine'
+import { magicJsonSchemaFor } from '@souqstudio/engine/src/magic'
 import { env } from './env'
 import {
-  QUESTION,
-  SYSTEM,
   UnreadableDesignError,
   type VisionImage,
   type VisionReader,
   interpretFirst,
+  questionFor,
+  systemFor,
 } from './magic-prompt'
 
 /**
@@ -19,7 +20,7 @@ import {
  * would only make the queue's count a lie.
  *
  * **The schema is asked for rather than enforced.** Anthropic constrains
- * generation to `magicChoiceSchema`; here the contract goes into the prompt as
+ * generation to the kind's schema; here the contract goes into the prompt as
  * JSON Schema and `response_format: json_object` gets syntactically valid JSON
  * back. So a wrong answer is possible in a way it is not on the other provider
  * — which is exactly why `interpret` validates both. A reply that names a
@@ -42,21 +43,34 @@ const BASE = env.DASHSCOPE_BASE_URL
 /** Qwen's flagship vision model. Overridable — the family moves quickly. */
 const MODEL = env.QWEN_VISION_MODEL
 
-const CONTRACT = `Answer with a single JSON object and nothing else — no prose,
+/**
+ * The contract, per kind.
+ *
+ * **Built per call rather than once, because the schema is now per kind.** It is
+ * derived from the same zod object Anthropic is handed — never written out by
+ * hand — so a design added to one kind is offered to both providers or to
+ * neither.
+ */
+const contractFor = (category: MagicCategory): string =>
+  `Answer with a single JSON object and nothing else — no prose,
 no code fence. It must validate against this JSON Schema:
 
-${JSON.stringify(magicChoiceJsonSchema, null, 2)}
+${JSON.stringify(magicJsonSchemaFor(category), null, 2)}
 
 Every field is required. \`structure\` must be one of the enumerated names
-exactly as spelled. \`ground\` and \`accent\` must be one of the enumerated colour
-roles — never a hex value, never a colour name.`
+exactly as spelled — the enumeration is the whole list you may choose from. Any
+colour field must be one of the enumerated colour roles — never a hex value,
+never a colour name.`
 
 interface ChatResponse {
   choices?: { message?: { content?: string | null } }[]
   error?: { message?: string }
 }
 
-export const readWithQwen: VisionReader = async (image: VisionImage) => {
+export const readWithQwen: VisionReader = async (
+  image: VisionImage,
+  category: MagicCategory
+) => {
   if (env.DASHSCOPE_API_KEY === undefined) {
     throw new Error('vision: MAGIC_BLOCK_PROVIDER is qwen but DASHSCOPE_API_KEY is not set')
   }
@@ -71,7 +85,10 @@ export const readWithQwen: VisionReader = async (image: VisionImage) => {
       model: MODEL,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: `${SYSTEM}\n\n## The answer\n\n${CONTRACT}` },
+        {
+          role: 'system',
+          content: `${systemFor(category)}\n\n## The answer\n\n${contractFor(category)}`,
+        },
         {
           role: 'user',
           content: [
@@ -81,7 +98,7 @@ export const readWithQwen: VisionReader = async (image: VisionImage) => {
                 url: `data:${image.mediaType};base64,${image.bytes.toString('base64')}`,
               },
             },
-            { type: 'text', text: QUESTION },
+            { type: 'text', text: questionFor(category) },
           ],
         },
       ],
@@ -101,7 +118,7 @@ export const readWithQwen: VisionReader = async (image: VisionImage) => {
   if (typeof content !== 'string' || content.trim() === '') throw new UnreadableDesignError()
 
   // Every reading of the reply, in preference order. The schema picks.
-  return interpretFirst(candidateObjects(content))
+  return interpretFirst(candidateObjects(content), category)
 }
 
 /**

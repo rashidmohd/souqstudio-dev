@@ -1,23 +1,25 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
-import { magicChoiceSchema } from '@souqstudio/engine/src/magic'
+import type { MagicCategory } from '@souqstudio/engine'
+import { magicSchemaFor } from '@souqstudio/engine/src/magic'
 import { env } from './env'
 import {
-  QUESTION,
-  SYSTEM,
   type VisionImage,
   type VisionReader,
   interpret,
+  questionFor,
+  systemFor,
 } from './magic-prompt'
 
 /**
  * Reading a card with Claude. E8-07.
  *
  * **The schema constrains generation here**, which is what separates this
- * provider from the other one: `magicChoiceSchema` is handed to the API as the
+ * provider from the other one: the kind's own schema is handed to the API as the
  * output format, so the model cannot name a structure that is not in the
- * library or a colour that is not a role. `interpret` still runs on the result
- * — see the note there — but it is checking rather than salvaging.
+ * library, a block that belongs to another kind, or a colour that is not a role.
+ * `interpret` still runs on the result — see the note there — but it is checking
+ * rather than salvaging.
  */
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
@@ -34,16 +36,19 @@ const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
  */
 const MODEL = 'claude-opus-5'
 
-export const readWithAnthropic: VisionReader = async (image: VisionImage) => {
+export const readWithAnthropic: VisionReader = async (
+  image: VisionImage,
+  category: MagicCategory
+) => {
   const response = await client.messages.parse({
     model: MODEL,
     max_tokens: 16000,
-    system: SYSTEM,
+    system: systemFor(category),
     // Adaptive thinking, at the default effort. Matching a layout is a judgement
     // — which of four stacked arrangements, is that ground dark enough to invert
     // — and it is the part that decides whether the owner keeps the result.
     thinking: { type: 'adaptive' },
-    output_config: { format: zodOutputFormat(magicChoiceSchema) },
+    output_config: { format: zodOutputFormat(magicSchemaFor(category)) },
     messages: [
       {
         role: 'user',
@@ -56,7 +61,7 @@ export const readWithAnthropic: VisionReader = async (image: VisionImage) => {
               data: image.bytes.toString('base64'),
             },
           },
-          { type: 'text', text: QUESTION },
+          { type: 'text', text: questionFor(category) },
         ],
       },
     ],
@@ -65,5 +70,5 @@ export const readWithAnthropic: VisionReader = async (image: VisionImage) => {
   // `parsed_output` is null when the model produced something the schema
   // refused. `interpret` turns that into the same `UnreadableDesignError` the
   // other provider raises, so the job handler has one failure vocabulary.
-  return interpret(response.parsed_output)
+  return interpret(response.parsed_output, category)
 }

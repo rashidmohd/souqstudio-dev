@@ -112,18 +112,45 @@ Generates a full cover page image for the offer book.
 - Sized to match selected output format (square for Instagram, portrait for catalog)
 - Stored in R2, referenced in offer book canvas state
 
-### E8-07 Magic Block — a picture of a card in, a block out
+### E8-07 Magic Block — a picture in, a block out
 
-**Built 10 September 2026.** The one AI feature that generates no image.
+**Built 10 September 2026. Extended to every kind of block on 10 September.**
+The one AI feature that generates no image.
 
-An owner photographs or screenshots a card they want — from a competitor's
+An owner photographs or screenshots something they want — from a competitor's
 flyer, a Pinterest board, a previous year's print run — and gets a block in
-their library that reflows, prices correctly, and is drawn in *their* brand
-colours.
+their library that is drawn in *their* brand colours.
 
-**It matches, it does not draw.** `packages/engine/src/library-cards.ts` holds
-twenty-five structures, each a function from a `Skin` to a full set of
-arrangements; the model picks one and describes the skin. §8 of
+**The owner says what kind of thing it is, and the model is shown that kind
+only.** `MAGIC_CATEGORIES` — offer card, header, panel, footer, square social
+post — is a picker above the dropzone, and it selects both the vocabulary in the
+prompt and the schema the reply is validated against. Two things follow, and the
+second is the price of the first:
+
+- **A smaller closed set is a better matcher.** Choosing between eight headers is
+  a different task from choosing between sixty-five mixed designs, and the model
+  is doing the easier one. It cannot answer outside the kind: the enum is per
+  kind, so a footer named under "header" fails validation on both providers —
+  the one whose API constrains generation and the one that is merely asked.
+- **A picture under the wrong kind is declined, not quietly matched.** The nearest
+  header to a photograph of a footer is still a header, it draws fine, and the
+  owner paid for it. `isMatch: false` is the answer, the notes say why, and
+  nothing is charged.
+
+`seasonal` is deliberately not offered. A seasonal block is a design *plus* an
+occasion, and `seasonal.ts` computes each window from the calendar — a match
+would have to pick the occasion from a photograph, and a wrong one is a shop
+wishing its customers Eid Mubarak in March.
+
+**It matches, it does not draw**, and the two halves of the library are matched
+differently because they are built differently.
+`packages/engine/src/library-cards.ts` holds twenty-five structures, each a
+function from a `Skin` to a full set of arrangements; for an offer card the model
+picks one and describes the skin. Everything else is hand-drawn in
+`library-panels.ts`, already names every colour by role, and is therefore matched
+*to itself* — the model names a shipped block and gets a copy of it, with no skin
+asked for. Asking a model to re-skin a design a person already skinned is asking
+it to overrule that decision from a photograph of somebody else's shop. §8 of
 `docs/E7-pending.md` records why the library is structure-times-skin rather than
 sixty hand-drawn cards, and a model emitting free-form documents would drift the
 same way and faster. Three properties fall out of matching instead:
@@ -151,8 +178,9 @@ GET  /api/v1/ai/jobs/:jobId   the client polls; result carries { blockId, notes 
 
 **Model: two of them, and one environment variable picks.**
 `MAGIC_BLOCK_PROVIDER` unset is `claude-opus-5` with adaptive thinking, which
-constrains generation to `magicChoiceSchema` directly — the engine's own zod
-schema handed to the API, so there is one definition of a legal choice. Set it
+constrains generation to `magicSchemaFor(category)` directly — the engine's own
+zod schema for the kind that was asked about, handed to the API, so there is one
+definition of a legal choice. Set it
 to `qwen` and the same question goes to Qwen-VL over DashScope's
 OpenAI-compatible endpoint, where the contract travels as JSON Schema in the
 prompt (derived from that same zod object via `magicChoiceJsonSchema`, never
@@ -185,11 +213,14 @@ than inheriting from a default.
 starting from a blank artboard; this is the same move with a photograph as the
 seed. Publishing is a separate decision a person makes after looking at it.
 
-**"That is not an offer card" is a real answer.** Every structure repeats over
-the product list, so a masthead or a whole flyer page matched to the nearest
-offer card would produce a card full of bindings it cannot fill. The model sets
-`isOfferCard: false` and the job reports it rather than guessing — and that
-branch is never retried, because the picture will not have changed.
+**"That is not one of these" is a real answer.** It was `isOfferCard` while an
+offer card was the only thing this could produce, and the question it asks now is
+whether the picture is the kind the owner said. Every offer-card structure repeats
+over the product list, so a masthead matched to the nearest one produces a card
+full of bindings it cannot fill; and a footer matched to the nearest header is a
+block in the wrong half of a page. The model sets `isMatch: false` and the job
+reports `no_match` rather than guessing — and that branch is never retried,
+because the picture will not have changed.
 
 ### What the first live run found — 10 September 2026
 

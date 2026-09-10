@@ -1,5 +1,6 @@
 /**
- * The blocks placed once: covers, hero bands, section dividers, panels, footers.
+ * The blocks placed once: covers, hero bands, section dividers, panels, footers
+ * and the square posts a shop puts on its feed.
  *
  * A static block has **no product in scope**, so the binding vocabulary here is
  * static copy, the shop's name and the logo — a product field on one of these is
@@ -164,23 +165,6 @@ const HEADER_BLOCKS: PanelBlock[] = [
         'caption',
         { align: 'center' }
       ),
-    ]),
-  },
-  {
-    id: 'blk_cover_square',
-    name: 'Cover, square post',
-    description: 'The first post of a carousel. Same masthead, drawn at 1080 square.',
-    arrangements: still(SQUARE, [
-      ground('primary'),
-      logo(box(0.38, 0.1, 0.24, 0.12)),
-      words('masthead', box(0.08, 0.32, 0.84, 0.22), 'Weekly offers', 'عروض الأسبوع', 'h1', {
-        align: 'center',
-      }),
-      words('dates', box(0.08, 0.57, 0.84, 0.08), '1 – 7 January', '١ – ٧ يناير', 'body', {
-        align: 'center',
-      }),
-      panel('plate', box(0.18, 0.72, 0.64, 0.14), 'surface'),
-      shopField('name', box(0.2, 0.755, 0.6, 0.08), 'h4', { align: 'center', color: 'ink' }),
     ]),
   },
   {
@@ -363,9 +347,188 @@ const MESSAGE_BLOCKS: PanelBlock[] = [
       }),
     ]),
   },
+]
+
+// ─── Square posts ─────────────────────────────────────────────────────────────
+
+/**
+ * The blocks that **are** a page rather than sitting on one.
+ *
+ * A social post is one square — 1080 in `offer-book-compose.ts`, and full bleed,
+ * because `PageGrid`'s margin is optional for exactly this. So these are drawn
+ * at `SQUARE` and they are the only group here whose shape is not a negotiation
+ * with the rest of a page: nothing else is on it.
+ *
+ * **They are a category rather than a corner of `panel`, and two of them moved
+ * here to make that true.** `blk_cover_square` and `blk_thanks` were authored as
+ * a header and a panel and describe themselves as the first and last post of a
+ * carousel — which is what they are, and which is not what an owner is looking
+ * for when they open "headers". The category is derived at seed time from the id
+ * sets below, so moving them is a `pnpm db:seed` and nothing else; no book
+ * references a category, and every pin references an id.
+ *
+ * **What a shop actually posts, and why there is no product on any of them.** A
+ * post advertising one product is an *offer card* drawn at its square
+ * arrangement — every card in `library-cards.ts` already carries `SQUARISH`, so
+ * that case was covered before this group existed. What was missing is the other
+ * half of a shop's feed: the announcement, the opening hours, the where-to-find
+ * us, the thank-you. Those have no product in scope, which is why they are here
+ * with the static blocks and why `validateBlock` refuses a product field on one.
+ */
+const SOCIAL_BLOCKS: PanelBlock[] = [
+  {
+    id: 'blk_cover_square',
+    name: 'Cover, square post',
+    description: 'The first post of a carousel. Logo, masthead, the dates, your name on a plate.',
+    arrangements: still(SQUARE, [
+      ground('primary'),
+      logo(box(0.38, 0.1, 0.24, 0.12)),
+      words('masthead', box(0.08, 0.32, 0.84, 0.22), 'Weekly offers', 'عروض الأسبوع', 'h1', {
+        align: 'center',
+      }),
+      words('dates', box(0.08, 0.57, 0.84, 0.08), '1 – 7 January', '١ – ٧ يناير', 'body', {
+        align: 'center',
+      }),
+      panel('plate', box(0.18, 0.72, 0.64, 0.14), 'surface'),
+      shopField('name', box(0.2, 0.755, 0.6, 0.08), 'h4', { align: 'center', color: 'ink' }),
+    ]),
+  },
+  {
+    id: 'blk_post_split',
+    name: 'Post, split',
+    description: 'A colour half carrying the message, a white half carrying the shop.',
+    arrangements: still(SQUARE, [
+      ground('surface'),
+      panel('tint', box(0, 0, 1, 0.56), 'primary'),
+      logo(box(0.08, 0.08, 0.16, 0.09)),
+      words('headline', box(0.08, 0.24, 0.84, 0.18), 'Your headline', 'العنوان الرئيسي', 'h1'),
+      words('support', box(0.08, 0.44, 0.84, 0.08), 'Supporting line', 'سطر داعم', 'body'),
+      shopField('name', box(0.08, 0.64, 0.84, 0.09), 'h3', { color: 'ink' }),
+      words('note', box(0.08, 0.76, 0.84, 0.07), 'A second line of detail', 'سطر ثانٍ من التفاصيل', 'body', {
+        color: 'inkMuted',
+      }),
+      // Static rather than `shopField('phone')`: neither painter resolves a shop's
+      // phone or address — `contentFor` returns an empty string for both — so a
+      // binding here is a blank where the design says there is a line.
+      // `library.test.ts` holds the whole seeded library to that.
+      words('phone', box(0.08, 0.85, 0.84, 0.07), 'Your phone number', 'رقم هاتفكم', 'h4', {
+        color: 'ink',
+      }),
+    ]),
+  },
+  {
+    id: 'blk_post_framed',
+    name: 'Post, framed',
+    description: 'A hairline frame, centred type and a rule. The quiet one on a loud feed.',
+    arrangements: still(SQUARE, [
+      ground('surface'),
+      panel('frame', box(0.06, 0.06, 0.88, 0.88), 'surface', { stroke: outline('primary') }),
+      logo(box(0.44, 0.14, 0.12, 0.08)),
+      words('flash', box(0.14, 0.26, 0.72, 0.05), 'This week only', 'هذا الأسبوع فقط', 'caption', {
+        align: 'center',
+        color: 'inkMuted',
+        transform: 'uppercase',
+      }),
+      words('headline', box(0.12, 0.34, 0.76, 0.2), 'Your headline', 'العنوان الرئيسي', 'h1', {
+        align: 'center',
+        color: 'ink',
+      }),
+      rule('divider', box(0.42, 0.58, 0.16, 0.004), 'primary'),
+      words('support', box(0.14, 0.63, 0.72, 0.1), 'Supporting line', 'سطر داعم', 'body', {
+        align: 'center',
+        color: 'inkMuted',
+      }),
+      shopField('name', box(0.12, 0.8, 0.76, 0.06), 'h4', { align: 'center', color: 'ink' }),
+    ]),
+  },
+  {
+    id: 'blk_post_flag',
+    name: 'Post, flag',
+    description: 'A coloured flag across the top corner carrying the flash, the message under it.',
+    arrangements: still(SQUARE, [
+      ground('surface'),
+      // Straight rather than angled. A rotated flag is drawn from its box, so a
+      // convincing one has to hang past the leading edge — and `validateBlock`
+      // warns on any box outside the block that is not a chip, because on paper
+      // that is the trim cutting through it.
+      panel('flag', box(0, 0.08, 0.42, 0.1), 'accent', { radius: 0 }),
+      words('flash', box(0.04, 0.1, 0.34, 0.06), 'This week only', 'هذا الأسبوع فقط', 'h4'),
+      words('headline', box(0.08, 0.3, 0.84, 0.22), 'Your headline', 'العنوان الرئيسي', 'h1', {
+        color: 'ink',
+      }),
+      words('support', box(0.08, 0.55, 0.84, 0.1), 'Supporting line', 'سطر داعم', 'body', {
+        color: 'inkMuted',
+      }),
+      rule('divider', box(0.08, 0.7, 0.3, 0.004), 'accent'),
+      shopField('name', box(0.08, 0.76, 0.6, 0.08), 'h4', { color: 'ink' }),
+      logo(box(0.76, 0.76, 0.16, 0.1)),
+    ]),
+  },
+  {
+    id: 'blk_post_contact',
+    name: 'Post, find us',
+    description: 'Where the shop is and how to reach it, on a plate under the headline.',
+    arrangements: still(SQUARE, [
+      ground('primary'),
+      logo(box(0.08, 0.08, 0.18, 0.1)),
+      words('headline', box(0.08, 0.26, 0.84, 0.18), 'Find us', 'زوروا فرعنا', 'h1'),
+      words('support', box(0.08, 0.47, 0.84, 0.08), 'Supporting line', 'سطر داعم', 'body'),
+      panel('plate', box(0.08, 0.62, 0.84, 0.3), 'surface'),
+      shopField('name', box(0.12, 0.66, 0.76, 0.08), 'h4', { color: 'ink' }),
+      words('address', box(0.12, 0.75, 0.76, 0.07), 'Your address', 'عنوان فرعكم', 'body', {
+        color: 'ink',
+      }),
+      words('phone', box(0.12, 0.83, 0.76, 0.06), 'Your phone number', 'رقم هاتفكم', 'body', {
+        color: 'inkMuted',
+      }),
+    ]),
+  },
+  {
+    id: 'blk_post_hours',
+    name: 'Post, opening hours',
+    description: 'The days and the times, set as a list. The post a shop is asked for weekly.',
+    arrangements: still(SQUARE, [
+      ground('secondary'),
+      logo(box(0.08, 0.08, 0.16, 0.09)),
+      words('title', box(0.08, 0.24, 0.84, 0.12), 'Opening hours', 'ساعات العمل', 'h2'),
+      rule('divider', box(0.08, 0.4, 0.84, 0.004), 'surface'),
+      words('days-1', box(0.08, 0.46, 0.44, 0.07), 'Saturday – Thursday', 'السبت – الخميس', 'body'),
+      words('hours-1', box(0.54, 0.46, 0.38, 0.07), '8am – 11pm', '٨ ص – ١١ م', 'body', {
+        align: 'end',
+      }),
+      words('days-2', box(0.08, 0.56, 0.44, 0.07), 'Friday', 'الجمعة', 'body'),
+      words('hours-2', box(0.54, 0.56, 0.38, 0.07), '2pm – 11pm', '٢ م – ١١ م', 'body', {
+        align: 'end',
+      }),
+      panel('plate', box(0.08, 0.72, 0.84, 0.16), 'surface'),
+      shopField('name', box(0.12, 0.75, 0.76, 0.06), 'h4', { color: 'ink' }),
+      words('phone', box(0.12, 0.815, 0.76, 0.05), 'Your phone number', 'رقم هاتفكم', 'caption', {
+        color: 'inkMuted',
+      }),
+    ]),
+  },
+  {
+    id: 'blk_post_dates',
+    name: 'Post, dates',
+    description: 'The dates set as the largest thing on the post. For the day before an offer starts.',
+    arrangements: still(SQUARE, [
+      ground('accent'),
+      words('flash', box(0.08, 0.18, 0.84, 0.08), 'Starts Friday', 'يبدأ الجمعة', 'h4', {
+        align: 'center',
+      }),
+      words('dates', box(0.08, 0.32, 0.84, 0.24), '1 – 7 January', '١ – ٧ يناير', 'h1', {
+        align: 'center',
+      }),
+      rule('divider', box(0.4, 0.6, 0.2, 0.004), 'surface'),
+      words('support', box(0.08, 0.65, 0.84, 0.1), 'Supporting line', 'سطر داعم', 'body', {
+        align: 'center',
+      }),
+      logo(box(0.42, 0.82, 0.16, 0.1)),
+    ]),
+  },
   {
     id: 'blk_thanks',
-    name: 'Thank-you panel',
+    name: 'Post, thank you',
     description: 'The last post of a carousel, which is the one that gets the reply.',
     arrangements: still(SQUARE, [
       ground('surface'),
@@ -383,7 +546,7 @@ const MESSAGE_BLOCKS: PanelBlock[] = [
   },
 ]
 
-// ─── Footers and the small print ──────────────────────────────────────────────
+// ─── Footers and the small print ─────────────────────────────────────────────
 
 const FOOTER_BLOCKS: PanelBlock[] = [
   {
@@ -478,8 +641,10 @@ export const PANEL_BLOCKS: PanelBlock[] = [
   ...HEADER_BLOCKS,
   ...MESSAGE_BLOCKS,
   ...FOOTER_BLOCKS,
+  ...SOCIAL_BLOCKS,
 ]
 
 export const HEADER_IDS = new Set(HEADER_BLOCKS.map((block) => block.id))
 export const MESSAGE_IDS = new Set(MESSAGE_BLOCKS.map((block) => block.id))
 export const FOOTER_IDS = new Set(FOOTER_BLOCKS.map((block) => block.id))
+export const SOCIAL_IDS = new Set(SOCIAL_BLOCKS.map((block) => block.id))

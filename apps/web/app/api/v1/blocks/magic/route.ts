@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { CREDIT_COSTS, enqueueMagicBlock, getCreditSnapshot, prisma } from '@souqstudio/db'
+import { MAGIC_CATEGORIES, type MagicCategory } from '@souqstudio/engine'
 import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
@@ -8,12 +9,13 @@ import { requireOrgRole } from '@/lib/authz'
 /**
  * Magic block — a picture of a card in, a block in the library out. E8-07.
  *
- * The owner photographs or screenshots a card they want, and a vision model
- * decides which of the library's structures it is and how it is skinned. What
- * comes back is a **draft block in the designer**, never a published one — the
- * same shape E7 §8 settled on for every other way a block is created: an escape
- * hatch from a good starting point, not a blank artboard and not a finished
- * thing nobody looked at.
+ * The owner photographs or screenshots something they want — an offer card, a
+ * header, a panel, a footer or a square social post — says which of those it is,
+ * and a vision model decides which of the library's designs for *that kind* it
+ * matches. What comes back is a **draft block in the designer**, never a
+ * published one — the same shape E7 §8 settled on for every other way a block is
+ * created: an escape hatch from a good starting point, not a blank artboard and
+ * not a finished thing nobody looked at.
  *
  * **This route starts a job and returns. It never calls a model.** A vision call
  * is seconds at best, and `background-jobs.md` is unambiguous that no route
@@ -35,6 +37,23 @@ const schema = z.object({
    * card is the same kind of object as artwork for a card.
    */
   sourceKey: z.string().min(1).max(200),
+  /**
+   * What kind of thing the owner says the picture is.
+   *
+   * **It is the owner's answer and it binds the model**, which is why it is
+   * validated here rather than passed through: it selects the vocabulary the
+   * worker shows a model and the schema the reply is held to, so an unrecognised
+   * value is not a bad label on a good block — it is a job that cannot be built
+   * at all. `seasonal` is deliberately not among them; `block-category.ts` says
+   * why.
+   *
+   * Defaulted rather than required, because an offer card is what this feature
+   * was for a version ago and a client that has not caught up should still get
+   * the thing it used to ask for.
+   */
+  category: z
+    .enum(MAGIC_CATEGORIES as unknown as [MagicCategory, ...MagicCategory[]])
+    .default('offer-card'),
 })
 
 export async function POST(request: NextRequest) {
@@ -93,6 +112,7 @@ export async function POST(request: NextRequest) {
       jobId: job.id,
       organizationId,
       sourceKey: parsed.data.sourceKey,
+      category: parsed.data.category,
     })
   } catch {
     /**

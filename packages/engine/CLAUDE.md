@@ -41,10 +41,10 @@ catalog actually holds. Neither draws anything. `compact.ts` in particular decid
 much* space is reclaimed and takes *where it goes* as a parameter, because that is a design
 decision and the engine does not own it.
 
-`library.ts` holds the seeded blocks — fifty-nine of them, assembled from
+`library.ts` holds the seeded blocks — sixty-five of them, assembled from
 `library-cards.ts` (repeating offer cards), `library-panels.ts` (headers, covers,
-panels, footers) and `library-seasonal.ts`, all written in the vocabulary
-`library-kit.ts` defines. It lives here rather than beside the seed because two
+panels, footers and the square social posts) and `library-seasonal.ts`, all
+written in the vocabulary `library-kit.ts` defines. It lives here rather than beside the seed because two
 consumers need the same bytes: `packages/db` writes them into `blocks`, and the
 harness draws them. A second copy would drift, and a drifted seed block renders
 differently in the database from the one that was checked.

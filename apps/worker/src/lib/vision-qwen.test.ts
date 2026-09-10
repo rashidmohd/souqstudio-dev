@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NotAnOfferCardError, UnreadableDesignError, interpretFirst } from './magic-prompt'
+import { NoMatchError, UnreadableDesignError, interpretFirst } from './magic-prompt'
 import { candidateObjects } from './vision-qwen'
 
 /**
@@ -23,16 +23,21 @@ import { candidateObjects } from './vision-qwen'
  * apart.
  */
 
-/** Verbatim shape from the first live DashScope run. */
-const SELF_CORRECTED = `{"isOfferCard":true,"structure":"listRow","ground":"surface","accent":"accent","outlined":false,"priceFrame":"tag","name":"Row card with boxed price tag","description":"Thumbnail at the left, name and spec across the middle.","notes":"Matched listRow: small packshot at the start, name and spec in the middle, price at the end of the line.","The price sits in an outlined box with a rounded deal tab on top, so priceFrame is tag rather than plain.','The struck-through old price and large new price both live inside that tag.','A thin rule runs across the foot of the card, but there is no border around the whole card, so outlined is false."
+/**
+ * Verbatim shape from the first live DashScope run — **with one substitution**:
+ * the transcript said `isOfferCard`, which the schema renamed to `isMatch` when
+ * a picture stopped always being a card. Nothing else is touched, and in
+ * particular the malformation is exactly as it arrived.
+ */
+const SELF_CORRECTED = `{"isMatch":true,"structure":"listRow","ground":"surface","accent":"accent","outlined":false,"priceFrame":"tag","name":"Row card with boxed price tag","description":"Thumbnail at the left, name and spec across the middle.","notes":"Matched listRow: small packshot at the start, name and spec in the middle, price at the end of the line.","The price sits in an outlined box with a rounded deal tab on top, so priceFrame is tag rather than plain.','The struck-through old price and large new price both live inside that tag.','A thin rule runs across the foot of the card, but there is no border around the whole card, so outlined is false."
   	:	 "confidence"
  	, "high"
  	:
- 	{"isOfferCard":true,"structure":"listRow","ground":"surface","accent":"accent","outlined":false,"priceFrame":"tag","name":"Row card with boxed price tag","description":"Thumbnail at the left, name and spec across the middle.","notes":["Matched listRow: small packshot at the start.","The price sits in an outlined box."],"confidence":"high"}
+ 	{"isMatch":true,"structure":"listRow","ground":"surface","accent":"accent","outlined":false,"priceFrame":"tag","name":"Row card with boxed price tag","description":"Thumbnail at the left, name and spec across the middle.","notes":["Matched listRow: small packshot at the start.","The price sits in an outlined box."],"confidence":"high"}
 }`
 
 const WELL_FORMED = JSON.stringify({
-  isOfferCard: true,
+  isMatch: true,
   structure: 'burst',
   ground: 'surface',
   outlined: false,
@@ -83,7 +88,7 @@ describe('candidateObjects', () => {
 
 describe('interpretFirst', () => {
   it('takes a well-formed reply', () => {
-    expect(interpretFirst(candidateObjects(WELL_FORMED)).structure).toBe('burst')
+    expect(interpretFirst(candidateObjects(WELL_FORMED), 'offer-card').structure).toBe('burst')
   })
 
   it('picks the corrected copy out of a self-correcting reply', () => {
@@ -93,7 +98,7 @@ describe('interpretFirst', () => {
      * wreckage and looks like it worked — until `notes` reaches the block as a
      * string. The schema is what separates them.
      */
-    const choice = interpretFirst(candidateObjects(SELF_CORRECTED))
+    const choice = interpretFirst(candidateObjects(SELF_CORRECTED), 'offer-card')
     expect(choice.structure).toBe('listRow')
     expect(Array.isArray(choice.notes)).toBe(true)
     expect(choice.notes.length).toBe(2)
@@ -102,16 +107,16 @@ describe('interpretFirst', () => {
   it('refuses when no candidate satisfies the schema', () => {
     // A structure the library does not have is still refused, however clean the
     // JSON around it was. Recovery is not leniency.
-    expect(() => interpretFirst(candidateObjects('{"structure":"nonesuch"}'))).toThrow(
+    expect(() => interpretFirst(candidateObjects('{"structure":"nonesuch"}'), 'offer-card')).toThrow(
       UnreadableDesignError
     )
-    expect(() => interpretFirst([])).toThrow(UnreadableDesignError)
+    expect(() => interpretFirst([], 'offer-card')).toThrow(UnreadableDesignError)
   })
 
   it('passes a declined picture through as its own answer', () => {
     // Not an error to recover from — the model looked and said no.
     const declined = JSON.stringify({
-      isOfferCard: false,
+      isMatch: false,
       structure: 'stacked',
       ground: 'surface',
       outlined: false,
@@ -121,6 +126,33 @@ describe('interpretFirst', () => {
       notes: ['This is a whole page rather than one card.'],
       confidence: 'high',
     })
-    expect(() => interpretFirst(candidateObjects(declined))).toThrow(NotAnOfferCardError)
+    expect(() => interpretFirst(candidateObjects(declined), 'offer-card')).toThrow(NoMatchError)
+  })
+})
+
+describe('the kind the owner chose', () => {
+  const footer = JSON.stringify({
+    isMatch: true,
+    structure: 'blk_footer',
+    name: 'Plain footer',
+    description: '',
+    notes: ['Shop name at the start, small print at the end.'],
+    confidence: 'high',
+  })
+
+  it('takes a shipped block for the kind that was asked about', () => {
+    expect(interpretFirst(candidateObjects(footer), 'footer').structure).toBe('blk_footer')
+  })
+
+  it('refuses a real block that belongs to another kind', () => {
+    /**
+     * **What makes the owner's choice binding on this provider too.** Qwen is
+     * asked for the schema rather than held to it, so a model that decides the
+     * picture is really a footer can say so under any kind — and the enum is
+     * the only thing that stops that answer being drawn as a header.
+     */
+    expect(() => interpretFirst(candidateObjects(footer), 'header')).toThrow(
+      UnreadableDesignError
+    )
   })
 })

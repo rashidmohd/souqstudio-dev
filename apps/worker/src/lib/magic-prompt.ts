@@ -1,8 +1,8 @@
+import type { MagicCategory } from '@souqstudio/engine'
 import {
-  MAGIC_STRUCTURES,
-  STRUCTURE_NOTE,
   type MagicChoice,
-  magicChoiceSchema,
+  magicOptions,
+  magicSchemaFor,
 } from '@souqstudio/engine/src/magic'
 
 /**
@@ -15,17 +15,25 @@ import {
  * of this prompt is how two providers stop being comparable — and comparing
  * them is the whole reason there are two.
  *
+ * **One question per kind, and the model is shown one kind's vocabulary.** The
+ * owner has already said whether the picture is an offer card, a header, a
+ * panel, a footer or a square post, so the prompt names that kind and lists only
+ * what it can be matched to. It is the same argument the whole feature rests on,
+ * applied once more: a closed set beats an open one, and a smaller closed set
+ * beats a larger one.
+ *
  * **Deep import from the engine.** `src/magic.ts` is not on the package barrel
- * because it pulls in `library-cards.ts` — fifty-nine designs that
- * `block-category.ts` was split out to keep away from a browser bundle. This is
- * a Node process and may follow it; a component may not.
+ * because it pulls in `library-cards.ts` and `library.ts` — the whole shipped
+ * library, which `block-category.ts` was split out to keep away from a browser
+ * bundle. This is a Node process and may follow it; a component may not, which
+ * is why `MagicCategory` comes off the barrel and everything else does not.
  */
 
-/** What a picture of a card can turn out not to be. */
-export class NotAnOfferCardError extends Error {
+/** What a picture can turn out not to be. */
+export class NoMatchError extends Error {
   constructor(readonly notes: readonly string[]) {
-    super('not_an_offer_card')
-    this.name = 'NotAnOfferCardError'
+    super('no_match')
+    this.name = 'NoMatchError'
   }
 }
 
@@ -44,11 +52,82 @@ export interface VisionImage {
 }
 
 /** What every provider module implements. */
-export type VisionReader = (image: VisionImage) => Promise<MagicChoice>
+export type VisionReader = (
+  image: VisionImage,
+  category: MagicCategory
+) => Promise<MagicChoice>
 
-export const QUESTION = 'Which layout is this card, and how is it coloured?'
+/**
+ * How each kind is described to a model looking at a photograph.
+ *
+ * **Written for the model, and every field earns its place.** `one` is what the
+ * picture is supposed to be, in the words a person would use. `where` is where
+ * that thing lives, so a model can tell a footer from a divider by its job
+ * rather than by its proportions. `notOne` is the list of near misses, and it is
+ * the field that does the most work — the failure to design against is a
+ * masthead matched to the nearest footer, which draws fine and is not what
+ * anybody uploaded.
+ */
+const KIND: Readonly<
+  Record<Exclude<MagicCategory, 'offer-card'>, { one: string; where: string; notOne: string }>
+> = {
+  header: {
+    one: 'header',
+    where:
+      'the band across the top of a page, the front cover of a leaflet, or the strip that separates one section of offers from the next. It carries a headline, usually the shop’s logo, and often the dates the prices hold.',
+    notOne:
+      'a single offer card, a whole page of offers, a footer, or the small print at the bottom of a page',
+  },
+  panel: {
+    one: 'panel',
+    where:
+      'a message placed among the offers rather than around them — a note to customers, a brand panel, an opening announcement, a delivery or ordering message. It is pinned into a page and the products route around it.',
+    notOne:
+      'an offer card with a product and a price on it, a masthead across the top of a page, or a footer',
+  },
+  footer: {
+    one: 'footer',
+    where:
+      'the last row of a page: the shop’s name, the terms, the contact line, the small print that has to be somewhere.',
+    notOne: 'a header or masthead, an offer card, or a message panel',
+  },
+  'social-post': {
+    one: 'square social post',
+    where:
+      'one square post from a shop’s feed — an announcement, the opening hours, where to find the shop, a thank-you at the end of a carousel. It is a whole post with nothing else on the page.',
+    notOne:
+      'a post advertising one product with its price — that is an offer card, and the owner should choose “offer card” for it — or a photograph of a shelf, a storefront or a whole flyer page',
+  },
+}
 
-export const SYSTEM = `You read a picture of a retail offer card and say which layout it is.
+export function questionFor(category: MagicCategory): string {
+  if (category === 'offer-card') return 'Which layout is this card, and how is it coloured?'
+  return `Which of these designs is this ${KIND[category].one}?`
+}
+
+export function systemFor(category: MagicCategory): string {
+  return category === 'offer-card' ? CARD_SYSTEM : stillSystem(category)
+}
+
+/** The list the model chooses from, and the schema enumerates. One source. */
+const options = (category: MagicCategory): string =>
+  magicOptions(category)
+    .map((option) => `- ${option.name}: ${option.note}`)
+    .join('\n')
+
+/** The three free-text fields, which mean the same thing whatever was matched. */
+const TAIL = `## name, description and notes
+
+\`name\` is what the owner will see in their block library — short, plain, and
+about the design rather than the specific words in the picture. "Red band header",
+not "Ramadan Kareem". \`description\` is one line under it.
+
+\`notes\` is what you read off the picture, one short sentence each, at most
+four. Write them for a shop owner, not for an engineer — they are shown beside
+the result so the person can tell whether you understood their picture. Say what
+you matched and anything you were unsure about.`
+
+const CARD_SYSTEM = `You read a picture of a retail offer card and say which layout it is.
 
 You are looking at one card from a supermarket flyer, a price list, a shelf
 ticket or a social post — usually photographed or screenshotted by a shop owner
@@ -58,7 +137,7 @@ layout and you never describe one that is not on the list.
 
 ## The layouts
 
-${MAGIC_STRUCTURES.map((name) => `- ${name}: ${STRUCTURE_NOTE[name]}`).join('\n')}
+${options('offer-card')}
 
 Pick the one whose *arrangement of parts* matches — where the photograph sits,
 where the price sits, where the name sits. Ignore the specific products, the
@@ -90,22 +169,49 @@ and "plain" when it is just digits on the card.
 
 ## When it is not an offer card
 
-Set \`isOfferCard: false\` when the picture is a page header, a footer, a logo
+Set \`isMatch: false\` when the picture is a page header, a footer, a logo
 lockup, a whole flyer page, a store photograph, or anything else with no single
 product and price in it. Say why in \`notes\`. A wrong match is worse than no
 match: these layouts all repeat once per product, and one with nothing to repeat
 over produces a card full of empty bindings.
 
-## name, description and notes
+${TAIL}`
 
-\`name\` is what the owner will see in their block library — short, plain, and
-about the design rather than the products in the picture. "Red price band card",
-not "Nescafé offer". \`description\` is one line under it.
+function stillSystem(category: Exclude<MagicCategory, 'offer-card'>): string {
+  const kind = KIND[category]
 
-\`notes\` is what you read off the picture, one short sentence each, at most
-four. Write them for a shop owner, not for an engineer — they are shown beside
-the result so the person can tell whether you understood their picture. Say what
-you matched and anything you were unsure about.`
+  return `You read a picture of a ${kind.one} and say which of our designs it is.
+
+A ${kind.one} is ${kind.where}
+
+The picture was uploaded by a shop owner in the Gulf who wants one like it —
+usually photographed or screenshotted out of a leaflet, a price list or a feed.
+Your job is to match what you see against a fixed set of designs. You never
+invent one and you never name one that is not on the list.
+
+## The designs
+
+${options(category)}
+
+Pick the one whose *arrangement of parts* matches — where the logo sits, where
+the headline sits, what is set largest, whether the type is centred or ranged to
+one edge, whether there is a plate or a band behind any of it.
+
+**Ignore colour entirely.** Every one of these designs names its colours as roles
+rather than values, and is drawn in whichever shop's palette loads it. A design
+you saw in red and the same design in green are the same design, and there is
+nothing for you to report about it. Ignore the specific words and the language
+too: every line of copy on these is a placeholder the owner replaces.
+
+## When it is not a ${kind.one}
+
+Set \`isMatch: false\` when the picture is ${kind.notOne}, or anything else that
+is not a ${kind.one}. Say why in \`notes\`. A wrong match is worse than no match —
+the nearest ${kind.one} to a picture that is not one is still a ${kind.one}, and
+the owner paid for it.
+
+${TAIL}`
+}
 
 /**
  * The answer, checked.
@@ -117,9 +223,13 @@ you matched and anything you were unsure about.`
  * to know which. Validating both means a provider swap cannot widen what
  * reaches `arrangementsFromChoice`, and the enumeration in `magic.test.ts`
  * keeps meaning what it says.
+ *
+ * **The category picks the schema**, so an answer naming a real block of the
+ * wrong kind fails here rather than being drawn. That is what makes the owner's
+ * choice binding rather than a suggestion.
  */
-export function interpret(raw: unknown): MagicChoice {
-  return interpretFirst([raw])
+export function interpret(raw: unknown, category: MagicCategory): MagicChoice {
+  return interpretFirst([raw], category)
 }
 
 /**
@@ -137,12 +247,17 @@ export function interpret(raw: unknown): MagicChoice {
  * each balanced object latest-first, because a correction comes after the thing
  * it corrects.
  */
-export function interpretFirst(candidates: readonly unknown[]): MagicChoice {
+export function interpretFirst(
+  candidates: readonly unknown[],
+  category: MagicCategory
+): MagicChoice {
+  const schema = magicSchemaFor(category)
+
   for (const candidate of candidates) {
-    const parsed = magicChoiceSchema.safeParse(candidate)
+    const parsed = schema.safeParse(candidate)
     if (!parsed.success) continue
 
-    if (!parsed.data.isOfferCard) throw new NotAnOfferCardError(parsed.data.notes)
+    if (!parsed.data.isMatch) throw new NoMatchError(parsed.data.notes)
 
     return parsed.data
   }

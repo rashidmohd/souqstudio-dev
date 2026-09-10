@@ -3,17 +3,22 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 8 September 2026.
+Last updated 10 September 2026.
 
-**The block designer is a design tool now, it has a library to design from, and E6's
-feature list is closed.** A shop owner can build an offer book end to end — create it,
-price it, adjust it, lay it out, pin panels into it, duplicate it next week — design the
-blocks it is built from, and start from **fifty-nine seeded blocks** rather than four.
-What no owner can do is get any of it out of the product, which is E9.
+**The block designer is a design tool now, it has a library to design from, E6's feature
+list is closed, and the first AI feature is live on dev.** A shop owner can build an offer
+book end to end — create it, price it, adjust it, lay it out, pin panels into it, duplicate
+it next week — design the blocks it is built from, start from **sixty-five seeded blocks**,
+and now **photograph a card they like and get one of their own back**. What no owner can do
+is get any of it out of the product, which is E9.
 
-**Two things an owner cannot do today that are not epics.** A logo upload on the dev
-deployment is broken twice over — see §2 — and none of the library work has been opened in
-a browser, which is the check §1.0 exists to argue for.
+**The library is distributed through R2 and dev reads it.** `BLOCK_LIBRARY_URL` decides
+the source per environment; unset is the repo. `docs/block-library-from-r2.md`, and read
+its §12 before changing anything `validateBlock` warns about — a stricter check
+invalidates every object already published, and it took the dev deploy down on the 10th.
+
+**One thing an owner cannot do today that is not an epic.** A logo upload on the dev
+deployment is broken twice over — see §2.
 
 **Two things about today are worth more than the feature list.**
 
@@ -59,14 +64,15 @@ exist. Nothing an owner builds can reach a customer.
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
 | **E6** Offer book editor | **Built.** Create a book from the catalog or from a committed CSV import, draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, pin a panel, and duplicate the whole book. Not written: merging cells on the artboard, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-pending.md` §8. |
-| **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is fifty-nine blocks** — twenty-five offer cards, eight headers and covers, ten panels, five footers and eleven seasonal bands — and the screen changed shape with it: `/brand/blocks` is now the shop's own blocks alone, with "Add from library" opening a filtered, multi-select picker. Not written: gradients, seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar), and **none of it has been opened in a browser**. See `E7-pending.md` §8. |
+| **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is sixty-five blocks** — twenty-five offer cards, seven headers and covers, nine panels, five footers, eight square social posts and eleven seasonal bands — and the screen changed shape with it: `/brand/blocks` is now the shop's own blocks alone, with "Add from library" opening a filtered, multi-select picker. Gradients shipped on shape fills. **The price mark now draws from the shape kit too** — a burst, a tag, a ribbon or nothing, fitted by `layoutPriceMark` rather than hand-placed behind it — and the library was pulled apart so twenty-five cards stop reading as one card in costumes. See §1.3. Not written: seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar). See `E7-pending.md` §8. |
+| **E8** AI features | **One of seven built: E8-07 magic block.** Upload a picture, say what kind of thing it is — offer card, header, panel, footer or square post — and a vision model matches it against that kind's designs and nothing else; the result lands as a draft block in the shop's own colours. Route, queue, worker, credits, poll and UI all ship, and it has produced real blocks on dev. Two providers behind `MAGIC_BLOCK_PROVIDER` — Qwen-VL is what has actually run; **the Claude path has never completed a call.** E8-01 to E8-05 (characters, poses, covers, background removal) are unbuilt; E8-06 is the `enrich` worker and still throws. See §1.3 and `E8-ai-features.md`. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
 See §1.2 — it is most of what E6 and E7 were scoped to do.
 
-Everything else is unstarted: **E8, E9, E10, E11, E12, E13**. Their route directories
-exist and are empty.
+Everything else is unstarted: **E9, E10, E11, E12, E13**. Their route directories
+exist and are empty. E8 has one feature in it and six that are not.
 
 `apps/web/lib/features.ts` is the machine-readable version of this table. A control whose
 destination is not built renders disabled with the reason visible, or is omitted. **Flip
@@ -169,7 +175,7 @@ share one implementation, and drift there means the PDF does not match the scree
 | `render` | a block's elements to absolute rectangles |
 | `price-mark` | every piece of a price mark, and the money formatting |
 | `fit` | the four-rung fit ladder and what each text may suffer |
-| `library` | the seeded library — **59 blocks** across `library-cards`, `library-panels`, `library-seasonal` on a shared `library-kit` |
+| `library` | the seeded library — **65 blocks** across `library-cards`, `library-panels`, `library-seasonal` on a shared `library-kit` |
 | `direction` | which way a *string* reorders, and where its line is anchored |
 | `compact` | reclaiming the height a card's content did not use |
 | `override` | the bounded nudge, and the key that survives next week's products |
@@ -261,9 +267,9 @@ dropped, along with `offer_books.templateId`/`densityProfile` and
 `offer_book_pages.pageType`/`densityProfile`. Safe to drop with rows in them because
 nothing referenced either — the database held zero offer books.
 
-**`pnpm db:seed`** publishes **59 blocks** — 25 repeating offer cards, 8 headers and
-covers, 10 panels, 5 footers and 11 seasonal bands — and **prunes the ones that have been
-retired**, archiving any a live book still names rather than deleting it. Upserting alone
+**`pnpm db:seed`** publishes **65 blocks** — 25 repeating offer cards, 7 headers and
+covers, 9 panels, 5 footers, 8 square social posts and 11 seasonal bands — and **prunes
+the ones that have been retired**, archiving any a live book still names rather than deleting it. Upserting alone
 was enough only while the library could not shrink. It was four until 8 September: offer
 card, hero band, footer, message. Those four keep their ids, because four live books name
 `blk_offer_card` and `blk_footer` inside their `page_grids` regions and Prisma cannot
@@ -291,6 +297,104 @@ mean; a price mark that spilled out of merged regions because it fitted on heigh
 seeded offer card whose name box was sized for "Basmati rice" rather than for
 `مسحوق غسيل أوتوماتيك بالليمون للغسالات`. Every one of them was found by looking at a
 render.
+
+### 1.3 Magic block, and the day the library stopped looking like one card
+
+*9–10 September.*
+
+**E8-07 ships: a picture of an offer card in, a block in the shop's library out.**
+`/brand/blocks` and `/brand` both open the same dialog; the upload goes straight to R2
+through the presign route the designer already had, `POST /api/v1/blocks/magic` queues an
+`ai_jobs` row, the worker matches and writes the block, and the client polls
+`GET /api/v1/ai/jobs/:jobId`. Five credits, charged on success only. The result is a
+**draft**, drawn in the shop's own palette inside `MachineOutput` with the model's notes
+beside it, and it opens in the designer.
+
+**The owner says what kind of thing the picture is, and it binds the match.** Offer card,
+header, panel, footer or square post — `MAGIC_CATEGORIES` — and the model is shown that
+kind's designs and nothing else. A model choosing between eight headers is a better
+matcher than one choosing between sixty-five mixed things, and the enum is what makes the
+choice binding rather than advisory: a footer named under "header" fails the schema. The
+cost is that a picture uploaded under the wrong kind comes back declined, which is the
+right trade — the nearest header to a picture of a footer is still a header, and the owner
+paid for it.
+
+**It matches; it does not draw.** For a card the model picks one of the twenty-five
+structures in `library-cards.ts` and describes its skin, and `arrangementsFromChoice`
+calls the same function the shipped library calls. For every other kind it names a block
+the library already ships and gets a copy of it — there is nothing to skin, because those
+designs already name every colour by role. So it cannot emit an illegal document, the block
+reflows into any merge, and every colour is a role — the card is drawn in whichever kit
+loads it rather than in the colours of the flyer it was photographed from.
+`magic.test.ts` enumerates the entire output space (2,400 combinations) and asserts each
+one builds a block with no errors *and no warnings*.
+
+**Two providers, one question.** `MAGIC_BLOCK_PROVIDER` picks; unset is Claude. The
+prompt, the vocabulary and the schema live in `lib/magic-prompt.ts` so the two stay
+comparable, and `interpretFirst()` validates every reading of a reply against the schema —
+Anthropic constrains generation to it, Qwen is asked and takes its chances.
+`pnpm --filter @souqstudio/worker magic:check` renders cards of known structure, feeds them
+back, and reports what came out; it is the only way to compare them and **it has only ever
+been run against Qwen.**
+
+#### What the first live run found, and what it cost
+
+Both defects were in this code rather than in the model, and neither was reachable by a
+test.
+
+**A white product name on a white card.** Asked whether the card inverts its type, the
+model saw white type on a red price band and said yes — a fair reading of the picture and
+the wrong answer to the question, because `onTint` inverts every bound string at once.
+It is no longer asked for: the ground decides it. The 2,400-case enumeration had passed
+that combination happily, because an invisible card is structurally valid.
+
+**A reply that corrected itself, thrown away.** The model emitted a malformed `notes`
+array, abandoned it, and re-emitted the object correctly — *nested inside* the broken one,
+which never closed. Two attempts at recovering it were wrong before one was right: the
+wreckage still parsed, because mismatched quotes had turned half a sentence into a key.
+Only the schema can separate them. `vision-qwen.test.ts` holds the verbatim payload.
+
+#### The library was one card in costumes, and the reason was a number
+
+Measured rather than judged. `start: 0.08` and `width: 0.84` were **17% of all 654
+element boxes** in the shipped library, the most common values by a factor of two, and
+they always travelled together. That pair is the example box in
+`docs/authoring-a-block.md` §2 — an illustration of *what a `box` field looks like*,
+attached to an element called `name`. Twenty-one of twenty-five cards put the price in the
+bottom band at that inset, and magic block inherited all of it: both of its first real
+outputs returned `0.08 / 0.74 / 0.84 / 0.2`, byte-identical to `blk_offer_card`.
+
+Three things changed:
+
+- **The price mark can draw any shape in the kit.** `shape` had nine variants and a badge
+  could draw four; the mark drew a rounded rectangle or nothing, so 40 of 100 arrangements
+  switched its ground off and hand-placed a disc behind it — which decoupled the shape
+  from its contents. `layoutPriceMark` draws it now. Grounds across the 25 cards:
+  14 none, 8 box, 2 burst, 1 tag.
+- **The promo tier stopped drawing twice.** A chip *and* the mark's attached tab both
+  rendered it in **43 of 100 arrangements**, including `blk_offer_card`. `validateBlock`
+  warns on `duplicate-tier` now and the library is down to zero.
+- **The gutter is a decision again.** `Skin.inset` carries it, `gut()`/`measure()` derive
+  together, and the registers diverged: eight distinct gutters from `0.02` to `0.14`,
+  chosen from what each register is *for* — editorial generous, a line item tight.
+
+**The gallery earned its keep twice.** It caught a was-price printing across a burst's
+spikes, and it caught me stripping the emphasis from `feature`, the one register whose
+whole point is a large price. Neither was visible to the type system or to 359 passing
+tests. **193 of 218 renders are still unreviewed** — the wide and banner arrangements, the
+worst-case product and the Arabic edition — and the inset change touched 97 boxes across
+all four shapes.
+
+#### Two things that were quietly wrong and now are not
+
+**A draft did not mean anything.** `listBlocks` served the library screen *and* the book
+editor with drafts included, so the designer's "hidden while you work on it" was untrue.
+Harmless while nothing created drafts — duplicating and importing both write `published` —
+and not harmless the moment a model could. The editor reads with `forComposing: true`.
+
+**`MachineOutput` had never been implemented.** It was `spec` in the component inventory
+and this is its first caller, which matters because a matched card is drawn in the shop's
+own colours: without the mark there is nothing on screen to say a machine chose it.
 
 ### The design system, reconciled against the brand palette
 
@@ -593,18 +697,22 @@ Two things that came out of applying it:
 `prisma migrate diff --from-migrations` refuses to run at all, which is the tool anyone
 would reach for to check a migration against the history.
 
-### Three worker handlers throw — blocks E8 and E9
+### Two worker handlers throw — blocks E9, and most of E8
 
 `apps/worker/src/workers/` has five workers. `email` and `bg` are implemented — `bg` now
-for logos *and* catalog cutouts. **`pdf`, `ai` and `enrich` are
-`throw new Error('Not yet implemented')`.**
+for logos *and* catalog cutouts. **`ai` is implemented for one job**, E8-07's
+`ai.magicBlock`; its other four names still throw, as do **`pdf` and `enrich`**.
 
 - `pdf` blocks E9 export, and with it the editor's export button. **It is the only thing on
   the critical path now**: a book can be created, priced, adjusted, laid out, pinned,
   duplicated and designed for, and it cannot leave the product. Everything built since
   5 September has widened the gap between what an owner can make and what they can send.
-- `ai` blocks E8 entirely, and is where credits are actually spent — `consumeCredits()`
-  in `packages/db/src/credits.ts` is written and called by nothing.
+- `ai` no longer blocks E8 entirely. `ai.magicBlock` is implemented and **credits are
+  now actually spent** — `consumeCredits()` in `packages/db/src/credits.ts` has a caller
+  at last, and two real charges against the dev organization to show for it. The four
+  image jobs — character, pose, cover, prompt — still throw, and they are the ones that
+  need a diffusion model rather than a vision one, which is a different provider decision
+  that has not been made.
 - `enrich` blocks E5's multilingual synonym pipeline **and, now specifically, every
   Arabic name in the universal catalog.** The Open Food Facts CSV export has no language
   variants in any of its 211 columns, so every seeded universal product has a null
@@ -961,7 +1069,50 @@ than any control left on the list. It is design work, and `library.ts` is where 
 element ids, `fill` as a `ColorValue`. Reading the rows back through the real parser is what
 caught two more defects; `E7-pending.md` has them.
 
-### E8, E11 — later
+### E8 — AI features — one built, and three things it left open
+
+`E8-07` ships (§1.3). What it leaves on the table, cheapest first:
+
+1. **Finish looking at the renders.** The inset change touched 97 boxes across all four
+   arrangement shapes and only the tall ones have been reviewed, with the friendliest
+   product. The wide and banner arrangements, the worst case and the Arabic edition are
+   193 unreviewed renders in `harness/out/gallery.html`. Twice now that check has found
+   something nothing else could.
+2. **Let magic block choose a ground.** The model picks a structure and inherits whatever
+   that structure ships with, so an uploaded card with a starburst price still comes back
+   with the structure's default. Adding `ground` to `magicChoiceSchema` is one enum, a
+   line of prompt, and the assembly already handles it.
+3. **Run `magic:check` against Claude.** Two providers were built to be compared and the
+   comparison has never been made — `ANTHROPIC_API_KEY` is a placeholder in both `.env`
+   files. It now carries a still case as well as three card ones, which is the stricter
+   half: a footer fed back under "footer" either comes back as itself or it does not.
+4. **Look at the eight square posts.** `social-post` is a new category and its designs are
+   new drawings — rendered in both directions and checked against `validateBlock`, but the
+   gallery's worst-case pass over them has not been read by a person.
+5. **Nothing matches against a design that only exists in R2.** The magic vocabulary is
+   `SEED_BLOCKS`, the arm compiled into the worker, because reaching the loaded library
+   would put a network call inside the vision path. True of everything published today,
+   and not true the first time a design ships to a bucket and not to the repo.
+
+The four image jobs — character, pose, cover, prompt — are a separate decision: they need
+a diffusion model, and which one has not been chosen. `OPENAI_API_KEY` is declared and
+unused.
+
+### Static blocks still carry a repeating card's leash
+
+Not an epic, and the largest remaining piece of the freedom argument. **Forty of the
+sixty-five blocks are static** — headers, covers, panels, footers, square posts, seasonal
+bands — with **one arrangement each** and three element kinds between them: shape, logo, text. No
+product in scope, no reflow, nothing the constraints are protecting. They carry the
+identical restrictions as the repeating card: no shadow, no text on a path, forty
+elements.
+
+A static block is a poster and should get an artboard. The repeating card is a component
+and its bindings and reflow are the contract. The dial belongs per block kind rather than
+globally, and `docs/composition-model.md` §3.3 already half-says so about arrangements
+without extending it.
+
+### E11 — later
 
 E8 is AI features, V2, and needs the `ai` worker. E11 is analytics, V2, and needs the
 public viewer from E10 to have something to track.
@@ -1011,7 +1162,7 @@ These are waiting on a human, not on effort. Each one changes what gets built.
    a screen behind the session gate, a headless browser and a minted dev session take about
    ten minutes to set up and found four defects the first time they were used. For a
    *block* rather than a page, `pnpm --filter @souqstudio/engine gallery` draws all
-   fifty-nine at every shape they claim; it found four defects no test could,
+   sixty-five at every shape they claim; it found four defects no test could,
    and looking at them all at once found a fifth thing no single render can.
 9. **Check the environment the code will run in, not the one on your machine.** The
    `R2_ENDPOINT` fault in §2 was found locally on 6 September, fixed in `.env.local`,

@@ -2,10 +2,16 @@ import type { Job } from 'bullmq'
 import sharp from 'sharp'
 import { CREDIT_COSTS, Prisma, consumeCredits, prisma } from '@souqstudio/db'
 import type { MagicBlockPayload } from '@souqstudio/db'
-import { usesOnlyRoles, validateBlock } from '@souqstudio/engine'
+import {
+  MAGIC_CATEGORIES,
+  categoryRepeats,
+  usesOnlyRoles,
+  validateBlock,
+  type MagicCategory,
+} from '@souqstudio/engine'
 import { arrangementsFromChoice } from '@souqstudio/engine/src/magic'
 import { getObjectBytes } from '../lib/r2'
-import { NotAnOfferCardError, UnreadableDesignError, readCardDesign } from '../lib/vision'
+import { NoMatchError, UnreadableDesignError, readCardDesign } from '../lib/vision'
 
 /**
  * Magic block — a picture of a card in, a draft block in the library out. E8-07.
@@ -13,7 +19,7 @@ import { NotAnOfferCardError, UnreadableDesignError, readCardDesign } from '../l
  * ```
  * ai_jobs: processing
  *      ↓
- * R2 object  →  vision call  →  a structure and a skin
+ * R2 object  →  vision call, for the kind the owner chose  →  a match
  *      ↓
  * arrangementsFromChoice()   →  the same arrangements the shipped library uses
  *      ↓
@@ -21,6 +27,12 @@ import { NotAnOfferCardError, UnreadableDesignError, readCardDesign } from '../l
  *      ↓
  * blocks row, status: draft   →  consumeCredits  →  ai_jobs: complete
  * ```
+ *
+ * **The kind is the owner's, and it decides three things**: which vocabulary the
+ * model is shown, whether the block that comes out repeats over the product
+ * list, and which group it lands in in their library. It arrives on the payload
+ * from a route that validated it, and is validated again here — a queue payload
+ * is data, and this is where it becomes a prompt.
  *
  * **The block is a draft and the owner lands in the designer with it.** E7 §8
  * settled that creating a block is duplicating one that works rather than
@@ -58,9 +70,14 @@ export async function handleMagicBlock(job: Job<MagicBlockPayload>) {
   await prisma.aiJob.update({ where: { id: jobId }, data: { status: 'processing' } })
 
   try {
+    // Inside the try, so that a payload this process cannot read fails the row
+    // rather than throwing past it — a job left at `processing` is one the
+    // client polls until its own deadline.
+    const category = asCategory(job.data.category)
     const image = await prepare(sourceKey)
-    const choice = await readCardDesign(image)
-    const arrangements = arrangementsFromChoice(choice)
+    const choice = await readCardDesign(image, category)
+    const arrangements = arrangementsFromChoice(category, choice)
+    const repeats = categoryRepeats(category)
 
     /**
      * **The same two bars a block authored any other way clears.**
@@ -72,7 +89,7 @@ export async function handleMagicBlock(job: Job<MagicBlockPayload>) {
      * being wrong is a block in an owner's library that the export worker
      * cannot draw.
      */
-    const errors = validateBlock({ repeats: true, arrangements }).filter(
+    const errors = validateBlock({ repeats, arrangements }).filter(
       (problem) => problem.severity === 'error'
     )
     if (errors.length > 0) {
@@ -87,14 +104,15 @@ export async function handleMagicBlock(job: Job<MagicBlockPayload>) {
         organizationId,
         name: choice.name,
         description: choice.description,
-        // Every structure in the registry repeats over the product list. A
-        // picture that was not an offer card never reaches here — `readCardDesign`
-        // throws `NotAnOfferCardError` instead of matching it to the nearest one.
-        repeats: true,
+        // Whether it repeats follows from the kind rather than from the design:
+        // an offer card renders once per offer, everything else once. A picture
+        // that was not this kind never reaches here — `readCardDesign` throws
+        // `NoMatchError` instead of matching it to the nearest thing on the list.
+        repeats,
         arrangements: arrangements as unknown as Prisma.InputJsonValue,
         // Draft, always. Nobody has looked at it yet.
         status: 'draft',
-        category: 'offer-card',
+        category,
       },
       select: { id: true },
     })
@@ -131,16 +149,16 @@ export async function handleMagicBlock(job: Job<MagicBlockPayload>) {
     return { status: 'complete', blockId: block.id }
   } catch (error) {
     /**
-     * **"That is not an offer card" is an answer, not a fault.**
+     * **"That is not one of these" is an answer, not a fault.**
      *
      * It completes the job as `failed` so the client stops polling, but it must
      * never be retried — the picture will not become a different picture on the
      * second attempt, and each attempt is a paid call. Throwing is what BullMQ
      * retries, so this branch returns.
      */
-    if (error instanceof NotAnOfferCardError) {
-      await fail(jobId, 'not_an_offer_card', error.notes)
-      return { status: 'failed', reason: 'not_an_offer_card' }
+    if (error instanceof NoMatchError) {
+      await fail(jobId, 'no_match', error.notes)
+      return { status: 'failed', reason: 'no_match' }
     }
 
     if (error instanceof UnreadableDesignError) {
@@ -153,6 +171,20 @@ export async function handleMagicBlock(job: Job<MagicBlockPayload>) {
     await fail(jobId, error instanceof Error ? error.message : 'unknown_error')
     throw error
   }
+}
+
+/**
+ * The kind, checked against the real vocabulary.
+ *
+ * **A payload is not a promise.** The route validates what the owner chose and
+ * this reads it back off a queue, which is a different trust boundary — a stale
+ * job from before a kind was renamed, or a hand-written payload, must not reach
+ * a schema lookup that would throw somewhere less legible.
+ */
+function asCategory(value: string): MagicCategory {
+  const found = MAGIC_CATEGORIES.find((category) => category === value)
+  if (found === undefined) throw new Error(`magic: "${value}" is not a kind we match against`)
+  return found
 }
 
 /** Mark the job failed, with something the poll route can turn into a sentence. */

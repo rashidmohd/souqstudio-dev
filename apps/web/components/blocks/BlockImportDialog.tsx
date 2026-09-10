@@ -76,6 +76,7 @@ const CATEGORY_LABEL: Record<BlockCategory, string> = {
   header: 'Headers',
   panel: 'Panels',
   footer: 'Footers',
+  'social-post': 'Square posts',
   seasonal: 'Seasonal',
 }
 
@@ -85,6 +86,7 @@ const CATEGORY_NOTE: Record<Filter, string> = {
   header: 'The front of a book, the band across a page, and the dividers between sections.',
   panel: 'Placed once. Pin one into a book and the products route around it.',
   footer: 'The last row of a page, and the small print that has to be somewhere.',
+  'social-post': 'One square post, with nothing else on the page around it.',
   seasonal: 'The occasions, with the greeting already set in both languages.',
 }
 

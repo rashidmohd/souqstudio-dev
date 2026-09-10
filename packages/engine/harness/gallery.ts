@@ -180,6 +180,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   header: 'Headers, covers and dividers',
   panel: 'Panels — pinned, not filled',
   footer: 'Footers and the small print',
+  'social-post': 'Square posts — one post, no page around it',
   seasonal: 'Seasonal',
 }
 
