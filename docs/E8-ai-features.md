@@ -18,6 +18,7 @@ AI features are the differentiation layer of SouqStudio. They go beyond layout a
 | Regenerate / variation | 2 |
 | AI cover generation | 5 |
 | Background removal | 1 |
+| Magic block — a picture of a card into a block | 5 |
 
 ---
 
@@ -110,6 +111,64 @@ Generates a full cover page image for the offer book.
 **Output**
 - Sized to match selected output format (square for Instagram, portrait for catalog)
 - Stored in R2, referenced in offer book canvas state
+
+### E8-07 Magic Block — a picture of a card in, a block out
+
+**Built 10 September 2026.** The one AI feature that generates no image.
+
+An owner photographs or screenshots a card they want — from a competitor's
+flyer, a Pinterest board, a previous year's print run — and gets a block in
+their library that reflows, prices correctly, and is drawn in *their* brand
+colours.
+
+**It matches, it does not draw.** `packages/engine/src/library-cards.ts` holds
+twenty-five structures, each a function from a `Skin` to a full set of
+arrangements; the model picks one and describes the skin. §8 of
+`docs/E7-pending.md` records why the library is structure-times-skin rather than
+sixty hand-drawn cards, and a model emitting free-form documents would drift the
+same way and faster. Three properties fall out of matching instead:
+
+- **It cannot emit an illegal document.** The output is an enum and six bounded
+  fields; `arrangementsFromChoice` is the same call the seeded library makes.
+- **It reflows.** A photograph shows one aspect. The matched structure already
+  carries every shape it claims, so the block works in a merged region too.
+- **It looks like the shop.** Every colour is a `TokenRef`, never a hex sampled
+  off the picture — otherwise the card would permanently wear somebody else's
+  brand. `docs/composition-model.md` §3.2.
+
+**Flow**
+
+```
+POST /api/v1/blocks/artwork   presigned PUT — the picture goes straight to R2
+POST /api/v1/blocks/magic     validates the key is this org's, checks credits,
+                              writes ai_jobs, queues, returns { jobId }
+      ↓  ai.magicBlock
+worker   fetch → downscale → vision call → structure + skin
+         → arrangementsFromChoice → validateBlock + usesOnlyRoles
+         → blocks row (status: draft) → consumeCredits → complete
+GET  /api/v1/ai/jobs/:jobId   the client polls; result carries { blockId, notes }
+```
+
+**Model:** `claude-opus-5`, structured output against `magicChoiceSchema` — the
+engine's own zod schema is handed to the API as the JSON schema, so there is one
+definition of a legal choice rather than two that drift. Adaptive thinking.
+Roughly $0.09–0.15 per call against 5 credits of revenue.
+
+**The block is always a draft, and the owner lands in the designer with it.** E7
+§8 settled that creating a block is duplicating one that works rather than
+starting from a blank artboard; this is the same move with a photograph as the
+seed. Publishing is a separate decision a person makes after looking at it.
+
+**"That is not an offer card" is a real answer.** Every structure repeats over
+the product list, so a masthead or a whole flyer page matched to the nearest
+offer card would produce a card full of bindings it cannot fill. The model sets
+`isOfferCard: false` and the job reports it rather than guessing — and that
+branch is never retried, because the picture will not have changed.
+
+**What is not built:** no UI. The upload, the poll and the result are three
+`curl` calls today. Nothing renders a thumbnail for the generated block, so it
+shows in the library without a preview until someone opens it. And no live model
+call has ever succeeded — see the note in the root `CLAUDE.md`.
 
 ### E8-05 Background Removal
 

@@ -10,19 +10,22 @@
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "magic:check": "tsx --env-file-if-exists=.env src/scripts/magic-check.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
     "@aws-sdk/client-s3": "^3",
-    "tsx": "^4.0.0",
     "@souqstudio/db": "workspace:*",
     "@souqstudio/email": "workspace:*",
+    "@souqstudio/engine": "workspace:^",
     "@souqstudio/types": "workspace:*",
     "bullmq": "^5.0.0",
     "dotenv": "^16.4.0",
     "ioredis": "^5.0.0",
     "resend": "^3.0.0",
     "sharp": "^0.33.0",
+    "tsx": "^4.0.0",
     "zod": "^3.0.0"
   },
   "devDependencies": {

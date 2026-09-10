@@ -35,6 +35,7 @@ export type CreditAction =
   | 'background_removal'
   | 'prompt_gen'
   | 'variation'
+  | 'block_gen'
 
 export const CREDIT_COSTS: Readonly<Record<CreditAction, number>> = {
   /** Generate base character — four variations. */
@@ -47,6 +48,16 @@ export const CREDIT_COSTS: Readonly<Record<CreditAction, number>> = {
   /** AI cover generation. */
   cover_gen: 5,
   background_removal: 1,
+  /**
+   * Magic block — a picture of a card in, a block in the library out.
+   *
+   * Priced with `cover_gen` because it costs about the same to serve: one vision
+   * call over one image, and a structured answer short enough that the output
+   * tokens barely register. It is deliberately *not* priced like
+   * `background_removal`, which is a utility an owner runs dozens of times —
+   * this one produces a block that outlives the book it was made for.
+   */
+  block_gen: 5,
 }
 
 /** One top-up pack: 100 credits for $8, per docs/project.md. */

@@ -164,10 +164,20 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   system permits an illustration only on `empty`. See
   `.claude/skills/souqstudio-design/references/illustration-manifest.md`.
 - **Worker handlers** — `email` and `bg` are implemented, `bg` now for both logos and
-  catalog cutouts. `pdf`, `ai` and `enrich` are still stubs that throw. **`enrich` is the
-  one that now bites**: the Open Food Facts export has no Arabic column, so every seeded
-  universal product has a null `nameAr`, and E5 §2 makes that a publish-time blocker for
-  Arabic editions. Until `enrich` lands the shared catalog is English-only.
+  catalog cutouts. `ai` is implemented for **one** job: `ai.magicBlock`, E8-07's magic
+  block. Its other four names — character, pose, cover, prompt — still throw, as do `pdf`
+  and `enrich`. **`enrich` is the one that now bites**: the Open Food Facts export has no
+  Arabic column, so every seeded universal product has a null `nameAr`, and E5 §2 makes
+  that a publish-time blocker for Arabic editions. Until `enrich` lands the shared catalog
+  is English-only.
+- **Magic block has never made a live model call.** E8-07 is built end to end — route,
+  queue, worker, credits, poll — and every part of it is exercised except the one that
+  costs money: `ANTHROPIC_API_KEY` is a placeholder in both `.env` files, so the request
+  is built, sent and refused with a 401. `pnpm --filter @souqstudio/worker magic:check`
+  renders seeded cards, feeds them back and reports whether the structure that comes out
+  is the one that went in; run it against a real key before believing the prompt works.
+  The 2,400-block enumeration in `magic.test.ts` proves the *assembly* is safe whatever
+  the model answers, which is a different claim.
 - **Brand kit fonts are pickable but not self-hosted.** `/brand` now has a picker:
   `lib/brand-fonts.ts` carries the curated catalog — ten OFL families, every one
   covering Arabic and Latin, filtered per slot — and `TypographyFields` writes

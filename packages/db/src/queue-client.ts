@@ -34,6 +34,30 @@ export interface AiJobPayload {
   [key: string]: unknown
 }
 
+/**
+ * Magic block — read a picture of a card, produce a block. E8-07.
+ *
+ * **Its own payload rather than a branch of `AiJobPayload`**, because it is the
+ * one AI job that produces no image and belongs to no shop. Every other job on
+ * this queue generates a picture for one shop's brand kit; this one writes a row
+ * into `blocks`, which is organization-scoped — a chain designs a card once and
+ * every shop in it uses that card. `AiJobPayload` carries a required `shopId`
+ * and an open index signature, and widening it to fit would lose the type check
+ * on the four jobs that do have one.
+ *
+ * `sourceKey` is an R2 object key rather than a URL. The upload goes through the
+ * presigned route the designer already uses for artwork, which hands back the
+ * key it wrote — and a key is what survives the bucket moving behind a different
+ * public origin.
+ */
+export interface MagicBlockPayload {
+  /** `ai_jobs` row id — what the client polls and the worker updates. */
+  jobId: string
+  organizationId: string
+  /** R2 object key of the uploaded picture. Never a client-supplied URL. */
+  sourceKey: string
+}
+
 export interface BgRemovePayload {
   imageUrl: string
   targetPath: string
@@ -95,6 +119,16 @@ export async function enqueuePdf(payload: PdfJobPayload) {
 
 export async function enqueueAiJob(payload: AiJobPayload) {
   return queues.ai.add(`ai.${payload.type}`, payload, {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
+  })
+}
+
+export async function enqueueMagicBlock(payload: MagicBlockPayload) {
+  return queues.ai.add('ai.magicBlock', payload, {
+    // Two attempts, like every other job on this queue: each one is a paid call
+    // to a model provider, and a prompt the model cannot answer will not become
+    // answerable on the third try.
     attempts: 2,
     backoff: { type: 'exponential', delay: 10000 },
   })

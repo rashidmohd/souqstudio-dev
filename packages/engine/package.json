@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@souqstudio/types": "workspace:*",
-    "zod": "^3.0.0"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@souqstudio/config": "workspace:*",

@@ -68,7 +68,7 @@ import {
  * the library is a dozen structures wearing thirty skins rather than thirty
  * hand-drawn cards that drift apart.
  */
-interface Skin {
+export interface Skin {
   /** The card's ground. `surface` is a white card on a coloured page. */
   ground: TokenRef
   radius?: number
