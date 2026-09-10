@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LibraryBig, Lock, Pencil, Trash2 } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
+// Type only — erased at compile time, so the library does not follow it into the
+// browser. That it once did is why the category is on the summary at all.
+import type { BlockCategory } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
@@ -38,6 +41,8 @@ export type LibraryBlock = {
   repeats: boolean
   arrangements: Arrangement[]
   organizationId: string | null
+  /** Which group of the shipped library, or null for the shop's own. */
+  category: BlockCategory | null
   status: string
   locked: boolean
   planTier: string

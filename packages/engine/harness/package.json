@@ -1,0 +1,4 @@
+{
+  "//": "The harness is ESM. Node and tsx read this nested package.json for files in this folder alone, so the engine's own package stays CJS-compatible for everything that imports it — Next transpiles `src/`, and `packages/db` requires it from a tsx script. What needs ESM here is top-level await in `blocks.ts` and `gallery.ts`: the library is a loaded document now (`../src/library-source`), and a module that waits for its own data is what keeps `OFFER_CARD` and its neighbours plain consts instead of rewriting every module-scope grid in `main.ts` around a promise.",
+  "type": "module"
+}

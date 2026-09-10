@@ -2,7 +2,7 @@ import 'server-only'
 
 import { prisma } from '@souqstudio/db'
 import type { Arrangement } from '@souqstudio/types'
-import { SEED_BLOCKS } from '@souqstudio/engine'
+import { BLOCK_CATEGORIES, type BlockCategory } from '@souqstudio/engine'
 import { toArrangements } from '@/lib/block-document'
 
 /**
@@ -28,6 +28,28 @@ export interface BlockSummary {
   arrangements: Arrangement[]
   /** Null means seeded: SouqStudio's, shared by every account. */
   organizationId: string | null
+  /**
+   * Which group of the shipped library this is, or null for a block the shop
+   * authored.
+   *
+   * **Attached here, on the server, rather than looked up in the picker.**
+   * `BlockImportDialog` needs an id → category map to filter by, and it used to
+   * get one by importing `SEED_BLOCKS` — a `'use client'` module importing the
+   * whole library, which put every element of every seeded block into the
+   * browser bundle to answer a question about five strings. The category is a
+   * property of the design we shipped, this is the module that knows the
+   * shipped designs, and a summary is already crossing the boundary.
+   *
+   * Still not a column on `blocks`: it is a fact about the library, not about
+   * the row, and a column would be one only the seed ever writes.
+   */
+  category: BlockCategory | null
+  isSeasonal: boolean
+  /** Which occasion, for a block whose window is computed. */
+  occasion: string | null
+  /** A window the owner set by hand. Null on everything seeded. */
+  activeFrom: Date | null
+  activeTo: Date | null
   status: string
   updatedAt: Date
   /**
@@ -38,6 +60,19 @@ export interface BlockSummary {
   locked: boolean
   planTier: string
 }
+
+/**
+ * The category as the picker will read it.
+ *
+ * A block with an organization is theirs and has none: the picker never lists
+ * those, and a default would be a claim about a design we did not draw.
+ */
+function toCategory(value: string | null, organizationId: string | null): BlockCategory | null {
+  if (organizationId !== null) return null
+  return CATEGORIES.has(value as BlockCategory) ? (value as BlockCategory) : 'panel'
+}
+
+const CATEGORIES = new Set<BlockCategory>(BLOCK_CATEGORIES)
 
 /** Plan ids are the tier names, so a gate is an index comparison. See seed.ts. */
 const PLAN_ORDER = ['starter', 'pro', 'business', 'enterprise'] as const
@@ -56,10 +91,17 @@ const SELECT = {
   name: true,
   description: true,
   repeats: true,
+  // Carried so an import can copy them, and so the composer can promote a
+  // seasonal block in the week it matters. See `packages/engine/src/seasonal.ts`.
+  isSeasonal: true,
+  occasion: true,
+  activeFrom: true,
+  activeTo: true,
   arrangements: true,
   organizationId: true,
   status: true,
   planTier: true,
+  category: true,
   updatedAt: true,
 } as const
 
@@ -68,10 +110,15 @@ type Row = {
   name: string
   description: string | null
   repeats: boolean
+  isSeasonal: boolean
+  occasion: string | null
+  activeFrom: Date | null
+  activeTo: Date | null
   arrangements: unknown
   organizationId: string | null
   status: string
   planTier: string
+  category: string | null
   updatedAt: Date
 }
 
@@ -90,10 +137,19 @@ function toSummary(row: Row, planId: string | null): BlockSummary | null {
   return {
     id: row.id,
     name: row.name,
+    isSeasonal: row.isSeasonal,
+    occasion: row.occasion,
+    activeFrom: row.activeFrom,
+    activeTo: row.activeTo,
     description: row.description,
     repeats: row.repeats,
     arrangements,
     organizationId: row.organizationId,
+    // Read off the row rather than looked up in the library — see the field's
+    // note above. A seeded row written before the column existed and not yet
+    // re-seeded falls back to `panel`, which is what the old lookup did for an
+    // unrecognised id; the next deploy corrects it.
+    category: toCategory(row.category, row.organizationId),
     status: row.status,
     planTier: row.planTier,
     updatedAt: row.updatedAt,
@@ -149,23 +205,31 @@ export async function loadBlock(id: string, organizationId: string, planId: stri
 }
 
 /**
- * What a new block starts from.
+ * What a new block starts from — and it is **`loadBlock`**, for everything.
  *
  * **Always seed** — §3.6. A blank artboard produces something worse than the
  * default and the owner blames the product, so "new block" is "a copy of one
- * that works", and the starter list is the seeded library itself rather than a
- * second set of shapes that would have to be maintained beside it.
+ * that works".
+ *
+ * There used to be a second reader here, `starterFor`, which found a seeded
+ * block in `SEED_BLOCKS` so that a copy was of "the library that was checked"
+ * rather than of a row. Two things retired it.
+ *
+ * **It cannot survive the library becoming a loaded document.** A loader is
+ * async by construction — `library-source.ts` — and `starterFor` was called
+ * synchronously from a route. Reading the row is the version of "the library
+ * that was checked" that still works when the library is a file, or a bucket:
+ * `pnpm db:seed` runs on every deploy from Railway's `preDeployCommand`, so the
+ * seeded row *is* what the deploy shipped.
+ *
+ * **And it took the plan gate with it.** A `SeedBlock` has no `locked` field,
+ * so `'locked' in source` — the guard in `POST /api/v1/blocks` — was false for
+ * every seeded block, which is the only kind of block the gate exists to gate.
+ * Nothing was reachable today because every seeded row takes the `planTier`
+ * default of `starter`; marking one block `pro` would have shown a padlock in
+ * the picker and imported it anyway. One path through `loadBlock` makes the
+ * gate structural rather than a branch that has to be remembered.
  */
-export function starterFor(id: string) {
-  return SEED_BLOCKS.find((block) => block.id === id) ?? null
-}
-
-export const STARTERS = SEED_BLOCKS.map((block) => ({
-  id: block.id,
-  name: block.name,
-  description: block.description,
-  repeats: block.repeats,
-}))
 
 /**
  * A name for a copy that does not collide with one already in the library.

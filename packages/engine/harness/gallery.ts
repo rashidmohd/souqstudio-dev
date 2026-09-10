@@ -22,7 +22,12 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import type { Block } from '@souqstudio/types'
-import { SEED_BLOCKS, type Placement } from '../src/index'
+import { type Placement } from '../src/index'
+// Awaited at module scope: the library is a loaded document, and the gallery's
+// whole job is to draw every block that exists. See `harness/blocks.ts`.
+import { loadLibrary } from '../src/library-source'
+
+const SEED_BLOCKS = await loadLibrary()
 import { FRIENDLY, WORST_CASE } from './dummy'
 import type { HarnessProduct } from './product'
 import { renderPage, type RenderContext } from './svg'

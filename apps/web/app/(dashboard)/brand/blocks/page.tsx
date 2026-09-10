@@ -68,6 +68,9 @@ export default async function BlocksPage() {
           repeats: block.repeats,
           arrangements: block.arrangements,
           organizationId: block.organizationId,
+          // Sent from here so the picker can filter without importing the
+          // library into the browser. See `lib/blocks.ts`.
+          category: block.category,
           status: block.status,
           locked: block.locked,
           planTier: block.planTier,

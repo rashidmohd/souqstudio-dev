@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockElement } from '@souqstudio/types'
 import { SEED_BLOCKS, bookletGrid } from './library'
+import { usesOnlyRoles } from './roles'
 import { validateBlock } from './block-edit'
 import { validateGrid } from './validate'
 import { pickArrangement } from './arrangement'
@@ -65,34 +66,19 @@ describe('SEED_BLOCKS', () => {
 
   it('names every colour by role, never by value', () => {
     // The rule that earns everything else: a block shipped before it has met a
-    // shop has to name a colour the shop's kit can resolve. `usesOnlyRoles` in
-    // the web app refuses the other two forms at the edge; this is the same rule
-    // held at the source.
+    // shop has to name a colour the shop's kit can resolve.
+    //
+    // **Through `usesOnlyRoles`, which is now the only copy of this rule.** It
+    // was re-implemented inline here, with a comment admitting it was the same
+    // check the web app made at the edge — and a rule held in two places is one
+    // that will be corrected in one of them. It moved into `roles.ts` when a
+    // third caller appeared: `library-source.ts` holds a document loaded from a
+    // file to exactly this bar before the seed writes it.
     for (const block of SEED_BLOCKS) {
-      for (const element of block.arrangements.flatMap((a) => a.elements)) {
-        const colors = [
-          element.kind === 'shape' ? element.fill : undefined,
-          element.kind === 'text' ? element.color : undefined,
-          element.kind === 'chip' ? element.fill : undefined,
-          ...(element.kind === 'shape' || element.kind === 'image' || element.kind === 'text'
-            ? []
-            : []),
-          element.kind === 'priceMark' ? element.style?.tint : undefined,
-          element.kind === 'priceMark' ? element.style?.ink : undefined,
-          element.kind === 'priceMark' ? element.style?.surface : undefined,
-          element.kind === 'shape' || element.kind === 'image'
-            ? element.stroke?.color
-            : undefined,
-        ].filter((value) => value !== undefined)
-
-        for (const color of colors) {
-          expect({ id: block.id, element: element.id, from: color.from }).toEqual({
-            id: block.id,
-            element: element.id,
-            from: 'role',
-          })
-        }
-      }
+      expect({ id: block.id, rolesOnly: usesOnlyRoles(block.arrangements) }).toEqual({
+        id: block.id,
+        rolesOnly: true,
+      })
     }
   })
 

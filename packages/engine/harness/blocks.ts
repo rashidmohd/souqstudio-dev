@@ -11,18 +11,25 @@
  */
 
 import type { Block, BlockElement } from '@souqstudio/types'
-import { SEED_BLOCKS } from '../src/index'
+import { loadLibrary } from '../src/library-source'
 
 /**
  * The seeded library, as `Block` rows.
  *
- * Imported rather than restated. These are the same bytes `packages/db` writes
+ * Loaded rather than restated. These are the same bytes `packages/db` writes
  * into the `blocks` table, so what this harness draws is what a shop actually
  * gets — a second copy here would drift, and a drifted seed block is one that
  * renders differently in the database from the one that was checked.
+ *
+ * **Top-level await, and it is the right tool rather than a shortcut.** The
+ * library is a loaded document now (`../src/library-source`), so the authored
+ * blocks are only visible to something that awaits. The alternative was making
+ * `OFFER_CARD` and its three neighbours async and rewriting every module-scope
+ * grid in `main.ts` around that. This is a Node-only dev harness that is never
+ * bundled; a module that waits for its own data is exactly what it needs.
  */
 const seeded = Object.fromEntries(
-  SEED_BLOCKS.map((block) => [
+  (await loadLibrary()).map((block) => [
     block.id,
     {
       id: block.id,

@@ -1290,7 +1290,40 @@ model Block {
   thumbnailUrl String?
   status       String         @default("draft") // draft | published | archived
   planTier     String         @default("starter")
+
+  /// Which group of the shipped library this block is — `offer-card`, `header`,
+  /// `panel`, `footer`, `seasonal`. Null on a block an owner authored, and it
+  /// needs none: the picker lists theirs first and separately, because that is
+  /// the collection they can change.
+  ///
+  /// **It is a column because the app can no longer ask the library.** The
+  /// category was derived in code from the block's id, which worked while
+  /// `SEED_BLOCKS` was a TypeScript constant the web app could import — and
+  /// cost 72 KB of client bundle to do it, since the picker that needed the
+  /// answer runs in a browser. The library is a loaded document now
+  /// (`library-source.ts`), and may one day be loaded from somewhere that is
+  /// not the repo at all, so the row is the only place the answer can live.
+  ///
+  /// Only the seed ever writes it, which is the objection that kept it out of
+  /// the schema for a week — and is exactly what a seed is for. Same argument
+  /// that put `occasion` below it a day earlier.
+  category     String?
+
   isSeasonal   Boolean        @default(false)
+  /// Which occasion, for a block whose window is computed rather than stored —
+  /// `ramadan`, `eid-al-fitr`, `national-day`. See `packages/engine/src/seasonal.ts`.
+  ///
+  /// **It is a column because an import makes a copy with a new id.** The seeded
+  /// library maps id → occasion in code, which works right up until an owner
+  /// imports the Ramadan band and the copy is a cuid that map has never heard
+  /// of. Carrying the occasion on the row is what keeps the copy correct — and
+  /// correct *next year too*, because the window is still derived rather than
+  /// frozen into `activeFrom`.
+  occasion     String?
+  /// A window the owner set by hand, for a block only they could schedule — a
+  /// shop's own anniversary. Null on every seeded block, deliberately: Ramadan
+  /// and both Eids move against the Gregorian calendar, so a stored date is
+  /// wrong from its second year.
   activeFrom   DateTime?
   activeTo     DateTime?
   organization Organization?  @relation(fields: [organizationId], references: [id])

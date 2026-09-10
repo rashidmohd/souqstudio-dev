@@ -83,6 +83,7 @@ export {
 export {
   BLOCK_OCCASION,
   blockWindow,
+  isOccasion,
   inSeason,
   occasionWindow,
   type Occasion,
@@ -124,10 +125,12 @@ export {
   type Placement,
 } from './flow'
 
-export {
-  BLOCK_CATEGORIES,
-  SEED_BLOCKS,
-  bookletGrid,
-  type BlockCategory,
-  type SeedBlock,
-} from './library'
+// The rule a *seeded* block is held to: every colour a role the kit fills. The
+// web app re-exports it, so an API request and a loaded file meet one rule.
+// `library-source.ts` is deliberately NOT exported here — it reads a filesystem.
+export { usesOnlyRoles } from './roles'
+// The vocabulary, exported from its own module rather than through `library`.
+// Re-exporting it from there would put the designs back in the graph of anyone
+// importing it — which is the bundle problem it was split up to fix.
+export { BLOCK_CATEGORIES, type BlockCategory } from './block-category'
+export { SEED_BLOCKS, bookletGrid, type SeedBlock } from './library'

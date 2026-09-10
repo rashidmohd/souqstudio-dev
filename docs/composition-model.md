@@ -60,6 +60,11 @@ direction for a step that already sits between a new user and their first result
 
 ## 3. Blocks
 
+> **For what a block is *today*, read `docs/block-templates.md`.** This section is
+> the specification and stands as the intent; that file maps the built system and
+> carries everything added after this was written — the offer-tier binding,
+> gradients, the shape kit, badge shapes, and the asset table.
+
 A block is a small artboard holding typed elements in **relative** coordinates —
 fractions of block width and height, never pixels. That is what lets one offer card render
 at 1080×1080 for a carousel post and at one third of an A4 column in a booklet with no

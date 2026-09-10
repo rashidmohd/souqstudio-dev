@@ -54,7 +54,7 @@ type Props = {
   layout: { perRow: number; bodyRows: number }
   /** Static blocks this shop may pin. A repeating one reads an offer, and a pin
    *  has none. */
-  pinnable: { id: string; name: string }[]
+  pinnable: { id: string; name: string; season?: { starts: string } }[]
   gridProblems: { code: string }[]
 }
 

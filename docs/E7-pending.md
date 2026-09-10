@@ -32,7 +32,7 @@ So E7 is now three things, and the first two are built:
 | --- | --- | --- |
 | **E7-A** | The block library — two collections, one schema | **Built.** `/brand/blocks` |
 | **E7-B** | The block designer — the card designer addendum, in full | **Built.** `/card-designer/[blockId]` |
-| **E7-C** | Seasonal blocks — scheduled activation, an overlay asset library | **Not built.** §6 |
+| **E7-C** | Seasonal blocks — scheduled activation, an overlay asset library | **Built, 9 September.** §20, §22. What remains is *content* — nobody has drawn the motifs. |
 
 What is *gone* from the epic, and why:
 
@@ -252,13 +252,11 @@ Recorded here rather than edited into the epic.
    palette entry adds it to the middle of the card, which is the tablet-safe
    equivalent the design system asks for in any case; the drag is owed, exactly
    as it is in the editor's tray.
-2. ~~**E7-03, seasonal.**~~ **Half done, 8 September — see §9.** A seasonal
-   block now appears at the top of the *import* picker inside its window, and
-   the window is computed from the calendar rather than stored, because Ramadan
-   and both Eids move against the Gregorian one. The composer's side is still
-   owed for the reason given here: the editor composes a book from the seeded
-   grid rather than from a chosen block, so there is no composer picker to
-   promote into. Build that when the composer chooses.
+2. ~~**E7-03, seasonal.**~~ **Done, 9 September — §9 and §22.** The window is
+   computed from the calendar rather than stored, a seasonal block is offered
+   first in the import picker, and — the half this note said was blocked — first
+   in the composer's pin picker too. The blocker was stale: the editor *does*
+   choose a block, when you pin one.
 3. ~~**The overlay asset library.**~~ **The table and the picker are built, 9
    September — §20.** `block_assets` exists and the designer has a picker over
    it. What is still missing is the *content*: crescents, lanterns and National
@@ -1653,3 +1651,69 @@ that happen to move together. That is a real change and wants its own pass.
 
 **Still not opened in a browser.** Thirteen — and two of the three questions in
 this entry were about things that already work.
+
+---
+
+## 22. E7-C finished, and a second stale blocker — 9 September
+
+§6.2 said the composer's half of seasonal scheduling was blocked: *"there is no
+picker, because the editor composes a book from the seeded grid rather than from
+a chosen block."*
+
+**That stopped being true when pinning was built.** `LayoutPanel` has a panel
+picker — choose a block, choose how much of the page, choose which page. The
+composer has been choosing blocks for weeks. This is the second blocker in this
+file to have expired without anyone noticing; §20 was the first. Both were
+written accurately and neither was re-checked, which is worth more attention than
+either fix.
+
+### The thing that was actually missing
+
+Not a picker — **the occasion did not survive an import.**
+
+The engine maps block id → occasion in code, which works for the library and
+fails for a copy: `importBlocks` writes a new row with a new cuid, and the map has
+never heard of it. It also dropped `isSeasonal` outright. So the moment an owner
+imported the Ramadan band — the *only* way they can use it — it became an
+ordinary panel, and no promotion anywhere could have found it.
+
+`blocks.occasion` is the fix, and it is a column rather than a date pair for the
+reason `activeFrom`/`activeTo` stayed null on every seeded row: **the window has
+to keep being computed.** Freezing this year's Ramadan onto the copy would be
+correct until next February. The column carries which occasion; the calendar
+still answers when.
+
+- `blockWindow` reads the row **before** the id map, so a copy works and a seeded
+  block with no column set still works.
+- The column is a string from a database, so it is checked. An occasion nothing
+  recognises means no window, not a crash inside a picker.
+- The migration backfills the ten seeded ids. **Copies made before today keep a
+  null occasion** — the row they came from is knowable, the copy does not record
+  it, and guessing from a name the owner may have changed would put the wrong
+  band in front of a shop. Re-import is the recovery.
+
+### In the composer
+
+An in-season panel sorts to the top of the pin picker and its name carries the
+countdown — *"Ramadan band · in 12 days"*. Only the flag is compared, so the rest
+of the list keeps its order on a browser whose sort is not stable.
+
+The countdown is in the **label** rather than as a badge because a native
+`<option>` is text and cannot take one — the same limit `InlineSelect` documents,
+met from the other side.
+
+### What E7-C still owes, and it is not code
+
+**The motifs.** Crescents, lanterns, National Day marks: rows in `block_assets`
+with `organizationId: null`. The table, the picker, the upload path and the
+rasteriser are all built and the shipped set is empty. That is design work, and
+pretending otherwise by generating shapes from the path kit would put something
+in front of shops that nobody chose.
+
+**Owner-set windows.** `blocks.activeFrom` / `activeTo` are read by `blockWindow`
+and written by nothing — a shop cannot schedule its own anniversary band. The
+column, the resolver and the promotion all exist; what is missing is two date
+fields in `BlockProperties` and two lines in `blockUpdateSchema`. Small, and left
+undone deliberately rather than half-built.
+
+**Still not opened in a browser.** Fourteen.

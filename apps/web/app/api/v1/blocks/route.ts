@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
-import { MAX_IMPORT, copyName, importName, listBlocks, loadBlock, starterFor } from '@/lib/blocks'
+import { BLOCK_OCCASION } from '@souqstudio/engine'
+import { MAX_IMPORT, copyName, importName, listBlocks, loadBlock } from '@/lib/blocks'
 
 /**
  * The block library. E7.
@@ -86,12 +87,13 @@ export async function POST(request: NextRequest) {
     return importBlocks(parsed.data.fromIds, session.user.organizationId, planId)
   }
 
-  // Two sources, one shape. A seeded block is read from the engine rather than
-  // from the database so a copy is of the library that was checked, and an
-  // organization's own is read through `loadBlock`, which filters by tenancy.
-  const seeded = starterFor(parsed.data.fromId)
-  const source =
-    seeded === null ? await loadBlock(parsed.data.fromId, session.user.organizationId, planId) : seeded
+  // **One source, and that is the change.** A seeded block used to be read from
+  // the engine — `starterFor` — and an organization's own through `loadBlock`,
+  // which meant two shapes reaching this line. A `SeedBlock` has no `locked`
+  // field, so the gate below was unreachable on exactly the blocks it exists to
+  // gate. `loadBlock` filters by tenancy *and* computes `locked` from the row's
+  // plan tier, so both facts now come from one place. See `lib/blocks.ts`.
+  const source = await loadBlock(parsed.data.fromId, session.user.organizationId, planId)
 
   if (source === null) {
     return fail('source_not_found', 'That block is not one you can start from.', 404)
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
   // A plan gate on the *source* and not on authoring: an owner may design as
   // many blocks as they like, and may not use a locked one as a shortcut into a
   // design their plan does not include.
-  if ('locked' in source && source.locked) {
+  if (source.locked) {
     return fail(
       'plan_required',
       'That block is part of a higher plan. Upgrade to start from it.',
@@ -155,6 +157,16 @@ export async function POST(request: NextRequest) {
  * of them is plan-gated is a worse answer than seven blocks and a sentence
  * saying which one did not come.
  */
+/**
+ * The occasion a copy inherits.
+ *
+ * A seeded source knows its own by id; a shop's own block — one owner copying
+ * another of their blocks — carries it on the row already.
+ */
+function occasionOf(source: { occasion?: string | null | undefined }, fromId: string): string | null {
+  return source.occasion ?? BLOCK_OCCASION[fromId] ?? null
+}
+
 async function importBlocks(fromIds: readonly string[], organizationId: string, planId: string | null) {
   const existing = await prisma.block.findMany({
     where: { organizationId },
@@ -167,10 +179,9 @@ async function importBlocks(fromIds: readonly string[], organizationId: string, 
 
   // Duplicates in one request would create two identical blocks from one click.
   for (const fromId of new Set(fromIds)) {
-    const seeded = starterFor(fromId)
-    const source = seeded === null ? await loadBlock(fromId, organizationId, planId) : seeded
+    const source = await loadBlock(fromId, organizationId, planId)
 
-    if (source === null || ('locked' in source && source.locked)) {
+    if (source === null || source.locked) {
       skipped.push(fromId)
       continue
     }
@@ -191,6 +202,12 @@ async function importBlocks(fromIds: readonly string[], organizationId: string, 
         // A copy starts published: it is already a design that works.
         status: 'published',
         planTier: 'starter',
+        // **Carried, not dropped.** The copy gets a new cuid, so the id → occasion
+        // map in the engine cannot recognise it — without these two fields an
+        // imported Ramadan band is an ordinary block, and the composer has
+        // nothing to promote in the week it matters.
+        isSeasonal: 'isSeasonal' in source ? (source.isSeasonal ?? false) : false,
+        occasion: occasionOf('occasion' in source ? source : {}, fromId),
       },
       select: { id: true, name: true },
     })

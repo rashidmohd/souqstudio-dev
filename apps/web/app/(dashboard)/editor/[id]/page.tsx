@@ -4,6 +4,7 @@ import { prisma } from '@souqstudio/db'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
+import { blockWindow } from '@souqstudio/engine'
 import { listBlocks } from '@/lib/blocks'
 import { loadBook } from '@/lib/offer-book'
 import { EditorShell } from '@/components/editor/EditorShell'
@@ -28,6 +29,8 @@ export const metadata: Metadata = { title: 'Offer book · SouqStudio' }
  */
 export default async function EditorPage({ params }: { params: { id: string } }) {
   const session = await requireCompliantSession()
+  // Read once, so every block on this page is judged against the same instant.
+  const now = new Date()
   const book = await loadBook(params.id, session.user.organizationId)
 
   // `loadBook` already filtered by organization, so a null here is either a book
@@ -40,7 +43,7 @@ export default async function EditorPage({ params }: { params: { id: string } })
 
   const organization = await prisma.organization.findUnique({
     where: { id: session.user.organizationId },
-    select: { planId: true },
+    select: { planId: true, country: true },
   })
 
   const [brand, tiers, blocks] = await Promise.all([
@@ -86,9 +89,21 @@ export default async function EditorPage({ params }: { params: { id: string } })
       overrides={book.overrides}
       pins={book.pins}
       layout={book.layout}
+      // **The composer's half of E7-03.** A seasonal panel is offered first in
+      // the week it matters, and the window is computed rather than read off the
+      // row — Ramadan and both Eids move against the Gregorian calendar. The
+      // occasion travels on the block, which is what makes an owner's *copy* of
+      // the Ramadan band work as well as ours.
       pinnable={blocks
         .filter((block) => !block.repeats && !block.locked && block.status !== 'archived')
-        .map((block) => ({ id: block.id, name: block.name }))}
+        .map((block) => {
+          const window = blockWindow(block, now, organization?.country ?? 'AE')
+          const live =
+            window !== null && now >= window.from && now <= window.to
+              ? { starts: window.starts.toISOString() }
+              : null
+          return { id: block.id, name: block.name, ...(live === null ? {} : { season: live }) }
+        })}
       gridProblems={book.gridProblems}
     />
   )

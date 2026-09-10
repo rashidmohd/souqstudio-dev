@@ -156,3 +156,39 @@ describe('blockWindow', () => {
     expect(blockWindow({ id: 'blk_owner_2', organizationId: 'org_1' }, now)).toBeNull()
   })
 })
+
+describe('a copy carries its occasion', () => {
+  const now = new Date(Date.UTC(2026, 0, 10))
+
+  /**
+   * The whole reason `occasion` is a column. `importBlocks` copies a seeded
+   * block into a new row with a new cuid, so the id → occasion map has never
+   * heard of the copy — and before this the copy silently stopped being
+   * seasonal, which the composer could not have shown.
+   */
+  it('reads the row before the id map, so an imported block still works', () => {
+    const copy = { id: 'ckq1imported', organizationId: 'org_1', occasion: 'ramadan' }
+    const window = blockWindow(copy, now)
+    expect(window).not.toBeNull()
+    expect(window!.starts.getTime()).toBe(occasionWindow('ramadan', now)!.starts.getTime())
+  })
+
+  it('still reads the id map for a seeded block that has no column set', () => {
+    expect(blockWindow({ id: 'blk_season_ramadan', organizationId: null }, now)).not.toBeNull()
+  })
+
+  /** A column is a string from a database, so it is checked rather than trusted. */
+  it('gives no window for an occasion it does not recognise', () => {
+    expect(blockWindow({ id: 'x', occasion: 'talk-like-a-pirate-day' }, now)).toBeNull()
+  })
+
+  it('leaves an owner’s own dates working when there is no occasion', () => {
+    const from = new Date(Date.UTC(2026, 0, 5))
+    const to = new Date(Date.UTC(2026, 0, 20))
+    expect(blockWindow({ id: 'x', occasion: null, activeFrom: from, activeTo: to }, now)).toEqual({
+      from,
+      starts: from,
+      to,
+    })
+  })
+})

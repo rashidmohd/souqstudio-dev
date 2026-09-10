@@ -26,7 +26,24 @@ import { Select } from '@/components/ui/select'
  * is shown rather than assumed.
  */
 
-type PinnableBlock = { id: string; name: string }
+/**
+ * `season` is present only while the block's occasion is running — the page
+ * computes it, because the window for Ramadan or either Eid is a Hijri
+ * calculation rather than a column. `starts` is when the occasion itself begins,
+ * which is what a countdown needs; the block is already on offer by then.
+ */
+type PinnableBlock = { id: string; name: string; season?: { starts: string } }
+
+/**
+ * What the season adds to a panel's name. Days rather than a date: the reason
+ * it is at the top of the list is that it is nearly time, and that is the
+ * sentence — a date is something the owner has to compare against today.
+ */
+function seasonNote(starts: string): string {
+  const days = Math.ceil((new Date(starts).getTime() - Date.now()) / 86_400_000)
+  if (days <= 0) return 'on now'
+  return days === 1 ? 'tomorrow' : `in ${days} days`
+}
 
 type Props = {
   bookId: string
@@ -147,7 +164,19 @@ function Pins({
 }) {
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
-  const [blockId, setBlockId] = React.useState(blocks[0]?.id ?? '')
+  /**
+   * **In season first — E7-03's composer half.** A seasonal panel is no use in
+   * a list of forty a fortnight after Eid, and it is the first thing an owner
+   * wants in the fortnight before it. The order is otherwise untouched: only
+   * the flag is compared, so a browser whose sort is not stable cannot reshuffle
+   * the rest.
+   */
+  const ordered = React.useMemo(
+    () => [...blocks].sort((a, b) => Number(b.season !== undefined) - Number(a.season !== undefined)),
+    [blocks]
+  )
+
+  const [blockId, setBlockId] = React.useState(ordered[0]?.id ?? '')
   const [page, setPage] = React.useState('1')
   const [span, setSpan] = React.useState('row')
   const [busy, setBusy] = React.useState(false)
@@ -230,7 +259,15 @@ function Pins({
           <Select
             label="Panel"
             value={blockId}
-            options={blocks.map((block) => ({ value: block.id, label: block.name }))}
+            // The label carries the season, because a native `<option>` is text
+            // and cannot take a badge — the same limit `InlineSelect` documents.
+            options={ordered.map((block) => ({
+              value: block.id,
+              label:
+                block.season === undefined
+                  ? block.name
+                  : `${block.name} · ${seasonNote(block.season.starts)}`,
+            }))}
             onChange={(event) => setBlockId(event.target.value)}
           />
           <Select

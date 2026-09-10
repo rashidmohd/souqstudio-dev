@@ -1,4 +1,5 @@
 import type { PageGrid, Region } from '@souqstudio/types'
+import type { BlockCategory } from './block-category'
 import { CARD_BLOCKS } from './library-cards'
 import { FOOTER_IDS, HEADER_IDS, PANEL_BLOCKS } from './library-panels'
 import { SEASONAL_BLOCKS } from './library-seasonal'
@@ -46,24 +47,16 @@ import { SEASONAL_BLOCKS } from './library-seasonal'
 // ─── The library ──────────────────────────────────────────────────────────────
 
 /**
- * What kind of thing a block is, for grouping a library nobody can scan in one
- * screen.
+ * Which group a block belongs to is **derived here rather than stored on the
+ * row.** It is a property of the design we shipped, not a fact about a database
+ * record, and the alternative — a column — would be one only the seed ever
+ * writes and only one screen ever reads. A block an owner authors has no
+ * category and needs none: theirs are listed first and separately, because that
+ * is the collection they can change.
  *
- * **Derived here rather than stored on the row.** It is a property of the design
- * we shipped, not a fact about a database record, and the alternative — a column
- * — would be a column only the seed ever writes and only one screen ever reads.
- * A block an owner authors has no category and needs none: theirs are listed
- * first and separately, because that is the collection they can change.
+ * The *vocabulary* is in `block-category.ts` rather than here, so that a client
+ * wanting the five words does not import the fifty-nine designs. See that file.
  */
-export type BlockCategory = 'offer-card' | 'header' | 'panel' | 'footer' | 'seasonal'
-
-export const BLOCK_CATEGORIES: readonly BlockCategory[] = [
-  'offer-card',
-  'header',
-  'panel',
-  'footer',
-  'seasonal',
-]
 
 export interface SeedBlock {
   id: string

@@ -286,6 +286,10 @@ export function occasionWindow(
   )
 }
 
+/** Whether a string names an occasion this knows. */
+export const isOccasion = (value: string): value is Occasion =>
+  Object.prototype.hasOwnProperty.call(LEAD_DAYS, value)
+
 /** Whether an occasion's block should be promoted right now. */
 export function inSeason(occasion: Occasion, now: Date, country = 'AE'): boolean {
   const window = occasionWindow(occasion, now, country)
@@ -302,12 +306,29 @@ export function inSeason(occasion: Occasion, now: Date, country = 'AE'): boolean
  * question — "should this be at the top today" — asked of different sources.
  */
 export function blockWindow(
-  block: { id: string; organizationId?: string | null; activeFrom?: Date | null; activeTo?: Date | null },
+  block: {
+    id: string
+    /**
+     * From the row. **Read before the id map**, because an import makes a copy
+     * with a new cuid — the map knows `blk_season_ramadan` and has never heard
+     * of the copy an owner took of it. The column is what carries the fact
+     * across the copy, and carries it correctly next year too, because the
+     * window is still derived rather than frozen.
+     */
+    occasion?: string | null
+    organizationId?: string | null
+    activeFrom?: Date | null
+    activeTo?: Date | null
+  },
   now: Date,
   country = 'AE'
 ): SeasonWindow | null {
-  const occasion = BLOCK_OCCASION[block.id]
-  if (occasion !== undefined) return occasionWindow(occasion, now, country)
+  const named = block.occasion ?? BLOCK_OCCASION[block.id]
+  // A string from a database column, so it is checked rather than trusted: a
+  // value nothing recognises means no window, not a crash in a picker.
+  if (named !== undefined && named !== null && isOccasion(named)) {
+    return occasionWindow(named, now, country)
+  }
 
   const from = block.activeFrom ?? null
   const to = block.activeTo ?? null

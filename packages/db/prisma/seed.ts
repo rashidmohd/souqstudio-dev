@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client'
-import { SEED_BLOCKS } from '@souqstudio/engine'
+import { BLOCK_OCCASION } from '@souqstudio/engine'
+// **The seam.** Deep import rather than through the barrel because this module
+// reads a filesystem and must never reach a browser build — see the file. Today
+// it returns the generated blocks plus a folder of committed JSON; if the
+// library ever moves to a bucket, this import is what will be pointing at it,
+// and nothing below here changes. `docs/block-library-from-r2.md` §7.
+import { loadLibrary } from '@souqstudio/engine/src/library-source'
 import { DEFAULT_PROMO_TIERS } from '../src/promo-tiers'
 import { PrismaClient } from '@prisma/client'
 import { CATALOG_CATEGORIES } from '../src/catalog-categories'
@@ -157,7 +163,12 @@ async function backfillPromoTiers() {
 }
 
 async function seedBlocks() {
-  for (const block of SEED_BLOCKS) {
+  // Awaited once and passed down, rather than loaded again by the prune: the
+  // upsert and the prune must agree about what the library *is*, and reading it
+  // twice is two answers that can differ if a file lands between them.
+  const library = await loadLibrary()
+
+  for (const block of library) {
     const data = {
       name: block.name,
       description: block.description,
@@ -172,6 +183,17 @@ async function seedBlocks() {
       // calendar, so a fixed window is a block that hides itself in the wrong
       // month from its second year. See `library-seasonal.ts`.
       isSeasonal: block.isSeasonal,
+      // **On the row because the app can no longer ask the library.** It used
+      // to be looked up in code — `SEED_BLOCKS.map(id → category)` — which
+      // worked while the library was a TypeScript constant the web app could
+      // import. It is a loaded document now, and one day may be a loaded
+      // document from somewhere else entirely; the row is the only place the
+      // picker can learn what group a block is in. Exactly the argument that
+      // put `occasion` here a day earlier.
+      category: block.category,
+      // Which occasion, so an imported copy can carry it. The *window* is still
+      // computed from it — see `packages/engine/src/seasonal.ts`.
+      occasion: BLOCK_OCCASION[block.id] ?? null,
       // Null organizationId is what makes a block seeded rather than authored.
       organizationId: null,
     }
@@ -183,9 +205,9 @@ async function seedBlocks() {
     })
   }
 
-  await pruneSeededBlocks()
+  await pruneSeededBlocks(library)
 
-  console.log(`[seed] ${SEED_BLOCKS.length} blocks`)
+  console.log(`[seed] ${library.length} blocks`)
 }
 
 /**
@@ -207,8 +229,8 @@ async function seedBlocks() {
  * A shop's own copy is a separate row with its own id and is never touched —
  * importing is copying, so nothing an owner has taken is taken back.
  */
-async function pruneSeededBlocks() {
-  const current = new Set(SEED_BLOCKS.map((block) => block.id))
+async function pruneSeededBlocks(library: readonly { id: string }[]) {
+  const current = new Set(library.map((block) => block.id))
   const seeded = await prisma.block.findMany({
     where: { organizationId: null },
     select: { id: true, name: true, status: true },

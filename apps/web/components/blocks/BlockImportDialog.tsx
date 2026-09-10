@@ -6,7 +6,6 @@ import type { BrandKit } from '@souqstudio/types'
 import {
   BLOCK_CATEGORIES,
   BLOCK_OCCASION,
-  SEED_BLOCKS,
   occasionWindow,
   type BlockCategory,
   type SeasonWindow,
@@ -52,20 +51,20 @@ type Props = {
 
 type Filter = BlockCategory | 'all'
 
-/**
- * Which group a seeded block belongs to, read from the library rather than from
- * the row.
+/*
+ * The category arrives **on the block**, put there by `lib/blocks.ts` when the
+ * page read the row.
  *
- * **Not a column on `blocks`.** It is a property of the design we shipped, not a
- * fact about a database record, and a column would be one only the seed ever
- * writes and only this dialog ever reads. A block the shop authored has no
- * category and needs none — theirs are not in here.
+ * It used to be looked up here, from a `Map` built over `SEED_BLOCKS` — which
+ * meant this `'use client'` module imported the shipped library, and every
+ * element of every seeded block was downloaded by anyone who opened the
+ * designer. 72 KB, to answer *which of five words describes this id*. The
+ * server already knows, and was already sending a summary of the row.
+ *
+ * Still not a column on `blocks`: it is a property of the design we shipped,
+ * not a fact about the record. A block the shop authored has a null category
+ * and needs none — theirs are not in here.
  */
-const SEEDED_CATEGORY = new Map<string, BlockCategory>(
-  SEED_BLOCKS.map((block) => [block.id, block.category])
-)
-
-const categoryOf = (id: string): BlockCategory => SEEDED_CATEGORY.get(id) ?? 'panel'
 
 /**
  * The filter's words are what a block is *for*, because that is the question an
@@ -158,7 +157,7 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, on
 
   const shown = React.useMemo(() => {
     const matching =
-      filter === 'all' ? blocks : blocks.filter((block) => categoryOf(block.id) === filter)
+      filter === 'all' ? blocks : blocks.filter((block) => block.category === filter)
 
     // **Stable, and only the promotion moves.** Sorting by "is it in season"
     // alone would reshuffle the other sixty blocks on a browser whose sort is
