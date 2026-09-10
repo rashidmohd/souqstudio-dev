@@ -149,10 +149,36 @@ worker   fetch → downscale → vision call → structure + skin
 GET  /api/v1/ai/jobs/:jobId   the client polls; result carries { blockId, notes }
 ```
 
-**Model:** `claude-opus-5`, structured output against `magicChoiceSchema` — the
-engine's own zod schema is handed to the API as the JSON schema, so there is one
-definition of a legal choice rather than two that drift. Adaptive thinking.
-Roughly $0.09–0.15 per call against 5 credits of revenue.
+**Model: two of them, and one environment variable picks.**
+`MAGIC_BLOCK_PROVIDER` unset is `claude-opus-5` with adaptive thinking, which
+constrains generation to `magicChoiceSchema` directly — the engine's own zod
+schema handed to the API, so there is one definition of a legal choice. Set it
+to `qwen` and the same question goes to Qwen-VL over DashScope's
+OpenAI-compatible endpoint, where the contract travels as JSON Schema in the
+prompt (derived from that same zod object via `magicChoiceJsonSchema`, never
+written out by hand) and `response_format: json_object` gets valid JSON back.
+
+The asymmetry is real and is handled rather than hidden: Anthropic *cannot*
+return an illegal structure, Qwen can, so `interpret()` in `lib/magic-prompt.ts`
+validates both against the schema and nothing downstream knows which answered. A
+bad Qwen reply surfaces as `UnreadableDesignError`, a failure the job already
+had. **The safety argument is unaffected by the choice** — `magic.test.ts`
+enumerates all 2,400 possible choices and proves each assembles into a drawable
+block, which is a property of the schema and not of the model. A weaker model
+gives worse *matches*, not broken blocks.
+
+Claude costs roughly $0.09–0.15 per call against 5 credits of revenue; Qwen is
+substantially less. Decide between them with
+`pnpm --filter @souqstudio/worker magic:check`, which renders cards of known
+structure and reports what came back — run it once per provider and compare hit
+rates rather than arguing about it. Rollback is unsetting the variable.
+
+**Two operational traps.** DashScope serves Beijing and Singapore from different
+hosts and an account created against one is not authorised on the other; the
+failure is a 401 indistinguishable from a bad key, so `DASHSCOPE_BASE_URL` is
+explicit rather than assembled. And sending shop owners' uploaded images to a
+given provider is a decision worth making deliberately for GCC customers rather
+than inheriting from a default.
 
 **The block is always a draft, and the owner lands in the designer with it.** E7
 §8 settled that creating a block is duplicating one that works rather than

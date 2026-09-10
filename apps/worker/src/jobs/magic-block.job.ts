@@ -5,7 +5,7 @@ import type { MagicBlockPayload } from '@souqstudio/db'
 import { usesOnlyRoles, validateBlock } from '@souqstudio/engine'
 import { arrangementsFromChoice } from '@souqstudio/engine/src/magic'
 import { getObjectBytes } from '../lib/r2'
-import { NotAnOfferCardError, UnreadableDesignError, readCardDesign } from '../lib/anthropic'
+import { NotAnOfferCardError, UnreadableDesignError, readCardDesign } from '../lib/vision'
 
 /**
  * Magic block — a picture of a card in, a draft block in the library out. E8-07.

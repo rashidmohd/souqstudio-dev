@@ -21,7 +21,8 @@ import { SEED_BLOCKS } from '@souqstudio/engine/src/library'
 import type { Block } from '@souqstudio/types'
 import { renderPage, type RenderContext } from '@souqstudio/engine/harness/svg'
 import { FRIENDLY } from '@souqstudio/engine/harness/dummy'
-import { readCardDesign } from '../lib/anthropic'
+import { env } from '../lib/env'
+import { readCardDesign } from '../lib/vision'
 
 const product = FRIENDLY[0]!
 
@@ -47,6 +48,8 @@ const context: RenderContext = {
 }
 
 // blockId → the structure it was built from, per library-cards.ts
+console.log(`provider: ${env.MAGIC_BLOCK_PROVIDER}\n`)
+
 const CASES: [string, string][] = [
   ['blk_price_band', 'priceBand'],
   ['blk_burst', 'burst'],

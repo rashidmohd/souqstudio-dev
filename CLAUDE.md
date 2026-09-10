@@ -172,12 +172,22 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   is English-only.
 - **Magic block has never made a live model call.** E8-07 is built end to end — route,
   queue, worker, credits, poll — and every part of it is exercised except the one that
-  costs money: `ANTHROPIC_API_KEY` is a placeholder in both `.env` files, so the request
-  is built, sent and refused with a 401. `pnpm --filter @souqstudio/worker magic:check`
-  renders seeded cards, feeds them back and reports whether the structure that comes out
-  is the one that went in; run it against a real key before believing the prompt works.
-  The 2,400-block enumeration in `magic.test.ts` proves the *assembly* is safe whatever
-  the model answers, which is a different claim.
+  costs money: **no working key exists for either provider**, so both paths build a
+  request, send it and take a 401. `pnpm --filter @souqstudio/worker magic:check` renders
+  seeded cards, feeds them back and reports whether the structure that comes out is the
+  one that went in; run it against a real key before believing the prompt works. The
+  2,400-block enumeration in `magic.test.ts` proves the *assembly* is safe whatever the
+  model answers, which is a different claim.
+- **Two vision providers, and `MAGIC_BLOCK_PROVIDER` picks.** Unset is Claude; `qwen` is
+  Qwen-VL over DashScope's OpenAI-compatible endpoint, and the worker refuses to boot if
+  it is set without `DASHSCOPE_API_KEY`. The question, the vocabulary and the schema live
+  in `lib/magic-prompt.ts` so the two stay comparable; only the transport differs.
+  **Anthropic constrains generation to the schema and Qwen is asked for JSON and takes
+  its chances** — so `interpret()` validates both, and nothing downstream knows which
+  answered. Unsetting the variable is the rollback. Compare them with `magic:check`
+  rather than by argument. DashScope serves Beijing and Singapore from **different
+  hosts** and an account is not authorised on the other — that 401 reads exactly like a
+  bad key, so check `DASHSCOPE_BASE_URL` first.
 - **Brand kit fonts are pickable but not self-hosted.** `/brand` now has a picker:
   `lib/brand-fonts.ts` carries the curated catalog — ten OFL families, every one
   covering Arabic and Latin, filtered per slot — and `TypographyFields` writes

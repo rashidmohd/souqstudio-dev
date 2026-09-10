@@ -200,6 +200,19 @@ export const magicChoiceSchema = z.object({
 export type MagicChoice = z.infer<typeof magicChoiceSchema>
 
 /**
+ * The same contract as JSON Schema, for a provider that cannot be handed a zod
+ * object.
+ *
+ * **Derived, never written out by hand.** Anthropic takes the schema itself and
+ * constrains generation to it; an OpenAI-compatible endpoint has to be *told*
+ * the shape in the prompt. Those are two ways of saying the same thing, and the
+ * moment the second one is typed out separately it starts drifting from the
+ * first — a structure added here would be offered to one provider and not the
+ * other, and the symptom would be one model quietly never choosing it.
+ */
+export const magicChoiceJsonSchema = z.toJSONSchema(magicChoiceSchema)
+
+/**
  * The choice, drawn.
  *
  * Every branch here is a `TokenRef` or a bounded number, so what comes back has
