@@ -351,6 +351,22 @@ export const markOn = (
  */
 export const noTab = (skin: Skin): PriceMarkStyle => ({ ...(skin.price ?? {}), tab: 'none' })
 
+/**
+ * The mark's skin on a card that has already decided how loud its price is.
+ *
+ * **This is the control that stops a library of one card in costumes.** Sixteen
+ * of the twenty-five shipped cards ended with the same gold-outlined rounded
+ * box at the same width — the structures differed in the middle of the card and
+ * agreed on the ending, which is most of why they read as a family. A register
+ * picks its own ground now: a shelf ticket draws a tag, a price bomb draws a
+ * burst, and a card whose frame or panel already carries the emphasis draws
+ * nothing and lets the digits stand.
+ */
+export const markAs = (
+  skin: Skin,
+  ground: NonNullable<PriceMarkStyle['ground']>
+): PriceMarkStyle => ({ ...(skin.price ?? {}), ground, tab: 'none' })
+
 export const REVERSED_PRICE: PriceMarkStyle = {
   ground: 'none',
   tab: 'none',

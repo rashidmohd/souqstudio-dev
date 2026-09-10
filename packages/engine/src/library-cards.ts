@@ -46,6 +46,7 @@ import {
   chip,
   disc,
   ground,
+  markAs,
   markOn,
   noTab,
   outline,
@@ -85,6 +86,22 @@ export interface Skin {
   /** The accent shape a structure paints — a band, a disc, a rail, a tab. */
   accent?: TokenRef
   /**
+   * The card's gutter — how far its content sits from the edge.
+   *
+   * **A register's margin is a design decision, and for a long time it was an
+   * accident.** `0.08` was the number in the example box in
+   * `docs/authoring-a-block.md` §2 — an illustration of what a `box` field looks
+   * like, attached to an element called `name` — and it became 19% of every
+   * element position in this library, the most common value by a factor of two.
+   * Paired with `width: 0.84` it is one fixed 8% gutter on almost every card,
+   * which is most of why twenty-five structures read as one card in costumes.
+   *
+   * Editorial wants air; compact and full-bleed want almost none. Omitted still
+   * means 0.08, because that is what the drawn cards use and this is a dial
+   * rather than a migration.
+   */
+  inset?: number
+  /**
    * The tier pill's colour, when the tier's own would disappear.
    *
    * A chip defaults to the promo tier's token, which is one of the shop's brand
@@ -108,6 +125,17 @@ const muted = (skin: Skin): { color?: TokenRef; opacity?: number } =>
 const badge = (skin: Skin, b: ReturnType<typeof box>, anchor?: 'TOP_START' | 'TOP_END' | 'INLINE') =>
   chip(b, anchor ?? 'TOP_START', skin.chipFill)
 
+/**
+ * The gutter this skin asks for, and the measure that follows from it.
+ *
+ * Two numbers rather than one because they are the same decision: content that
+ * starts at `inset` and ends at `inset` is `1 - 2 × inset` wide. Writing them
+ * separately is how `0.08` and `0.84` became two independent constants that
+ * always travelled together.
+ */
+const gut = (skin: Skin) => skin.inset ?? 0.08
+const measure = (skin: Skin) => 1 - 2 * gut(skin)
+
 const base = (skin: Skin): BlockElement =>
   ground(skin.ground, {
     ...(skin.radius === undefined ? {} : { radius: skin.radius }),
@@ -128,19 +156,19 @@ const base = (skin: Skin): BlockElement =>
 export const stacked = (skin: Skin): Arrangement[] => [
   at(TALL, [
     base(skin),
-    photo(box(0.08, 0.06, 0.84, 0.34)),
+    photo(box(gut(skin), 0.06, measure(skin), 0.34)),
     badge(skin, box(0.04, 0.02, 0.36, 0.09)),
-    bound('name', box(0.08, 0.44, 0.84, 0.2), 'h3', ink(skin)),
-    bound('spec', box(0.08, 0.65, 0.84, 0.07), 'caption', muted(skin)),
-    price(box(0.08, 0.74, 0.84, 0.2), noTab(skin)),
+    bound('name', box(gut(skin), 0.44, measure(skin), 0.2), 'h3', ink(skin)),
+    bound('spec', box(gut(skin), 0.65, measure(skin), 0.07), 'caption', muted(skin)),
+    price(box(gut(skin), 0.74, measure(skin), 0.2), noTab(skin)),
   ]),
   at(SQUARISH, [
     base(skin),
-    photo(box(0.08, 0.07, 0.84, 0.32)),
+    photo(box(gut(skin), 0.07, measure(skin), 0.32)),
     badge(skin, box(0.04, 0.03, 0.32, 0.1)),
-    bound('name', box(0.08, 0.43, 0.84, 0.2), 'h3', ink(skin)),
-    bound('spec', box(0.08, 0.64, 0.84, 0.08), 'caption', muted(skin)),
-    price(box(0.08, 0.74, 0.84, 0.19), noTab(skin)),
+    bound('name', box(gut(skin), 0.43, measure(skin), 0.2), 'h3', ink(skin)),
+    bound('spec', box(gut(skin), 0.64, measure(skin), 0.08), 'caption', muted(skin)),
+    price(box(gut(skin), 0.74, measure(skin), 0.19), noTab(skin)),
   ]),
   at(WIDE, [
     base(skin),
@@ -175,17 +203,17 @@ export const photoLed = (skin: Skin): Arrangement[] => [
     base(skin),
     photo(box(0.06, 0.05, 0.88, 0.46)),
     badge(skin, box(0.03, 0.02, 0.34, 0.09)),
-    bound('name', box(0.08, 0.55, 0.84, 0.16), 'h4', ink(skin)),
-    bound('spec', box(0.08, 0.715, 0.84, 0.06), 'caption', muted(skin)),
-    price(box(0.08, 0.78, 0.84, 0.17), noTab(skin)),
+    bound('name', box(gut(skin), 0.55, measure(skin), 0.16), 'h4', ink(skin)),
+    bound('spec', box(gut(skin), 0.715, measure(skin), 0.06), 'caption', muted(skin)),
+    price(box(gut(skin), 0.78, measure(skin), 0.17), noTab(skin)),
   ]),
   at(SQUARISH, [
     base(skin),
     photo(box(0.06, 0.05, 0.88, 0.44)),
     badge(skin, box(0.03, 0.02, 0.32, 0.1)),
-    bound('name', box(0.08, 0.52, 0.84, 0.17), 'h4', ink(skin)),
-    bound('spec', box(0.08, 0.7, 0.84, 0.07), 'caption', muted(skin)),
-    price(box(0.08, 0.78, 0.84, 0.17), noTab(skin)),
+    bound('name', box(gut(skin), 0.52, measure(skin), 0.17), 'h4', ink(skin)),
+    bound('spec', box(gut(skin), 0.7, measure(skin), 0.07), 'caption', muted(skin)),
+    price(box(gut(skin), 0.78, measure(skin), 0.17), noTab(skin)),
   ]),
   at(WIDE, [
     base(skin),
@@ -219,19 +247,19 @@ export const priceBand = (skin: Skin): Arrangement[] => {
   return [
     at(TALL, [
       base(skin),
-      photo(box(0.08, 0.07, 0.84, 0.36)),
+      photo(box(gut(skin), 0.07, measure(skin), 0.36)),
       badge(skin, box(0.04, 0.03, 0.34, 0.09)),
-      bound('name', box(0.08, 0.46, 0.84, 0.19), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.66, 0.84, 0.06), 'caption', muted(skin)),
+      bound('name', box(gut(skin), 0.46, measure(skin), 0.19), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.66, measure(skin), 0.06), 'caption', muted(skin)),
       panel('band', box(0, 0.73, 1, 0.27), band),
       price(box(0.06, 0.76, 0.88, 0.21), REVERSED_PRICE),
     ]),
     at(SQUARISH, [
       base(skin),
-      photo(box(0.08, 0.06, 0.84, 0.34)),
+      photo(box(gut(skin), 0.06, measure(skin), 0.34)),
       badge(skin, box(0.04, 0.03, 0.32, 0.1)),
-      bound('name', box(0.08, 0.44, 0.84, 0.18), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.63, 0.84, 0.06), 'caption', muted(skin)),
+      bound('name', box(gut(skin), 0.44, measure(skin), 0.18), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.63, measure(skin), 0.06), 'caption', muted(skin)),
       panel('band', box(0, 0.71, 1, 0.29), band),
       price(box(0.06, 0.74, 0.88, 0.23), REVERSED_PRICE),
     ]),
@@ -326,16 +354,16 @@ export const burst = (skin: Skin): Arrangement[] => {
       photo(box(0.06, 0.06, 0.88, 0.44)),
       badge(skin, box(0.03, 0.02, 0.32, 0.09)),
       price(box(0.56, 0.28, 0.4, 0.3), markOn('burst', dot)),
-      bound('name', box(0.08, 0.62, 0.84, 0.2), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.83, 0.84, 0.08), 'caption', muted(skin)),
+      bound('name', box(gut(skin), 0.62, measure(skin), 0.2), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.83, measure(skin), 0.08), 'caption', muted(skin)),
     ]),
     at(SQUARISH, [
       base(skin),
       photo(box(0.06, 0.06, 0.88, 0.42)),
       badge(skin, box(0.03, 0.02, 0.32, 0.1)),
       price(box(0.56, 0.26, 0.4, 0.32), markOn('burst', dot)),
-      bound('name', box(0.08, 0.62, 0.84, 0.2), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.83, 0.84, 0.08), 'caption', muted(skin)),
+      bound('name', box(gut(skin), 0.62, measure(skin), 0.2), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.83, measure(skin), 0.08), 'caption', muted(skin)),
     ]),
     at(WIDE, [
       base(skin),
@@ -373,7 +401,7 @@ export const framed = (skin: Skin): Arrangement[] => {
       bound('name', box(0.1, 0.46, 0.8, 0.19), 'h3', { ...ink(skin), align: 'center' }),
       bound('spec', box(0.1, 0.66, 0.8, 0.06), 'caption', { ...muted(skin), align: 'center' }),
       rule('divider', box(0.3, 0.745, 0.4, 0.006), line),
-      price(box(0.1, 0.77, 0.8, 0.17), noTab(skin)),
+      price(box(0.1, 0.77, 0.8, 0.17), markAs(skin, 'none')),
     ]),
     at(SQUARISH, [
       base(skin),
@@ -382,7 +410,7 @@ export const framed = (skin: Skin): Arrangement[] => {
       bound('name', box(0.1, 0.43, 0.8, 0.19), 'h3', { ...ink(skin), align: 'center' }),
       bound('spec', box(0.1, 0.63, 0.8, 0.07), 'caption', { ...muted(skin), align: 'center' }),
       rule('divider', box(0.3, 0.725, 0.4, 0.006), line),
-      price(box(0.1, 0.75, 0.8, 0.18), noTab(skin)),
+      price(box(0.1, 0.75, 0.8, 0.18), markAs(skin, 'none')),
     ]),
     at(WIDE, [
       base(skin),
@@ -391,7 +419,7 @@ export const framed = (skin: Skin): Arrangement[] => {
       bound('name', box(0.38, 0.18, 0.32, 0.26), 'h3', ink(skin)),
       bound('spec', box(0.38, 0.46, 0.32, 0.14), 'caption', muted(skin)),
       rule('divider', box(0.72, 0.15, 0.006, 0.7), line),
-      price(box(0.75, 0.24, 0.22, 0.52), noTab(skin)),
+      price(box(0.75, 0.24, 0.22, 0.52), markAs(skin, 'none')),
     ]),
     at(BANNER, [
       base(skin),
@@ -399,7 +427,7 @@ export const framed = (skin: Skin): Arrangement[] => {
       bound('name', box(0.18, 0.24, 0.4, 0.3), 'h3', ink(skin)),
       bound('spec', box(0.18, 0.56, 0.4, 0.18), 'caption', muted(skin)),
       rule('divider', box(0.62, 0.18, 0.006, 0.64), line),
-      price(box(0.66, 0.2, 0.3, 0.6), skin.price),
+      price(box(0.66, 0.2, 0.3, 0.6), markAs(skin, 'none')),
     ]),
   ]
 }
@@ -427,19 +455,19 @@ export const ticket = (skin: Skin): Arrangement[] => {
       base(skin),
       panel('tab', box(0, 0, 1, 0.13), tab),
       badge(skin, box(0.06, 0.025, 0.5, 0.08), 'INLINE'),
-      photo(box(0.08, 0.17, 0.84, 0.32)),
-      bound('name', box(0.08, 0.52, 0.84, 0.19), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.72, 0.84, 0.06), 'caption', muted(skin)),
-      price(box(0.08, 0.79, 0.84, 0.17), noTab(skin)),
+      photo(box(gut(skin), 0.17, measure(skin), 0.32)),
+      bound('name', box(gut(skin), 0.52, measure(skin), 0.19), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.72, measure(skin), 0.06), 'caption', muted(skin)),
+      price(box(gut(skin), 0.79, measure(skin), 0.17), markAs(skin, 'tag')),
     ]),
     at(SQUARISH, [
       base(skin),
       panel('tab', box(0, 0, 1, 0.14), tab),
       badge(skin, box(0.06, 0.03, 0.46, 0.08), 'INLINE'),
-      photo(box(0.08, 0.18, 0.84, 0.28)),
-      bound('name', box(0.08, 0.49, 0.84, 0.19), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.69, 0.84, 0.07), 'caption', muted(skin)),
-      price(box(0.08, 0.77, 0.84, 0.17), noTab(skin)),
+      photo(box(gut(skin), 0.18, measure(skin), 0.28)),
+      bound('name', box(gut(skin), 0.49, measure(skin), 0.19), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.69, measure(skin), 0.07), 'caption', muted(skin)),
+      price(box(gut(skin), 0.77, measure(skin), 0.17), markAs(skin, 'tag')),
     ]),
     at(WIDE, [
       base(skin),
@@ -448,7 +476,7 @@ export const ticket = (skin: Skin): Arrangement[] => {
       photo(box(0.04, 0.26, 0.28, 0.66)),
       bound('name', box(0.36, 0.3, 0.32, 0.26), 'h3', ink(skin)),
       bound('spec', box(0.36, 0.58, 0.32, 0.14), 'caption', muted(skin)),
-      price(box(0.71, 0.32, 0.26, 0.5), noTab(skin)),
+      price(box(0.71, 0.32, 0.26, 0.5), markAs(skin, 'tag')),
     ]),
     at(BANNER, [
       base(skin),
@@ -457,7 +485,7 @@ export const ticket = (skin: Skin): Arrangement[] => {
       photo(box(0.17, 0.12, 0.12, 0.76)),
       bound('name', box(0.31, 0.24, 0.34, 0.3), 'h3', ink(skin)),
       bound('spec', box(0.31, 0.56, 0.34, 0.18), 'caption', muted(skin)),
-      price(box(0.68, 0.18, 0.29, 0.64), noTab(skin)),
+      price(box(0.68, 0.18, 0.29, 0.64), markAs(skin, 'tag')),
     ]),
   ]
 }
@@ -482,21 +510,21 @@ export const priceFirst = (skin: Skin): Arrangement[] => {
   return [
   at(TALL, [
     base(skin),
-    price(box(0.08, 0.06, 0.84, 0.2), mark),
-    rule('divider', box(0.08, 0.29, 0.84, 0.006), skin.accent ?? 'inkMuted'),
-    photo(box(0.08, 0.33, 0.84, 0.32)),
+    price(box(gut(skin), 0.06, measure(skin), 0.2), mark),
+    rule('divider', box(gut(skin), 0.29, measure(skin), 0.006), skin.accent ?? 'inkMuted'),
+    photo(box(gut(skin), 0.33, measure(skin), 0.32)),
     badge(skin, box(0.62, 0.02, 0.34, 0.08), 'TOP_END'),
-    bound('name', box(0.08, 0.68, 0.84, 0.19), 'h3', ink(skin)),
-    bound('spec', box(0.08, 0.88, 0.84, 0.07), 'caption', muted(skin)),
+    bound('name', box(gut(skin), 0.68, measure(skin), 0.19), 'h3', ink(skin)),
+    bound('spec', box(gut(skin), 0.88, measure(skin), 0.07), 'caption', muted(skin)),
   ]),
   at(SQUARISH, [
     base(skin),
-    price(box(0.08, 0.06, 0.84, 0.21), mark),
-    rule('divider', box(0.08, 0.3, 0.84, 0.006), skin.accent ?? 'inkMuted'),
-    photo(box(0.08, 0.34, 0.84, 0.3)),
+    price(box(gut(skin), 0.06, measure(skin), 0.21), mark),
+    rule('divider', box(gut(skin), 0.3, measure(skin), 0.006), skin.accent ?? 'inkMuted'),
+    photo(box(gut(skin), 0.34, measure(skin), 0.3)),
     badge(skin, box(0.62, 0.02, 0.34, 0.09), 'TOP_END'),
-    bound('name', box(0.08, 0.67, 0.84, 0.19), 'h3', ink(skin)),
-    bound('spec', box(0.08, 0.87, 0.84, 0.08), 'caption', muted(skin)),
+    bound('name', box(gut(skin), 0.67, measure(skin), 0.19), 'h3', ink(skin)),
+    bound('spec', box(gut(skin), 0.87, measure(skin), 0.08), 'caption', muted(skin)),
   ]),
   at(WIDE, [
     base(skin),
@@ -544,18 +572,18 @@ export const listRow = (skin: Skin, ruled: boolean): Arrangement[] => {
       base(skin),
       photo(box(0.06, 0.06, 0.88, 0.32)),
       badge(skin, box(0.03, 0.03, 0.36, 0.09)),
-      bound('name', box(0.08, 0.44, 0.84, 0.2), 'h4', ink(skin)),
-      bound('spec', box(0.08, 0.66, 0.84, 0.07), 'caption', muted(skin)),
-      price(box(0.08, 0.75, 0.84, 0.18), noTab(skin)),
+      bound('name', box(gut(skin), 0.44, measure(skin), 0.2), 'h4', ink(skin)),
+      bound('spec', box(gut(skin), 0.66, measure(skin), 0.07), 'caption', muted(skin)),
+      price(box(gut(skin), 0.75, measure(skin), 0.18), markAs(skin, 'none')),
       ...trailing,
     ]),
     at(SQUARISH, [
       base(skin),
       photo(box(0.06, 0.06, 0.88, 0.3)),
       badge(skin, box(0.03, 0.03, 0.34, 0.1)),
-      bound('name', box(0.08, 0.42, 0.84, 0.2), 'h4', ink(skin)),
-      bound('spec', box(0.08, 0.64, 0.84, 0.08), 'caption', muted(skin)),
-      price(box(0.08, 0.74, 0.84, 0.18), noTab(skin)),
+      bound('name', box(gut(skin), 0.42, measure(skin), 0.2), 'h4', ink(skin)),
+      bound('spec', box(gut(skin), 0.64, measure(skin), 0.08), 'caption', muted(skin)),
+      price(box(gut(skin), 0.74, measure(skin), 0.18), markAs(skin, 'none')),
       ...trailing,
     ]),
     at(WIDE, [
@@ -564,7 +592,7 @@ export const listRow = (skin: Skin, ruled: boolean): Arrangement[] => {
       badge(skin, box(0.02, 0.04, 0.14, 0.13)),
       bound('name', box(0.29, 0.2, 0.36, 0.28), 'h4', ink(skin)),
       bound('spec', box(0.29, 0.5, 0.36, 0.16), 'caption', muted(skin)),
-      price(box(0.68, 0.22, 0.29, 0.56), noTab(skin)),
+      price(box(0.68, 0.22, 0.29, 0.56), markAs(skin, 'none')),
       ...trailing,
     ]),
     at(BANNER, [
@@ -633,15 +661,15 @@ export const feature = (skin: Skin): Arrangement[] => [
   at(TALL, [
     base(skin),
     badge(skin, box(0.04, 0.03, 0.3, 0.07)),
-    photo(box(0.08, 0.1, 0.84, 0.36)),
-    bound('brand', box(0.08, 0.49, 0.84, 0.06), 'caption', {
+    photo(box(gut(skin), 0.1, measure(skin), 0.36)),
+    bound('brand', box(gut(skin), 0.49, measure(skin), 0.06), 'caption', {
       ...muted(skin),
       transform: 'uppercase',
       letterSpacing: 0.08,
     }),
-    bound('name', box(0.08, 0.56, 0.84, 0.18), 'h2', ink(skin)),
-    bound('spec', box(0.08, 0.75, 0.84, 0.06), 'caption', muted(skin)),
-    price(box(0.08, 0.82, 0.84, 0.14), noTab(skin)),
+    bound('name', box(gut(skin), 0.56, measure(skin), 0.18), 'h2', ink(skin)),
+    bound('spec', box(gut(skin), 0.75, measure(skin), 0.06), 'caption', muted(skin)),
+    price(box(gut(skin), 0.82, measure(skin), 0.14), noTab(skin)),
   ]),
   at(SQUARISH, [
     base(skin),
@@ -701,18 +729,18 @@ export const halo = (skin: Skin): Arrangement[] => {
       disc('halo', box(0.14, 0.05, 0.72, 0.38), tint, { opacity: 0.28 }),
       photo(box(0.2, 0.08, 0.6, 0.32)),
       badge(skin, box(0.04, 0.02, 0.32, 0.09)),
-      bound('name', box(0.08, 0.47, 0.84, 0.19), 'h3', { ...ink(skin), align: 'center' }),
-      bound('spec', box(0.08, 0.67, 0.84, 0.06), 'caption', { ...muted(skin), align: 'center' }),
-      price(box(0.08, 0.75, 0.84, 0.19), noTab(skin)),
+      bound('name', box(gut(skin), 0.47, measure(skin), 0.19), 'h3', { ...ink(skin), align: 'center' }),
+      bound('spec', box(gut(skin), 0.67, measure(skin), 0.06), 'caption', { ...muted(skin), align: 'center' }),
+      price(box(gut(skin), 0.75, measure(skin), 0.19), markAs(skin, 'none')),
     ]),
     at(SQUARISH, [
       base(skin),
       disc('halo', box(0.16, 0.05, 0.68, 0.38), tint, { opacity: 0.28 }),
       photo(box(0.22, 0.08, 0.56, 0.32)),
       badge(skin, box(0.04, 0.02, 0.3, 0.1)),
-      bound('name', box(0.08, 0.46, 0.84, 0.19), 'h3', { ...ink(skin), align: 'center' }),
-      bound('spec', box(0.08, 0.66, 0.84, 0.07), 'caption', { ...muted(skin), align: 'center' }),
-      price(box(0.08, 0.74, 0.84, 0.19), noTab(skin)),
+      bound('name', box(gut(skin), 0.46, measure(skin), 0.19), 'h3', { ...ink(skin), align: 'center' }),
+      bound('spec', box(gut(skin), 0.66, measure(skin), 0.07), 'caption', { ...muted(skin), align: 'center' }),
+      price(box(gut(skin), 0.74, measure(skin), 0.19), markAs(skin, 'none')),
     ]),
     at(WIDE, [
       base(skin),
@@ -721,7 +749,7 @@ export const halo = (skin: Skin): Arrangement[] => {
       badge(skin, box(0.02, 0.03, 0.16, 0.14)),
       bound('name', box(0.39, 0.18, 0.32, 0.26), 'h3', ink(skin)),
       bound('spec', box(0.39, 0.46, 0.32, 0.14), 'caption', muted(skin)),
-      price(box(0.73, 0.24, 0.24, 0.52), noTab(skin)),
+      price(box(0.73, 0.24, 0.24, 0.52), markAs(skin, 'none')),
     ]),
     at(BANNER, [
       base(skin),
@@ -729,7 +757,7 @@ export const halo = (skin: Skin): Arrangement[] => {
       photo(box(0.04, 0.18, 0.11, 0.64)),
       bound('name', box(0.21, 0.24, 0.4, 0.3), 'h3', ink(skin)),
       bound('spec', box(0.21, 0.56, 0.4, 0.18), 'caption', muted(skin)),
-      price(box(0.65, 0.18, 0.32, 0.64), skin.price),
+      price(box(0.65, 0.18, 0.32, 0.64), markAs(skin, 'none')),
     ]),
   ]
 }
@@ -751,21 +779,21 @@ export const brandLed = (skin: Skin): Arrangement[] => {
       base(skin),
       bound('brand', box(0.08, 0.055, 0.6, 0.06), 'caption', brandStyle),
       badge(skin, box(0.66, 0.035, 0.3, 0.08), 'TOP_END'),
-      rule('divider', box(0.08, 0.135, 0.84, 0.006), line),
-      photo(box(0.08, 0.17, 0.84, 0.31)),
-      bound('name', box(0.08, 0.51, 0.84, 0.19), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.71, 0.84, 0.06), 'caption', muted(skin)),
-      price(box(0.08, 0.78, 0.84, 0.17), noTab(skin)),
+      rule('divider', box(gut(skin), 0.135, measure(skin), 0.006), line),
+      photo(box(gut(skin), 0.17, measure(skin), 0.31)),
+      bound('name', box(gut(skin), 0.51, measure(skin), 0.19), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.71, measure(skin), 0.06), 'caption', muted(skin)),
+      price(box(gut(skin), 0.78, measure(skin), 0.17), markAs(skin, 'none')),
     ]),
     at(SQUARISH, [
       base(skin),
       bound('brand', box(0.08, 0.06, 0.58, 0.07), 'caption', brandStyle),
       badge(skin, box(0.66, 0.04, 0.3, 0.09), 'TOP_END'),
-      rule('divider', box(0.08, 0.15, 0.84, 0.006), line),
-      photo(box(0.08, 0.18, 0.84, 0.28)),
-      bound('name', box(0.08, 0.49, 0.84, 0.19), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.69, 0.84, 0.07), 'caption', muted(skin)),
-      price(box(0.08, 0.77, 0.84, 0.17), noTab(skin)),
+      rule('divider', box(gut(skin), 0.15, measure(skin), 0.006), line),
+      photo(box(gut(skin), 0.18, measure(skin), 0.28)),
+      bound('name', box(gut(skin), 0.49, measure(skin), 0.19), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.69, measure(skin), 0.07), 'caption', muted(skin)),
+      price(box(gut(skin), 0.77, measure(skin), 0.17), markAs(skin, 'none')),
     ]),
     at(WIDE, [
       base(skin),
@@ -775,7 +803,7 @@ export const brandLed = (skin: Skin): Arrangement[] => {
       photo(box(0.04, 0.26, 0.28, 0.66)),
       bound('name', box(0.36, 0.3, 0.32, 0.26), 'h3', ink(skin)),
       bound('spec', box(0.36, 0.58, 0.32, 0.14), 'caption', muted(skin)),
-      price(box(0.71, 0.32, 0.26, 0.5), noTab(skin)),
+      price(box(0.71, 0.32, 0.26, 0.5), markAs(skin, 'none')),
     ]),
     at(BANNER, [
       base(skin),
@@ -784,7 +812,7 @@ export const brandLed = (skin: Skin): Arrangement[] => {
       photo(box(0.02, 0.34, 0.12, 0.56)),
       bound('name', box(0.17, 0.36, 0.42, 0.3), 'h3', ink(skin)),
       bound('spec', box(0.17, 0.68, 0.42, 0.18), 'caption', muted(skin)),
-      price(box(0.66, 0.32, 0.31, 0.56), skin.price),
+      price(box(0.66, 0.32, 0.31, 0.56), markAs(skin, 'none')),
     ]),
   ]
 }
@@ -805,27 +833,27 @@ export const specLed = (skin: Skin): Arrangement[] => {
   return [
     at(TALL, [
       base(skin),
-      photo(box(0.08, 0.05, 0.84, 0.3)),
+      photo(box(gut(skin), 0.05, measure(skin), 0.3)),
       badge(skin, box(0.04, 0.02, 0.32, 0.08)),
-      bound('brand', box(0.08, 0.38, 0.84, 0.055), 'caption', brandStyle),
-      bound('name', box(0.08, 0.44, 0.84, 0.17), 'h4', ink(skin)),
-      bound('spec', box(0.08, 0.62, 0.84, 0.15), 'caption', {
+      bound('brand', box(gut(skin), 0.38, measure(skin), 0.055), 'caption', brandStyle),
+      bound('name', box(gut(skin), 0.44, measure(skin), 0.17), 'h4', ink(skin)),
+      bound('spec', box(gut(skin), 0.62, measure(skin), 0.15), 'caption', {
         ...muted(skin),
         overflow: specClamp,
       }),
-      price(box(0.08, 0.79, 0.84, 0.17), noTab(skin)),
+      price(box(gut(skin), 0.79, measure(skin), 0.17), markAs(skin, 'none')),
     ]),
     at(SQUARISH, [
       base(skin),
-      photo(box(0.08, 0.05, 0.84, 0.28)),
+      photo(box(gut(skin), 0.05, measure(skin), 0.28)),
       badge(skin, box(0.04, 0.02, 0.3, 0.09)),
-      bound('brand', box(0.08, 0.36, 0.84, 0.06), 'caption', brandStyle),
-      bound('name', box(0.08, 0.43, 0.84, 0.17), 'h4', ink(skin)),
-      bound('spec', box(0.08, 0.61, 0.84, 0.16), 'caption', {
+      bound('brand', box(gut(skin), 0.36, measure(skin), 0.06), 'caption', brandStyle),
+      bound('name', box(gut(skin), 0.43, measure(skin), 0.17), 'h4', ink(skin)),
+      bound('spec', box(gut(skin), 0.61, measure(skin), 0.16), 'caption', {
         ...muted(skin),
         overflow: specClamp,
       }),
-      price(box(0.08, 0.78, 0.84, 0.17), noTab(skin)),
+      price(box(gut(skin), 0.78, measure(skin), 0.17), markAs(skin, 'none')),
     ]),
     at(WIDE, [
       base(skin),
@@ -834,7 +862,7 @@ export const specLed = (skin: Skin): Arrangement[] => {
       bound('brand', box(0.38, 0.14, 0.32, 0.08), 'caption', brandStyle),
       bound('name', box(0.38, 0.23, 0.32, 0.22), 'h4', ink(skin)),
       bound('spec', box(0.38, 0.47, 0.32, 0.3), 'caption', { ...muted(skin), overflow: specClamp }),
-      price(box(0.73, 0.24, 0.24, 0.52), noTab(skin)),
+      price(box(0.73, 0.24, 0.24, 0.52), markAs(skin, 'none')),
     ]),
     at(BANNER, [
       base(skin),
@@ -842,7 +870,7 @@ export const specLed = (skin: Skin): Arrangement[] => {
       bound('brand', box(0.18, 0.16, 0.4, 0.12), 'caption', brandStyle),
       bound('name', box(0.18, 0.3, 0.4, 0.26), 'h4', ink(skin)),
       bound('spec', box(0.18, 0.58, 0.4, 0.28), 'caption', { ...muted(skin), overflow: specClamp }),
-      price(box(0.64, 0.18, 0.33, 0.64), skin.price),
+      price(box(0.64, 0.18, 0.33, 0.64), markAs(skin, 'none')),
     ]),
   ]
 }
@@ -925,18 +953,18 @@ export const splitTint = (skin: Skin): Arrangement[] => {
       panel('tint', box(0, 0, 1, 0.46), tint),
       photo(box(0.1, 0.06, 0.8, 0.36)),
       badge(skin, box(0.04, 0.02, 0.32, 0.09)),
-      bound('name', box(0.08, 0.5, 0.84, 0.2), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.71, 0.84, 0.06), 'caption', muted(skin)),
-      price(box(0.08, 0.78, 0.84, 0.17), noTab(skin)),
+      bound('name', box(gut(skin), 0.5, measure(skin), 0.2), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.71, measure(skin), 0.06), 'caption', muted(skin)),
+      price(box(gut(skin), 0.78, measure(skin), 0.17), markAs(skin, 'none')),
     ]),
     at(SQUARISH, [
       base(skin),
       panel('tint', box(0, 0, 1, 0.44), tint),
       photo(box(0.1, 0.06, 0.8, 0.34)),
       badge(skin, box(0.04, 0.02, 0.3, 0.1)),
-      bound('name', box(0.08, 0.48, 0.84, 0.2), 'h3', ink(skin)),
-      bound('spec', box(0.08, 0.69, 0.84, 0.07), 'caption', muted(skin)),
-      price(box(0.08, 0.77, 0.84, 0.17), noTab(skin)),
+      bound('name', box(gut(skin), 0.48, measure(skin), 0.2), 'h3', ink(skin)),
+      bound('spec', box(gut(skin), 0.69, measure(skin), 0.07), 'caption', muted(skin)),
+      price(box(gut(skin), 0.77, measure(skin), 0.17), markAs(skin, 'none')),
     ]),
     at(WIDE, [
       base(skin),
@@ -945,7 +973,7 @@ export const splitTint = (skin: Skin): Arrangement[] => {
       badge(skin, box(0.02, 0.04, 0.16, 0.14)),
       bound('name', box(0.44, 0.18, 0.3, 0.26), 'h3', ink(skin)),
       bound('spec', box(0.44, 0.46, 0.3, 0.14), 'caption', muted(skin)),
-      price(box(0.76, 0.24, 0.21, 0.52), noTab(skin)),
+      price(box(0.76, 0.24, 0.21, 0.52), markAs(skin, 'none')),
     ]),
     at(BANNER, [
       base(skin),
@@ -953,7 +981,7 @@ export const splitTint = (skin: Skin): Arrangement[] => {
       photo(box(0.03, 0.12, 0.14, 0.76)),
       bound('name', box(0.23, 0.24, 0.4, 0.3), 'h3', ink(skin)),
       bound('spec', box(0.23, 0.56, 0.4, 0.18), 'caption', muted(skin)),
-      price(box(0.66, 0.18, 0.31, 0.64), skin.price),
+      price(box(0.66, 0.18, 0.31, 0.64), markAs(skin, 'none')),
     ]),
   ]
 }
@@ -973,16 +1001,16 @@ export const wordsOnly = (skin: Skin): Arrangement[] => [
   at(TALL, [
     base(skin),
     badge(skin, box(0.06, 0.06, 0.4, 0.1)),
-    bound('name', box(0.08, 0.22, 0.84, 0.3), 'h2', ink(skin)),
-    bound('spec', box(0.08, 0.54, 0.84, 0.1), 'caption', muted(skin)),
-    price(box(0.08, 0.68, 0.84, 0.24), noTab(skin)),
+    bound('name', box(gut(skin), 0.22, measure(skin), 0.3), 'h2', ink(skin)),
+    bound('spec', box(gut(skin), 0.54, measure(skin), 0.1), 'caption', muted(skin)),
+    price(box(gut(skin), 0.68, measure(skin), 0.24), noTab(skin)),
   ]),
   at(SQUARISH, [
     base(skin),
     badge(skin, box(0.06, 0.07, 0.38, 0.11), 'INLINE'),
-    bound('name', box(0.08, 0.24, 0.84, 0.28), 'h2', ink(skin)),
-    bound('spec', box(0.08, 0.54, 0.84, 0.1), 'caption', muted(skin)),
-    price(box(0.08, 0.67, 0.84, 0.25), noTab(skin)),
+    bound('name', box(gut(skin), 0.24, measure(skin), 0.28), 'h2', ink(skin)),
+    bound('spec', box(gut(skin), 0.54, measure(skin), 0.1), 'caption', muted(skin)),
+    price(box(gut(skin), 0.67, measure(skin), 0.25), noTab(skin)),
   ]),
   at(WIDE, [
     base(skin),
@@ -1122,35 +1150,31 @@ export const priceBomb = (skin: Skin): Arrangement[] => {
       base(skin),
       photo(box(0.24, 0.02, 0.52, 0.22)),
       badge(skin, box(0.03, 0.02, 0.3, 0.07)),
-      disc('bomb', box(0.02, 0.26, 0.96, 0.46), dot),
-      price(box(0.1, 0.32, 0.8, 0.32), REVERSED_PRICE),
-      bound('name', box(0.08, 0.76, 0.84, 0.15), 'h4', ink(skin)),
-      bound('spec', box(0.08, 0.92, 0.84, 0.06), 'caption', muted(skin)),
+      price(box(0.02, 0.26, 0.96, 0.46), markOn('burst', dot)),
+      bound('name', box(gut(skin), 0.76, measure(skin), 0.15), 'h4', ink(skin)),
+      bound('spec', box(gut(skin), 0.92, measure(skin), 0.06), 'caption', muted(skin)),
     ]),
     at(SQUARISH, [
       base(skin),
       photo(box(0.26, 0.02, 0.48, 0.2)),
       badge(skin, box(0.03, 0.02, 0.28, 0.08)),
-      disc('bomb', box(0.02, 0.24, 0.96, 0.48), dot),
-      price(box(0.1, 0.3, 0.8, 0.34), REVERSED_PRICE),
-      bound('name', box(0.08, 0.75, 0.84, 0.16), 'h4', ink(skin)),
-      bound('spec', box(0.08, 0.92, 0.84, 0.06), 'caption', muted(skin)),
+      price(box(0.02, 0.24, 0.96, 0.48), markOn('burst', dot)),
+      bound('name', box(gut(skin), 0.75, measure(skin), 0.16), 'h4', ink(skin)),
+      bound('spec', box(gut(skin), 0.92, measure(skin), 0.06), 'caption', muted(skin)),
     ]),
     at(WIDE, [
       base(skin),
       photo(box(0.03, 0.12, 0.24, 0.66)),
       badge(skin, box(0.02, 0.02, 0.16, 0.12)),
       bound('name', box(0.03, 0.82, 0.28, 0.14), 'h4', ink(skin)),
-      disc('bomb', box(0.33, 0.04, 0.65, 0.92), dot),
-      price(box(0.38, 0.24, 0.55, 0.52), REVERSED_PRICE),
+      price(box(0.33, 0.04, 0.65, 0.92), markOn('burst', dot)),
     ]),
     at(BANNER, [
       base(skin),
       photo(box(0.02, 0.12, 0.14, 0.76)),
       bound('name', box(0.18, 0.3, 0.28, 0.26), 'h4', ink(skin)),
       bound('spec', box(0.18, 0.58, 0.28, 0.16), 'caption', muted(skin)),
-      disc('bomb', box(0.5, 0.03, 0.48, 0.94), dot),
-      price(box(0.55, 0.22, 0.38, 0.56), REVERSED_PRICE),
+      price(box(0.5, 0.03, 0.48, 0.94), markOn('burst', dot)),
     ]),
   ]
 }
@@ -1179,7 +1203,7 @@ export const editorial = (skin: Skin): Arrangement[] => {
       base(skin),
       rule('top', box(0.1, 0.07, 0.8, 0.005), line),
       bound('brand', box(0.1, 0.1, 0.8, 0.05), 'caption', eyebrow),
-      bound('name', box(0.08, 0.19, 0.84, 0.3), 'h1', { ...ink(skin), align: 'center' }),
+      bound('name', box(gut(skin), 0.19, measure(skin), 0.3), 'h1', { ...ink(skin), align: 'center' }),
       photo(box(0.28, 0.52, 0.44, 0.24)),
       rule('mid', box(0.4, 0.8, 0.2, 0.005), line),
       bound('spec', box(0.1, 0.83, 0.8, 0.05), 'caption', { ...muted(skin), align: 'center' }),
@@ -1189,7 +1213,7 @@ export const editorial = (skin: Skin): Arrangement[] => {
       base(skin),
       rule('top', box(0.1, 0.08, 0.8, 0.005), line),
       bound('brand', box(0.1, 0.11, 0.8, 0.06), 'caption', eyebrow),
-      bound('name', box(0.08, 0.21, 0.84, 0.28), 'h1', { ...ink(skin), align: 'center' }),
+      bound('name', box(gut(skin), 0.21, measure(skin), 0.28), 'h1', { ...ink(skin), align: 'center' }),
       photo(box(0.3, 0.52, 0.4, 0.22)),
       rule('mid', box(0.4, 0.78, 0.2, 0.005), line),
       bound('spec', box(0.1, 0.81, 0.8, 0.06), 'caption', { ...muted(skin), align: 'center' }),
@@ -1447,13 +1471,13 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_compact',
     name: 'Compact card',
     description: 'Name and price only. The block for a five-across page, where a spec line would not be read.',
-    arrangements: compact({ ground: 'surface' }),
+    arrangements: compact({ ground: 'surface', inset: 0.05 }),
   },
   {
     id: 'blk_feature',
     name: 'Feature card',
     description: 'Brand line, big name, big price. Designed for a merged two-by-two: your lead deal.',
-    arrangements: feature({ ground: 'surface' }),
+    arrangements: feature({ ground: 'surface', inset: 0.06 }),
   },
   {
     id: 'blk_burst',
@@ -1477,19 +1501,19 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_framed',
     name: 'Framed card',
     description: 'A hairline frame, centred type and a rule above the price. The quieter register.',
-    arrangements: framed({ ground: 'surface', stroke: outline('primary', 0.005) }),
+    arrangements: framed({ ground: 'surface', stroke: outline('primary', 0.005), inset: 0.11 }),
   },
   {
     id: 'blk_price_first',
     name: 'Price-first card',
     description: 'The price on the first line of every card, above the packshot. Fast to scan.',
-    arrangements: priceFirst({ ground: 'surface' }),
+    arrangements: priceFirst({ ground: 'surface', inset: 0.06 }),
   },
   {
     id: 'blk_list_row',
     name: 'List row',
     description: 'A line item: thumbnail, name, price at the end. For a wide region or a full row.',
-    arrangements: listRow({ ground: 'surface' }, true),
+    arrangements: listRow({ ground: 'surface', inset: 0.04 }, true),
   },
   {
     id: 'blk_side_rail',
@@ -1513,13 +1537,13 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_brand_led',
     name: 'Brand-led card',
     description: 'The brand above the product under a rule. For supplier-funded placements.',
-    arrangements: brandLed({ ground: 'surface', accent: 'primary' }),
+    arrangements: brandLed({ ground: 'surface', accent: 'primary', inset: 0.1 }),
   },
   {
     id: 'blk_spec_led',
     name: 'Spec card',
     description: 'Brand, model, then three lines of specification. The electronics and appliance page.',
-    arrangements: specLed({ ground: 'surface' }),
+    arrangements: specLed({ ground: 'surface', inset: 0.1 }),
   },
   {
     id: 'blk_full_bleed',
@@ -1561,7 +1585,7 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_editorial',
     name: 'Editorial card',
     description: 'Type as the graphic: a big name, a small packshot and a quiet price.',
-    arrangements: editorial({ ground: 'surface' }),
+    arrangements: editorial({ ground: 'surface', inset: 0.14 }),
   },
   {
     id: 'blk_inline_price',
@@ -1573,6 +1597,6 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_words_only',
     name: 'Card without a photograph',
     description: 'Name and price at full size, no image. For the two thirds of a catalog with no packshot.',
-    arrangements: wordsOnly({ ground: 'surface' }),
+    arrangements: wordsOnly({ ground: 'surface', inset: 0.12 }),
   },
 ]
