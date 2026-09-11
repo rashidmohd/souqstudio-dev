@@ -3,10 +3,11 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { Pin as PinIcon, X } from 'lucide-react'
-import type { Pin } from '@souqstudio/types'
+import type { BrandColor, PageBackground, Pin, TokenRef } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
+import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl'
 import { MARGIN_STEPS, nearestMarginStep } from '@/lib/offer-book-layout'
 
 /**
@@ -72,6 +73,11 @@ type Props = {
    * another shape. Nothing errors; this is the only place it is visible.
    */
   cardFits: boolean
+  /** The paper behind every card. Null is `--sq-tpl-paper`. */
+  background: PageBackground | null
+  /** The shop's palette and role resolver, for the background colour picker. */
+  palette: readonly BrandColor[]
+  token: (ref: TokenRef) => string
   offerCount: number
   pageCount: number
   pins: Pin[]
@@ -98,6 +104,9 @@ export function LayoutPanel({
   headerBlockId,
   footerBlockId,
   cardFits,
+  background,
+  palette,
+  token,
   offerCount,
   pageCount,
   pins,
@@ -125,6 +134,7 @@ export function LayoutPanel({
     margin?: number
     headerBlockId?: string | null
     footerBlockId?: string | null
+    background?: PageBackground | null
   }) {
     setBusy(true)
     setError(null)
@@ -214,6 +224,14 @@ export function LayoutPanel({
           stretched. Try one row fewer, or remove a band.
         </p>
       ) : null}
+
+      <PageBackgroundControl
+        value={background}
+        onChange={(next) => void setGrid({ background: next })}
+        palette={palette}
+        token={token}
+        disabled={busy}
+      />
 
       <Band
         title="Header"

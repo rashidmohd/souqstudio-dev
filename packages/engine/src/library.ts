@@ -1,4 +1,4 @@
-import type { PageGrid, Region } from '@souqstudio/types'
+import type { PageBackground, PageGrid, Region } from '@souqstudio/types'
 import type { BlockCategory } from './block-category'
 import { CARD_BLOCKS } from './library-cards'
 import { FOOTER_IDS, HEADER_IDS, PANEL_BLOCKS, SOCIAL_IDS } from './library-panels'
@@ -199,6 +199,15 @@ export interface ComposeGridOptions {
   margin?: number
   /** Fraction of the shorter edge, between tracks. */
   gap?: number
+  /**
+   * The paper behind every card.
+   *
+   * **Absent and `null` differ here too**, for the same reason the bands do: a
+   * preset could one day default one, and "the owner removed it" has to survive
+   * a rebuild. `null` is written through as absent on the grid, which every
+   * renderer already reads as `--sq-tpl-paper`.
+   */
+  background?: PageBackground | null
 }
 
 /**
@@ -258,6 +267,13 @@ export function composeGrid(options: ComposeGridOptions = {}): PageGrid {
     rows,
     gap: options.gap ?? 0.022,
     margin: options.margin ?? 0.04,
+    // Omitted rather than written as null: `PageGrid.background` is optional and
+    // a renderer reads absent as paper. A stored `null` would be a third way of
+    // saying the same thing, and `toEqual` in a round-trip test would then tell
+    // two identical grids apart.
+    ...(options.background === undefined || options.background === null
+      ? {}
+      : { background: options.background }),
     regions,
   }
 }
@@ -326,6 +342,7 @@ export function postGrid(options: ComposeGridOptions = {}): PageGrid {
     gap: options.gap ?? 0.028,
     margin: options.margin ?? 0.05,
     ...(options.cardBlockId === undefined ? {} : { cardBlockId: options.cardBlockId }),
+    ...(options.background === undefined ? {} : { background: options.background }),
     headerBlockId: options.headerBlockId ?? null,
     footerBlockId: options.footerBlockId ?? null,
   })

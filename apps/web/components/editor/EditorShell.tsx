@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { ArrowLeft, TriangleAlert } from 'lucide-react'
-import type { Block, BrandKit, Pin, SlotOverride } from '@souqstudio/types'
+import type { Block, BrandKit, PageBackground, Pin, SlotOverride } from '@souqstudio/types'
 import type { FlowPage } from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
@@ -16,6 +16,8 @@ import {
 } from '@/components/editor/OfferProperties'
 import { UndoRedo } from '@/components/editor/UndoRedo'
 import { BookTitle } from '@/components/editor/BookTitle'
+import { assetResolver } from '@/lib/block-assets'
+import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import {
   CanvasDrawer,
   CanvasDrawerToggles,
@@ -62,7 +64,20 @@ type Props = {
     /** False when the offer card has no design for the shape this layout gives
      *  its cells, so it is being stretched. */
     cardFits: boolean
+    /** The paper behind every card. Null is `--sq-tpl-paper`. */
+    background: PageBackground | null
   }
+  /**
+   * Where uploaded artwork lives, for a page background and for any `image`
+   * element inside a block.
+   *
+   * **The editor had no resolver at all until now**, which the designer has had
+   * since E7 — so a block carrying artwork the owner uploaded drew *nothing*
+   * here while looking right in the designer. Passed as a prop rather than read
+   * from the environment because `R2_PUBLIC_URL` is a server variable and this
+   * is a client component.
+   */
+  assetBaseUrl: string
   /** Static blocks this shop may pin. A repeating one reads an offer, and a pin
    *  has none. */
   pinnable: { id: string; name: string; season?: { starts: string } }[]
@@ -92,6 +107,7 @@ export function EditorShell({
   pinnable,
   headerBlocks,
   footerBlocks,
+  assetBaseUrl,
   gridProblems,
 }: Props) {
   const hydrate = useEditorStore((state) => state.hydrate)
@@ -101,6 +117,12 @@ export function EditorShell({
   const markEscalated = useEditorStore((state) => state.markEscalated)
   const flagged = useFlaggedCount()
   const drawer = useCanvasDrawer()
+  // Deterministic and memoised: a new function identity per render would make
+  // every page re-draw its artwork on any state change.
+  const asset = React.useMemo(() => assetResolver(assetBaseUrl), [assetBaseUrl])
+  // The shop's colours, for the page-background picker. `BookPage` resolves its
+  // own from the same kit; this is the panel's copy of the same read.
+  const palette = React.useMemo(() => resolvePalette(kit), [kit])
 
   // One set for the whole book, assembled from the pages. Each page reports its
   // own, so the union has to be held here rather than replaced per page — page
@@ -220,6 +242,9 @@ export function EditorShell({
             headerBlockId={layout.headerBlockId}
             footerBlockId={layout.footerBlockId}
             cardFits={layout.cardFits}
+            background={layout.background}
+            palette={palette}
+            token={(ref) => resolveToken(palette, ref)}
             offerCount={offers.length}
             pageCount={pages.length}
             pins={pins}
@@ -245,6 +270,8 @@ export function EditorShell({
                 // The artboard follows the *book's* language, never the
                 // interface's.
                 direction={edition === 'ar' ? 'rtl' : 'ltr'}
+                background={layout.background}
+                asset={asset}
                 overrides={liveOverrides[flowPage.index] ?? overrides[flowPage.index] ?? []}
                 selectedOfferId={selectedOfferId}
                 onSelectOffer={select}

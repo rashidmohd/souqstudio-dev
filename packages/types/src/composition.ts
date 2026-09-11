@@ -629,6 +629,58 @@ export interface Region {
  * not a field — it is the consequence of track count at a given page size, and
  * two controls that can disagree is one too many.
  */
+/**
+ * What sits behind every card on a page: the paper itself.
+ *
+ * **The page ground was a constant until this existed.** Every renderer painted
+ * `var(--sq-tpl-paper)` — white, always — and a `PageGrid` had no way to say
+ * otherwise. A shop whose brand is a deep navy could put navy on every *card*
+ * and still print them on white paper with white gutters between them, which is
+ * a different design from the one they were making.
+ *
+ * **It reuses `ColorValue` rather than inventing a second colour type**, so a
+ * page ground is flat or a gradient by exactly the machinery a shape fill
+ * already uses: the same three sources, the same palette binding that follows
+ * the shop when they re-pick a colour, the same `resolvePaint` and the same
+ * `<linearGradient>` emitted by the same painter. Only `from: 'asset'` is new
+ * here, and it is new because a *page* is the one surface large enough for a
+ * photograph to be a background rather than a picture of something.
+ *
+ * **Absent means paper**, and that is not the same as white. A renderer without
+ * a background falls back to `--sq-tpl-paper`, which is the token, which is what
+ * the product has always drawn. Adding this took nothing away.
+ *
+ * **It belongs to the grid, not to the book.** A `page_grids` row is already
+ * per-role — `master`, `cover`, `back` — so a cover that wants a photograph and
+ * body pages that want a tint is expressible the day covers are authored,
+ * without a second field or a per-page table. One master means one background
+ * on every body page, which is what "the background of my offer book" means.
+ */
+export type PageBackground =
+  | ColorValue
+  | {
+      from: 'asset'
+      /** The R2 object key, as `ImageSource` means it. */
+      assetId: string
+      /**
+       * `cover` crops to fill the page and `contain` letterboxes it. A
+       * background photograph is `cover`; the other is here for a pattern tile
+       * or a bordered texture an owner wants whole.
+       */
+      fit?: 'cover' | 'contain' | undefined
+      /**
+       * 0 to 1, opaque when omitted.
+       *
+       * **The one control that keeps a page readable**, and the reason it is on
+       * the background rather than left to the owner's image editor. Two of the
+       * seeded offer cards have no ground element at all — they are designs, not
+       * fallbacks — so their product text sits straight on whatever is behind
+       * them. A photograph at full strength under those is an unreadable flyer,
+       * and the fix a designer reaches for is to knock the image back.
+       */
+      opacity?: number | undefined
+    }
+
 export interface PageGrid {
   /** Column track sizes in fr, in reading order. */
   cols: number[]
@@ -643,6 +695,9 @@ export interface PageGrid {
    * loses a few millimetres to the guillotine.
    */
   margin?: number | undefined
+  /** The paper. Absent means `--sq-tpl-paper`, which is what every book drew
+   *  before this field existed. */
+  background?: PageBackground | undefined
   regions: Region[]
 }
 

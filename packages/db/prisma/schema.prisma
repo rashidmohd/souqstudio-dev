@@ -1409,6 +1409,12 @@ model PageGrid {
   /// social post, wrong for anything a guillotine touches.
   margin Float   @default(0)
 
+  /// `PageBackground` from @souqstudio/types: the paper behind every card.
+  /// Flat colour, gradient or uploaded artwork. Null is `--sq-tpl-paper`, which
+  /// is what every book drew before the column existed — so null is the honest
+  /// default and no backfill is owed.
+  background Json?
+
   /// `Region[]` from @souqstudio/types. Coordinates are logical and inclusive,
   /// so an AR edition mirrors the whole grid — merges included — with no second
   /// layout to author.

@@ -2,7 +2,7 @@ import 'server-only'
 
 import { prisma } from '@souqstudio/db'
 import { arrangementCovers, flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
-import type { Block, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
+import type { Block, PageBackground, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
 import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { autoTitle } from '@/lib/book-title'
 import {
@@ -70,6 +70,9 @@ export interface ComposedBook {
     /** The running band at the top of every page, or null for none. */
     headerBlockId: string | null
     footerBlockId: string | null
+    /** The paper behind every card. Null is `--sq-tpl-paper`, which is what
+     *  every book drew before this existed. */
+    background: PageBackground | null
     /**
      * Whether the offer card actually has a design for the shape this layout
      * gives its cells.
@@ -125,7 +128,7 @@ export async function loadBook(
       language: true,
       grids: {
         where: { role: 'master' },
-        select: { cols: true, rows: true, gap: true, margin: true, regions: true },
+        select: { cols: true, rows: true, gap: true, margin: true, background: true, regions: true },
         take: 1,
       },
       pages: { select: { index: true, slotOverrides: true } },
@@ -315,6 +318,7 @@ export async function loadBook(
       margin: choice.margin ?? 0,
       headerBlockId: choice.headerBlockId ?? null,
       footerBlockId: choice.footerBlockId ?? null,
+      background: choice.background ?? null,
       ...cardFit(flow.pages[0], blocks),
     },
     overrides: Object.fromEntries(
@@ -987,6 +991,7 @@ export async function duplicateBook(
           rows: true,
           gap: true,
           margin: true,
+          background: true,
           regions: true,
         },
       },
@@ -1059,6 +1064,10 @@ export async function duplicateBook(
             rows: grid.rows,
             gap: grid.gap,
             margin: grid.margin,
+            // Copied like every other part of the layout. The weekly reissue is
+            // the same book with next week's prices; it is not the same book in
+            // a different colour.
+            ...(grid.background === null ? {} : { background: grid.background as object }),
             regions: grid.regions as unknown as object[],
           })),
         },

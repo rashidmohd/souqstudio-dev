@@ -123,16 +123,43 @@ export function fillPaint(
   value: ColorValue,
   slot: string
 ): { fill: string; defs: React.ReactNode } {
-  const resolved = resolvePaint(value, ctx.token, ctx.palette ?? [])
+  return paintFill(value, {
+    token: ctx.token,
+    palette: ctx.palette ?? [],
+    id: `${ctx.uid}-${slot}`,
+  })
+}
+
+/**
+ * The same thing, without a `DrawContext`.
+ *
+ * **Extracted because the page ground needs it and is not an element.** A
+ * `PageBackground` is resolved by the same `resolvePaint` and emits the same
+ * `<linearGradient>`, but it is painted by `BookPage` before any block exists —
+ * there is no offer, no block size, no measurer, so there is no context to
+ * build. Assembling a fake one to reach a colour would be worse than this split.
+ *
+ * Two gradient emitters is the thing being avoided here. There is one, and both
+ * callers go through it.
+ */
+export function paintFill(
+  value: ColorValue,
+  ctx: {
+    token: (ref: TokenRef) => string
+    palette: readonly BrandColor[]
+    /** Document-global, so it must be unique per surface. See the note above. */
+    id: string
+  }
+): { fill: string; defs: React.ReactNode } {
+  const resolved = resolvePaint(value, ctx.token, ctx.palette)
   if (resolved.kind === 'flat') return { fill: resolved.css, defs: null }
 
-  const id = `${ctx.uid}-${slot}`
   return {
-    fill: `url(#${id})`,
+    fill: `url(#${ctx.id})`,
     defs: (
       <defs>
         <linearGradient
-          id={id}
+          id={ctx.id}
           x1={resolved.x1}
           y1={resolved.y1}
           x2={resolved.x2}

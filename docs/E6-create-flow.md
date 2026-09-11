@@ -588,3 +588,132 @@ feature, and it should be deleted the day the cards carry a `SQUARISH` arrangeme
   means a crafted request can put a masthead along the bottom. It is their own book.
 - **Still not opened in a browser.** Same as §9.4, and now with more surface: the margin
   select, two band selects and a warning line none of which has been rendered.
+
+
+---
+
+## 11. The page background, 11 September
+
+The paper behind every card: a colour, a gradient, or an uploaded image.
+
+### 11.1 What was there before
+
+Nothing, and it was not an oversight so much as an assumption nobody had
+questioned. Every renderer painted the page ground as a literal:
+
+```tsx
+<rect width={size.width} height={size.height} fill="var(--sq-tpl-paper)" />
+```
+
+`--sq-tpl-paper` is `#fff`. `PageGrid` carried `cols`, `rows`, `gap`, `margin`
+and `regions`, with no field that could say otherwise. So a shop whose brand is a
+deep navy could put navy on every *card* and still print them on white paper with
+white gutters between them, which is a different design from the one they thought
+they were making.
+
+Nor could it be faked. A page-sized pin does not sit behind the cards: `flowBook`
+makes a pin **consume** the flow regions it intersects, so it would delete every
+card on the page instead.
+
+### 11.2 The shape of it
+
+`PageBackground` reuses `ColorValue` rather than inventing a second colour type,
+so a page ground is flat or a gradient through the same three sources, the same
+palette binding that follows the shop when they re-pick a colour, the same
+`resolvePaint` and the same `<linearGradient>`. Only `from: 'asset'` is new, and
+only because a page is the one surface large enough for a photograph to be a
+background rather than a picture of something.
+
+**It belongs to the grid, not to the book.** A `page_grids` row is already
+per-role — `master`, `cover`, `back` — so a cover that wants a photograph and body
+pages that want a tint is expressible the day covers are authored, with no second
+field and no per-page table. One master means one background on every body page,
+which is what "the background of my offer book" means.
+
+**Absent means paper, and that is not the same as white.** A renderer with no
+background falls back to the token, which is what the product always drew. The
+column is nullable with no backfill for exactly that reason: an explicit white
+would replace a token every shop's theme can move with a literal that cannot.
+
+### 11.3 Two extractions, both because a second caller appeared
+
+**`paintFill`** came out of `fillPaint`. A page ground needs `resolvePaint` and
+the same `<linearGradient>` emission, but it is painted before any block exists —
+no offer, no block size, no measurer, so no `DrawContext` to build. Assembling a
+fake one to reach a colour would have been worse than the split. There is one
+gradient emitter in this codebase and both callers go through it.
+
+**`uploadArtwork`** came out of `DesignerShell`. The three-step handshake —
+authorise, PUT straight to R2, record — was inside the only component that could
+upload anything. A second copy of that would drift the day one of the three
+routes changed.
+
+### 11.4 A gap this uncovered
+
+**The editor had no asset resolver at all.** `DrawContext.asset` turns an
+`assetId` into a URL, `DesignerShell` has supplied one since E7, and `BookPage`
+never did — so **a block carrying artwork the owner uploaded drew nothing in the
+offer book editor while looking correct in the designer.** Not a new bug and not
+one this work caused; it surfaced because a page background needed the same
+resolver. `assetBaseUrl` now reaches `EditorShell` and `BookPreview`, so uploaded
+artwork inside blocks renders in both.
+
+### 11.5 Readability, and who owns it
+
+Two of the twenty-five seeded offer cards have no ground element at all. They are
+designs rather than fallbacks — `library.ts` says so, and the reason is that only
+4.2% of catalog rows carry a photograph. Their product text therefore sits
+straight on whatever is behind them, and a photograph at full strength under one
+of those is an unreadable flyer.
+
+The control ships an **image strength** slider, defaulting to full, floored at
+0.1, with the paper still drawn underneath so there is something to fade towards.
+That is the lever a designer actually reaches for, and it leaves the decision
+with the owner — their brand, their flyer. What the product does *not* do is
+force a scrim or refuse a dark background. The design system is explicit that it
+governs our chrome and never what a shop produces.
+
+This is a judgement rather than a fact, and it is the one most worth revisiting
+once somebody has looked at a real photograph under a real page.
+
+### 11.6 Tenancy
+
+An `assetId` is an R2 object key, and `POST /api/v1/blocks/artwork` builds it as
+`{organizationId}/blocks/{random}`. So the check is a prefix test, and it is the
+only thing between a crafted request and another shop's artwork printed across
+this book's pages.
+
+A prefix test rather than a lookup because there is no table to look in: block
+artwork has no row of its own, which `lib/block-assets.ts` documents as a
+deliberate simplification. The day that table exists this becomes a query, and it
+is already in one place.
+
+### 11.7 The files
+
+| File | What |
+| --- | --- |
+| `packages/types/src/composition.ts` | `PageBackground`; `PageGrid.background` |
+| `packages/engine/src/library.ts` | `composeGrid` carries it; omitted rather than written as null |
+| `packages/db/prisma/schema.prisma` | `page_grids.background Json?` |
+| `migrations/20260911090000_page_background` | The column. Nullable, no backfill |
+| `apps/web/lib/offer-book-compose.ts` | `readBackground` — checked, and falls back to paper rather than throwing |
+| `apps/web/lib/offer-book-grid.ts` | Round-tripped by `readGridChoice` |
+| `apps/web/lib/upload-artwork.ts` | New. The upload handshake, extracted |
+| `apps/web/components/blocks/draw.tsx` | `paintFill`, extracted from `fillPaint` |
+| `apps/web/components/editor/BookPage.tsx` | `PageGround` replaces the hardcoded rect |
+| `apps/web/components/editor/PageBackgroundControl.tsx` | New. Paper / Colour / Image |
+| `offer-books/[id]/grid/route.ts` | `background` on the delta patch, validated and tenancy-checked |
+
+### 11.8 Still owed
+
+- **The migration has not been run.** There is no database in this environment, so
+  `ALTER TABLE "page_grids" ADD COLUMN "background" JSONB` is written and unapplied.
+  `pnpm db:migrate` before anything is deployed, and the app will 500 on any book
+  read until it is.
+- **A gradient is stored but never checked for contrast.** Same class of thing as
+  §11.5, and the same answer for now.
+- **Still not opened in a browser**, which is now three sessions of work deep.
+  §9.4 and §10.6 say the same thing and they are getting louder: the wizard, the
+  preview, the margin and band controls, and now a colour picker, a file upload,
+  an opacity slider and a gradient rendered at page scale — none of it has been
+  rendered once.

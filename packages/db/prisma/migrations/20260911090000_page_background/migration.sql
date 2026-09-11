@@ -1,0 +1,26 @@
+-- The paper behind every card on a page.
+--
+-- The page ground was a constant until now. Every renderer painted
+-- `var(--sq-tpl-paper)` — white, always — and a `page_grids` row had no way to
+-- say otherwise. A shop whose brand is a deep navy could put navy on every card
+-- and still print them on white paper with white gutters between them, which is
+-- a different design from the one they thought they were making.
+--
+-- `PageBackground` from @souqstudio/types. It reuses `ColorValue`, so a page
+-- ground is flat or a gradient through the same three colour sources, the same
+-- palette binding and the same `resolvePaint` a shape fill already uses. Only
+-- `from: 'asset'` is new, and only because a page is the one surface large
+-- enough for a photograph to be a background rather than a picture of something.
+--
+-- Json rather than columns, for the same reason `regions` is Json: it is a
+-- discriminated union whose shape differs per variant, and three nullable
+-- columns plus a kind would let a row say "gradient" while carrying an asset id.
+--
+-- **Nullable with no backfill, and that is not laziness.** Null already means
+-- exactly what every existing book already renders: the `--sq-tpl-paper` token.
+-- Adding this column takes nothing away from a row that does not set it, and a
+-- backfill writing an explicit white would replace a token every shop's theme
+-- can move with a literal that cannot.
+
+-- AlterTable
+ALTER TABLE "page_grids" ADD COLUMN "background" JSONB;

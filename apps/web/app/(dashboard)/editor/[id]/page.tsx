@@ -7,6 +7,7 @@ import { readEffectiveBrand } from '@/lib/brand-kit'
 import { blockWindow } from '@souqstudio/engine'
 import { listBlocks } from '@/lib/blocks'
 import { loadBook } from '@/lib/offer-book'
+import { env } from '@/lib/env'
 import { EditorShell } from '@/components/editor/EditorShell'
 
 export const metadata: Metadata = { title: 'Offer book · SouqStudio' }
@@ -135,6 +136,7 @@ export default async function EditorPage({ params }: { params: { id: string } })
       footerBlocks={bandBlocks.filter(
         (block) => block.category === 'footer' || block.category === null
       )}
+      assetBaseUrl={env.R2_PUBLIC_URL}
       gridProblems={book.gridProblems}
     />
   )

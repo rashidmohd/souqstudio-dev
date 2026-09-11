@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import type { PageBackground } from '@souqstudio/types'
 import { prisma } from '@souqstudio/db'
 import { pageCountFor } from '@souqstudio/engine'
 import { z } from 'zod'
@@ -46,10 +47,65 @@ import { MAX_MARGIN } from '@/lib/offer-book-layout'
  */
 
 /**
- * `null` is a real value here and means "remove this band", which is why these
- * are `.nullable().optional()` rather than merely optional. Absent is "leave it
- * as it is". Zod keeps the two apart and so does everything downstream.
+ * A colour, named the same three ways everything else in the model names one.
+ *
+ * `role` binds a brand-kit slot, `palette` an entry the shop picked, `hex` a
+ * literal. A gradient stop is a `FlatColor` and cannot itself be a gradient,
+ * which the type already says and this mirrors.
  */
+const flatColorSchema = z.union([
+  // `TokenRef` is six words, not any string — the brand-kit slots a block binds
+  // to. An enum rather than `z.string()` so the parsed type *is* `TokenRef` and
+  // the compiler checks the hand-off, instead of an assertion doing it.
+  z.object({
+    from: z.literal('role'),
+    ref: z.enum(['primary', 'secondary', 'accent', 'surface', 'ink', 'inkMuted']),
+  }),
+  z.object({ from: z.literal('palette'), id: z.string().min(1).max(64) }),
+  // Six digits. Alpha belongs to the element's opacity, where it is one control
+  // an owner can find rather than two that disagree — the rule `ColorValue`
+  // states, with gradient stops as the one documented exception.
+  z.object({ from: z.literal('hex'), hex: z.string().regex(/^#[0-9a-fA-F]{6}$/) }),
+])
+
+/**
+ * The paper behind every card.
+ *
+ * **Validated to the depth the union actually has**, unlike a block's
+ * `arrangements`, which are the designer's contract and too deep to re-check per
+ * write. This is four shapes and a handful of fields; a malformed one would be
+ * stored, read back by `toMasterGrid` and silently fall back to paper, which is
+ * a background an owner set and cannot see.
+ */
+const backgroundSchema = z.union([
+  flatColorSchema,
+  z.object({
+    from: z.literal('gradient'),
+    // Degrees clockwise from a left-to-right run. Not normalised: `composeGrid`
+    // does not mirror it in an Arabic edition either, because an owner who
+    // angled a ground did so against the artwork they were looking at.
+    angle: z.number().min(0).max(360),
+    stops: z
+      .array(
+        z.object({
+          at: z.number().min(0).max(1),
+          color: flatColorSchema,
+          opacity: z.number().min(0).max(1).optional(),
+        })
+      )
+      // One stop is a flat colour with extra steps and `resolvePaint` collapses
+      // it to one anyway; eight is past the point a gradient reads as a run.
+      .min(2)
+      .max(8),
+  }),
+  z.object({
+    from: z.literal('asset'),
+    assetId: z.string().min(1).max(200),
+    fit: z.enum(['cover', 'contain']).optional(),
+    opacity: z.number().min(0).max(1).optional(),
+  }),
+])
+
 const schema = z.object({
   /** Cards across a page. More tracks is what density means now. */
   perRow: z.number().int().min(1).max(6).optional(),
@@ -59,6 +115,8 @@ const schema = z.object({
   /** A running band on every page. `null` removes it. */
   headerBlockId: z.string().min(1).max(64).nullable().optional(),
   footerBlockId: z.string().min(1).max(64).nullable().optional(),
+  /** The paper. `null` clears it back to `--sq-tpl-paper`. */
+  background: backgroundSchema.nullable().optional(),
 })
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
@@ -81,7 +139,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         where: { role: 'master' },
         // The whole document now, not just the id: rebuilding needs to know
         // what it is rebuilding *from*.
-        select: { id: true, cols: true, rows: true, gap: true, margin: true, regions: true },
+        select: {
+          id: true,
+          cols: true,
+          rows: true,
+          gap: true,
+          margin: true,
+          background: true,
+          regions: true,
+        },
         take: 1,
       },
       pins: {
@@ -148,6 +214,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
   }
 
+  /*
+   * **An asset id is an R2 object key, and the key is org-scoped by
+   * construction** — `${organizationId}/blocks/${random}`, written by
+   * `POST /api/v1/blocks/artwork`. So the tenancy check is a prefix test, and it
+   * is the only thing standing between a crafted request and another shop's
+   * artwork printed across this book's pages.
+   *
+   * A prefix test rather than a lookup because there is no table to look in:
+   * block artwork has no row of its own, which `lib/block-assets.ts` documents
+   * as a deliberate simplification with a note in `docs/E7-pending.md`. The day
+   * that table exists this becomes a query, and the check is already in one
+   * place to change.
+   */
+  const background: PageBackground | null | undefined = parsed.data.background
+  if (background !== undefined && background !== null && background.from === 'asset') {
+    if (!background.assetId.startsWith(`${session.user.organizationId}/`)) {
+      return fail('asset_not_found', 'That image is not one of yours.', 404)
+    }
+  }
+
   const current = readGridChoice(book.format, toMasterGrid(master))
 
   const grid = gridForKind({
@@ -164,6 +250,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     ...(parsed.data.footerBlockId === undefined
       ? {}
       : { footerBlockId: parsed.data.footerBlockId }),
+    ...(background === undefined ? {} : { background }),
   })
 
   await prisma.pageGrid.update({
@@ -201,6 +288,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     margin: applied.margin ?? 0,
     headerBlockId: applied.headerBlockId ?? null,
     footerBlockId: applied.footerBlockId ?? null,
+    background: applied.background ?? null,
     pages,
   })
 }

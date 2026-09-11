@@ -4,6 +4,7 @@ import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { loadBook } from '@/lib/offer-book'
+import { env } from '@/lib/env'
 import { BookPreview } from '@/components/offer-book/BookPreview'
 
 export const metadata: Metadata = { title: 'Preview · SouqStudio' }
@@ -71,6 +72,8 @@ export default async function BookPreviewPage({ params }: { params: { id: string
         // The **book's** language, never the interface's. An owner working in an
         // Arabic UI who is producing an English flyer must see an English flyer.
         direction={book.edition === 'ar' ? 'rtl' : 'ltr'}
+        background={book.layout.background}
+        assetBaseUrl={env.R2_PUBLIC_URL}
         offerCount={book.offers.length}
         canDiscard={book.status === 'draft'}
       />

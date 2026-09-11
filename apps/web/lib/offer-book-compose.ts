@@ -4,6 +4,7 @@ import type {
   Currency,
   FootnoteScope,
   PackUnit,
+  PageBackground,
   PageGrid,
   PriceMark,
   Region,
@@ -460,6 +461,7 @@ export function toMasterGrid(row: {
   rows: number[]
   gap: number
   margin: number
+  background?: unknown
   regions: unknown
 }): PageGrid {
   if (!Array.isArray(row.regions)) {
@@ -471,6 +473,35 @@ export function toMasterGrid(row: {
     rows: row.rows,
     gap: row.gap,
     margin: row.margin,
+    ...(readBackground(row.background) === null
+      ? {}
+      : { background: readBackground(row.background) as PageBackground }),
     regions: row.regions as Region[],
   }
+}
+
+/**
+ * The `background` column, narrowed enough to be worth trusting.
+ *
+ * **Checked rather than asserted, and unlike `regions` a bad one does not
+ * throw.** A malformed `regions` is a book that cannot be laid out at all, so
+ * failing loudly is the only honest answer. A malformed background is a book
+ * that lays out perfectly and is the wrong colour — and refusing to open it
+ * would leave the owner no way to change the thing that is wrong. So it falls
+ * back to paper, which is what every book drew before the column existed.
+ *
+ * The check is one level deep: `from` has to be one of the five sources the
+ * union allows. Validating a gradient's stops per render would cost a parse on
+ * every page, and the writer is the one route that can produce this value.
+ */
+function readBackground(value: unknown): PageBackground | null {
+  if (value === null || typeof value !== 'object') return null
+
+  const from = (value as { from?: unknown }).from
+  const sources = ['role', 'palette', 'hex', 'gradient', 'asset']
+  if (typeof from !== 'string' || !sources.includes(from)) return null
+
+  // The shape below `from` is the write path's contract, the same way an
+  // `Arrangement` is the block designer's — see `loadBlocks`.
+  return value as PageBackground
 }

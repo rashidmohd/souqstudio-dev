@@ -82,7 +82,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       id: true,
       grids: {
         where: { role: 'master' },
-        select: { cols: true, rows: true, gap: true, margin: true, regions: true },
+        select: { cols: true, rows: true, gap: true, margin: true, background: true, regions: true },
         take: 1,
       },
     },

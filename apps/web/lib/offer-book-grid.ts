@@ -1,5 +1,5 @@
 import { bookletGrid, postGrid } from '@souqstudio/engine'
-import type { PageGrid } from '@souqstudio/types'
+import type { PageBackground, PageGrid } from '@souqstudio/types'
 import { KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
 
 /**
@@ -46,6 +46,14 @@ export interface GridChoice {
   footerBlockId?: string | null
   /** Fraction of the page's shorter edge. Zero is full bleed. */
   margin?: number
+  /**
+   * The paper behind every card: a colour, a gradient or uploaded artwork.
+   *
+   * **Absent, `null` and a value are three answers**, exactly as the bands are.
+   * `null` is the owner clearing it back to paper, and it has to survive a
+   * rebuild or the next layout edit would hand the old background back.
+   */
+  background?: PageBackground | null
   /** Overrides the kind's own count. The editor's layout panel sends these. */
   perRow?: number
   bodyRows?: number
@@ -66,6 +74,7 @@ export function gridForKind(choice: GridChoice): PageGrid {
     bodyRows: choice.bodyRows ?? spec.bodyRows,
     ...(choice.cardBlockId === undefined ? {} : { cardBlockId: choice.cardBlockId }),
     ...(choice.margin === undefined ? {} : { margin: choice.margin }),
+    ...(choice.background === undefined ? {} : { background: choice.background }),
     // Passed through as-is, `null` included: the preset reads absent as "use my
     // default" and `null` as "no band". Normalising here would lose that.
     ...(choice.headerBlockId === undefined ? {} : { headerBlockId: choice.headerBlockId }),
@@ -119,6 +128,9 @@ export function readGridChoice(format: string, grid: PageGrid): GridChoice {
     // own schema already sets.
     bodyRows: Math.max(1, bodyRows),
     margin: grid.margin ?? 0,
+    // `null` rather than absent, same reason as the bands below: a cleared
+    // background must not be handed back by a rebuild.
+    background: grid.background ?? null,
     ...(flowing === undefined ? {} : { cardBlockId: flowing.blockId }),
     // `null` rather than absent, and that is the point of the function: a book
     // whose footer was removed must not have one handed back by the preset.

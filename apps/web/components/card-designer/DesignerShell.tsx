@@ -9,6 +9,7 @@ import { addElement, alignBoxes, reorderElement, validateBlock } from '@souqstud
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { FREE_ELEMENTS } from '@/lib/block-elements'
 import { assetResolver } from '@/lib/block-assets'
+import { uploadArtwork } from '@/lib/upload-artwork'
 import { MAX_ARRANGEMENTS } from '@/lib/block-document'
 import { ArtworkDialog } from '@/components/card-designer/ArtworkDialog'
 import { CanvasToolbar } from '@/components/card-designer/CanvasToolbar'
@@ -257,52 +258,9 @@ export function DesignerShell({
   async function upload(file: File): Promise<string | null> {
     setUploading(true)
     try {
-      /**
-       * **A vector takes a different road, and it has to.** The presigned flow
-       * puts the browser's bytes straight into the bucket, which is exactly what
-       * must not happen to an SVG — it is rasterised on the server and a PNG is
-       * stored instead. Small enough to fit in a request body, which is the only
-       * reason that is affordable here.
-       */
-      if (file.type === 'image/svg+xml') {
-        const raster = await fetch('/api/v1/blocks/artwork/vector', {
-          method: 'POST',
-          headers: { 'content-type': 'image/svg+xml', 'x-filename': encodeURIComponent(file.name) },
-          body: file,
-        })
-        const drawn = (await raster.json()) as { data: { assetId: string } | null }
-        return drawn.data?.assetId ?? null
-      }
-
-      const authorise = await fetch('/api/v1/blocks/artwork', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contentType: file.type, contentLength: file.size }),
-      })
-      const body = (await authorise.json()) as {
-        data: { uploadUrl: string; assetId: string } | null
-      }
-      if (body.data === null) return null
-
-      const put = await fetch(body.data.uploadUrl, {
-        method: 'PUT',
-        headers: { 'content-type': file.type },
-        body: file,
-      })
-      if (!put.ok) return null
-
-      // **The completion step, and the upload is not finished without it.** The
-      // bytes went browser → R2, so nothing on the server knows the file's shape
-      // until it reads the object back — and a row is what makes this artwork
-      // appear in the picker next time instead of being re-uploaded.
-      const record = await fetch('/api/v1/blocks/assets', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ assetId: body.data.assetId, filename: file.name }),
-      })
-      if (!record.ok) return null
-
-      return body.data.assetId
+      // The three-step handshake — authorise, PUT to R2, record — lives in
+      // `lib/upload-artwork.ts` now that the page background needs the same one.
+      return await uploadArtwork(file)
     } finally {
       setUploading(false)
     }

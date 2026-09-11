@@ -3,11 +3,12 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Trash2 } from 'lucide-react'
-import type { Block, BrandKit } from '@souqstudio/types'
+import type { Block, BrandKit, PageBackground } from '@souqstudio/types'
 import type { FlowPage } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
+import { assetResolver } from '@/lib/block-assets'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 
 /**
@@ -40,6 +41,10 @@ type Props = {
   shopName: string
   /** The **book's** language, never the interface's. */
   direction: 'ltr' | 'rtl'
+  /** The paper behind every card. Null is `--sq-tpl-paper`. */
+  background: PageBackground | null
+  /** Where uploaded artwork lives. A server variable, so it arrives as a prop. */
+  assetBaseUrl: string
   offerCount: number
   /** Only a draft can be discarded. A published book has a short code that may
    *  be on a printed flyer, and deleting one is E10's problem. */
@@ -66,10 +71,13 @@ export function BookPreview({
   kit,
   shopName,
   direction,
+  background,
+  assetBaseUrl,
   offerCount,
   canDiscard,
 }: Props) {
   const router = useRouter()
+  const asset = React.useMemo(() => assetResolver(assetBaseUrl), [assetBaseUrl])
   const [discarding, setDiscarding] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -143,6 +151,8 @@ export function BookPreview({
                 kit={kit}
                 shopName={shopName}
                 direction={direction}
+                background={background}
+                asset={asset}
               />
             </li>
           ))}

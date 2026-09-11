@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { PageBackground } from '@souqstudio/types'
 import { flowBook, validateGrid } from '@souqstudio/engine'
 import { BOOK_KINDS, KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
 import { gridForFormat, gridForKind, readGridChoice } from '@/lib/offer-book-grid'
@@ -223,5 +224,70 @@ describe('readGridChoice', () => {
         (region) => region.blockId === 'blk_price_first'
       )
     ).toBe(true)
+  })
+})
+
+describe('gridForKind — background', () => {
+  // Typed rather than `as const`: a gradient's `stops` is a mutable
+  // `GradientStop[]`, and a readonly literal is not assignable to it.
+  const NAVY: PageBackground = { from: 'role', ref: 'primary' }
+  const RUN: PageBackground = {
+    from: 'gradient',
+    angle: 90,
+    stops: [
+      { at: 0, color: { from: 'role', ref: 'primary' } },
+      { at: 1, color: { from: 'hex', hex: '#ffffff' } },
+    ],
+  }
+  const PHOTO: PageBackground = {
+    from: 'asset',
+    assetId: 'org_1/blocks/abc',
+    fit: 'cover',
+    opacity: 0.4,
+  }
+
+  it('has none by default, which every renderer reads as paper', () => {
+    expect(gridForKind({ kind: 'booklet' }).background).toBeUndefined()
+  })
+
+  it.each([
+    ['a colour', NAVY],
+    ['a gradient', RUN],
+    ['artwork', PHOTO],
+  ])('carries %s onto the grid', (_label, background) => {
+    expect(gridForKind({ kind: 'booklet', background }).background).toEqual(background)
+  })
+
+  it('reads each of them back', () => {
+    for (const background of [NAVY, RUN, PHOTO]) {
+      const grid = gridForKind({ kind: 'booklet', background })
+      expect(readGridChoice('leaflet', grid).background).toEqual(background)
+      expect(gridForKind(readGridChoice('leaflet', grid))).toEqual(grid)
+    }
+  })
+
+  /**
+   * The removal case. `null` has to survive the read, or clearing a background
+   * would be undone by the next change to any other layout field.
+   */
+  it('reads a cleared background back as cleared', () => {
+    const grid = gridForKind({ kind: 'booklet', background: null })
+    expect(grid.background).toBeUndefined()
+    expect(readGridChoice('leaflet', grid).background).toBeNull()
+  })
+
+  it('survives a change to another field', () => {
+    const before = gridForKind({ kind: 'post', background: PHOTO, cardBlockId: 'blk_price_first' })
+    const after = gridForKind({ ...readGridChoice('instagram_post', before), perRow: 4 })
+
+    expect(after.background).toEqual(PHOTO)
+    expect(after.cols).toHaveLength(4)
+  })
+
+  /* A post has no footer by default, and a background is orthogonal to that. */
+  it('works on a kind with no bands', () => {
+    const grid = gridForKind({ kind: 'status', background: NAVY })
+    expect(grid.background).toEqual(NAVY)
+    expect(grid.regions.some((region) => region.id === 'footer')).toBe(false)
   })
 })

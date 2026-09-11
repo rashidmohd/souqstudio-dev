@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import type { Block, BrandKit, SlotOverride } from '@souqstudio/types'
+import type { Block, BrandColor, BrandKit, PageBackground, SlotOverride, TokenRef } from '@souqstudio/types'
 import {
   applyOverride,
   compactBlock,
@@ -18,6 +18,7 @@ import {
   estimateWidth,
   fitTextElement,
   measureText,
+  paintFill,
   type DrawContext,
 } from '@/components/blocks/draw'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
@@ -55,6 +56,20 @@ type Props = {
   shopName: string
   /** The **book's** language, never the interface's. */
   direction: 'ltr' | 'rtl'
+  /**
+   * The paper. Absent is `--sq-tpl-paper`, which is what this drew before the
+   * field existed, so nothing was taken away by adding it.
+   */
+  background?: PageBackground | null | undefined
+  /**
+   * Artwork the owner uploaded, by R2 key.
+   *
+   * **Absent means an image background draws nothing**, and the same is already
+   * true of an `image` element inside a block — `DrawContext.asset`. That is not
+   * a placeholder decision so much as an admission: a surface that has not been
+   * given the base URL cannot invent one.
+   */
+  asset?: ((assetId: string) => string | null) | undefined
   /** Where a card's unused height goes. See `compactBlock`. */
   compaction?: CompactionPolicy
   /**
@@ -93,6 +108,8 @@ export function BookPage({
   kit,
   shopName,
   direction,
+  background = null,
+  asset,
   compaction = 'balance',
   overrides = [],
   selectedOfferId = null,
@@ -135,11 +152,14 @@ export function BookPage({
       role="img"
       aria-label={`Page ${page.index + 1}`}
     >
-      {/* The paper. `--sq-tpl-paper`, not a `--sq-ui-*` surface: this is offer
-          book content and the two namespaces never cross. A block's own `shape`
-          element usually covers it — this is what shows in the gaps and margins,
-          which is exactly what paper is. */}
-      <rect width={size.width} height={size.height} fill="var(--sq-tpl-paper)" />
+      <PageGround
+        background={background}
+        size={size}
+        token={(ref) => resolveToken(palette, ref)}
+        palette={palette}
+        asset={asset}
+        uid={uid}
+      />
 
       {page.placements.map((placement, index) => {
         const block = blocks[placement.blockId]
@@ -290,3 +310,85 @@ function neededHeight(
   return Math.min(rect.height, lines * perLine * step.lineHeight)
 }
 
+
+
+/**
+ * The paper, and whatever the owner put on it.
+ *
+ * **`--sq-tpl-paper` was hardcoded here until a `PageGrid` could say otherwise.**
+ * Every book printed on white, with white gutters between the cards, whatever
+ * the shop's brand was — a card could be navy and the page around it could not.
+ *
+ * Three things can be behind a page and they are one union, so this is one
+ * component rather than a branch at the call site:
+ *
+ * - **Nothing** — the token, exactly as before.
+ * - **A colour or a gradient** — `paintFill`, the same resolver and the same
+ *   `<linearGradient>` a shape fill uses. There is one gradient emitter in this
+ *   codebase and both callers go through it.
+ * - **Artwork** — an `<image>`, with the paper still underneath it.
+ *
+ * **The paper rect is always drawn**, even under an image, and that is not
+ * belt-and-braces. `contain` letterboxes, so the bars have to be *something*; an
+ * image with an opacity below 1 is being deliberately knocked back and needs a
+ * ground to be knocked back *towards*; and an asset that fails to load leaves a
+ * page rather than a hole.
+ */
+function PageGround({
+  background,
+  size,
+  token,
+  palette,
+  asset,
+  uid,
+}: {
+  background: PageBackground | null
+  size: { width: number; height: number }
+  token: (ref: TokenRef) => string
+  palette: readonly BrandColor[]
+  asset: ((assetId: string) => string | null) | undefined
+  uid: string
+}) {
+  /* The paper. `--sq-tpl-paper`, not a `--sq-ui-*` surface: this is offer book
+     content and the two namespaces never cross. A block's own `shape` element
+     usually covers it — this is what shows in the gaps and margins, which is
+     exactly what paper is. */
+  const paper = <rect width={size.width} height={size.height} fill="var(--sq-tpl-paper)" />
+
+  if (background === null) return paper
+
+  if (background.from === 'asset') {
+    const href = asset?.(background.assetId) ?? null
+    if (href === null) return paper
+
+    return (
+      <>
+        {paper}
+        <image
+          href={href}
+          width={size.width}
+          height={size.height}
+          // `slice` crops to fill and `meet` letterboxes — SVG's own words for
+          // `cover` and `contain`, which is what `ImageSource.fit` already means
+          // inside a block.
+          preserveAspectRatio={
+            (background.fit ?? 'cover') === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'
+          }
+          opacity={background.opacity ?? 1}
+        />
+      </>
+    )
+  }
+
+  // `uid` is what keeps the gradient id unique. Ids are document-global and the
+  // preview screen draws six pages in one svg-per-page tree on one document, so
+  // without it page two's ground would adopt page one's gradient.
+  const { fill, defs } = paintFill(background, { token, palette, id: `${uid}-page-ground` })
+
+  return (
+    <>
+      {defs}
+      <rect width={size.width} height={size.height} fill={fill} />
+    </>
+  )
+}
