@@ -43,3 +43,31 @@ export function pickArrangement(arrangements: readonly Arrangement[], aspect: nu
 
   return nearestIndex
 }
+
+/**
+ * Whether any arrangement actually claims this aspect.
+ *
+ * **`pickArrangement` never fails, and that is the problem this answers.** It
+ * falls back to the nearest range rather than refusing to render, which is the
+ * right call on a printed flyer — a missing card is worse than a cramped one —
+ * but it means a block placed in a shape nobody designed for renders *silently*,
+ * as a design drawn tall stretched into a square. Nothing errors. No test that
+ * asserts on track counts sees it. Only a rendered page shows it.
+ *
+ * The twenty-five seeded offer cards carry `TALL` (0.35–0.85) and `WIDE`
+ * (1.35–2.6) and nothing between, so every layout whose cells land near 1.0 is
+ * in that hole — and an owner reaches it from the editor by adding a header band
+ * to a story, which costs the body a row's worth of height.
+ *
+ * So: this reports the fallback, and a screen that lets an owner change the
+ * layout can say so while they are doing it. It decides nothing and changes no
+ * rendering; `pickArrangement` behaves exactly as it did.
+ */
+export function arrangementCovers(
+  arrangements: readonly Arrangement[],
+  aspect: number
+): boolean {
+  return arrangements.some(
+    (arrangement) => aspect >= arrangement.aspectMin && aspect <= arrangement.aspectMax
+  )
+}

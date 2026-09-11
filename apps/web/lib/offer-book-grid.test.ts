@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { flowBook, validateGrid } from '@souqstudio/engine'
 import { BOOK_KINDS, KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
-import { gridForFormat, gridForKind } from '@/lib/offer-book-grid'
+import { gridForFormat, gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { pageSizeFor } from '@/lib/offer-book-compose'
 
 /**
@@ -138,5 +138,90 @@ describe('gridForFormat', () => {
   ] as const)('reads a stored %s as a %s', (format, kind) => {
     expect(kindOf(format)).toBe(kind)
     expect(gridForFormat(format)).toEqual(gridForKind({ kind }))
+  })
+})
+
+describe('readGridChoice', () => {
+  /**
+   * The round trip this function exists for.
+   *
+   * The layout route rebuilds the master from scratch on every change, so
+   * whatever it cannot read back off the stored grid is silently reset. Before
+   * this existed it rebuilt from the track counts alone, which meant changing
+   * "3 across" to "4 across" also reset the offer card to `blk_offer_card` and
+   * gave a square post a footer band it never had.
+   */
+  it.each(BOOK_KINDS)('reads a %s grid back into the choice that made it', (kind) => {
+    const grid = gridForKind({ kind })
+    const read = readGridChoice(KIND_SPEC[kind].format, grid)
+
+    expect(gridForKind(read)).toEqual(grid)
+  })
+
+  it('reads back a card the owner chose', () => {
+    const grid = gridForKind({ kind: 'booklet', cardBlockId: 'blk_price_first' })
+    expect(readGridChoice('leaflet', grid).cardBlockId).toBe('blk_price_first')
+    expect(gridForKind(readGridChoice('leaflet', grid))).toEqual(grid)
+  })
+
+  /**
+   * **The removal case, which is the one a `??` would break.** A booklet
+   * defaults to a footer, so reading a footer-less booklet back as *absent*
+   * rather than `null` would hand the preset its default and put the band
+   * straight back on the next edit.
+   */
+  it('reads a removed footer back as removed, not as absent', () => {
+    const grid = gridForKind({ kind: 'booklet', footerBlockId: null })
+    const read = readGridChoice('leaflet', grid)
+
+    expect(read.footerBlockId).toBeNull()
+    expect(gridForKind(read).regions.some((region) => region.id === 'footer')).toBe(false)
+  })
+
+  it('reads a header back, and counts body rows without it', () => {
+    const grid = gridForKind({
+      kind: 'booklet',
+      headerBlockId: 'blk_masthead',
+      perRow: 2,
+      bodyRows: 4,
+    })
+    const read = readGridChoice('leaflet', grid)
+
+    expect(read.headerBlockId).toBe('blk_masthead')
+    expect(read.perRow).toBe(2)
+    // Four rows of cards, not six tracks.
+    expect(read.bodyRows).toBe(4)
+    expect(gridForKind(read)).toEqual(grid)
+  })
+
+  it('reads a margin back', () => {
+    const grid = gridForKind({ kind: 'booklet', margin: 0 })
+    expect(readGridChoice('leaflet', grid).margin).toBe(0)
+    expect(gridForKind(readGridChoice('leaflet', grid))).toEqual(grid)
+  })
+
+  /**
+   * A change applied on top of what was read must alter one thing and keep the
+   * rest. This is exactly what the layout route does.
+   */
+  it('survives a track-count change with every other choice intact', () => {
+    const before = gridForKind({
+      kind: 'post',
+      cardBlockId: 'blk_price_first',
+      headerBlockId: 'blk_masthead',
+      margin: 0.02,
+    })
+
+    const after = gridForKind({ ...readGridChoice('instagram_post', before), perRow: 4 })
+
+    expect(after.cols).toHaveLength(4)
+    expect(after.margin).toBe(0.02)
+    expect(after.regions.find((region) => region.id === 'header')?.blockId).toBe('blk_masthead')
+    expect(after.regions.some((region) => region.id === 'footer')).toBe(false)
+    expect(
+      after.regions.filter((region) => region.fill === 'flow').every(
+        (region) => region.blockId === 'blk_price_first'
+      )
+    ).toBe(true)
   })
 })

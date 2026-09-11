@@ -481,3 +481,110 @@ doing: the check exists precisely because nothing else in the toolchain can see 
   need a real page before this is called done. Arabic at real string lengths is part of
   that, and so is the `check:classes` blind spot in §9.3.
 - **`docs/STATUS.md` and `docs/E6-pending.md` do not link here yet.**
+
+
+---
+
+## 10. Layout editing, 10 September
+
+The creation flow decides a layout once. This is the other half: changing it
+afterwards, in the editor's layout panel. Margin, header band, footer band.
+
+### 10.1 The bug this uncovered
+
+`PATCH /api/v1/offer-books/[id]/grid` called `bookletGrid({ perRow, bodyRows })` and
+nothing else. It rebuilt the master grid from scratch on every edit — which is right, and
+hand-patching tracks and regions in place is how a grid ends up internally inconsistent —
+but it rebuilt from **two fields**. Everything else was silently reset.
+
+So changing "3 across" to "4 across" would:
+
+- reset the offer card to `blk_offer_card`, discarding the design chosen in step 2, and
+- give a square post a footer band it had never had, because `bookletGrid` always writes
+  one.
+
+The second was latent before this work and became reachable the moment a post could exist.
+The first became reachable the moment the card was choosable at all — which is to say,
+both were shipped by §9 that morning and neither had a test.
+
+**`readGridChoice` is the fix**: it reads a stored grid back into the choice that made it,
+the route applies a delta, `gridForKind` rebuilds. `offer-book-grid.test.ts` asserts the
+round trip for every kind, and asserts that a change of track count preserves card, bands
+and margin.
+
+### 10.2 Absent is not null
+
+A band has three states on the wire and only two of them are obvious.
+
+| Sent | Means |
+| --- | --- |
+| absent | leave it as it is |
+| `null` | remove it |
+| an id | use this block |
+
+Collapsing the first two — which `??` does, and which is what the first draft of
+`gridForKind` did — makes a removed footer indistinguishable from an unmentioned one, so a
+booklet's default footer comes back the next time anything else changes. The distinction
+runs the whole depth: Zod's `.nullable().optional()`, the spread in the route testing
+`=== undefined` rather than merging, `GridChoice`, and `composeGrid` itself.
+
+### 10.3 What the engine gained
+
+`composeGrid` is now the one builder, and `bookletGrid` and `postGrid` are presets over it
+that differ only in what they default. The band arithmetic — how tall a band is, where the
+card rows start once one exists — was written twice and had to agree; it is written once.
+
+**Region ids still count body rows, not grid rows.** `offerRegions` takes a row offset for
+exactly this: a nudge is keyed by region id, so if `r0c0` meant "first row of the grid",
+adding a header would renumber every region and orphan every override in the book. Adding
+or removing a band now changes no id. Changing the track count still does, and still should
+— that is the failure mode the key was chosen for.
+
+### 10.4 A band can put the cards in the dead zone
+
+Measured, for every combination of bands on every kind:
+
+| Kind | no bands | footer only | header only | both |
+| --- | --- | --- | --- | --- |
+| booklet | 0.679 | **0.769** | 0.769 | 0.862 ✗ |
+| post | 0.645 | 0.780 | 0.780 | 0.924 ✗ |
+| status | **0.807** | 0.914 ✗ | 0.914 ✗ | 1.025 ✗ |
+| poster | 0.674 | **0.744** | 0.744 | 0.816 |
+
+Bold is the shipped default. ✗ is outside every band the seeded offer cards design for,
+so `pickArrangement` falls back and the card renders stretched.
+
+**A story reaches it by adding one header.** That is an ordinary editor action, not an
+exotic one, and §7's fix — arrangements on the cards — is still the only real answer.
+
+What ships instead is honesty. `arrangementCovers` is new in the engine: it reports whether
+any arrangement actually claims an aspect, which `pickArrangement` cannot say because it
+never fails. `loadBook` measures page one's first flowing cell and returns `layout.cardFits`,
+and the layout panel shows a caution line naming the fix — one row fewer, or remove a band.
+Nothing refuses to draw and no rendering changed.
+
+This is worth stating plainly: **the product now tells an owner when its own library has no
+design for what they asked for.** That is a stopgap for a gap in the library, not a
+feature, and it should be deleted the day the cards carry a `SQUARISH` arrangement.
+
+### 10.5 The files
+
+| File | What |
+| --- | --- |
+| `packages/engine/src/library.ts` | `composeGrid` with optional header and footer bands; `bookletGrid` and `postGrid` become presets |
+| `packages/engine/src/arrangement.ts` | `arrangementCovers` |
+| `apps/web/lib/offer-book-grid.ts` | `readGridChoice`; header, footer and margin on `GridChoice` |
+| `apps/web/lib/offer-book-layout.ts` | New. The five named margin steps and the route's bound |
+| `apps/web/lib/offer-book.ts` | `layout` carries margin, both bands, and `cardFits` |
+| `offer-books/[id]/grid/route.ts` | Delta patch over `readGridChoice`; band ids gated by tenancy, plan and `repeats` |
+| `components/editor/LayoutPanel.tsx` | Margin select, `Band` control, stretch warning |
+
+### 10.6 Still owed
+
+- **A band block is validated for `repeats`**, so an offer card cannot become a header.
+  There is no equivalent check that a *header* block is not being used as a footer: the
+  category filters the list the owner sees, and the route does not enforce it. That is
+  deliberate for now — a shop's own block has no category and must work in both — but it
+  means a crafted request can put a masthead along the bottom. It is their own book.
+- **Still not opened in a browser.** Same as §9.4, and now with more surface: the margin
+  select, two band selects and a warning line none of which has been rendered.

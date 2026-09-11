@@ -52,10 +52,24 @@ type Props = {
   /** Bounded nudges by page index, as stored. E6-04. */
   overrides: Record<number, SlotOverride[]>
   pins: Pin[]
-  layout: { perRow: number; bodyRows: number }
+  /** The master grid as a set of choices. `loadBook` reads it off the regions. */
+  layout: {
+    perRow: number
+    bodyRows: number
+    margin: number
+    headerBlockId: string | null
+    footerBlockId: string | null
+    /** False when the offer card has no design for the shape this layout gives
+     *  its cells, so it is being stretched. */
+    cardFits: boolean
+  }
   /** Static blocks this shop may pin. A repeating one reads an offer, and a pin
    *  has none. */
   pinnable: { id: string; name: string; season?: { starts: string } }[]
+  /** Static blocks that can be a running band, by what they are for. A band on
+   *  every page is a different thing from a pin on one. */
+  headerBlocks: { id: string; name: string }[]
+  footerBlocks: { id: string; name: string }[]
   gridProblems: { code: string }[]
 }
 
@@ -76,6 +90,8 @@ export function EditorShell({
   pins,
   layout,
   pinnable,
+  headerBlocks,
+  footerBlocks,
   gridProblems,
 }: Props) {
   const hydrate = useEditorStore((state) => state.hydrate)
@@ -200,10 +216,16 @@ export function EditorShell({
             bookId={bookId}
             perRow={layout.perRow}
             bodyRows={layout.bodyRows}
+            margin={layout.margin}
+            headerBlockId={layout.headerBlockId}
+            footerBlockId={layout.footerBlockId}
+            cardFits={layout.cardFits}
             offerCount={offers.length}
             pageCount={pages.length}
             pins={pins}
             blocks={pinnable}
+            headerBlocks={headerBlocks}
+            footerBlocks={footerBlocks}
             blockNames={Object.fromEntries(
               Object.values(blocks).map((block) => [block.id, block.name])
             )}

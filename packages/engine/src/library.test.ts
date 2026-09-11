@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockElement } from '@souqstudio/types'
-import { SEED_BLOCKS, bookletGrid, postGrid } from './library'
+import { SEED_BLOCKS, bookletGrid, composeGrid, postGrid } from './library'
 import { usesOnlyRoles } from './roles'
 import { validateBlock } from './block-edit'
 import { validateGrid } from './validate'
@@ -207,6 +207,81 @@ describe('bookletGrid', () => {
   })
 })
 
+describe('composeGrid', () => {
+  /**
+   * The distinction the whole header/footer feature turns on. Absent means "the
+   * preset decides"; `null` means "the owner removed it". Conflating them would
+   * make a removed footer come back on the next layout edit.
+   */
+  it('tells an absent band apart from a removed one', () => {
+    expect(bookletGrid().regions.some((r) => r.id === 'footer')).toBe(true)
+    expect(bookletGrid({ footerBlockId: null }).regions.some((r) => r.id === 'footer')).toBe(false)
+  })
+
+  it('puts a header band above the cards and a footer below them', () => {
+    const grid = composeGrid({
+      perRow: 2,
+      bodyRows: 2,
+      headerBlockId: 'blk_masthead',
+      footerBlockId: 'blk_footer',
+    })
+
+    expect(validateGrid(grid)).toEqual([])
+    // Band, two card rows, band.
+    expect(grid.rows).toEqual([0.34, 1, 1, 0.34])
+
+    const header = grid.regions.find((r) => r.id === 'header')
+    const footer = grid.regions.find((r) => r.id === 'footer')
+    expect(header?.rowStart).toBe(0)
+    expect(footer?.rowStart).toBe(3)
+    // Both span the page, so nothing sits beside a band.
+    expect(header?.colEnd).toBe(1)
+    expect(footer?.colEnd).toBe(1)
+  })
+
+  /**
+   * **The reason `offerRegions` takes a row offset.** A nudge is keyed by region
+   * id, so if `r0c0` meant "first row of the grid" rather than "first row of
+   * cards", adding a header would renumber every region and orphan every
+   * override in the book.
+   */
+  it('keeps a cell"s id when a header is added above it', () => {
+    const without = composeGrid({ perRow: 2, bodyRows: 2 })
+    const with_ = composeGrid({ perRow: 2, bodyRows: 2, headerBlockId: 'blk_masthead' })
+
+    const ids = (g: ReturnType<typeof composeGrid>) =>
+      g.regions.filter((r) => r.fill === 'flow').map((r) => r.id)
+
+    expect(ids(with_)).toEqual(ids(without))
+    // The cells moved down a row; only their position changed.
+    expect(with_.regions.find((r) => r.id === 'r0c0')?.rowStart).toBe(1)
+    expect(without.regions.find((r) => r.id === 'r0c0')?.rowStart).toBe(0)
+  })
+
+  it('makes a grid with neither band, which is all cards', () => {
+    const grid = composeGrid({ perRow: 2, bodyRows: 3 })
+    expect(validateGrid(grid)).toEqual([])
+    expect(grid.rows).toEqual([1, 1, 1])
+    expect(grid.regions.every((r) => r.fill === 'flow')).toBe(true)
+  })
+
+  it('takes a margin and a gap', () => {
+    const grid = composeGrid({ margin: 0, gap: 0.01 })
+    expect(grid.margin).toBe(0)
+    expect(grid.gap).toBe(0.01)
+  })
+
+  it('stays valid at every combination of bands', () => {
+    for (const headerBlockId of [null, 'blk_masthead']) {
+      for (const footerBlockId of [null, 'blk_footer']) {
+        const grid = composeGrid({ perRow: 3, bodyRows: 3, headerBlockId, footerBlockId })
+        expect(validateGrid(grid)).toEqual([])
+        expect(grid.regions.filter((r) => r.fill === 'flow')).toHaveLength(9)
+      }
+    }
+  })
+})
+
 describe('postGrid', () => {
   /*
    * The one structural difference from a booklet, and the reason the function
@@ -236,5 +311,12 @@ describe('postGrid', () => {
   /* Cropped by whatever app shows it, so the safe area is smaller than the page. */
   it('keeps a wider margin than a booklet', () => {
     expect(postGrid().margin ?? 0).toBeGreaterThan(bookletGrid().margin ?? 0)
+  })
+
+  /* No footer by default is a default, not a prohibition. */
+  it('takes a footer when the owner asks for one', () => {
+    const grid = postGrid({ footerBlockId: 'blk_footer' })
+    expect(validateGrid(grid)).toEqual([])
+    expect(grid.regions.find((region) => region.id === 'footer')?.blockId).toBe('blk_footer')
   })
 })

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Arrangement } from '@souqstudio/types'
-import { pickArrangement } from './arrangement'
+import { arrangementCovers, pickArrangement } from './arrangement'
 
 const at = (aspectMin: number, aspectMax: number): Arrangement => ({
   aspectMin,
@@ -39,5 +39,42 @@ describe('pickArrangement', () => {
 
   it('throws on a block with no arrangements', () => {
     expect(() => pickArrangement([], 1)).toThrow(/at least one arrangement/)
+  })
+})
+
+describe('arrangementCovers', () => {
+  /** The two bands every seeded offer card carries, from `library-kit.ts`. */
+  const CARD = [
+    { aspectMin: 0.35, aspectMax: 0.85 },
+    { aspectMin: 1.35, aspectMax: 2.6 },
+  ] as unknown as Parameters<typeof arrangementCovers>[0]
+
+  it('says yes inside a range and on its edges', () => {
+    expect(arrangementCovers(CARD, 0.7)).toBe(true)
+    expect(arrangementCovers(CARD, 0.35)).toBe(true)
+    expect(arrangementCovers(CARD, 0.85)).toBe(true)
+    expect(arrangementCovers(CARD, 2.0)).toBe(true)
+  })
+
+  /**
+   * The hole this function exists to report: a square cell, which is what a
+   * booklet with both bands or a story with either one produces, and which no
+   * offer card designs for.
+   */
+  it('says no in the gap between the two bands', () => {
+    expect(arrangementCovers(CARD, 1.0)).toBe(false)
+    expect(arrangementCovers(CARD, 0.914)).toBe(false)
+    expect(arrangementCovers(CARD, 1.3)).toBe(false)
+  })
+
+  it('disagrees with pickArrangement rather than duplicating it', () => {
+    // `pickArrangement` still answers, because it never fails. That is exactly
+    // the silence this reports.
+    expect(pickArrangement(CARD, 1.0)).toBe(0)
+    expect(arrangementCovers(CARD, 1.0)).toBe(false)
+  })
+
+  it('says no for a block with no arrangements at all', () => {
+    expect(arrangementCovers([], 1.0)).toBe(false)
   })
 })

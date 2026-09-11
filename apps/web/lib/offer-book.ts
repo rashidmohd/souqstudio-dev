@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@souqstudio/db'
-import { flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
+import { arrangementCovers, flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
 import type { Block, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
 import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { autoTitle } from '@/lib/book-title'
@@ -12,7 +12,7 @@ import {
   type ComposedOffer,
   type Edition,
 } from '@/lib/offer-book-compose'
-import { gridForKind } from '@/lib/offer-book-grid'
+import { gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { readOverrides } from '@/lib/offer-book-overrides'
 import { publicUrl } from '@/lib/r2'
 import { randomBytes } from 'node:crypto'
@@ -51,10 +51,43 @@ export interface ComposedBook {
   /** The pinned panels, as the engine received them. Composition model §6. */
   pins: Pin[]
   /**
-   * The master's track counts, which is what "density" now means — §4.3. The
-   * last row is the footer band, so the body rows are one short of the total.
+   * The master grid as a set of choices, which is what the layout panel edits.
+   *
+   * **Track counts are what "density" now means** — §4.3 — and the bands are
+   * what the owner can add, swap or take away. `bodyRows` counts rows of *cards*
+   * and excludes either band, so it is not simply `rows.length`.
+   *
+   * `readGridChoice` derives all of it from the stored regions rather than from
+   * a second copy kept on the book: a `page_grids` row already says which block
+   * each region draws, and the copy nothing renders from is the one that goes
+   * stale.
    */
-  layout: { perRow: number; bodyRows: number }
+  layout: {
+    perRow: number
+    bodyRows: number
+    /** Fraction of the page's shorter edge. Zero is full bleed. */
+    margin: number
+    /** The running band at the top of every page, or null for none. */
+    headerBlockId: string | null
+    footerBlockId: string | null
+    /**
+     * Whether the offer card actually has a design for the shape this layout
+     * gives its cells.
+     *
+     * **False means the page renders and renders wrong.** `pickArrangement`
+     * falls back to the nearest range rather than failing, so a card designed
+     * tall is stretched into a square cell with no error anywhere. The seeded
+     * cards carry `TALL` and `WIDE` and nothing between, and an owner reaches
+     * the gap from the layout panel — adding a header band to a story costs the
+     * body a row's worth of height and lands it at 0.914.
+     *
+     * Reported so the panel can say so while the owner is changing it. Nothing
+     * refuses to draw. `docs/E6-create-flow.md` §7.
+     */
+    cardFits: boolean
+    /** The aspect that was judged, for a message that can be specific. */
+    cellAspect: number | null
+  }
   /**
    * The bounded nudges an owner has made, by page index. E6-04.
    *
@@ -182,6 +215,10 @@ export async function loadBook(
 
   const edition: Edition = book.language === 'ar' ? 'ar' : 'en'
   const master = toMasterGrid(gridRow)
+  // What the owner chose, read back off the regions. The layout panel edits
+  // this, and `PATCH .../grid` reads the same thing so an edit changes one field
+  // and preserves the rest. `lib/offer-book-grid.ts`.
+  const choice = readGridChoice(book.format, master)
   const page = pageSizeFor(book.format)
 
   const offers = book.offers.map((offer) =>
@@ -256,6 +293,11 @@ export async function loadBook(
     direction: edition === 'ar' ? 'rtl' : 'ltr',
   })
 
+  // Awaited before the return object rather than inside it: `cardFit` needs the
+  // resolved blocks, and an inline `await` in a property initialiser cannot be
+  // read by a sibling property.
+  const blocks = await loadBlocks(master, pins)
+
   return {
     id: book.id,
     title: book.title,
@@ -264,10 +306,17 @@ export async function loadBook(
     edition,
     page,
     offers,
-    blocks: await loadBlocks(master, pins),
+    blocks,
     pages: flow.pages,
     pins,
-    layout: { perRow: master.cols.length, bodyRows: Math.max(1, master.rows.length - 1) },
+    layout: {
+      perRow: choice.perRow ?? master.cols.length,
+      bodyRows: choice.bodyRows ?? 1,
+      margin: choice.margin ?? 0,
+      headerBlockId: choice.headerBlockId ?? null,
+      footerBlockId: choice.footerBlockId ?? null,
+      ...cardFit(flow.pages[0], blocks),
+    },
     overrides: Object.fromEntries(
       book.pages.map((page) => [page.index, readOverrides(page.slotOverrides)])
     ),
@@ -341,6 +390,39 @@ async function loadBlocks(
   return blocks
 }
 
+
+/**
+ * Whether the offer card has a design for the shape this page gives its cells.
+ *
+ * **The check is on the flowing card and nothing else.** A static band is
+ * placed once at whatever shape the grid gives it and its blocks declare wide,
+ * open ranges for exactly that reason; the repeating card is the one drawn
+ * nine times per page, and the one whose stretch an owner will notice.
+ *
+ * Page one, first flowing placement. Every flowing region on a master carries
+ * the same block and the same rectangle, so one is the answer for all of them.
+ *
+ * A book with no offers has no placement to measure and returns `cardFits: true`
+ * — there is nothing being drawn wrong, and warning about an empty book is a
+ * warning an owner cannot act on.
+ */
+function cardFit(
+  page: FlowPage | undefined,
+  blocks: Record<string, Block>
+): { cardFits: boolean; cellAspect: number | null } {
+  const placement = page?.placements.find(
+    (candidate) => candidate.kind === 'flow' && candidate.offerId !== null
+  )
+  if (placement === undefined) return { cardFits: true, cellAspect: null }
+
+  const block = blocks[placement.blockId]
+  // A block that could not be resolved is already drawn as an empty region by
+  // `loadBlocks`, which is a louder problem than a stretched one.
+  if (block === undefined) return { cardFits: true, cellAspect: null }
+
+  const aspect = placement.rect.width / placement.rect.height
+  return { cardFits: arrangementCovers(block.arrangements, aspect), cellAspect: aspect }
+}
 
 // ─── Creating a book ──────────────────────────────────────────────────────────
 

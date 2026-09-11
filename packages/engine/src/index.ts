@@ -14,7 +14,7 @@ export {
   type CellSpan,
   type Direction,
 } from './geometry'
-export { pickArrangement } from './arrangement'
+export { arrangementCovers, pickArrangement } from './arrangement'
 export {
   fitText,
   fitStyle,
@@ -149,4 +149,11 @@ export {
   type BlockCategory,
   type MagicCategory,
 } from './block-category'
-export { SEED_BLOCKS, bookletGrid, postGrid, type SeedBlock } from './library'
+export {
+  SEED_BLOCKS,
+  bookletGrid,
+  composeGrid,
+  postGrid,
+  type ComposeGridOptions,
+  type SeedBlock,
+} from './library'

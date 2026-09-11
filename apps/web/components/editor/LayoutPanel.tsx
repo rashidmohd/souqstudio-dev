@@ -7,6 +7,7 @@ import type { Pin } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
+import { MARGIN_STEPS, nearestMarginStep } from '@/lib/offer-book-layout'
 
 /**
  * The page layout: how many cards across, and what is pinned where. E6-07 and
@@ -24,6 +25,17 @@ import { Select } from '@/components/ui/select'
  * products gives eleven positions, not ten with a product dropped — silently
  * losing a product is the class of bug that reaches print — so the arithmetic
  * is shown rather than assumed.
+ *
+ * **Bands are running, pins are not**, and that is the whole difference between
+ * the two halves of this panel. A header or footer set here is written into the
+ * master grid, so it appears on every page; a pin belongs to one page. An owner
+ * wanting a masthead on page one and nothing after it wants a pin, and one
+ * wanting the shop's address at the foot of all nine pages wants a footer.
+ *
+ * **Every control here sends only what it changed.** `PATCH .../grid` reads the
+ * stored grid back into the choice that made it and applies a delta, so setting
+ * the margin cannot reset the offer card. Until that seam existed this panel's
+ * track-count select did exactly that. `docs/E6-create-flow.md` §5.1.
  */
 
 /**
@@ -49,11 +61,32 @@ type Props = {
   bookId: string
   perRow: number
   bodyRows: number
+  /** Fraction of the page's shorter edge. */
+  margin: number
+  /** The running band at the top of every page, or null for none. */
+  headerBlockId: string | null
+  footerBlockId: string | null
+  /**
+   * False when the chosen offer card has no arrangement for the shape this
+   * layout gives its cells, so the renderer is stretching a design drawn for
+   * another shape. Nothing errors; this is the only place it is visible.
+   */
+  cardFits: boolean
   offerCount: number
   pageCount: number
   pins: Pin[]
   /** Static blocks only. A repeating block reads an offer, and a pin has none. */
   blocks: PinnableBlock[]
+  /**
+   * Static blocks grouped by what they are for.
+   *
+   * **Filtered by category rather than offered as one list**, because "which of
+   * these fifty is a footer" is not a question an owner should answer. A block
+   * the shop authored has no category — that is a fact about the library we
+   * shipped, not about their row — so those are offered in both.
+   */
+  headerBlocks: { id: string; name: string }[]
+  footerBlocks: { id: string; name: string }[]
   blockNames: Record<string, string>
 }
 
@@ -61,10 +94,16 @@ export function LayoutPanel({
   bookId,
   perRow,
   bodyRows,
+  margin,
+  headerBlockId,
+  footerBlockId,
+  cardFits,
   offerCount,
   pageCount,
   pins,
   blocks,
+  headerBlocks,
+  footerBlocks,
   blockNames,
 }: Props) {
   const router = useRouter()
@@ -76,7 +115,17 @@ export function LayoutPanel({
   // as soon as it lands; this holds the answer the route gave in the meantime.
   React.useEffect(() => setPages(pageCount), [pageCount])
 
-  async function setGrid(next: { perRow: number; bodyRows: number }) {
+  /**
+   * Send one field. Everything absent is left as it is by the route, which is
+   * what stops the margin control from resetting the offer card.
+   */
+  async function setGrid(next: {
+    perRow?: number
+    bodyRows?: number
+    margin?: number
+    headerBlockId?: string | null
+    footerBlockId?: string | null
+  }) {
     setBusy(true)
     setError(null)
     try {
@@ -112,14 +161,14 @@ export function LayoutPanel({
           value={String(perRow)}
           disabled={busy}
           options={[1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) }))}
-          onChange={(event) => void setGrid({ perRow: Number(event.target.value), bodyRows })}
+          onChange={(event) => void setGrid({ perRow: Number(event.target.value) })}
         />
         <Select
           label="Down"
           value={String(bodyRows)}
           disabled={busy}
           options={[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ value: String(n), label: String(n) }))}
-          onChange={(event) => void setGrid({ perRow, bodyRows: Number(event.target.value) })}
+          onChange={(event) => void setGrid({ bodyRows: Number(event.target.value) })}
         />
       </div>
 
@@ -128,6 +177,61 @@ export function LayoutPanel({
         {offerCount === 1 ? 'offer' : 'offers'} → <Figure value={pages} size="data-sm" />{' '}
         {pages === 1 ? 'page' : 'pages'}
       </p>
+
+      {/*
+        Named steps rather than a number. A margin is a fraction of the page's
+        shorter edge, which is what makes one value work on a square post and on
+        A3, and it is not a quantity any shop owner has an opinion about.
+        `nearestMarginStep` is what keeps a book created outside these five from
+        rendering a select that says None when it is not.
+      */}
+      <Select
+        label="Page margin"
+        value={String(nearestMarginStep(margin).value)}
+        disabled={busy}
+        options={MARGIN_STEPS.map((step) => ({
+          value: String(step.value),
+          label: step.label,
+        }))}
+        onChange={(event) => void setGrid({ margin: Number(event.target.value) })}
+        hint="The white edge around every page."
+      />
+
+      {/*
+        **The one thing about a layout that nothing else can tell the owner.**
+        `pickArrangement` falls back to the nearest arrangement rather than
+        failing, so a card designed tall in a near-square cell renders stretched
+        with no error, no failed test and no broken page. Adding a header band to
+        a story is enough to reach it.
+
+        Caution rather than critical: the page is usable and printable, and this
+        is a judgement about how it looks. It names the fix, because "your cards
+        are stretched" without one is just bad news.
+      */}
+      {!cardFits ? (
+        <p className="rounded-control bg-caution-bg p-2 font-ui text-body-sm text-caution-fg">
+          This design has no layout for cells this shape, so the cards are being
+          stretched. Try one row fewer, or remove a band.
+        </p>
+      ) : null}
+
+      <Band
+        title="Header"
+        empty="No band across the top."
+        blocks={headerBlocks}
+        value={headerBlockId}
+        disabled={busy}
+        onChange={(next) => void setGrid({ headerBlockId: next })}
+      />
+
+      <Band
+        title="Footer"
+        empty="No band across the bottom."
+        blocks={footerBlocks}
+        value={footerBlockId}
+        disabled={busy}
+        onChange={(next) => void setGrid({ footerBlockId: next })}
+      />
 
       <Pins
         bookId={bookId}
@@ -144,6 +248,65 @@ export function LayoutPanel({
         </p>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * A running band, on every page: add one, swap it, or take it away.
+ *
+ * **One control does all three**, because they are one decision. A separate
+ * "remove" button beside a picker would make taking a footer off a page a
+ * different kind of act from changing which footer it is, and it is not — the
+ * owner is answering "what is along the bottom of every page", and "nothing" is
+ * one of the answers. So "None" is the first option in the list.
+ *
+ * **`null` on the wire, and it has to be.** Absent means "leave it alone" to
+ * `PATCH .../grid`; `null` means "remove it". If removal were sent as absent,
+ * the route would rebuild from the stored grid and hand the band straight back.
+ *
+ * A band is what appears on **every** page. `Pins` below is the other half: one
+ * page, placed by the owner. The two look similar in a panel and are not the
+ * same thing, so each says which it is.
+ */
+function Band({
+  title,
+  empty,
+  blocks,
+  value,
+  disabled,
+  onChange,
+}: {
+  title: string
+  /** What "None" means here, said once, so the panel is readable at a glance. */
+  empty: string
+  blocks: { id: string; name: string }[]
+  value: string | null
+  disabled: boolean
+  onChange: (blockId: string | null) => void
+}) {
+  /*
+   * A band naming a block this shop cannot pick from — one archived since, or
+   * moved behind a plan — still has to be selectable, or the select would show
+   * the first option and the next change would silently swap the band. Same
+   * reasoning as `loadBlocks` not filtering by status: a book already in print
+   * must go on rendering what it was printed with.
+   */
+  const known = blocks.some((block) => block.id === value)
+  const options = [
+    { value: '', label: `None. ${empty}` },
+    ...blocks.map((block) => ({ value: block.id, label: block.name })),
+    ...(value !== null && !known ? [{ value, label: 'The block this book uses' }] : []),
+  ]
+
+  return (
+    <Select
+      label={title}
+      value={value ?? ''}
+      disabled={disabled || blocks.length === 0}
+      options={options}
+      onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      hint={blocks.length === 0 ? 'No blocks of this kind in your library yet.' : 'On every page.'}
+    />
   )
 }
 

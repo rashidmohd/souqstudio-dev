@@ -132,14 +132,30 @@ const FOOTER = byId('blk_footer')
 // ─── Seeded grids ─────────────────────────────────────────────────────────────
 
 /**
+ * How tall a header or footer band is, as a fraction of one body row.
+ *
+ * **A fraction of a row rather than of the page**, which is what keeps a band
+ * looking like a band at every page size. A footer pinned to the page grows into
+ * a stripe on A3; one that scales with the cards above it stays a footer.
+ */
+const BAND = 0.34
+
+/**
  * The body of a grid: `perRow` × `bodyRows` cells, every one of them flowing.
  *
- * Shared by both grids below rather than written twice. The region ids are what
- * `slotOverrides` keys against — `offer-book-overrides.ts` stores a nudge by
- * `regionId` + `offerId` — so `r0c0` meaning the top-start cell has to be one
- * fact and not two that happen to agree.
+ * **The ids count body rows, not grid rows**, and `rowOffset` is what keeps that
+ * true once a header band sits above them. `slotOverrides` keys a nudge by
+ * `regionId` + `offerId` — `offer-book-overrides.ts` — so if `r0c0` meant "the
+ * first row of the grid" rather than "the first row of cards", adding a header
+ * would renumber every region and orphan every nudge in the book. It means the
+ * first row of cards, and it goes on meaning that.
  */
-function offerRegions(perRow: number, bodyRows: number, blockId: string): Region[] {
+function offerRegions(
+  perRow: number,
+  bodyRows: number,
+  blockId: string,
+  rowOffset: number
+): Region[] {
   const regions: Region[] = []
   for (let row = 0; row < bodyRows; row += 1) {
     for (let col = 0; col < perRow; col += 1) {
@@ -147,14 +163,103 @@ function offerRegions(perRow: number, bodyRows: number, blockId: string): Region
         id: `r${row}c${col}`,
         colStart: col,
         colEnd: col,
-        rowStart: row,
-        rowEnd: row,
+        rowStart: row + rowOffset,
+        rowEnd: row + rowOffset,
         blockId,
         fill: 'flow',
       })
     }
   }
   return regions
+}
+
+export interface ComposeGridOptions {
+  /** Cards across. */
+  perRow?: number
+  /** Rows of cards, not counting any band. */
+  bodyRows?: number
+  /** The repeating offer card every cell draws. */
+  cardBlockId?: string
+  /**
+   * A band across the top of every page, or none.
+   *
+   * **Absent and `null` mean different things**, which is what lets a preset
+   * have a default an owner can then take away. Absent is "the preset decides";
+   * `null` is "the owner said no band". Collapsing them would make removing a
+   * booklet's footer indistinguishable from not mentioning it, and the footer
+   * would come back on the next edit.
+   *
+   * This is a **running** band: the master grid is instanced on every body page,
+   * so a header here appears on all of them. A masthead that belongs to page one
+   * alone is a pin, not this.
+   */
+  headerBlockId?: string | null
+  footerBlockId?: string | null
+  /** Fraction of the page's shorter edge. Zero is full bleed. */
+  margin?: number
+  /** Fraction of the shorter edge, between tracks. */
+  gap?: number
+}
+
+/**
+ * A master page grid: optional header band, rows of cards, optional footer band.
+ *
+ * **One function, and the two below are presets over it.** They were two
+ * separate builders that each laid out their own tracks, which meant the band
+ * arithmetic — where a row index starts once a band exists, how tall a band is,
+ * which regions shift — was written twice and had to agree. It is written once
+ * here, and `bookletGrid` and `postGrid` now differ only in what they default.
+ */
+export function composeGrid(options: ComposeGridOptions = {}): PageGrid {
+  const perRow = options.perRow ?? 3
+  const bodyRows = options.bodyRows ?? 3
+  const header = options.headerBlockId ?? null
+  const footer = options.footerBlockId ?? null
+
+  const rows: number[] = [
+    ...(header === null ? [] : [BAND]),
+    ...Array.from({ length: bodyRows }, () => 1),
+    ...(footer === null ? [] : [BAND]),
+  ]
+
+  // Where the cards start. One row down when a header takes the top band.
+  const top = header === null ? 0 : 1
+
+  const regions: Region[] = []
+
+  if (header !== null) {
+    regions.push({
+      id: 'header',
+      colStart: 0,
+      colEnd: perRow - 1,
+      rowStart: 0,
+      rowEnd: 0,
+      blockId: header,
+      fill: 'static',
+    })
+  }
+
+  regions.push(...offerRegions(perRow, bodyRows, options.cardBlockId ?? OFFER_CARD.id, top))
+
+  if (footer !== null) {
+    regions.push({
+      id: 'footer',
+      colStart: 0,
+      colEnd: perRow - 1,
+      rowStart: top + bodyRows,
+      rowEnd: top + bodyRows,
+      blockId: footer,
+      fill: 'static',
+    })
+  }
+
+  return {
+    cols: Array.from({ length: perRow }, () => 1),
+    rows,
+    gap: options.gap ?? 0.022,
+    margin: options.margin ?? 0.04,
+    regions,
+  }
 }
 
 /**
@@ -166,70 +271,47 @@ function offerRegions(perRow: number, bodyRows: number, blockId: string): Region
  * `page_grids`, so a second copy would mean the layout that was checked and the
  * layout that ships are different objects that merely look alike.
  *
- * `perRow` across, `bodyRows` down, plus a short merged footer row. The footer's
- * 0.34 is a fraction of a body row rather than a page fraction — a footer that
- * scales with the cards above it stays a footer at every page size, and one
- * pinned to the page grows into a band on A3.
+ * `perRow` across, `bodyRows` down, plus a short merged footer row — **unless
+ * the caller passes `footerBlockId: null`**, which is an owner having removed
+ * it. No header by default: a running masthead on every page of a leaflet is a
+ * choice rather than the norm, and one on page one alone is a pin.
  *
  * **Not a density setting.** E6 §5's density profiles are gone: density is the
  * consequence of track count at a given page size, and two controls that can
  * disagree is one too many. A denser book is more tracks.
  *
- * **The two block ids are parameters now, and default to what this function
- * hardcoded for its whole life.** Twenty-five offer cards were seeded in E7 and
- * every book ever created used exactly one of them, because the id was a module
- * constant closed over here. `docs/E6-create-flow.md` §5.1. Defaulting rather
- * than requiring is what keeps the harness and `library.test.ts` describing the
- * same grid they always did.
+ * **The block ids are parameters, and default to what this function hardcoded
+ * for its whole life.** Twenty-five offer cards were seeded in E7 and every book
+ * ever created used exactly one of them, because the id was a module constant
+ * closed over here. `docs/E6-create-flow.md` §5.1.
  */
-export function bookletGrid(
-  options: {
-    perRow?: number
-    bodyRows?: number
-    cardBlockId?: string
-    footerBlockId?: string
-  } = {}
-): PageGrid {
-  const perRow = options.perRow ?? 3
-  const bodyRows = options.bodyRows ?? 3
-
-  const regions = offerRegions(perRow, bodyRows, options.cardBlockId ?? OFFER_CARD.id)
-
-  regions.push({
-    id: 'footer',
-    colStart: 0,
-    colEnd: perRow - 1,
-    rowStart: bodyRows,
-    rowEnd: bodyRows,
-    blockId: options.footerBlockId ?? FOOTER.id,
-    fill: 'static',
+export function bookletGrid(options: ComposeGridOptions = {}): PageGrid {
+  return composeGrid({
+    ...options,
+    // Absent keeps the footer this function has always written; `null` removes
+    // it. `??` would conflate the two and make removal impossible.
+    footerBlockId: options.footerBlockId === undefined ? FOOTER.id : options.footerBlockId,
   })
-
-  return {
-    cols: Array.from({ length: perRow }, () => 1),
-    rows: [...Array.from({ length: bodyRows }, () => 1), 0.34],
-    gap: 0.022,
-    margin: 0.04,
-    regions,
-  }
 }
 
 /**
  * The master grid a **single-image** book starts from: a square post, a story, a
  * WhatsApp status.
  *
- * **The difference from `bookletGrid` is the footer, and that is the whole of
- * it.** A footer band is a page-furniture convention that belongs to something
- * printed and paginated. A post is looked at once, in a feed, at thumbnail size
- * first; a strip of shop address across the bottom of it spends a tenth of the
- * only impression it gets on something nobody reads at that scale. The shop's
- * name reaches the viewer from the account posting it.
+ * **The difference from `bookletGrid` is what it defaults**, and the footer is
+ * the whole of it. A footer band is a page-furniture convention that belongs to
+ * something printed and paginated. A post is looked at once, in a feed, at
+ * thumbnail size first; a strip of shop address across the bottom of it spends a
+ * tenth of the only impression it gets on something nobody reads at that scale.
+ * The shop's name reaches the viewer from the account posting it.
+ *
+ * An owner who wants one anyway passes a `footerBlockId`, and gets it.
  *
  * The harness has had this grid as a local `carousel()` since the engine
  * existed. It moves here for the reason the file opens with: two consumers, one
  * set of bytes. `docs/E6-create-flow.md` §5.1.
  *
- * **A post still flows.** Twelve offers at 2 × 2 is three posts, which is a
+ * **A post still flows.** Twelve offers at 3 × 2 is two posts, which is a
  * carousel — the same pagination a booklet gets, and the reason this returns a
  * master grid rather than a one-off rectangle.
  *
@@ -237,17 +319,14 @@ export function bookletGrid(
  * is held; a post is cropped by whatever app is showing it, and the safe area is
  * smaller than the canvas.
  */
-export function postGrid(
-  options: { perRow?: number; bodyRows?: number; cardBlockId?: string } = {}
-): PageGrid {
-  const perRow = options.perRow ?? 2
-  const bodyRows = options.bodyRows ?? 2
-
-  return {
-    cols: Array.from({ length: perRow }, () => 1),
-    rows: Array.from({ length: bodyRows }, () => 1),
-    gap: 0.028,
-    margin: 0.05,
-    regions: offerRegions(perRow, bodyRows, options.cardBlockId ?? OFFER_CARD.id),
-  }
+export function postGrid(options: ComposeGridOptions = {}): PageGrid {
+  return composeGrid({
+    perRow: options.perRow ?? 2,
+    bodyRows: options.bodyRows ?? 2,
+    gap: options.gap ?? 0.028,
+    margin: options.margin ?? 0.05,
+    ...(options.cardBlockId === undefined ? {} : { cardBlockId: options.cardBlockId }),
+    headerBlockId: options.headerBlockId ?? null,
+    footerBlockId: options.footerBlockId ?? null,
+  })
 }
