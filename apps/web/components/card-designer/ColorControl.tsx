@@ -413,18 +413,41 @@ function GradientEditor({
               // Centred on the bar by transform rather than by a spacing step:
               // the handle is 28px on a 48px bar, and no step on the scale is
               // 10px. A value that has to be exact is not a token.
+              // Positioned as a physical percentage for the reason in `atFrom`.
               style={{
                 left: `${stop.at * 100}%`,
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
-                backgroundColor: css(stop),
               }}
+              /*
+                **Two rings, and the handle is unreadable with one.** The colour
+                inside is the stop's, so it is whatever the owner chose, and it
+                sits on the gradient — which is also whatever they chose. A
+                single ring can only ever survive one of those: the white ring
+                this had made a white stop on the pale middle of a black-to-white
+                run completely invisible, and a dark ring would do the same to a
+                black stop at the dark end.
+
+                So: a dark hairline outside, a white hairline inside, the colour
+                in the middle. One of the two always separates the handle from
+                whatever is behind it, which is the standard colour-chip
+                treatment and the reason every design tool draws them this way.
+
+                No shadow, deliberately — there are none anywhere in this system —
+                and no `outline`, which belongs to the focus ring on a control
+                that is genuinely focusable.
+              */
               className={
                 position === index
-                  ? 'absolute size-icon-lg cursor-grab rounded-control border-2 border-border-focus'
-                  : 'absolute size-icon-lg cursor-grab rounded-control border-hairline border-stone-0'
+                  ? 'absolute size-icon-lg cursor-grab rounded-control border-2 border-border-focus p-px'
+                  : 'absolute size-icon-lg cursor-grab rounded-control border-hairline border-border-strong p-px'
               }
-            />
+            >
+              <span
+                className="block h-full w-full rounded-chip border-hairline border-stone-0"
+                style={{ backgroundColor: css(stop) }}
+              />
+            </button>
           ))}
         </div>
 
@@ -562,10 +585,22 @@ function Swatch({
       // as a class: it is data, not a design decision, and there is no token
       // for a colour the owner invented.
       style={{ backgroundColor: hex }}
+      /*
+        **`border-strong`, not `border-subtle`.** A swatch sits on the white card
+        surface and its fill is the shop's colour — so a white or near-white
+        entry is separated from the panel by its border alone. The subtle token
+        is `rgba(50,50,50,.14)`, which at 0.5px is not separation: a white swatch
+        read as an empty gap, and an owner could not tell whether one was there
+        at all, let alone whether it was the one selected.
+
+        A single dark-ish border is enough here, unlike the gradient handle
+        above: a dark swatch is already separated from the pale panel by its own
+        fill, so only the light end of the range needs help.
+      */
       className={
         selected
           ? 'flex size-swatch items-center justify-center rounded-control border-2 border-border-focus'
-          : 'flex size-swatch items-center justify-center rounded-control border-hairline border-border-subtle'
+          : 'flex size-swatch items-center justify-center rounded-control border-hairline border-border-strong'
       }
     >
       {selected ? (

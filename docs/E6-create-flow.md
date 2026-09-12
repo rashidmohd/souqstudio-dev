@@ -970,3 +970,63 @@ the one function.
 - **The editor render is 7.5 – 11.3 s in dev.** Debouncing means an owner meets
   it far less often, and it is still what every layout change costs. Worth
   profiling on its own before E9 adds an export button beside it.
+
+
+---
+
+## 14. A white colour you could not see, 12 September
+
+Reported from the gradient panel: the colours need a border, because there is no
+way to tell whether a white one is selected.
+
+### 14.1 Two separate failures, one cause
+
+**The gradient stop handle was white-on-white.** Unselected handles carried
+`border-hairline border-stone-0` — and `--sq-stone-0` is `#fff`. So a white stop,
+sitting on the pale middle of a black-to-white run, was a white circle with a
+white ring on a white background. Not faint: absent.
+
+**The palette swatch was nearly as bad.** `border-hairline border-border-subtle`
+is `rgba(50,50,50,.14)` at 0.5px. A swatch's fill *is* the shop's colour and it
+sits on the white card surface, so for the `surface` entry — which is white on
+most brand kits — that border was the only thing separating it from the panel. It
+read as an empty gap.
+
+Both are the same mistake: **a container whose contents are arbitrary colour
+cannot be bounded by one fixed colour.**
+
+### 14.2 The fix, and why the two are different
+
+**The handle gets two rings**: a dark hairline outside, a white hairline inside,
+the stop's colour between them. It sits *on the gradient*, so what is behind it
+is as arbitrary as what is in it, and a single ring can only ever survive one of
+those — the white ring lost a white stop on a pale run, and a dark ring would
+lose a black stop at the dark end. With both, one of the two always separates it.
+That is the standard colour-chip treatment and the reason every design tool draws
+them this way.
+
+No shadow, because there are none anywhere in this system, and no `outline`,
+which belongs to the focus ring on a genuinely focusable control.
+
+**The swatch gets one stronger ring**, `border-strong` at `rgba(50,50,50,.25)`
+rather than `.14`. It sits on the white panel rather than on colour, so only the
+light end of the range needs help: a dark swatch is already separated by its own
+fill. Nearly double the contrast, and nothing else changes.
+
+### 14.3 Where it lands
+
+`ColorControl` is the card designer's component, reused by the offer book's page
+background. Both fixes are in it, so the block designer's colour picker gains
+them too — which is where a white swatch has been invisible since E7, unreported.
+
+Verified on a rendered gradient with a deliberate `#ffffff` middle stop: the
+white handle carries `border-border-strong` outside and `border-stone-0` inside,
+and no swatch is left on the subtle token.
+
+### 14.4 Still owed
+
+**Verified as markup, not as pixels.** Contrast is the one class of defect where
+reading the class name proves least — `rgba(50,50,50,.25)` on white is 
+arithmetic, not a look. This is exactly the kind of thing `pnpm --filter
+@souqstudio/engine gallery` exists for on the artboard side, and chrome has no
+equivalent. A browser would settle it in a glance.
