@@ -876,3 +876,97 @@ the panel and the focus behaviour around both are client-side, and curl cannot
 exercise them. That needs a browser driver, which this repo does not have —
 §11.9's gradient question is in the same position, and the list of unrendered
 surfaces from §9.4 has not got shorter.
+
+
+---
+
+## 13. The gradient was unusable, 12 September
+
+Reported as slow, unresponsive and buggy. All three were one mistake, and it was
+in how the control was wired rather than in the control.
+
+### 13.1 What it was doing
+
+Every colour control in this product emits **continuously**:
+`<input type="color">` fires while the native picker is being dragged,
+`<input type="range">` fires per pixel, the gradient bar fires per
+`pointermove`, and the hex box fires per keystroke.
+
+Each of those was wired straight to a server write:
+
+```tsx
+onChange={(next) => void grid.patch({ background: next })}
+```
+
+Measured against the running app, per event:
+
+| | |
+| --- | --- |
+| `PATCH .../grid` | 1.5 – 2.6 s |
+| the `router.refresh()` it triggers | 7.5 – 11.3 s |
+
+The refresh is the expensive half and it is doing real work: re-running
+`loadBook`, re-flowing the engine and re-composing every offer on every page. A
+one-second drag across the gradient bar queued dozens of those.
+
+**And then the control disabled itself.** `disabled={grid.busy}` was passed to
+`PageBackgroundControl`, so the moment the first request started the picker went
+dead — mid-gesture, losing the drag. That was the "bugs".
+
+(Those timings are dev mode against a hosted database over the internet.
+Production is faster. The ratio is the point, and dev is what an owner building
+this sees.)
+
+### 13.2 What the designer does, which this skipped
+
+`ColorControl` is the card designer's, and there it writes to a Zustand store —
+instant, local — with a debounced autosave behind it. `apps/web/CLAUDE.md` states
+that model plainly, and the design system states the general rule: *"price edits
+and product add or remove apply immediately and reconcile in the background."*
+
+Reusing the component without reusing that half is the whole defect.
+
+### 13.3 The fix
+
+- **`patchSoon`** on `useGridPatch`: the same write, fired once the owner stops
+  moving. 500ms — deliberately not the editor's 2s autosave, which is an interval
+  for text somebody is still typing. A colour is *seen*, the artboard already
+  updated, and this only decides how far the stored value lags the screen.
+- **An optimistic draft** in `EditorShell`, passed to both the control and
+  `BookPage`, so the artboard repaints on the same frame as the swatch. Cleared
+  when the write lands, and cleared on failure — the design system's rule is that
+  a failed optimistic update reverts *that field* and names it, and the panel's
+  error line is the naming.
+- **Never `disabled` during a write.** A debounced write has nothing to protect:
+  the next change replaces the pending one.
+
+**Checked under burst**: eight concurrent writes leave a valid gradient stored —
+one wins the race, none corrupts. The debounce means there is only ever one.
+
+### 13.4 And the colon ids, finally
+
+§11.9 flagged that `React.useId()` returns `:R7b7rrqfj6:`, so every gradient
+reference in the product read `url(#:R7b7rrqfj6:-page-ground)`. It was left open
+twice. With gradients being reported as wrong it stopped being worth leaving
+open, and `safeId` in `draw.tsx` now strips ids to alphanumerics and dashes.
+
+It was probably never the reported bug — browsers do resolve that reference, and
+§13.1 explains the symptoms completely. It is removed because the path has no
+margin for a hazard: `querySelector('#:r1:')` throws outright, **E9 renders these
+SVGs through Playwright rather than a browser tab**, and a paint server that
+fails to resolve in the print pipeline is a flyer with a black rectangle on it.
+No seeded block carries a gradient, so the scheme had no track record to trust.
+
+Uniqueness is unaffected: what makes the id unique is the `useId` counter, not
+its punctuation. Both callers — page grounds and block shape fills — go through
+the one function.
+
+### 13.5 Still owed
+
+- **Nothing here was clicked.** The debounce, the optimistic repaint and the drag
+  are all client behaviour; what was measured was the cost the fix removes, not
+  the fix working. A browser driver would close this, and it is now the third
+  session ending on the same sentence.
+- **The editor render is 7.5 – 11.3 s in dev.** Debouncing means an owner meets
+  it far less often, and it is still what every layout change costs. Worth
+  profiling on its own before E9 adds an export button beside it.

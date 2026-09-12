@@ -154,12 +154,14 @@ export function paintFill(
   const resolved = resolvePaint(value, ctx.token, ctx.palette)
   if (resolved.kind === 'flat') return { fill: resolved.css, defs: null }
 
+  const id = safeId(ctx.id)
+
   return {
-    fill: `url(#${ctx.id})`,
+    fill: `url(#${id})`,
     defs: (
       <defs>
         <linearGradient
-          id={ctx.id}
+          id={id}
           x1={resolved.x1}
           y1={resolved.y1}
           x2={resolved.x2}
@@ -172,6 +174,32 @@ export function paintFill(
       </defs>
     ),
   }
+}
+
+/**
+ * An id safe to put inside `url(#...)`.
+ *
+ * **`React.useId()` returns colons** — `:R7b7rrqfj6:` — and every gradient id in
+ * this product is built from one. A colon is legal in an HTML id and in a URI
+ * fragment, and browsers do resolve the reference, so this is not a bug anyone
+ * has watched happen. It is a hazard sitting on a path with no margin for one:
+ *
+ * - **`document.querySelector('#:r1:')` throws**, because a colon is a
+ *   pseudo-class in CSS selector syntax. Nothing does that today. Anything that
+ *   ever does — a test, a screenshot tool, a future renderer — fails oddly.
+ * - **E9 renders these SVGs through Playwright rather than a browser tab**, and
+ *   the print pipeline is the one place where a paint server that fails to
+ *   resolve produces a flyer with a black rectangle on it.
+ * - **No seeded block carries a gradient** (`usesOnlyRoles` refuses one), so
+ *   until the page background shipped, this scheme had most likely never painted
+ *   anything. It had no track record to trust.
+ *
+ * Stripping to alphanumerics and dashes costs nothing and removes the class.
+ * Uniqueness survives: what makes an id unique is the `useId` counter, not its
+ * punctuation.
+ */
+function safeId(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9-]/g, '')
 }
 
 /**

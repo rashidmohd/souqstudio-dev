@@ -154,6 +154,37 @@ export function EditorShell({
   // a delta, so each control sends only its own field.
   const grid = useGridPatch(bookId, pages.length)
 
+  /**
+   * The background as the owner is currently seeing it, before the server has
+   * been told.
+   *
+   * **Every colour control in this product emits continuously** — the native
+   * picker fires while it is being dragged, a range input fires per pixel, and
+   * the gradient bar fires per pointermove. Waiting for a round trip to repaint
+   * the artboard makes the whole panel feel broken, and it was: each of those
+   * events used to be its own PATCH, rebuilding the grid and re-running the flow
+   * engine through `router.refresh()`.
+   *
+   * So the draft paints immediately and `patchSoon` stores it once the owner
+   * stops moving. `undefined` means no local edit — the stored value is what
+   * shows.
+   *
+   * **Cleared on failure, not kept.** The design system's rule for an optimistic
+   * update is that a failure reverts *that field* and names it; the panel's error
+   * line is the naming. Keeping a draft the server rejected would show an owner a
+   * background their book does not have.
+   */
+  const [draftBackground, setDraftBackground] = React.useState<
+    PageBackground | null | undefined
+  >(undefined)
+
+  const shownBackground =
+    draftBackground === undefined ? layout.background : draftBackground
+
+  // Once a write lands, `router.refresh()` brings the stored value back down and
+  // the draft has nothing left to say.
+  React.useEffect(() => setDraftBackground(undefined), [layout.background])
+
   // One set for the whole book, assembled from the pages. Each page reports its
   // own, so the union has to be held here rather than replaced per page — page
   // two reporting nothing must not clear page one's flags.
@@ -340,11 +371,23 @@ export function EditorShell({
 
             <div hidden={tool !== 'background'}>
               <PageBackgroundControl
-                value={layout.background}
-                onChange={(next) => void grid.patch({ background: next })}
+                value={shownBackground}
+                onChange={(next) => {
+                  setDraftBackground(next)
+                  grid.patchSoon({ background: next }, (ok) => {
+                    if (!ok) setDraftBackground(undefined)
+                  })
+                }}
                 palette={palette}
                 token={(ref) => resolveToken(palette, ref)}
-                disabled={grid.busy}
+                /*
+                  **Never disabled while a write is in flight.** `grid.busy` was
+                  wired here, so the control went dead mid-drag the moment a
+                  request started and the gesture was lost. A debounced write has
+                  nothing to protect against anyway: the next change simply
+                  replaces the pending one.
+                */
+                disabled={false}
               />
               {grid.error !== null ? (
                 <p className="pt-2 font-ui text-body-sm text-critical-fg" role="alert">
@@ -382,7 +425,7 @@ export function EditorShell({
                 // The artboard follows the *book's* language, never the
                 // interface's.
                 direction={edition === 'ar' ? 'rtl' : 'ltr'}
-                background={layout.background}
+                background={shownBackground}
                 asset={asset}
                 overrides={liveOverrides[flowPage.index] ?? overrides[flowPage.index] ?? []}
                 selectedOfferId={selectedOfferId}
