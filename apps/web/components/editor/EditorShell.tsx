@@ -235,12 +235,38 @@ export function EditorShell({
    * *is*. The buttons disable while the write is in flight and the page redraws
    * when it returns.
    */
+  /**
+   * The cell edit the owner is waiting on, if any.
+   *
+   * **`useGridPatch.busy` is not this.** That flag follows the *fetch*, and the
+   * fetch resolves long before the page changes: `router.refresh()` is not
+   * awaited, so every control came back to life and then nothing moved for nine
+   * seconds. An owner pressing Merge and watching their page sit still for nine
+   * seconds has been told, as clearly as an interface can, that the button does
+   * not work.
+   */
+  const [pendingCells, setPendingCells] = React.useState<'merge' | 'unmerge' | null>(null)
+
+  // The new grid has landed — `layout.merges` is a fresh array on every server
+  // render — so whatever was in flight is now on screen.
+  React.useEffect(() => {
+    setPendingCells(null)
+  }, [layout.merges])
+
   const applyMerges = React.useCallback(
-    (next: readonly CellSpan[]) => {
-      void grid.patch({ merges: next })
+    (next: readonly CellSpan[], action: 'merge' | 'unmerge') => {
+      setPendingCells(action)
+      // Cleared on failure only. A *success* is not the end of the wait — the
+      // route has written the grid, but the artboard does not move until
+      // `router.refresh()` has re-run the flow engine and the new props land,
+      // which is the effect below.
+      void grid.patch({ merges: next }).then((ok) => {
+        if (!ok) setPendingCells(null)
+      })
     },
     [grid]
   )
+
 
   /**
    * Selection is cleared when the grid changes shape under it.
@@ -486,13 +512,14 @@ export function EditorShell({
                 selection={selection}
                 addToSelection={addToSelection}
                 onToggleAddToSelection={() => setAddToSelection((on) => !on)}
+                pendingCells={pendingCells}
                 onMerge={() => {
                   if (selectionSpan === null) return
-                  applyMerges(mergeSpan(layout.merges, selectionSpan, bounds))
+                  applyMerges(mergeSpan(layout.merges, selectionSpan, bounds), 'merge')
                 }}
                 onUnmerge={() => {
                   if (selectionSpan === null) return
-                  applyMerges(unmergeSpan(layout.merges, selectionSpan))
+                  applyMerges(unmergeSpan(layout.merges, selectionSpan), 'unmerge')
                 }}
               />
             </div>

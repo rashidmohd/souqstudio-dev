@@ -771,3 +771,33 @@ Two things are worth keeping from this:
 - **Every test asserted on the grid, and the bug was in the page.** The engine was correct
   at every step; what was wrong was which of its outputs the interface put in front of the
   owner. No amount of further testing of `mergeSpan` would have found it.
+
+### Two more the browser found, and the tests could not
+
+The pinned-row defect above was the first of three, and all three needed a real browser
+driven against a real book. The engine was correct throughout; every failure was in what
+the interface put in front of the owner, or in when it put it there.
+
+**The nine seconds.** `useGridPatch` clears `busy` when the *fetch* resolves, but
+`router.refresh()` is not awaited — so pressing Merge re-enabled every control
+immediately and then the page sat unchanged for **nine seconds** while the server rebuilt
+the grid and re-flowed the book. There is no interpretation of that available to an owner
+except that the button is broken. The fix is a `pendingCells` flag that survives the fetch
+and is cleared by the *arrival of the new grid* (`layout.merges` is a fresh array on every
+server render), driving the Button's own `loading` state. Measured after: spinner for the
+full 6.8s, cleared the frame the new cells land.
+
+This is worth generalising. **Every control in this panel has the same seam** — track
+count, margin, bands and background all patch and refresh, and all of them report `busy`
+against the fetch rather than against the repaint. They are less visibly wrong only
+because a select keeps showing the value you chose while a page does not.
+
+**`variant="ghost"` is not a button on a tinted block.** "Add to selection" rendered as
+bold text with no border and no ground, sitting beside two outlined pills — it read as a
+heading, and nothing about it invited a press. It was reported twice as "not working" when
+it worked correctly every time. Off it is now `secondary`, an outlined pill like its
+neighbours; on it is the one primary in the panel, because blue carries active state.
+
+The lesson is not "ghost is wrong". It is that a variant is only legible relative to what
+sits next to it, and `component-inventory.md` cannot encode that. It is a screenshot
+check, and it took a screenshot to see it.

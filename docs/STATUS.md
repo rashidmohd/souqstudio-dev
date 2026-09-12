@@ -970,7 +970,10 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   **A cell a pin has taken on a page is not offered on that page** — `FlowPage` now carries
   `pinnedRegionIds`. Without it the first merge anyone tried landed on a pinned top row,
   stored correctly, and changed nothing on the page they were looking at. `E6-pending.md`
-  §10.
+  §10. Two more defects came out of driving it in a browser: **a nine-second unlit wait**,
+  because `useGridPatch` clears `busy` on the fetch while `router.refresh()` is not awaited
+  — which is a seam *every* control in that panel shares — and a `ghost` button that read
+  as a heading. Both fixed; `E6-pending.md` §10.
 
 **What E6 still owns:**
 

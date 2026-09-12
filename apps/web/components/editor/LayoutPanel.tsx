@@ -92,6 +92,17 @@ type Props = {
    */
   addToSelection: boolean
   onToggleAddToSelection: () => void
+  /**
+   * The cell edit the server has been told about and has not yet sent back.
+   *
+   * **Not `busy`, and the difference is the whole point.** `useGridPatch` clears
+   * `busy` when the *fetch* resolves, but the artboard only changes when
+   * `router.refresh()` finishes re-running the flow engine — which took nine
+   * seconds against a remote database. For those nine seconds every control was
+   * enabled, nothing moved, and the only reasonable conclusion was that the
+   * button did not work. This stays set until the new grid is on screen.
+   */
+  pendingCells: 'merge' | 'unmerge' | null
 }
 
 export function LayoutPanel({
@@ -113,6 +124,7 @@ export function LayoutPanel({
   onUnmerge,
   addToSelection,
   onToggleAddToSelection,
+  pendingCells,
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
@@ -183,6 +195,7 @@ export function LayoutPanel({
         onUnmerge={onUnmerge}
         addToSelection={addToSelection}
         onToggleAddToSelection={onToggleAddToSelection}
+        pending={pendingCells}
       />
 
       <Band
@@ -299,6 +312,7 @@ function Cells({
   onUnmerge,
   addToSelection,
   onToggleAddToSelection,
+  pending,
 }: {
   selection: { cells: number; canMerge: boolean; canUnmerge: boolean }
   disabled: boolean
@@ -306,6 +320,7 @@ function Cells({
   onUnmerge: () => void
   addToSelection: boolean
   onToggleAddToSelection: () => void
+  pending: 'merge' | 'unmerge' | null
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-block bg-sand p-3">
@@ -325,8 +340,15 @@ function Cells({
       )}
 
       <div className="flex flex-wrap gap-2">
+        {/*
+          `loading` rather than a disabled button, because it holds the width and
+          says *something is happening* rather than *you may not do this*. The
+          grid is rebuilt and re-flowed server-side, so the wait is real and the
+          artboard cannot move until it is over.
+        */}
         <Button
           type="button"
+          loading={pending === 'merge'}
           disabled={disabled || !selection.canMerge}
           onClick={onMerge}
         >
@@ -334,6 +356,7 @@ function Cells({
         </Button>
         <Button
           type="button"
+          loading={pending === 'unmerge'}
           disabled={disabled || !selection.canUnmerge}
           onClick={onUnmerge}
         >
@@ -345,10 +368,17 @@ function Cells({
           never changes, because a control that renames itself when pressed is
           one an owner has to read twice to know what it will do.
         */}
+        {/*
+          **`secondary` when off, never `ghost`.** A ghost button on this tinted
+          block is bold text with no border and no ground — beside two outlined
+          pills it reads as a heading, not a control, and an owner has no reason
+          to press it. Off it is an outlined pill like its neighbours; on it is
+          the one primary in this panel, because blue carries active state.
+        */}
         <Button
           type="button"
           aria-pressed={addToSelection}
-          variant={addToSelection ? 'primary' : 'ghost'}
+          variant={addToSelection ? 'primary' : 'secondary'}
           onClick={onToggleAddToSelection}
         >
           Add to selection
