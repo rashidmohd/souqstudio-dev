@@ -2,15 +2,19 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { ArrowLeft, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, PanelLeftClose, TriangleAlert } from 'lucide-react'
 import type { Block, BrandKit, PageBackground, Pin, SlotOverride } from '@souqstudio/types'
 import type { FlowPage } from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PinsPanel } from '@/components/editor/PinsPanel'
+import {
+  BookToolRail,
+  labelForTool,
+  type BookTool,
+} from '@/components/editor/BookToolRail'
 import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl'
-import { Tabs, TabPanel } from '@/components/ui/tabs'
 import { useGridPatch } from '@/components/editor/use-grid-patch'
 import { OfferTray } from '@/components/editor/OfferTray'
 import {
@@ -92,25 +96,6 @@ type Props = {
   gridProblems: { code: string }[]
 }
 
-/**
- * The four things an owner adjusts about a book, in the order they reach for
- * them: what is in it, how the page is shaped, what the page looks like, and
- * what is parked on a particular page.
- *
- * **The same four for every kind**, which is a decision rather than an
- * omission. A square post has no footer *by default* and can still be given
- * one; a one-page status can still take a pin, which displaces an offer onto a
- * second page. Hiding a tab by format would remove things an owner can
- * genuinely do. What varies by book is inside the panels — `PinsPanel` bounds
- * its page select to the pages that exist, rather than this list changing shape.
- */
-const TOOLS = [
-  { value: 'offers', label: 'Offers' },
-  { value: 'layout', label: 'Layout' },
-  { value: 'background', label: 'Background' },
-  { value: 'pins', label: 'Pins' },
-]
-
 export function EditorShell({
   bookId,
   title,
@@ -154,7 +139,16 @@ export function EditorShell({
    * consequence, nothing else reads it, and a book deep-linked to its Background
    * tab is not a thing anyone has asked to share.
    */
-  const [tool, setTool] = React.useState('offers')
+  const [tool, setTool] = React.useState<BookTool>('offers')
+
+  /**
+   * Whether the settings panel beside the rail is showing.
+   *
+   * Open by default: an editor whose settings start collapsed is one where the
+   * first thing an owner has to discover is how to see anything at all. The
+   * collapse is for reclaiming width once they know where things are.
+   */
+  const [panelOpen, setPanelOpen] = React.useState(true)
 
   // One request shape for the two tabs that write to the grid. The route takes
   // a delta, so each control sends only its own field.
@@ -266,34 +260,67 @@ export function EditorShell({
           side="start"
           open={drawer.open === 'start'}
           onClose={drawer.close}
-          className="flex-col"
+          // Collapsed, the pane *is* the rail. Below `lg` it is a drawer the
+          // owner opened on purpose, so the panel always shows there — hiding it
+          // would leave a drawer containing a strip of icons they can already
+          // reach. Same contract as the designer's.
+          lgWidth={panelOpen ? 'lg:w-pane-start' : 'lg:w-tool-rail'}
         >
-          {/*
-            **The tabs sit on top of the pane, not down its edge.** A vertical
-            icon rail is the card designer's arrangement and it is right there:
-            its glyphs are the universal drawing vocabulary, and picking one
-            means picking a tool to draw with. Nothing here is drawn. The
-            artboard is engine output and these are the settings behind it, so
-            the question is *which settings am I looking at* — which is a tab.
-
-            It also keeps the parity rule intact rather than breaking it: that
-            rule governs the artboard — padding, zoom, selection, handles — and
-            says nothing about how each editor arranges its own chrome.
-          */}
-          <Tabs
-            items={TOOLS}
-            value={tool}
-            onValueChange={setTool}
-            label="Offer book tools"
-            className="shrink-0 px-3"
+          <BookToolRail
+            tool={tool}
+            onSelect={(next) => {
+              setTool(next)
+              // Picking a tool while the panel is shut opens it. A rail that
+              // changed a hidden panel would be four buttons that do nothing.
+              setPanelOpen(true)
+            }}
+            panelOpen={panelOpen}
+            onTogglePanel={() => setPanelOpen((open) => !open)}
           />
 
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            <TabPanel value="offers" active={tool === 'offers'}>
-              <OfferTray bookId={bookId} />
-            </TabPanel>
+          <div
+            className={
+              panelOpen
+                ? 'flex min-w-0 flex-1 flex-col gap-3 overflow-auto p-3'
+                : 'flex min-w-0 flex-1 flex-col gap-3 overflow-auto p-3 lg:hidden'
+            }
+          >
+            {/*
+              **The heading is the visible label the icon rail owes.** The design
+              system permits icon-only controls in an editor toolbar on condition
+              the same action is reachable with a visible label elsewhere; this is
+              that, and it doubles as the answer to "which of those four am I in".
 
-            <TabPanel value="layout" active={tool === 'layout'}>
+              The close control sits beside it for the same reason the designer's
+              does: a close belongs on the thing being closed, which is where
+              anyone looks for it. The rail keeps its own copy, because once this
+              pane is gone a control inside it is gone with it.
+            */}
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">
+                {labelForTool(tool)}
+              </h2>
+              <button
+                type="button"
+                aria-label="Hide settings"
+                aria-expanded={panelOpen}
+                title="Hide settings"
+                onClick={() => setPanelOpen(false)}
+                className="hidden rounded-control p-1 text-secondary hover:bg-stone-100 lg:block"
+              >
+                <PanelLeftClose className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </div>
+
+            {/*
+              Hidden rather than unmounted, so switching tools does not discard a
+              gradient mid-edit or a pin form half filled.
+            */}
+            <div hidden={tool !== 'offers'}>
+              <OfferTray bookId={bookId} />
+            </div>
+
+            <div hidden={tool !== 'layout'}>
               <LayoutPanel
                 perRow={layout.perRow}
                 bodyRows={layout.bodyRows}
@@ -309,9 +336,9 @@ export function EditorShell({
                 headerBlocks={headerBlocks}
                 footerBlocks={footerBlocks}
               />
-            </TabPanel>
+            </div>
 
-            <TabPanel value="background" active={tool === 'background'}>
+            <div hidden={tool !== 'background'}>
               <PageBackgroundControl
                 value={layout.background}
                 onChange={(next) => void grid.patch({ background: next })}
@@ -324,9 +351,9 @@ export function EditorShell({
                   {grid.error}
                 </p>
               ) : null}
-            </TabPanel>
+            </div>
 
-            <TabPanel value="pins" active={tool === 'pins'}>
+            <div hidden={tool !== 'pins'}>
               <PinsPanel
                 bookId={bookId}
                 pins={pins}
@@ -338,7 +365,7 @@ export function EditorShell({
                 pageCount={pages.length}
                 disabled={grid.busy}
               />
-            </TabPanel>
+            </div>
           </div>
         </CanvasDrawer>
 

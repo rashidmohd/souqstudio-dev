@@ -765,65 +765,78 @@ back to paper, the two would have looked identical until something queried
 
 ---
 
-## 12. The editor's tool tabs, 12 September
+## 12. The editor's tool rail, 12 September
 
-The start pane was one scroll holding everything. It is four tabs now:
-**Offers · Layout · Background · Pins**.
+The start pane was one scroll holding everything. It is a vertical icon rail
+with an expandable settings panel now — the same arrangement the card designer
+has — carrying four tools: **Offers · Layout · Background · Pins**.
 
-### 12.1 Why tabs and not a rail
+### 12.1 It was tabs first, for half a day
 
-The first proposal was to copy the card designer: a vertical `ToolRail` on the
-start edge with a collapsible pane beside it. That was wrong, and the reason is
-worth keeping.
+The pane needed splitting: `OfferTray` at 412 lines and `LayoutPanel` at 509
+stacked in one column, with a full colour picker and gradient stop editor inside
+the second.
 
-**A vertical icon rail says *pick a tool to draw with*.** That is exactly right
-in the designer, where an owner places elements. It is exactly wrong here: the
-composition model is explicit that the artboard is engine output and that owners
-"do not place cards, draw slots, or free-position anything". Nothing in this
-editor is drawn. The question a book editor's chrome answers is *which settings
-am I looking at*, and that is a tab.
+The first split was a row of tabs across the top of the pane. It shipped, it was
+looked at, and it came straight back out on one argument: **tabs do not grow.**
+Four fitted the width of the pane. Eight will not, and this pane keeps gaining
+things — export, sharing, seasonal scheduling are all still owed. A control that
+caps out at the width of its container is one that has to be replaced later, and
+"later" is the expensive time to do it.
 
-**Canvas parity survives this.** The rule governs the artboard — "identical
-padding, zoom controls, selection outline and handle treatment" — and says
-nothing about how each editor arranges its own chrome. Two editors doing
-different jobs may reach for different vocabularies; two artboards may not.
+A rail grows down an edge that has room. That is the whole argument and it is
+correct.
 
-**The book already had its layer list.** The designer's `LayerList` is elements
-the owner placed, in paint order. The book's equivalent is the offer tray —
-offers in reading order, reorderable by drag — and it has existed since E6. What
-was missing was never a layer panel. It was the control that switches what the
-pane shows.
+**What was wrong with the reasoning that produced the tabs** is worth keeping,
+because it was not obviously wrong. It went: a vertical icon rail says *pick a
+tool to draw with*, which is right in the designer and wrong here, because
+nothing in an offer book is placed by hand. That is still true — but it argues
+about what the rail *means*, not about whether it *fits*, and meaning is
+cheaper to fix than geometry. The rail keeps the shape and changes the noun: a
+tool here selects which settings the panel shows, and the panel heading says
+which. The tabs answered the meaning question and lost on the one that mattered.
 
-### 12.2 `Tabs` was specified and unbuilt
+`components/ui/tabs.tsx` was deleted rather than left unused. The two things
+learned building it — a tablist owes a roving tabindex, and panels must hide
+rather than unmount — are recorded on its `spec` entry in
+`component-inventory.md`, along with the growth argument, so the next person to
+reach for tabs meets it before they build.
 
-`references/component-inventory.md` has carried a `Tabs` entry at
-`components/ui/tabs.tsx` with an exact prop signature since before any of this,
-status `spec`, zero implementations. (`ArrangementTabs` in the designer is
-misleadingly named: an `InlineSelect` and a button.) So this filled a documented
-gap rather than inventing a primitive, and it went in the file whose whole
-purpose is stopping two sessions from building the same control twice.
+### 12.2 What it copies from the designer, and what it does not
 
-Two things were added to the spec in the building, both recorded there:
+`BookToolRail` matches `ToolRail` where the owner can see it: `size-control-lg`
+buttons at `rounded-control`, `bg-selected-bg` / `text-selected-fg` when active,
+a hairline divider before the collapse toggle, and the toggle last because it is
+chrome rather than a tool. The pane collapses to `lg:w-tool-rail` and expands to
+`lg:w-pane-start`, the same two widths.
 
-- **`label`.** A `role="tablist"` with no accessible name is a row of words whose
-  purpose is visible only on screen.
-- **A roving tabindex.** A tablist is not a row of buttons. The row is one tab
-  stop and arrows move within it, per WAI-ARIA; four tabs each taking their own
-  tab stop is four presses to get past them and no arrow keys either.
+**The toggle lives on the rail because the rail is what survives the collapse.**
+A control inside the panel can only ever close it; the way back has to be
+somewhere still on screen. The panel keeps its own copy beside the heading,
+because a close belongs on the thing being closed.
 
-`TabPanel` hides rather than unmounts, so switching away from a half-edited
-gradient or a partly filled pin form does not discard it.
+What it does not copy is the *meaning*. In the designer a tool makes something
+and the rail is a palette. Here the artboard is engine output — the composition
+model is explicit that owners "do not place cards, draw slots, or free-position
+anything" — so a tool selects a view of settings. `aria-pressed` on a
+`role="toolbar"`, not `aria-selected` on a tablist: the collapse toggle sits in
+the same strip and is not a tab, so a tablist would have to exclude it.
 
-### 12.3 The same four tabs for every kind
+**Every button has a name.** `title` for the pointer, `aria-label` for the
+screen reader, and the panel heading carries the active tool's label — which is
+the visible label the design system requires whenever an editor toolbar goes
+icon-only.
 
-The ask was tools that vary by post type. Built deliberately as a fixed four, and
-the reasoning is the part worth keeping: **a square post has no footer by
-default and can still be given one; a one-page status can still take a pin,
-which displaces an offer onto a second page.** Hiding a tab by format would
-remove things an owner can genuinely do.
+### 12.3 The same four tools for every kind
+
+The ask included tools that vary by post type. Built as a fixed four, and the
+reasoning is the part worth keeping: **a square post has no footer by default
+and can still be given one; a one-page status can still take a pin, which
+displaces an offer onto a second page.** Hiding a tool by format would remove
+things an owner can genuinely do.
 
 What varies is *inside* the panels, driven by what the book can actually do
-rather than by what kind it is. Page count is the fact; kind is a proxy for it.
+rather than what kind it is. Page count is the fact; kind is a proxy for it.
 
 ### 12.4 A bug that fell out of it
 
@@ -835,30 +848,31 @@ produced eleven empty pages.
 
 `pinPageOptions` bounds it to the pages that exist plus one, and the plus-one is
 deliberate: pinning onto the next page is how an owner extends a book, so the
-option stays and says `2 (adds a page)`. Exported and tested, because the flat
+option stays and reads `2 (adds a page)`. Exported and tested, because the flat
 list read as perfectly reasonable and was wrong for three of the four kinds.
 
 ### 12.5 The files
 
 | File | What |
 | --- | --- |
-| `components/ui/tabs.tsx` | New. `Tabs` + `TabPanel`, to the inventory's signature |
-| `references/component-inventory.md` | `Tabs` → `built`, with `label` and the keyboard contract |
+| `components/editor/BookToolRail.tsx` | New. The rail, `BOOK_TOOLS`, `labelForTool` |
 | `components/editor/use-grid-patch.ts` | New. The grid PATCH, shared by Layout and Background |
 | `components/editor/PinsPanel.tsx` | New. Extracted from `LayoutPanel`; `pinPageOptions` |
 | `components/editor/PinsPanel.test.ts` | New. The page bound |
 | `components/editor/LayoutPanel.tsx` | 509 → 240 lines: tracks, margin, bands |
-| `components/editor/EditorShell.tsx` | The tab row and the four panels |
+| `components/editor/EditorShell.tsx` | The rail, the collapsible panel, the four views |
+| `references/component-inventory.md` | `Tabs` stays `spec`, with the growth argument and the two build notes |
 
 ### 12.6 Verified
 
-Driven against the running app on a real book: tablist named, roving tabindex
-(active `0`, rest `-1`), `aria-selected` / `aria-controls` / `aria-labelledby`
-paired, only the active panel unhidden, and all four panels rendering their
-controls. `pnpm typecheck`, `lint`, **509 web tests**, `build` and
-`check:classes` pass.
+Driven against the running app on a real book: `role="toolbar"` named and
+vertical, all four buttons carrying `title` + `aria-label` + `aria-pressed`, the
+active one pressed, the panel heading showing the active tool's label, all four
+panels mounted with three `hidden`, and no tab markup left behind. `pnpm
+typecheck`, `lint`, **509 web tests**, `build` and `check:classes` pass.
 
-**Not verified:** the tabs have not been *clicked* — switching, arrow keys and
-focus movement are client behaviour that curl cannot exercise. That needs a
-browser, which this repo still has no driver for. §11.9's gradient question is
-in the same position.
+**Not verified:** the rail has not been *clicked*. Selecting a tool, collapsing
+the panel and the focus behaviour around both are client-side, and curl cannot
+exercise them. That needs a browser driver, which this repo does not have —
+§11.9's gradient question is in the same position, and the list of unrendered
+surfaces from §9.4 has not got shorter.

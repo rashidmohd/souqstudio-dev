@@ -512,7 +512,7 @@ still comes from a token.
 | | |
 | --- | --- |
 | File | `components/ui/tabs.tsx` |
-| Status | `built` |
+| Status | `spec` |
 | Governs | SKILL.md → Components → Tabs |
 
 ```tsx
@@ -520,40 +520,35 @@ type TabsProps = {
   items: Array<{ value: string; label: string }>
   value: string
   onValueChange: (value: string) => void
-  /** Names the row for a screen reader. A tablist with no name is a list of
-   *  words whose purpose is only visible on screen. */
+  /** Names the row for a screen reader. Add this when building: a tablist with
+   *  no accessible name is a row of words whose purpose is visible only on
+   *  screen. */
   label: string
-  className?: string
-}
-
-// The panel a tab controls. Paired through aria-labelledby/aria-controls.
-type TabPanelProps = {
-  value: string
-  active: boolean
-  children: React.ReactNode
-  className?: string
 }
 ```
 
 **No `variant` prop.** One tab style in the product — underline. Pill tabs and boxed tabs
 do not exist, so there is nothing to choose between.
 
-**`label` was added to the spec when it was built.** A `role="tablist"` with no accessible
-name is a row of words whose purpose is visible only on screen, and the first caller — the
-offer book editor — has four tabs sitting above a pane of settings with nothing else
-naming them.
+**Built once and removed, and the notes below are what that cost.** The offer book
+editor shipped a tab row over its settings pane on 12 September and it came straight
+back out: **tabs do not grow.** Four fitted the width of the pane and eight would not,
+and that pane keeps gaining things — export, sharing, seasonal scheduling. A control
+that caps out at the width of its container is one that has to be replaced later, so
+it was replaced immediately by a vertical icon rail (`components/editor/BookToolRail.tsx`).
 
-**A tablist is not a row of buttons.** It carries a **roving tabindex**: the row is one tab
-stop and arrows move between the tabs inside it, per WAI-ARIA. Each tab being its own tab
-stop means four presses to get past a four-tab row, and no arrow keys either. Home and End
-jump to the ends; selection follows focus, which is right because every panel this switches
-is already rendered.
+That is not an argument against tabs generally. It is an argument against tabs for a
+**set that grows**, which is worth checking before reaching for this: a settings screen
+with three fixed sections is a good fit, a tool palette is not.
 
-**`TabPanel` hides rather than unmounts.** A panel that unmounts loses whatever the owner
-had half-done in it — a gradient mid-edit, a pin form partly filled — and switching tabs is
-not an action that should discard work.
+**Two things a builder will otherwise get wrong**, learned in that build:
 
-First used by `components/editor/EditorShell.tsx`: Offers · Layout · Background · Pins.
+- **A tablist is not a row of buttons.** It carries a *roving tabindex* — the row is one
+  tab stop and arrows move between the tabs inside it, per WAI-ARIA. Each tab being its
+  own tab stop means four presses to get past a four-tab row, and no arrow keys either.
+  Home and End jump to the ends.
+- **Hide panels, do not unmount them.** A panel that unmounts loses whatever was
+  half-done in it, and switching tabs is not an action that should discard work.
 
 ### Segmented · ToggleBar
 
