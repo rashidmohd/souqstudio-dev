@@ -331,6 +331,9 @@ export function BookPage({
         <CellLayer
           cells={cells}
           selection={cellSelection}
+          // Cells this page gave to a pin. They belong to the master and to
+          // every other page; here they are a brand ad.
+          pinned={page.pinnedRegionIds}
           offerAt={offerAt}
           nameFor={(offerId) => (offerId === null ? null : (offers[offerId]?.name ?? null))}
           onSelect={onSelectCell}
@@ -481,17 +484,37 @@ function PageGround({
 function CellLayer({
   cells,
   selection,
+  pinned,
   offerAt,
   nameFor,
   onSelect,
 }: {
   cells: readonly MasterCell[]
   selection: CellSpan | null
+  pinned: readonly string[]
   offerAt: (regionId: string) => string | null
   nameFor: (offerId: string | null) => string | null
   onSelect: (cell: MasterCell, options: { extend: boolean; offerId: string | null }) => void
 }) {
-  const selected = selection === null ? [] : cells.filter((cell) => spansIntersect(cell.body, selection))
+  /**
+   * **A pinned cell is not offered on the page that gave it away.**
+   *
+   * This is the defect that made merging look broken: every master cell was
+   * drawn as a target on every page, so an owner could select the top row of
+   * page one — merge it — and watch nothing happen, because page one had
+   * already given that row to a pinned seasonal band. The write had landed. The
+   * page simply had nothing to show for it.
+   *
+   * They stay mergeable *somewhere*: the cells exist on every other page, and a
+   * merge is a master edit. What they are not is selectable **here**.
+   */
+  const taken = new Set(pinned)
+  const open = cells.filter((cell) => !taken.has(cell.regionId))
+
+  // The ring is drawn over the selected cells **this page draws**, so it never
+  // outlines a rectangle the owner is looking at a brand ad inside of.
+  const selected =
+    selection === null ? [] : open.filter((cell) => spansIntersect(cell.body, selection))
   const ring = unionRect(selected.map((cell) => cell.rect))
 
   // Proportional to the cells rather than fixed, for the same reason the offer
@@ -499,9 +522,10 @@ function CellLayer({
   // so a constant here would be a hairline on A3 and a band on a story.
   const hairline = pageHairline(cells)
 
+
   return (
     <>
-      {cells.map((cell) => (
+      {open.map((cell) => (
         <rect
           key={`grid-${cell.regionId}`}
           {...rectAttrs(cell.rect)}
@@ -536,7 +560,7 @@ function CellLayer({
         </>
       )}
 
-      {cells.map((cell) => {
+      {open.map((cell) => {
         const offerId = offerAt(cell.regionId)
         const name = nameFor(offerId)
         const inSelection = selection !== null && spansIntersect(cell.body, selection)

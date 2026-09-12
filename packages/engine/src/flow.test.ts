@@ -398,3 +398,49 @@ describe('masterCells', () => {
     }
   })
 })
+
+describe('flowBook — pinned regions are reported per page', () => {
+  const band: Pin = {
+    id: 'pin_band',
+    pageIndex: 0,
+    blockId: 'blk_season',
+    colStart: 0,
+    colEnd: 2,
+    rowStart: 0,
+    rowEnd: 0,
+  }
+
+  it('names the flow regions a pin displaced, on the page it displaced them', () => {
+    // The editor cannot work this out and must not guess: a master cell exists
+    // on every page, a pin sits on one. Without this an owner can merge the top
+    // row of page one and watch nothing happen.
+    const flow = flowBook(
+      input({ master: fullGrid(3, 3), offerIds: offers(10), pins: [band] })
+    )
+
+    expect(flow.pages[0]?.pinnedRegionIds).toEqual(['r0c0', 'r0c1', 'r0c2'])
+    expect(flow.pages[1]?.pinnedRegionIds).toEqual([])
+  })
+
+  it('is empty on every page of a book with no pins', () => {
+    const flow = flowBook(input({ master: fullGrid(2, 2), offerIds: offers(4) }))
+    expect(flow.pages.every((page) => page.pinnedRegionIds.length === 0)).toBe(true)
+  })
+
+  it('reports a merged region once, by its id', () => {
+    const master = fullGrid(3, 1)
+    master.regions = [
+      { id: 'r0c0', colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 0, blockId: 'blk_card', fill: 'flow' },
+      { id: 'r0c2', colStart: 2, colEnd: 2, rowStart: 0, rowEnd: 0, blockId: 'blk_card', fill: 'flow' },
+    ]
+
+    const flow = flowBook(
+      input({
+        master,
+        offerIds: offers(2),
+        pins: [{ ...band, colStart: 0, colEnd: 0 }],
+      })
+    )
+    expect(flow.pages[0]?.pinnedRegionIds).toEqual(['r0c0'])
+  })
+})

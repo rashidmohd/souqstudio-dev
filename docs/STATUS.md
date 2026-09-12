@@ -967,7 +967,10 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   empty ones no placement covers) and `cardFit`, which now checks every shape on the page
   rather than the first, because a hero and the cards beside it are one block at two
   aspects. Not on the undo stack, for the same reason no other grid control is.
-  `E6-pending.md` §10.
+  **A cell a pin has taken on a page is not offered on that page** — `FlowPage` now carries
+  `pinnedRegionIds`. Without it the first merge anyone tried landed on a pinned top row,
+  stored correctly, and changed nothing on the page they were looking at. `E6-pending.md`
+  §10.
 
 **What E6 still owns:**
 

@@ -40,6 +40,20 @@ export interface FlowPage {
   placements: Placement[]
   /** Flow regions this page could hold, after pins took their cells. */
   capacity: number
+  /**
+   * Flow regions a pin displaced **on this page**.
+   *
+   * **Reported because the editor cannot work it out and must not guess.** A
+   * master cell exists on every page; a pin sits on one. So a cell can be part
+   * of the grid, selectable in principle, and simply not drawn here — and an
+   * editor that offered it anyway would let an owner merge two cells, watch the
+   * page not change, and conclude the feature is broken. It is not: the merge
+   * landed on a row this page gave to a brand ad.
+   *
+   * Not the same as a cell with no offer. Those are empty and still theirs to
+   * merge; these belong to something else on this page.
+   */
+  pinnedRegionIds: string[]
 }
 
 export interface FlowResult {
@@ -219,6 +233,9 @@ export function flowBook(input: FlowInput): FlowResult {
     const openRegions = flowRegions.filter(
       (region) => !pinsHere.some((pin) => spansIntersect(pin, region))
     )
+    const pinnedRegionIds = flowRegions
+      .filter((region) => pinsHere.some((pin) => spansIntersect(pin, region)))
+      .map((region) => region.id)
 
     for (const region of openRegions) {
       const offerId = offerIds[cursor]
@@ -233,7 +250,7 @@ export function flowBook(input: FlowInput): FlowResult {
       })
     }
 
-    pages.push({ index, placements, capacity: openRegions.length })
+    pages.push({ index, placements, capacity: openRegions.length, pinnedRegionIds })
     index += 1
   }
 

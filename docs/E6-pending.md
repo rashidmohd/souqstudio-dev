@@ -738,3 +738,36 @@ the same answer the route already gives for orphaned nudges.
   draws it at a different aspect, and `pickArrangement` picks the arrangement for that
   aspect. "This cell uses a different design" is a separate feature, and `readGridChoice`
   reads the card off the first flowing region, so it would need that seam widened first.
+
+### The defect that use found, and reasoning did not
+
+Merging shipped green: the span algebra had twenty tests, the round trip through
+`readGridChoice` had six, and the whole chain was simulated end to end. It was still
+broken the first time anyone pressed the button, and the failure looked exactly like the
+feature not working at all.
+
+**The editor offered every master cell on every page, including the ones that page had
+already given to a pin.** The dev book carries a `blk_season_back_to_school` band pinned
+across the top row of page one. Selecting the two top-left cells there and pressing Merge
+wrote the merge, rebuilt the grid, stored `r0c0` spanning two columns — and page one
+looked identical, because page one draws the pin on that row. The merge was real and
+landed on the one page that could not show it. The owner's evidence said the button did
+nothing.
+
+`flowBook` already knew: it filters `openRegions` by pin intersection and always has. It
+simply never told anyone, because until cells were selectable nothing downstream needed
+to know *which* regions a pin had displaced — only how many were left, which is
+`capacity`. So `FlowPage` now carries `pinnedRegionIds`, and the cell layer draws neither
+a hit target nor a hairline for them. They stay mergeable from any other page, because a
+merge is a master edit and the cells exist on all of them; what they are not is selectable
+*there*.
+
+Two things are worth keeping from this:
+
+- **A master cell and a drawn cell are not the same thing**, and the gap between them is
+  exactly one pin. `masterCells` was built to include cells with no *offer* — the empty
+  tail of the last page — which is right. Cells with no *room* are a different absence and
+  needed a different answer.
+- **Every test asserted on the grid, and the bug was in the page.** The engine was correct
+  at every step; what was wrong was which of its outputs the interface put in front of the
+  owner. No amount of further testing of `mergeSpan` would have found it.
