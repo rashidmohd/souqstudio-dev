@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { BlockElement } from '@souqstudio/types'
+import type { BlockElement, PageGrid, Region } from '@souqstudio/types'
 import { SEED_BLOCKS, bookletGrid, composeGrid, postGrid } from './library'
 import { usesOnlyRoles } from './roles'
 import { validateBlock } from './block-edit'
@@ -318,5 +318,105 @@ describe('postGrid', () => {
     const grid = postGrid({ footerBlockId: 'blk_footer' })
     expect(validateGrid(grid)).toEqual([])
     expect(grid.regions.find((region) => region.id === 'footer')?.blockId).toBe('blk_footer')
+  })
+})
+
+describe('composeGrid — merges', () => {
+  const flowing = (grid: PageGrid): Region[] =>
+    grid.regions.filter((region) => region.fill === 'flow')
+
+  it('draws merged cells as one region and leaves the rest alone', () => {
+    const grid = composeGrid({
+      perRow: 3,
+      bodyRows: 2,
+      footerBlockId: null,
+      merges: [{ colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 1 }],
+    })
+
+    // Six cells, four of them inside one 2×2 hero: three regions.
+    expect(flowing(grid).map((region) => region.id)).toEqual(['r0c0', 'r0c2', 'r1c2'])
+    expect(grid.regions.find((region) => region.id === 'r0c0')).toMatchObject({
+      colStart: 0,
+      colEnd: 1,
+      rowStart: 0,
+      rowEnd: 1,
+    })
+  })
+
+  it('gives a merged region the id of its start cell, so a nudge survives', () => {
+    // Merging `r0c0` with `r0c1` leaves a region still called `r0c0`: the card
+    // grew, and the owner's word on that card was about that card.
+    const grid = composeGrid({
+      perRow: 2,
+      bodyRows: 1,
+      footerBlockId: null,
+      merges: [{ colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 0 }],
+    })
+    expect(flowing(grid).map((region) => region.id)).toEqual(['r0c0'])
+  })
+
+  it('offsets a merge by the header band without renumbering it', () => {
+    const grid = composeGrid({
+      perRow: 2,
+      bodyRows: 2,
+      headerBlockId: 'blk_header',
+      footerBlockId: null,
+      merges: [{ colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 0 }],
+    })
+
+    // Body row 0, grid row 1 — the id still counts cards.
+    expect(grid.regions.find((region) => region.id === 'r0c0')).toMatchObject({
+      rowStart: 1,
+      rowEnd: 1,
+      colStart: 0,
+      colEnd: 1,
+    })
+  })
+
+  it('drops a merge the track count no longer fits, rather than clipping it', () => {
+    const grid = composeGrid({
+      perRow: 2,
+      bodyRows: 2,
+      footerBlockId: null,
+      merges: [{ colStart: 2, colEnd: 3, rowStart: 0, rowEnd: 0 }],
+    })
+    expect(flowing(grid).map((region) => region.id)).toEqual(['r0c0', 'r0c1', 'r1c0', 'r1c1'])
+  })
+
+  it('produces a grid `validateGrid` accepts — no overlaps, no holes it did not mean', () => {
+    const grid = composeGrid({
+      perRow: 4,
+      bodyRows: 3,
+      merges: [
+        { colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 1 },
+        { colStart: 2, colEnd: 3, rowStart: 2, rowEnd: 2 },
+      ],
+    })
+    expect(validateGrid(grid)).toEqual([])
+  })
+
+  it('keeps every cell covered exactly once', () => {
+    const perRow = 4
+    const bodyRows = 3
+    const grid = composeGrid({
+      perRow,
+      bodyRows,
+      footerBlockId: null,
+      merges: [
+        { colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 1 },
+        { colStart: 2, colEnd: 3, rowStart: 2, rowEnd: 2 },
+      ],
+    })
+
+    const covered = new Set<string>()
+    for (const region of flowing(grid)) {
+      for (let row = region.rowStart; row <= region.rowEnd; row += 1) {
+        for (let col = region.colStart; col <= region.colEnd; col += 1) {
+          expect(covered.has(`${row},${col}`)).toBe(false)
+          covered.add(`${row},${col}`)
+        }
+      }
+    }
+    expect(covered.size).toBe(perRow * bodyRows)
   })
 })

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import type { CellSpan } from '@souqstudio/engine'
 import type { PageBackground } from '@souqstudio/types'
 
 /**
@@ -27,6 +28,16 @@ export interface GridPatch {
   perRow?: number
   bodyRows?: number
   margin?: number
+  /**
+   * The cells the owner has merged, in body-card coordinates.
+   *
+   * **The whole set, never one merge.** Every other field here is a value; this
+   * is a collection, and sending a delta into a collection is how two tabs
+   * merging against different starting states interleave into a grid neither
+   * owner chose. The offer tray's reorder makes the same choice for the same
+   * reason.
+   */
+  merges?: readonly CellSpan[]
   /** `null` removes the band. Absent leaves it. */
   headerBlockId?: string | null
   footerBlockId?: string | null

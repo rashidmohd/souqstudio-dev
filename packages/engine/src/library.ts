@@ -1,5 +1,7 @@
 import type { PageBackground, PageGrid, Region } from '@souqstudio/types'
 import type { BlockCategory } from './block-category'
+import type { CellSpan } from './geometry'
+import { mergeAt, normalizeMerges } from './merge'
 import { CARD_BLOCKS } from './library-cards'
 import { FOOTER_IDS, HEADER_IDS, PANEL_BLOCKS, SOCIAL_IDS } from './library-panels'
 import { SEASONAL_BLOCKS } from './library-seasonal'
@@ -141,7 +143,8 @@ const FOOTER = byId('blk_footer')
 const BAND = 0.34
 
 /**
- * The body of a grid: `perRow` × `bodyRows` cells, every one of them flowing.
+ * The body of a grid: `perRow` × `bodyRows` cells, every one of them flowing,
+ * with merged cells drawn as one region.
  *
  * **The ids count body rows, not grid rows**, and `rowOffset` is what keeps that
  * true once a header band sits above them. `slotOverrides` keys a nudge by
@@ -149,27 +152,61 @@ const BAND = 0.34
  * first row of the grid" rather than "the first row of cards", adding a header
  * would renumber every region and orphan every nudge in the book. It means the
  * first row of cards, and it goes on meaning that.
+ *
+ * **A merged region takes the id of its start cell**, which is the one id in the
+ * merge that survives the merge. Merging `r0c0` with `r0c1` leaves a region
+ * still called `r0c0`, so a nudge made on that card before the merge still finds
+ * it afterwards — the card grew, and the owner's word on it was about that card.
+ * The absorbed cells' ids go away with the cells, and their nudges orphan, which
+ * is what `findOverride` not matching already means everywhere else.
+ *
+ * Regions come out in reading order. `flowBook` sorts anyway, but a grid whose
+ * stored order matches the order it flows in is one less thing to hold in mind
+ * when reading a `page_grids` row.
  */
 function offerRegions(
   perRow: number,
   bodyRows: number,
   blockId: string,
-  rowOffset: number
+  rowOffset: number,
+  merges: readonly CellSpan[] = []
 ): Region[] {
+  const spans = normalizeMerges(merges, { perRow, bodyRows })
   const regions: Region[] = []
+
   for (let row = 0; row < bodyRows; row += 1) {
     for (let col = 0; col < perRow; col += 1) {
+      const merge = mergeAt(spans, col, row)
+
+      if (merge === undefined) {
+        regions.push({
+          id: `r${row}c${col}`,
+          colStart: col,
+          colEnd: col,
+          rowStart: row + rowOffset,
+          rowEnd: row + rowOffset,
+          blockId,
+          fill: 'flow',
+        })
+        continue
+      }
+
+      // Emitted once, at its start cell. Every other cell it covers is skipped
+      // — those cells are inside the region, not beside it.
+      if (merge.colStart !== col || merge.rowStart !== row) continue
+
       regions.push({
         id: `r${row}c${col}`,
-        colStart: col,
-        colEnd: col,
-        rowStart: row + rowOffset,
-        rowEnd: row + rowOffset,
+        colStart: merge.colStart,
+        colEnd: merge.colEnd,
+        rowStart: merge.rowStart + rowOffset,
+        rowEnd: merge.rowEnd + rowOffset,
         blockId,
         fill: 'flow',
       })
     }
   }
+
   return regions
 }
 
@@ -199,6 +236,21 @@ export interface ComposeGridOptions {
   margin?: number
   /** Fraction of the shorter edge, between tracks. */
   gap?: number
+  /**
+   * Cells that have been merged into one region, in **body-card coordinates**:
+   * row 0 is the first row of cards, whether or not a header band sits above it.
+   *
+   * **Part of the grid's inputs rather than an edit applied to its output**, and
+   * that is what makes merges survive. `PATCH .../grid` rebuilds the master from
+   * scratch on every change — deliberately, since hand-patching tracks and
+   * regions in place is how a grid ends up internally inconsistent — so a merge
+   * that were not an input here would be discarded the next time the owner
+   * touched the margin.
+   *
+   * Normalised on the way in: out of bounds is dropped rather than clipped, and
+   * two merges claiming one cell resolve first-wins. See `normalizeMerges`.
+   */
+  merges?: readonly CellSpan[]
   /**
    * The paper behind every card.
    *
@@ -248,7 +300,15 @@ export function composeGrid(options: ComposeGridOptions = {}): PageGrid {
     })
   }
 
-  regions.push(...offerRegions(perRow, bodyRows, options.cardBlockId ?? OFFER_CARD.id, top))
+  regions.push(
+    ...offerRegions(
+      perRow,
+      bodyRows,
+      options.cardBlockId ?? OFFER_CARD.id,
+      top,
+      options.merges ?? []
+    )
+  )
 
   if (footer !== null) {
     regions.push({

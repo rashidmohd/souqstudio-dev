@@ -169,3 +169,66 @@ describe('save status', () => {
     expect(useEditorStore.getState().savedAt).toBeNull()
   })
 })
+
+/**
+ * Cell selection, which is two corners and nothing else.
+ *
+ * The rectangle they imply — and the growing it does to swallow a merge it only
+ * half covers — is derived in `EditorShell`, where the master's merges are. This
+ * store holds the gesture.
+ */
+describe('cell selection', () => {
+  const cell = (col: number, row: number) => ({
+    colStart: col,
+    colEnd: col,
+    rowStart: row,
+    rowEnd: row,
+  })
+
+  beforeEach(() => {
+    useEditorStore.getState().clearCells()
+  })
+
+  it('anchors on a plain click', () => {
+    useEditorStore.getState().selectCell(cell(1, 0), false)
+
+    const { cellAnchor, cellFocus } = useEditorStore.getState()
+    expect(cellAnchor).toEqual(cell(1, 0))
+    expect(cellFocus).toEqual(cell(1, 0))
+  })
+
+  it('moves the focus and keeps the anchor when extending', () => {
+    const store = useEditorStore.getState()
+    store.selectCell(cell(0, 0), false)
+    store.selectCell(cell(2, 1), true)
+
+    expect(useEditorStore.getState().cellAnchor).toEqual(cell(0, 0))
+    expect(useEditorStore.getState().cellFocus).toEqual(cell(2, 1))
+  })
+
+  it('re-anchors on a plain click after a range', () => {
+    const store = useEditorStore.getState()
+    store.selectCell(cell(0, 0), false)
+    store.selectCell(cell(2, 1), true)
+    store.selectCell(cell(3, 2), false)
+
+    expect(useEditorStore.getState().cellAnchor).toEqual(cell(3, 2))
+    expect(useEditorStore.getState().cellFocus).toEqual(cell(3, 2))
+  })
+
+  it('anchors when asked to extend from nothing', () => {
+    // The first pointer event of a drag arrives before anything is selected.
+    // Refusing it would make the gesture start on the second cell.
+    useEditorStore.getState().selectCell(cell(1, 1), true)
+    expect(useEditorStore.getState().cellAnchor).toEqual(cell(1, 1))
+  })
+
+  it('clears', () => {
+    const store = useEditorStore.getState()
+    store.selectCell(cell(0, 0), false)
+    store.clearCells()
+
+    expect(useEditorStore.getState().cellAnchor).toBeNull()
+    expect(useEditorStore.getState().cellFocus).toBeNull()
+  })
+})

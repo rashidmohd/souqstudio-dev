@@ -106,10 +106,38 @@ const backgroundSchema = z.union([
   }),
 ])
 
+/**
+ * A merge, in body-card coordinates: row 0 is the first row of cards.
+ *
+ * **Bounded to the same numbers the track counts are**, not to the book's
+ * current grid. The route applies a delta — an owner may send `perRow: 4` and a
+ * merge spanning column 3 in one request, and validating the merge against the
+ * *stored* four-column grid would refuse a pair that is consistent with itself.
+ * `composeGrid` normalises against the counts it actually builds with, and drops
+ * what does not fit there. This schema's job is to refuse nonsense, not to
+ * second-guess the composer.
+ */
+const mergeSchema = z.object({
+  colStart: z.number().int().min(0).max(5),
+  colEnd: z.number().int().min(0).max(5),
+  rowStart: z.number().int().min(0).max(7),
+  rowEnd: z.number().int().min(0).max(7),
+})
+
 const schema = z.object({
   /** Cards across a page. More tracks is what density means now. */
   perRow: z.number().int().min(1).max(6).optional(),
   bodyRows: z.number().int().min(1).max(8).optional(),
+  /**
+   * The cells the owner has merged. Composition model §4.
+   *
+   * **The whole set, never a single merge or an unmerge.** Two tabs merging
+   * against different starting states would interleave into a grid neither owner
+   * chose — the same reasoning the offer tray's reorder uses when it sends the
+   * whole order rather than a `{from, to}`. Forty-eight is the largest grid this
+   * route allows, so nothing can name more merges than that.
+   */
+  merges: z.array(mergeSchema).max(48).optional(),
   /** Fraction of the page's shorter edge. Zero is full bleed. */
   margin: z.number().min(0).max(MAX_MARGIN).optional(),
   /** A running band on every page. `null` removes it. */
@@ -125,6 +153,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
+    // Still named for the track counts: they are what an owner actually chooses
+    // in the panel, and a malformed merge is a bug in our own artboard rather
+    // than something they can act on.
     return fail('invalid_request', 'Choose between 1 and 6 across, and up to 8 down.', 422)
   }
 
@@ -243,6 +274,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     // rather than merged with `??`.
     ...(parsed.data.perRow === undefined ? {} : { perRow: parsed.data.perRow }),
     ...(parsed.data.bodyRows === undefined ? {} : { bodyRows: parsed.data.bodyRows }),
+    ...(parsed.data.merges === undefined ? {} : { merges: parsed.data.merges }),
     ...(parsed.data.margin === undefined ? {} : { margin: parsed.data.margin }),
     ...(parsed.data.headerBlockId === undefined
       ? {}
@@ -304,6 +336,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     headerBlockId: applied.headerBlockId ?? null,
     footerBlockId: applied.footerBlockId ?? null,
     background: applied.background ?? null,
+    // Read back off what was *written*, not echoed from what was sent. A merge
+    // the new track count could not hold was dropped by `composeGrid`, and the
+    // editor has to hear that from the grid rather than keep drawing a selection
+    // around a hero the book no longer has.
+    merges: applied.merges ?? [],
     pages,
   })
 }

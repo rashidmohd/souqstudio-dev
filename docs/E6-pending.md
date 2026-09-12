@@ -9,6 +9,11 @@ and nothing in the epic itself had been built. **Finished on 8 September**, when
 of the epic's feature list landed — see §8, which is the section to read if you are picking
 this up now.
 
+**The front of the epic was rebuilt on 10–12 September and that is a separate document:
+`docs/E6-create-flow.md`.** Creating a book, the page background, the layout controls and
+the editor's tool rail all live there, along with the four defects the rebuild uncovered.
+This file remains the record of the epic as it was originally built out.
+
 **§2 below is stale on purpose.** It describes the state on 6 September, when the editor
 did not exist, and it is kept because the order it argues for is the order that worked. §5
 and §8 are the current record.
@@ -640,10 +645,10 @@ way to `12.50` never lands as an error nobody asked for. Blur still commits imme
 
 ### What is left, and it is smaller than what went
 
-1. **Merging cells on the artboard**, and dragging track edges. The engine has done merges
-   since it existed — `spanRect` and `validateGrid` handle them — and nothing authors one.
-   This is the last piece of composition model step 4, and it is a real canvas interaction
-   rather than a form.
+1. **Dragging track edges**, which is the half of composition model step 4 still owed.
+   Merging is built (§10); track sizes are not. Every `fr` is 1 and only the *count* is
+   editable, so a page is rows of equal cards. `resolveTracks` has taken arbitrary `fr`
+   values since it existed — what is missing is the drag and a writer for `cols`/`rows`.
 2. **Detaching a page from the master**, §5's "customize this page only". Pins retire most
    of the need for it, which is why it went last and may not be needed at all.
 3. **Drag from the catalog onto a cell.** Adding is a button; the cell is not a drop target.
@@ -654,3 +659,82 @@ way to `12.50` never lands as an error nobody asked for. Blur still commits imme
    several approved variants is not something the catalog produces yet.
 6. **Fabric**, still. Nothing has needed it: the block designer does direct manipulation
    over the same painter, and a second painter is how the PDF stops matching the screen.
+
+---
+
+## 10. Merging cells — 12 September
+
+Composition model step 4 said a page is a spreadsheet: cells merge into regions,
+rectangular only, and a hero is a merged 2×2. The engine had handled merges since it
+existed — `spanRect` draws one, `validateGrid` refuses an overlapping one — and nothing
+in the product could author one. Now the artboard can.
+
+**The gesture is a spreadsheet's, because the model already was one.** One hit target per
+cell, click to anchor, shift-click or drag to extend, and the span that comes out is
+always a rectangle. A selection that half-covers an existing merge grows to swallow it
+whole, exactly as Excel does, because there is no L-shaped merge to make from an L-shaped
+selection. `expandSpan` in `packages/engine/src/merge.ts` is that rule, and it is a
+fixpoint rather than a single pass: absorbing one merge can bring the selection into
+contact with a second.
+
+**The hard part was not the geometry, it was surviving a rebuild.** `PATCH .../grid`
+rebuilds the master from scratch on every edit — deliberately, since hand-patching tracks
+and regions in place is how a grid ends up internally inconsistent — so anything that is
+not an *input* to `composeGrid` is discarded on the next change. A merge stored only as
+the shape of a region would have survived until the owner next touched the page margin
+and then quietly stopped being a hero, with nothing in the interface saying why.
+
+So merges are part of `GridChoice`, and `readGridChoice` derives them back off the
+regions. That is the same seam, and the same reasoning, that already stops the track-count
+select from resetting the offer card: **derived from the regions rather than stored
+beside them**, because a `page_grids` row already says which cells are one region and the
+copy nothing renders from is the one that goes stale. There is no migration and no new
+column. `offer-book-grid.test.ts` holds the round trip — merge, change the margin, change
+the bands, and the hero is still there.
+
+**Body-card coordinates, not grid coordinates**, for the reason `offerRegions` already
+counts body rows: adding a header band must not renumber a merge any more than it
+renumbers a nudge. And a merged region takes **the id of its start cell**, so merging
+`r0c0` with `r0c1` leaves a region still called `r0c0` and the nudge made on that card
+before the merge still finds it. The absorbed cells' nudges orphan, which is what
+`findOverride` not matching already means everywhere else.
+
+**A merge that no longer fits is dropped, never clipped.** Going from four across to two
+leaves a merge describing cells that do not exist; clipping it would hand the owner a 2×1
+band where they had drawn a 2×2 hero, and they would find it on a printed flyer. This is
+the same answer the route already gives for orphaned nudges.
+
+### Three things worth knowing
+
+- **`masterCells` is new, and it is not `flowBook`'s placements.** A placement exists only
+  where an offer landed, so an editor driven by them could not address the empty cells at
+  the end of the last page — which is exactly where a hero goes. It returns every flowing
+  cell of the master with its rectangle, and both it and `flowBook` now take their tracks
+  from one `resolveGridTracks`, so a selection ring cannot land a few pixels off the card
+  it is meant to be around.
+- **`cardFit` had to start checking every shape.** It read the *first* flowing placement
+  on page one, which was correct for exactly as long as every flowing region was the same
+  rectangle. A hero and the cards beside it are one block at two shapes, and the seeded
+  cards carry `TALL` and `WIDE` with nothing between — so reading only the first would
+  report on whichever came first in reading order and stay silent about nine stretched
+  cards below it.
+- **The selection ring is drawn on every page, and that is the teaching.** One master is
+  instanced on every body page, so merging two cells on page one merges them on all nine.
+  An owner who sees the ring appear on every page has been told that before they press the
+  button rather than after. The panel says it in words as well.
+
+### What it is not
+
+- **Not undoable with Cmd+Z.** `EditorStep` is keyed by `offerId` and the stack is
+  filtered by it on every hydrate; a merge belongs to no offer. Every other grid control —
+  track count, margin, bands, background — is outside the stack for the same reason, so
+  this is consistent rather than a gap, and Unmerge is the inverse gesture one click away.
+  A layout history is its own piece of work and should be raised as one.
+- **Not optimistic.** Every rectangle on the artboard comes from the engine running over
+  the stored master, so painting a merge before the write landed would mean a second
+  layout engine in the client — the thing this editor has avoided since it was built. The
+  buttons disable while the write is in flight.
+- **Not a per-cell card.** Every flowing region still draws the same block; a merged one
+  draws it at a different aspect, and `pickArrangement` picks the arrangement for that
+  aspect. "This cell uses a different design" is a separate feature, and `readGridChoice`
+  reads the card off the first flowing region, so it would need that seam widened first.

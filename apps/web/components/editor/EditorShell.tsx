@@ -4,7 +4,18 @@ import * as React from 'react'
 import Link from 'next/link'
 import { ArrowLeft, PanelLeftClose, TriangleAlert } from 'lucide-react'
 import type { Block, BrandKit, PageBackground, Pin, SlotOverride } from '@souqstudio/types'
-import type { FlowPage } from '@souqstudio/engine'
+import {
+  expandSpan,
+  hasMergeIn,
+  mergeSpan,
+  spanArea,
+  spansIntersect,
+  unionSpan,
+  unmergeSpan,
+  type CellSpan,
+  type FlowPage,
+  type MasterCell,
+} from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
@@ -74,7 +85,16 @@ type Props = {
     cardFits: boolean
     /** The paper behind every card. Null is `--sq-tpl-paper`. */
     background: PageBackground | null
+    /** The cells already merged, in body-card coordinates. */
+    merges: CellSpan[]
   }
+  /**
+   * Every flowing cell of the master, as a rectangle on the page.
+   *
+   * One set for the whole book: there is one master and every body page is an
+   * instance of it, so a cell is at the same rectangle on all of them.
+   */
+  cells: MasterCell[]
   /**
    * Where uploaded artwork lives, for a page background and for any `image`
    * element inside a block.
@@ -112,6 +132,7 @@ export function EditorShell({
   overrides,
   pins,
   layout,
+  cells,
   pinnable,
   headerBlocks,
   footerBlocks,
@@ -123,6 +144,10 @@ export function EditorShell({
   const selectedOfferId = useEditorStore((state) => state.selectedOfferId)
   const liveOffers = useEditorStore((state) => state.offers)
   const markEscalated = useEditorStore((state) => state.markEscalated)
+  const cellAnchor = useEditorStore((state) => state.cellAnchor)
+  const cellFocus = useEditorStore((state) => state.cellFocus)
+  const selectCell = useEditorStore((state) => state.selectCell)
+  const clearCells = useEditorStore((state) => state.clearCells)
   const flagged = useFlaggedCount()
   const drawer = useCanvasDrawer()
   // Deterministic and memoised: a new function identity per render would make
@@ -150,9 +175,101 @@ export function EditorShell({
    */
   const [panelOpen, setPanelOpen] = React.useState(true)
 
+  /**
+   * Whether a tap on a cell extends the selection rather than starting one.
+   *
+   * Local, like `tool`: it is a modifier on the next gesture, nothing outside
+   * this shell reads it, and it has no meaning once the editor is closed.
+   */
+  const [addToSelection, setAddToSelection] = React.useState(false)
+
   // One request shape for the two tabs that write to the grid. The route takes
   // a delta, so each control sends only its own field.
   const grid = useGridPatch(bookId, pages.length)
+
+  /**
+   * The rectangle the owner's two corners imply, with merges taken in whole.
+   *
+   * **Derived here rather than in the store, because this is where the merges
+   * are.** A selection that half-covers a merged hero has to grow to cover all
+   * of it — there is no L-shaped merge to make from an L-shaped selection, and
+   * every spreadsheet does the same — and `expandSpan` is what does that. The
+   * store holds two corners and no opinion about the grid's shape.
+   */
+  const selectionSpan = React.useMemo<CellSpan | null>(() => {
+    if (cellAnchor === null || cellFocus === null) return null
+    return expandSpan(unionSpan(cellAnchor, cellFocus), layout.merges)
+  }, [cellAnchor, cellFocus, layout.merges])
+
+  /**
+   * What the panel needs to know about the selection, in its own words.
+   *
+   * **Cells rather than regions is the count an owner is shown**, because the
+   * selection is a rectangle in cell space and "four cells" is what they drew. A
+   * count of regions would say "two" for a hero plus a card, which is true of
+   * the grid and not of the gesture.
+   *
+   * **`canMerge` is about regions, though.** Merging is only an operation when
+   * it combines two of them: a selection sitting entirely inside one merged hero
+   * covers four cells and has nothing to merge.
+   */
+  const selection = React.useMemo(() => {
+    if (selectionSpan === null) return { cells: 0, canMerge: false, canUnmerge: false }
+
+    const covered = cells.filter((cell) => spansIntersect(cell.body, selectionSpan))
+    return {
+      cells: spanArea(selectionSpan),
+      canMerge: covered.length > 1,
+      canUnmerge: hasMergeIn(layout.merges, selectionSpan),
+    }
+  }, [cells, layout.merges, selectionSpan])
+
+  const bounds = { perRow: layout.perRow, bodyRows: layout.bodyRows }
+
+  /**
+   * **Merges are not optimistic, and that is deliberate.** Every rectangle on
+   * this artboard comes from the engine running over the stored master, so a
+   * merge drawn before the write landed would be a second layout engine in the
+   * client — the thing this editor has avoided since it was built. A background
+   * is a colour and can paint ahead of its save; a merge changes what the page
+   * *is*. The buttons disable while the write is in flight and the page redraws
+   * when it returns.
+   */
+  const applyMerges = React.useCallback(
+    (next: readonly CellSpan[]) => {
+      void grid.patch({ merges: next })
+    },
+    [grid]
+  )
+
+  /**
+   * Selection is cleared when the grid changes shape under it.
+   *
+   * A merge that no longer fits is dropped by `composeGrid` rather than clipped,
+   * so after a track-count change the owner's two corners may describe cells the
+   * book no longer has. Keeping them would draw a ring around nothing and offer
+   * a Merge button for it.
+   */
+  React.useEffect(() => {
+    clearCells()
+  }, [clearCells, layout.perRow, layout.bodyRows])
+
+  /**
+   * Leaving the Layout tool puts the cells away.
+   *
+   * The grid hairlines and the selection ring are chrome drawn over the owner's
+   * flyer, and the whole point of the artboard is that they can judge how it
+   * looks. They go when the tool that needs them goes.
+   */
+  React.useEffect(() => {
+    if (tool !== 'layout') {
+      clearCells()
+      // The extend mode goes with them. Coming back to Layout and finding the
+      // first tap silently extending a selection that is no longer on screen is
+      // the kind of sticky mode nobody remembers arming.
+      setAddToSelection(false)
+    }
+  }, [clearCells, tool])
 
   /**
    * The background as the owner is currently seeing it, before the server has
@@ -366,6 +483,17 @@ export function EditorShell({
                 error={grid.error}
                 headerBlocks={headerBlocks}
                 footerBlocks={footerBlocks}
+                selection={selection}
+                addToSelection={addToSelection}
+                onToggleAddToSelection={() => setAddToSelection((on) => !on)}
+                onMerge={() => {
+                  if (selectionSpan === null) return
+                  applyMerges(mergeSpan(layout.merges, selectionSpan, bounds))
+                }}
+                onUnmerge={() => {
+                  if (selectionSpan === null) return
+                  applyMerges(unmergeSpan(layout.merges, selectionSpan))
+                }}
               />
             </div>
 
@@ -430,6 +558,27 @@ export function EditorShell({
                 overrides={liveOverrides[flowPage.index] ?? overrides[flowPage.index] ?? []}
                 selectedOfferId={selectedOfferId}
                 onSelectOffer={select}
+                /*
+                  **Only while the Layout tool is up.** Cell selection and card
+                  selection are two rings on one artboard, and an owner pricing
+                  offers has no use for the second — so the grid, the hairlines
+                  and the merge gesture arrive with the tool that names them and
+                  leave with it. Everywhere else this is the artboard it was.
+                */
+                {...(tool === 'layout'
+                  ? {
+                      cells,
+                      cellSelection: selectionSpan,
+                      onSelectCell: (cell, { extend, offerId }) => {
+                        const extending = extend || addToSelection
+                        selectCell(cell.body, extending)
+                        // A fresh pick means this card; extending a range does
+                        // not, and swapping the properties panel for every cell
+                        // the pointer crossed would make the gesture unusable.
+                        if (!extending && offerId !== null) select(offerId)
+                      },
+                    }
+                  : {})}
                 onEscalated={(ids) => {
                   escalatedByPage.current[flowPage.index] = ids
                   markEscalated(Object.values(escalatedByPage.current).flat())

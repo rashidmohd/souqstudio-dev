@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { PageGrid, Pin, Region } from '@souqstudio/types'
-import { flowBook, pageCountFor, type FlowInput } from './flow'
+import { flowBook, masterCells, pageCountFor, type FlowInput } from './flow'
 
 /**
  * The flow engine, against the cases the product actually has to survive: a
@@ -311,5 +311,90 @@ describe('flowBook — page margin', () => {
     // Reading-order first card sits against the right margin, not the page edge.
     const first = result.pages[0]!.placements[0]!
     expect(first.rect.x + first.rect.width).toBeCloseTo(900)
+  })
+})
+
+describe('masterCells', () => {
+  it('returns every flowing cell, including ones no offer reached', () => {
+    // The whole reason it is not `flowBook`'s placements. An owner merges the
+    // bottom of the last page — which is empty — into a hero.
+    const cells = masterCells(fullGrid(2, 2), A4, 'ltr')
+    expect(cells.map((cell) => cell.regionId)).toEqual(['r0c0', 'r0c1', 'r1c0', 'r1c1'])
+  })
+
+  it('excludes bands — a footer is not a cell an owner merges', () => {
+    const grid = fullGrid(2, 1)
+    grid.rows = [1, 0.34]
+    grid.regions.push({
+      id: 'footer',
+      colStart: 0,
+      colEnd: 1,
+      rowStart: 1,
+      rowEnd: 1,
+      blockId: 'blk_footer',
+      fill: 'static',
+    })
+    expect(masterCells(grid, A4, 'ltr').map((cell) => cell.regionId)).toEqual(['r0c0', 'r0c1'])
+  })
+
+  it('reports body coordinates that a header band does not shift', () => {
+    // Row 0 is the first row of *cards*, whether or not a masthead sits above
+    // it — the same choice `offerRegions` made for region ids, and for the same
+    // reason: a band must not renumber what a nudge or a merge is keyed on.
+    const grid = fullGrid(2, 1)
+    grid.rows = [0.34, 1]
+    for (const region of grid.regions) {
+      region.rowStart = 1
+      region.rowEnd = 1
+    }
+    grid.regions.unshift({
+      id: 'header',
+      colStart: 0,
+      colEnd: 1,
+      rowStart: 0,
+      rowEnd: 0,
+      blockId: 'blk_header',
+      fill: 'static',
+    })
+
+    const cells = masterCells(grid, A4, 'ltr')
+    expect(cells.map((cell) => cell.body.rowStart)).toEqual([0, 0])
+  })
+
+  it('gives a merged cell the rectangle of the whole span', () => {
+    const grid = fullGrid(2, 2)
+    grid.regions = [
+      {
+        id: 'r0c0',
+        colStart: 0,
+        colEnd: 1,
+        rowStart: 0,
+        rowEnd: 1,
+        blockId: 'blk_card',
+        fill: 'flow',
+      },
+    ]
+
+    const [cell] = masterCells(grid, A4, 'ltr')
+    expect(cell?.merged).toBe(true)
+    expect(cell?.body).toEqual({ colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 1 })
+    expect(cell?.rect.width).toBeCloseTo(A4.width, 5)
+    expect(cell?.rect.height).toBeCloseTo(A4.height, 5)
+  })
+
+  it('lands on the same rectangle the flow gives that region', () => {
+    // The reason `resolveGridTracks` was extracted: a selection ring computed
+    // from a second copy of the margin arithmetic sits a few pixels off the
+    // card it is meant to be around.
+    const master = fullGrid(3, 2, 0.02)
+    master.margin = 0.04
+
+    const flowed = flowBook(input({ master, offerIds: offers(6) }))
+    const cells = masterCells(master, A4, 'ltr')
+
+    for (const placement of flowed.pages[0]?.placements ?? []) {
+      const cell = cells.find((candidate) => candidate.regionId === placement.sourceId)
+      expect(cell?.rect).toEqual(placement.rect)
+    }
   })
 })

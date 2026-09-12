@@ -3,12 +3,18 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 10 September 2026.
+Last updated 12 September 2026.
 
-**The block designer is a design tool now, it has a library to design from, E6's feature
-list is closed, and the first AI feature is live on dev.** A shop owner can build an offer
-book end to end — create it, price it, adjust it, lay it out, pin panels into it, duplicate
-it next week — design the blocks it is built from, start from **sixty-five seeded blocks**,
+**The creation flow was rebuilt, the page itself is designable, and the editor grew a tool
+rail.** Starting a book is four steps instead of one form, the twenty-five seeded offer
+cards are finally reachable from it, a price list can be dropped straight in, and a page
+can carry a colour, a gradient or a photograph behind its cards. `docs/E6-create-flow.md`
+is the record. §1.4.
+
+**The block designer is a design tool, it has a library to design from, and the first AI
+feature is live on dev.** A shop owner can build an offer book end to end — create it,
+price it, adjust it, lay it out, pin panels into it, duplicate it next week — design the
+blocks it is built from, start from **sixty-five seeded blocks**,
 and now **photograph a card they like and get one of their own back**. What no owner can do
 is get any of it out of the product, which is E9.
 
@@ -30,7 +36,10 @@ than being hand-placed. Everything else opened. `docs/E7-pending.md` §8.
 
 And **it was finally opened in a browser**, which found four defects in an afternoon that
 every test had passed over — including one that had been shipping in the offer book editor
-since E6. See §1.0; it is the most re-usable thing in this file.
+since E6. See §1.0; it is the most re-usable thing in this file, and on 11 and 12 September
+it collected three more entries. **The repository still has no browser driver**, and every
+one of those three was found by the owner opening a screen rather than by anything in the
+toolchain.
 
 Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pending.md`,
 `docs/E4-pending.md`, `docs/E5-pending.md`, `docs/E6-pending.md`, `docs/E7-pending.md`.
@@ -44,9 +53,10 @@ designed building block, a page is a spreadsheet of regions filled with blocks, 
 products flow through it.*
 
 **One line to remember before picking anything up: the loop closes now.** A shop owner can
-create an offer book from the catalog or from a spreadsheet, see it drawn, price it, reorder
-it and edit it — `/editor/new` to `/editor/[id]`. The dev database holds real books, offers
-and items written through that path rather than through a script.
+create an offer book from the catalog or from a price list, see it drawn, price it, reorder
+it, design the page it sits on and edit it — `/editor/new` to `/editor/[id]`. The dev
+database holds real books, offers and items written through that path rather than through a
+script, including books made through the rebuilt wizard.
 
 **What that leaves on the critical path is E9, and nothing else is close.** A book can be
 made, priced, adjusted, laid out, duplicated and designed for — and it cannot leave the
@@ -63,7 +73,7 @@ exist. Nothing an owner builds can reach a customer.
 | **E2** Organization management | Built. Org settings, shops (add, deactivate, archive), team and invites, per-shop access, brand inheritance. See `E2-pending.md`. |
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
-| **E6** Offer book editor | **Built.** Create a book from the catalog or from a committed CSV import, draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, pin a panel, and duplicate the whole book. Not written: merging cells on the artboard, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-pending.md` §8. |
+| **E6** Offer book editor | **Built, and the front of it rebuilt on 10–12 September.** Creating a book is four steps rather than one form — pick what you are making (booklet, post, status, poster), pick the offer card from the seeded twenty-five, add products by search *or* by dropping a price list in, then preview what you made and keep it or discard it. Nobody is asked for a name; the editor renames. Then: draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, **set the page margin, its header and footer bands, and a page background of a colour, a gradient or an image**, pin a panel, and duplicate the whole book. The editor's start pane is a tool rail — Offers, Layout, Background, Pins — matching the designer's. Not written: merging cells on the artboard, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-create-flow.md` and `E6-pending.md` §8. |
 | **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is sixty-five blocks** — twenty-five offer cards, seven headers and covers, nine panels, five footers, eight square social posts and eleven seasonal bands — and the screen changed shape with it: `/brand/blocks` is now the shop's own blocks alone, with "Add from library" opening a filtered, multi-select picker. Gradients shipped on shape fills. **The price mark now draws from the shape kit too** — a burst, a tag, a ribbon or nothing, fitted by `layoutPriceMark` rather than hand-placed behind it — and the library was pulled apart so twenty-five cards stop reading as one card in costumes. See §1.3. Not written: seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar). See `E7-pending.md` §8. |
 | **E8** AI features | **One of seven built: E8-07 magic block.** Upload a picture, say what kind of thing it is — offer card, header, panel, footer or square post — and a vision model matches it against that kind's designs and nothing else; the result lands as a draft block in the shop's own colours. Route, queue, worker, credits, poll and UI all ship, and it has produced real blocks on dev. Two providers behind `MAGIC_BLOCK_PROVIDER` — Qwen-VL is what has actually run; **the Claude path has never completed a call.** E8-01 to E8-05 (characters, poses, covers, background removal) are unbuilt; E8-06 is the `enrich` worker and still throws. See §1.3 and `E8-ai-features.md`. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
@@ -128,6 +138,32 @@ the one now, with an entry.
 **The lesson is the cheapest one in this file and it was skipped for two days.** Every
 entry in `E6-pending.md` and `E7-pending.md` ended with "nothing has been opened in a
 browser". That sentence was the finding.
+
+#### It happened three more times, 11–12 September
+
+Three defects in the new creation and layout work. **All three were found by the owner
+opening a screen. None was found by typecheck, lint, 509 tests, a production build or
+`check:classes`**, all of which passed on every one of them.
+
+| What | Why nothing caught it |
+| --- | --- |
+| The page background never saved | `prisma.pageGrid.update` simply did not mention the new nullable column. The route rebuilt the grid correctly and **echoed the background back in a `200`**, so the API looked right; only the row was wrong. A missing field in a Prisma call is not a type error. |
+| The gradient picker was unusable | Every colour control emits *continuously* — the native picker while dragging, a range input per pixel, the gradient bar per `pointermove` — and each event was wired to a full PATCH. Measured: **1.5–2.6s per write and 7.5–11.3s per `router.refresh()`**. The control also carried `disabled={busy}`, so it went dead mid-gesture. Nothing in a test suite has a pointer. |
+| A white colour was invisible | An unselected gradient handle's ring was `--sq-stone-0`, which is `#fff`: a white stop on the pale middle of a run was a white circle with a white ring on white. The palette swatch was nearly as bad at `rgba(50,50,50,.14)`. Contrast is arithmetic in the source and a *look* on screen. |
+
+**`check:classes` has a blind spot, and it is the larger half of this system.** Its regex
+matches numeric suffixes only — `\b(size|gap|p|w|h|…)-[0-9]+\b` — so `size-7` is caught and
+`size-chip` is not. That gap hid a real one: **`size-chip` generated no CSS at all**, and
+`IconChip`, the component whose entire job is to be a 28px square, had been shipping
+unsized on `/catalog` and `/brand`. `height` and `width` had carried the token since it
+existed; `theme.extend.size` never did. Fixed in `packages/config/tailwind.config.ts`.
+Extending the checker to named tokens is still owed.
+
+**What would actually close this: a browser driver.** The repo has no Playwright and no
+`chromium-cli`, so UI work is still being verified by reading rendered HTML with `curl` —
+which proves structure and cannot prove behaviour or contrast. The artboard has
+`pnpm --filter @souqstudio/engine gallery` for exactly this; **chrome has no equivalent.**
+Two of the three above would have been a ten-second look.
 
 ### 1.1 What changed in E4, and why
 
@@ -395,6 +431,63 @@ and not harmless the moment a model could. The editor reads with `forComposing: 
 **`MachineOutput` had never been implemented.** It was `spec` in the component inventory
 and this is its first caller, which matters because a matched card is drawn in the shop's
 own colours: without the mark there is nothing on screen to say a machine chose it.
+
+### 1.4 The creation flow, the page, and the tool rail — 10–12 September
+
+Full record and reasoning in `docs/E6-create-flow.md`. The summary, because three things
+changed that anyone touching E6 will meet immediately.
+
+**Starting a book is four steps, not one form.** What shipped before asked for a *title*
+first — the least consequential and most reversible decision on the screen, about a thing
+that did not exist yet — and refused to submit without one. It asked for a *format* out of
+seven values, three of which are the same A4 sheet. It never asked which design to use at
+all. Now: what are you making (booklet · post · status · poster), which offer card, which
+products, then a preview of the real book with **Open editor** or **Discard**.
+
+**The twenty-five seeded offer cards are reachable.** `bookletGrid` closed over
+`blk_offer_card` as a module constant, so **every book this product has ever made used one
+card while twenty-four sat in a library nothing could reach.** The grid builders take the
+id now, and the create route gates it through `loadBlock` for tenancy and plan.
+
+**A price list goes straight in.** The old "from a spreadsheet" path appeared only if the
+organization had already committed an import through `/catalog/import` on an earlier
+visit — a flow whose job is adding products to the catalog, in front of someone making a
+flyer. `POST /api/v1/offer-books/match` reuses E5-06's matcher (`matchImportRows`,
+`resolveRow`, its tuned thresholds) and **writes nothing**: no import row, no catalog row.
+A flyer is not an inventory update. What happens to an unmatched row is still open —
+listed and skipped for now, `E6-create-flow.md` §8.1.
+
+**The page itself is designable.** `PageGrid` gained a `background` — flat colour, gradient
+or uploaded image, reusing `ColorValue` so it resolves through the same `resolvePaint` and
+the same painter as a shape fill. Plus a page margin and running header/footer bands, all
+on one delta-patching route. `page_grids.background JSONB` — migrated and applied on dev,
+and any other environment needs `pnpm db:migrate` before a book will open.
+
+**The editor's start pane is a tool rail.** Offers · Layout · Background · Pins, matching
+the designer's arrangement — `size-control-lg` buttons, collapsing between
+`lg:w-tool-rail` and `lg:w-pane-start`. It was built as a tab row first and replaced the
+same day on the owner's argument that **tabs do not grow**: four fit the pane, eight will
+not, and export, sharing and seasonal scheduling are all still coming.
+
+**Four things that were quietly wrong and now are not:**
+
+- **`PATCH .../grid` reset everything it was not told about.** It rebuilt from `perRow` and
+  `bodyRows` alone, so changing the cards across a page silently reset the offer card and
+  gave a square post a footer band it never had. `readGridChoice` reads a stored grid back
+  into the choice that made it; the route applies a delta.
+- **The pin page select offered 1 to 12 whatever the book was.** On a one-page post that is
+  eleven pages that do not exist — and it does not error, because `flowBook` generates pages
+  far enough to reach the last pin. It silently made eleven empty ones.
+- **The editor had no asset resolver**, so a block carrying artwork the owner uploaded drew
+  *nothing* there while looking correct in the designer.
+- **Gradient element ids carried colons** from `React.useId()`. Browsers resolve them;
+  E9 renders these SVGs through Playwright rather than a browser tab, and a paint server
+  that fails there is a flyer with a black rectangle on it. `safeId` strips them.
+
+**A number worth keeping.** The editor page re-renders in **7.5–11.3s in dev** — `loadBook`,
+the flow engine and every offer, on every `router.refresh()`. Debouncing means an owner
+meets it far less often; it is still what every layout change costs, and E9 is about to put
+an export button beside it. Worth profiling before then.
 
 ### The design system, reconciled against the brand palette
 
@@ -818,10 +911,13 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
 
 **Built, 7 September.** A shop owner can now:
 
-- **Create a book** at `/editor/new` — title, format, language, and either products picked
-  from the catalog or **a committed CSV import, whose prices come with it**. That second
-  path is the half E5-06 deliberately left open: it committed rows into the catalog and
-  stopped, because there were no offer books to carry the prices into.
+- **Create a book** at `/editor/new` — **rebuilt 10 September, see §1.4 and
+  `docs/E6-create-flow.md`.** Four steps: what you are making, which offer card, which
+  products (search, or a price list dropped straight in), then a preview of the real book
+  with Open editor or Discard. No name is asked for; the editor renames. The price-list
+  path is the half E5-06 deliberately left open — it committed rows into the catalog and
+  stopped, because there were no offer books to carry the prices into — except that it now
+  matches without writing to the catalog at all.
 - **See it drawn** at `/editor/[id]`. The artboard is inline SVG through the engine —
   `flowBook` pages it, `resolveBlock` places the elements, `compactBlock` reclaims what the
   content did not use at `balance`, and `components/blocks/draw` paints. `/brand` uses the
@@ -848,7 +944,11 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   same book; **E6-08 autosave**, debounced two seconds, with "Saved 14:32" in the header.
 - **Drag to reorder** in the tray, with the up/down buttons kept as the tablet path.
 - **The master grid**, editable — cards across and rows down, with the page count under it
-  as feedback rather than as a second control. Density is derived, never chosen.
+  as feedback rather than as a second control. Density is derived, never chosen. **Since
+  11 September it also carries the page margin, a running header and footer band, and the
+  page background** — colour, gradient or image. One route, patched as a delta.
+- **A tool rail** on the start pane — Offers, Layout, Background, Pins — matching the block
+  designer's. §1.4.
 - **Pins.** `book_pins` has a writer: pick a panel, a page and a shape rather than four
   coordinates. Only a block that does not repeat may be pinned.
 - **Duplicating a book** — the control the design skill expects to be the most-used in the
@@ -856,12 +956,25 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   no views, status back to draft.
 - **`fit-escalated`**, reported by the page that drew the card, through the same
   `fitTextElement` the painter runs — so the flag and the card cannot disagree.
+- **Merging cells on the artboard**, which is composition model step 4's other half and
+  the last thing the engine could do that the product could not. Click a cell, shift-click
+  or drag to extend, Merge in the Layout panel; rectangular only, same as a spreadsheet,
+  and a selection that half-covers a merge grows to take it whole. **Merges are part of
+  `GridChoice` and read back off the regions by `readGridChoice`** — no migration, no new
+  column — which is what makes them survive the rebuild every other layout control
+  triggers. A merge the track count can no longer hold is dropped rather than clipped.
+  Two things moved with it: `masterCells` (every flowing cell of the master, including the
+  empty ones no placement covers) and `cardFit`, which now checks every shape on the page
+  rather than the first, because a hero and the cards beside it are one block at two
+  aspects. Not on the undo stack, for the same reason no other grid control is.
+  `E6-pending.md` §10.
 
 **What E6 still owns:**
 
-- **Merging cells on the artboard**, and dragging track edges. The engine has handled merges
-  since it existed and nothing authors one. This is the last piece of composition model
-  step 4, and it is a canvas interaction rather than a form.
+- **Dragging track edges.** The `fr` sizes are uniform and only the count is editable, so a
+  page is still rows of equal cards. `resolveTracks` has taken arbitrary `fr` values since
+  it existed; what is missing is the drag and a writer for `cols`/`rows`.
+  **Merging is done** — see below.
 - **Drag from the catalog onto a cell.** Adding is a button; a cell is not a drop target.
 - **Two block element kinds.** The unit-price line and footnote markers are stored, shown in
   the panel, and **cannot be printed**, because a block's element vocabulary has no place to
@@ -885,7 +998,9 @@ not inherit the artboard's.
 real flyer with no manual adjustment, the product works."* Yes on invented data, and yes
 again on real catalog rows — see §1.2. It is off the table.
 
-**Needs first:** nothing. The `pdf` worker blocks *export*, which is E9.
+**Needs first:** nothing on dev — `page_grids.background` is migrated and applied there.
+Any *other* environment needs `pnpm db:migrate` before a book will open, because `loadBook`
+selects the column. The `pdf` worker blocks *export*, which is E9.
 
 ### E9 — Output formats & export (MVP)
 
@@ -1134,6 +1249,9 @@ These are waiting on a human, not on effort. Each one changes what gets built.
 | **`Select` has no `size` prop** | any row pairing a select with an `lg` input | the inventory raised it at E2 and it has now bitten twice. `ColorField` got the prop; `Select` still has not |
 | **Forcing an incomplete owner into the wizard** from anywhere in the dashboard | nothing | `E4-pending.md` §2 |
 | **`StatusPill` enum** — no value for active/paused/pending/expired | the pill, and three screens using plain text instead | `E2-pending.md` §6 Q1 |
+| **What a CSV row that matches no product should do** — listed and skipped today, or offered a "create this product" control | nothing; the flow works either way | deferred deliberately on 10 September. `E6-create-flow.md` §8.1. The second option drags catalog editing into a flyer flow and raises a permission question |
+| **A browser driver** — Playwright plus a Chromium binary, or nothing | every UI change from here | §1.0. Three defects in two days were found by a person opening a screen; `curl` proves structure and cannot prove behaviour or contrast. It is a dependency install, so it is a decision rather than a task |
+| **Cards have no `SQUARISH` arrangement** — add one to the twenty-five, or keep constraining grids to `TALL`/`WIDE` | posters and any hand-built grid | `E6-create-flow.md` §7 and §10.4. `pickArrangement` falls back silently, so the failure is a stretched card and not an error. The shipped defaults dodge it; the editor's layout panel can still reach it, and warns |
 
 ---
 

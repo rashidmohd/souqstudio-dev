@@ -1,7 +1,15 @@
 import 'server-only'
 
 import { prisma } from '@souqstudio/db'
-import { arrangementCovers, flowBook, validateGrid, type FlowPage } from '@souqstudio/engine'
+import {
+  arrangementCovers,
+  flowBook,
+  masterCells,
+  validateGrid,
+  type CellSpan,
+  type FlowPage,
+  type MasterCell,
+} from '@souqstudio/engine'
 import type { Block, PageBackground, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
 import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { autoTitle } from '@/lib/book-title'
@@ -90,7 +98,25 @@ export interface ComposedBook {
     cardFits: boolean
     /** The aspect that was judged, for a message that can be specific. */
     cellAspect: number | null
+    /**
+     * The cells the owner has merged, in body-card coordinates. §4 of the
+     * composition model — a hero is a merged 2×2 region, and a merge is what
+     * the artboard authors rather than a panel.
+     */
+    merges: CellSpan[]
   }
+  /**
+   * Every flowing cell of the master, as a rectangle on the page.
+   *
+   * **Not derivable from `pages`**, which is why it is its own field. A
+   * placement exists only where an offer landed; the editor has to be able to
+   * select and merge the empty cells at the end of the last page, which is
+   * exactly where a hero goes.
+   *
+   * One set for the whole book, because there is one master: every body page is
+   * an instance of it, so a cell is at the same rectangle on all of them.
+   */
+  cells: MasterCell[]
   /**
    * The bounded nudges an owner has made, by page index. E6-04.
    *
@@ -319,8 +345,10 @@ export async function loadBook(
       headerBlockId: choice.headerBlockId ?? null,
       footerBlockId: choice.footerBlockId ?? null,
       background: choice.background ?? null,
+      merges: [...(choice.merges ?? [])],
       ...cardFit(flow.pages[0], blocks),
     },
+    cells: masterCells(master, page, edition === 'ar' ? 'rtl' : 'ltr'),
     overrides: Object.fromEntries(
       book.pages.map((page) => [page.index, readOverrides(page.slotOverrides)])
     ),
@@ -403,8 +431,17 @@ async function loadBlocks(
  * open ranges for exactly that reason; the repeating card is the one drawn
  * nine times per page, and the one whose stretch an owner will notice.
  *
- * Page one, first flowing placement. Every flowing region on a master carries
- * the same block and the same rectangle, so one is the answer for all of them.
+ * **Every flowing placement on page one, not the first one.** This checked one
+ * placement for as long as every flowing region was the same rectangle, which
+ * was true until cells could be merged: a 2×2 hero and the cards beside it are
+ * one block at two shapes, and the seeded cards carry `TALL` and `WIDE` with
+ * nothing between them. Reading only the first would report on whichever
+ * happened to come first in reading order — the hero, if the merge is at the top
+ * left — and stay silent about nine stretched cards below it, or the reverse.
+ *
+ * So a page fits when *every* shape on it fits, and the aspect reported is the
+ * first one that does not. The panel's message names a fix rather than a
+ * number, so the worst offender is the useful one to carry back.
  *
  * A book with no offers has no placement to measure and returns `cardFits: true`
  * — there is nothing being drawn wrong, and warning about an empty book is a
@@ -414,18 +451,27 @@ function cardFit(
   page: FlowPage | undefined,
   blocks: Record<string, Block>
 ): { cardFits: boolean; cellAspect: number | null } {
-  const placement = page?.placements.find(
+  const placements = (page?.placements ?? []).filter(
     (candidate) => candidate.kind === 'flow' && candidate.offerId !== null
   )
-  if (placement === undefined) return { cardFits: true, cellAspect: null }
+  if (placements.length === 0) return { cardFits: true, cellAspect: null }
 
-  const block = blocks[placement.blockId]
-  // A block that could not be resolved is already drawn as an empty region by
-  // `loadBlocks`, which is a louder problem than a stretched one.
-  if (block === undefined) return { cardFits: true, cellAspect: null }
+  let first: number | null = null
 
-  const aspect = placement.rect.width / placement.rect.height
-  return { cardFits: arrangementCovers(block.arrangements, aspect), cellAspect: aspect }
+  for (const placement of placements) {
+    const block = blocks[placement.blockId]
+    // A block that could not be resolved is already drawn as an empty region by
+    // `loadBlocks`, which is a louder problem than a stretched one.
+    if (block === undefined) continue
+
+    const aspect = placement.rect.width / placement.rect.height
+    if (first === null) first = aspect
+    if (!arrangementCovers(block.arrangements, aspect)) {
+      return { cardFits: false, cellAspect: aspect }
+    }
+  }
+
+  return { cardFits: true, cellAspect: first }
 }
 
 // ─── Creating a book ──────────────────────────────────────────────────────────

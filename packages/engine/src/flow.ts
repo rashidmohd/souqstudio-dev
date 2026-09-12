@@ -53,6 +53,95 @@ export interface FlowResult {
 }
 
 /**
+ * A master grid's tracks, in page pixels.
+ *
+ * **Extracted so the flow and the editor cannot disagree about where a cell
+ * is.** `flowBook` computed this inline for its whole life, which was correct
+ * while placements were the only thing that needed a rectangle. The editor needs
+ * one for every cell of the master — including cells no offer reached on this
+ * page — to draw a selection over, and a second copy of the margin-and-gap
+ * arithmetic is a selection ring that lands a few pixels off the card it is
+ * meant to be around.
+ *
+ * Tracks are laid out inside the margin, then shifted onto the page. Doing it
+ * here keeps `spanRect` ignorant of the page: it sees tracks and nothing else.
+ */
+export function resolveGridTracks(
+  master: PageGrid,
+  page: { width: number; height: number }
+): { cols: Track[]; rows: Track[] } {
+  const shorterEdge = Math.min(page.width, page.height)
+  const gap = master.gap * shorterEdge
+  const margin = (master.margin ?? 0) * shorterEdge
+
+  const inset = (track: Track): Track => ({ ...track, offset: track.offset + margin })
+
+  return {
+    cols: resolveTracks(master.cols, page.width - margin * 2, gap).map(inset),
+    rows: resolveTracks(master.rows, page.height - margin * 2, gap).map(inset),
+  }
+}
+
+/** One flowing cell of the master grid, placed on the page. */
+export interface MasterCell {
+  /** The region id — `r{bodyRow}c{col}` of its start cell. What a nudge keys on. */
+  regionId: string
+  rect: Rect
+  /** Where it sits in body-card space, which is where merges are authored. */
+  body: CellSpan
+  /** Whether it already covers more than one cell. */
+  merged: boolean
+}
+
+/**
+ * Every flowing cell of the master, as a rectangle the editor can draw on.
+ *
+ * **Not `flowBook`'s placements, and the difference is the point.** A placement
+ * exists only where an offer landed: the last page of a book is mostly empty,
+ * and a pin covers the regions it sits on. Those cells are still cells — they
+ * are part of the master, they can be selected, and they can be merged — so an
+ * editor that could only address placed cells could not merge the bottom of the
+ * last page, which is exactly where an owner puts a hero.
+ *
+ * **Body coordinates come back alongside the grid ones**, because a merge is
+ * authored in body-card space — row 0 is the first row of cards — while a region
+ * lives in grid space, one row down once a header band exists. The offset is
+ * read off the regions rather than passed in: the top body row is the smallest
+ * `rowStart` among flowing regions, which is true whether or not a band sits
+ * above it and true whether or not that row is merged.
+ *
+ * Static regions and pins are excluded. A band is not a cell an owner merges;
+ * it is already the whole width, and it is authored in the layout panel.
+ */
+export function masterCells(
+  master: PageGrid,
+  page: { width: number; height: number },
+  direction: Direction
+): MasterCell[] {
+  const { cols, rows } = resolveGridTracks(master, page)
+
+  const flowing = master.regions.filter((region) => region.fill === 'flow')
+  if (flowing.length === 0) return []
+
+  const rowOffset = flowing.reduce((top, region) => Math.min(top, region.rowStart), Infinity)
+
+  return flowing
+    .slice()
+    .sort((a, b) => a.rowStart - b.rowStart || a.colStart - b.colStart)
+    .map((region) => ({
+      regionId: region.id,
+      rect: spanRect(region, cols, rows, direction),
+      body: {
+        colStart: region.colStart,
+        colEnd: region.colEnd,
+        rowStart: region.rowStart - rowOffset,
+        rowEnd: region.rowEnd - rowOffset,
+      },
+      merged: region.colStart !== region.colEnd || region.rowStart !== region.rowEnd,
+    }))
+}
+
+/**
  * Compose a book.
  *
  * Pages are generated until the products run out, and then far enough to reach
@@ -67,15 +156,7 @@ export function flowBook(input: FlowInput): FlowResult {
     throw new Error(`flowBook: invalid master grid — ${problems.map((p) => p.message).join('; ')}`)
   }
 
-  const shorterEdge = Math.min(page.width, page.height)
-  const gap = master.gap * shorterEdge
-  const margin = (master.margin ?? 0) * shorterEdge
-
-  // Tracks are laid out inside the margin, then shifted onto the page. Doing it
-  // here keeps `spanRect` ignorant of the page: it sees tracks and nothing else.
-  const inset = (track: Track): Track => ({ ...track, offset: track.offset + margin })
-  const cols = resolveTracks(master.cols, page.width - margin * 2, gap).map(inset)
-  const rows = resolveTracks(master.rows, page.height - margin * 2, gap).map(inset)
+  const { cols, rows } = resolveGridTracks(master, page)
 
   const inBounds = (span: CellSpan): boolean =>
     span.colStart >= 0 &&

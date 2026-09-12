@@ -103,6 +103,7 @@ export default async function EditorPage({ params }: { params: { id: string } })
       overrides={book.overrides}
       pins={book.pins}
       layout={book.layout}
+      cells={book.cells}
       // **The composer's half of E7-03.** A seasonal panel is offered first in
       // the week it matters, and the window is computed rather than read off the
       // row — Ramadan and both Eids move against the Gregorian calendar. The

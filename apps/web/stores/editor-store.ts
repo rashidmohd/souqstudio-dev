@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { clampOverride, isEmptyOverride } from '@souqstudio/engine'
+import type { CellSpan } from '@souqstudio/engine'
 import type { SlotOverride } from '@souqstudio/types'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 
@@ -58,6 +59,26 @@ type EditorState = {
   order: string[]
   selectedOfferId: string | null
 
+  /**
+   * The cell the selection started from, and the one it currently reaches, both
+   * in body-card coordinates. Null is nothing selected.
+   *
+   * **Two spans rather than one**, because a selection is a gesture in progress
+   * as often as it is a result: shift-clicking and dragging both grow the
+   * selection *from its anchor*, so collapsing the two into the rectangle they
+   * imply would lose the corner the next extension has to grow from.
+   *
+   * **Spans rather than cells**, because a merged region is one cell to the
+   * owner and several to the grid. Anchoring on a merged hero and extending one
+   * column has to cover the whole hero.
+   *
+   * **The rectangle they imply is derived where the merges are**, not here: it
+   * has to expand to cover any merge it half-touches, and this store has no
+   * business knowing the master's shape. `EditorShell` holds that.
+   */
+  cellAnchor: CellSpan | null
+  cellFocus: CellSpan | null
+
   save: SaveState
   /** When the last successful save landed. E6-08 asks for "Saved [time]". */
   savedAt: number | null
@@ -87,6 +108,15 @@ type EditorState = {
     placement?: Record<string, { pageIndex: number; regionId: string }>
   }) => void
   select: (offerId: string | null) => void
+  /**
+   * Pick a cell, or extend the selection to it.
+   *
+   * `extend` on an empty selection anchors instead — a shift-click with nothing
+   * selected has no corner to grow from, and refusing it would make the first
+   * click of a drag do nothing.
+   */
+  selectCell: (cell: CellSpan, extend: boolean) => void
+  clearCells: () => void
   /** Applies immediately. The caller persists and calls `settle`. */
   applyLocal: (offerId: string, patch: Partial<ComposedOffer>) => void
   /**
@@ -128,6 +158,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   offers: {},
   order: [],
   selectedOfferId: null,
+  cellAnchor: null,
+  cellFocus: null,
   save: 'idle',
   savedAt: null,
   failed: [],
@@ -154,6 +186,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         offers: next,
         order: offers.map((offer) => offer.id),
         selectedOfferId: keep ? state.selectedOfferId : null,
+        // **Cleared on a different book, kept on a re-render of the same one.**
+        // The editor re-hydrates whenever the server component re-renders — after
+        // a price edit, after a reorder — and dropping the selection there would
+        // take the owner's cells away mid-gesture. A merge that changes the track
+        // count is the one case that must clear it, and `EditorShell` does that
+        // where it can see the counts.
+        ...(state.bookId === bookId ? {} : { cellAnchor: null, cellFocus: null }),
         save: 'idle',
         savedAt: state.bookId === bookId ? state.savedAt : null,
         failed: state.bookId === bookId ? state.failed.filter((id) => next[id]) : [],
@@ -174,6 +213,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   select: (offerId) => set({ selectedOfferId: offerId }),
+
+  selectCell: (cell, extend) =>
+    set((state) =>
+      extend && state.cellAnchor !== null
+        ? { cellFocus: cell }
+        : { cellAnchor: cell, cellFocus: cell }
+    ),
+
+  clearCells: () => set({ cellAnchor: null, cellFocus: null }),
 
   applyLocal: (offerId, patch) =>
     set((state) => {

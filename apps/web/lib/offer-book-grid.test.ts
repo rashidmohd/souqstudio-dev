@@ -291,3 +291,79 @@ describe('gridForKind — background', () => {
     expect(grid.regions.some((region) => region.id === 'footer')).toBe(false)
   })
 })
+
+/**
+ * Merges, and the one property that actually matters about them: they survive
+ * every other layout edit.
+ *
+ * `PATCH .../grid` rebuilds the master from scratch on each change, so a merge
+ * has to be part of the *choice* rather than a shape applied to the output —
+ * otherwise an owner who merged a hero and then nudged the margin would find
+ * their hero gone, with nothing in the interface saying why. The round trip
+ * below is that guarantee written down.
+ */
+describe('readGridChoice — merges', () => {
+  const HERO = { colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 1 }
+
+  it('reads back the merge a grid is drawing', () => {
+    const grid = gridForKind({ kind: 'booklet', perRow: 3, bodyRows: 3, merges: [HERO] })
+    expect(readGridChoice('a4', grid).merges).toEqual([HERO])
+  })
+
+  it('reports no merges for a grid that has none', () => {
+    expect(readGridChoice('a4', gridForKind({ kind: 'booklet' })).merges).toEqual([])
+  })
+
+  it('survives a margin change — the edit that would otherwise erase it', () => {
+    const before = gridForKind({ kind: 'booklet', perRow: 3, bodyRows: 3, merges: [HERO] })
+
+    // Exactly what the route does: read the stored grid back into the choice
+    // that made it, apply the delta, rebuild.
+    const choice = readGridChoice('a4', before)
+    const after = gridForKind({ ...choice, margin: 0.08 })
+
+    expect(readGridChoice('a4', after).merges).toEqual([HERO])
+    expect(after.margin).toBe(0.08)
+  })
+
+  it('survives adding a header band, without the band renumbering it', () => {
+    const before = gridForKind({ kind: 'booklet', perRow: 3, bodyRows: 3, merges: [HERO] })
+    const after = gridForKind({ ...readGridChoice('a4', before), headerBlockId: 'blk_header' })
+
+    // Still body rows 0–1, though the region now sits at grid rows 1–2.
+    expect(readGridChoice('a4', after).merges).toEqual([HERO])
+    expect(after.regions.find((region) => region.id === 'r0c0')).toMatchObject({
+      rowStart: 1,
+      rowEnd: 2,
+    })
+  })
+
+  it('drops a merge the new track count cannot hold, rather than clipping it', () => {
+    const before = gridForKind({
+      kind: 'booklet',
+      perRow: 4,
+      bodyRows: 3,
+      merges: [{ colStart: 2, colEnd: 3, rowStart: 0, rowEnd: 0 }],
+    })
+    const after = gridForKind({ ...readGridChoice('a4', before), perRow: 2 })
+
+    expect(readGridChoice('a4', after).merges).toEqual([])
+    expect(validateGrid(after)).toEqual([])
+  })
+
+  it('produces a grid the flow engine accepts', () => {
+    const grid = gridForKind({ kind: 'booklet', perRow: 3, bodyRows: 3, merges: [HERO] })
+    expect(validateGrid(grid)).toEqual([])
+
+    // Six regions for nine cells, so a page holds six offers rather than nine.
+    const flow = flowBook({
+      master: grid,
+      offerIds: Array.from({ length: 6 }, (_, index) => `off_${index}`),
+      pins: [],
+      page: pageSizeFor('a4'),
+      direction: 'ltr',
+    })
+    expect(flow.pages).toHaveLength(1)
+    expect(flow.unplacedOfferIds).toEqual([])
+  })
+})

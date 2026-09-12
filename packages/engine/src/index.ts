@@ -118,12 +118,27 @@ export {
 } from './block-edit'
 export {
   flowBook,
+  masterCells,
   pageCountFor,
+  resolveGridTracks,
   type FlowInput,
   type FlowResult,
   type FlowPage,
+  type MasterCell,
   type Placement,
 } from './flow'
+// Merging cells, which is span algebra and nothing else. Composition model §4:
+// rectangular only, same as a spreadsheet. See the file.
+export {
+  expandSpan,
+  hasMergeIn,
+  mergeAt,
+  mergeSpan,
+  normalizeMerges,
+  unionSpan,
+  unmergeSpan,
+  type MergeBounds,
+} from './merge'
 
 // What a block document may contain, and the rule a *seeded* one is held to.
 // Three writers meet these: `PATCH /api/v1/blocks/:id`, a committed file, and an

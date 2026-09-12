@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import type { Pin } from '@souqstudio/types'
+import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
 import { MARGIN_STEPS, nearestMarginStep } from '@/lib/offer-book-layout'
@@ -62,6 +62,36 @@ type Props = {
    */
   headerBlocks: { id: string; name: string }[]
   footerBlocks: { id: string; name: string }[]
+  /**
+   * What the owner has selected on the artboard, and what can be done with it.
+   *
+   * **The gesture is on the canvas and the verb is in the panel**, which is the
+   * split the design system already asks for: an affordance revealed by hover is
+   * no affordance at all on the tablet this editor ships on, so "merge" is a
+   * button with a visible label in a panel rather than something that appears
+   * over a selection.
+   */
+  selection: {
+    /** Cells covered. Zero when nothing is selected. */
+    cells: number
+    /** False for a single cell — merging one cell is not an operation. */
+    canMerge: boolean
+    /** Whether the selection touches anything already merged. */
+    canUnmerge: boolean
+  }
+  onMerge: () => void
+  onUnmerge: () => void
+  /**
+   * Whether a tap extends the selection instead of starting a new one.
+   *
+   * **The tablet's shift key.** Extending a selection is shift-click or a drag,
+   * and an iPad has neither — long-press drag is unreliable there, which is why
+   * the design system asks for a persistent equivalent rather than a gesture.
+   * This is that equivalent, and it costs a mouse user nothing because they
+   * still have both.
+   */
+  addToSelection: boolean
+  onToggleAddToSelection: () => void
 }
 
 export function LayoutPanel({
@@ -78,6 +108,11 @@ export function LayoutPanel({
   error,
   headerBlocks,
   footerBlocks,
+  selection,
+  onMerge,
+  onUnmerge,
+  addToSelection,
+  onToggleAddToSelection,
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
@@ -140,6 +175,15 @@ export function LayoutPanel({
           stretched. Try one row fewer, or remove a band.
         </p>
       ) : null}
+
+      <Cells
+        selection={selection}
+        disabled={busy}
+        onMerge={onMerge}
+        onUnmerge={onUnmerge}
+        addToSelection={addToSelection}
+        onToggleAddToSelection={onToggleAddToSelection}
+      />
 
       <Band
         title="Header"
@@ -224,5 +268,98 @@ function Band({
       onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
       hint={blocks.length === 0 ? 'No blocks of this kind in your library yet.' : 'On every page.'}
     />
+  )
+}
+
+/**
+ * Merging and unmerging, which is the one layout edit an owner makes on the
+ * artboard rather than in this panel.
+ *
+ * **The verb lives here because hover does not exist on a tablet.** The design
+ * system permits an icon-only control in the editor toolbar only on condition
+ * the same action is reachable with a visible label elsewhere, and forbids
+ * revealing a label on hover at all. A toolbar that floats over a selection is
+ * exactly the affordance that disappears on an iPad, so the selection happens on
+ * the canvas and the naming happens in a panel that is always there.
+ *
+ * **It says what a merge costs before the owner spends it.** One master grid is
+ * instanced on every body page, so merging two cells on page one merges them on
+ * all nine — which is what anybody actually wants, and which is also completely
+ * invisible if the only page they are looking at is page one. The selection ring
+ * appearing on every page says it once; this says it in words.
+ *
+ * **Empty is a state, not a disabled button with no explanation.** With nothing
+ * selected this names the gesture that fills it, because "Merge (disabled)" is a
+ * control that tells an owner nothing about how to enable it.
+ */
+function Cells({
+  selection,
+  disabled,
+  onMerge,
+  onUnmerge,
+  addToSelection,
+  onToggleAddToSelection,
+}: {
+  selection: { cells: number; canMerge: boolean; canUnmerge: boolean }
+  disabled: boolean
+  onMerge: () => void
+  onUnmerge: () => void
+  addToSelection: boolean
+  onToggleAddToSelection: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-block bg-sand p-3">
+      <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">Cells</h3>
+
+      {selection.cells === 0 ? (
+        <p className="font-ui text-body-sm text-muted">
+          Pick a card on the page. To take in more, drag across them, shift-click,
+          or turn on Add to selection.
+        </p>
+      ) : (
+        <p className="font-ui text-body-sm text-muted">
+          <Figure value={selection.cells} size="data-sm" />{' '}
+          {selection.cells === 1 ? 'cell' : 'cells'} selected.{' '}
+          {selection.canMerge ? 'Merging makes them one card.' : 'Take in one more to merge.'}
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          disabled={disabled || !selection.canMerge}
+          onClick={onMerge}
+        >
+          Merge
+        </Button>
+        <Button
+          type="button"
+          disabled={disabled || !selection.canUnmerge}
+          onClick={onUnmerge}
+        >
+          Unmerge
+        </Button>
+        {/*
+          A mode rather than a gesture, and it stays on until it is turned off.
+          `aria-pressed` is what makes it a toggle to a screen reader; the label
+          never changes, because a control that renames itself when pressed is
+          one an owner has to read twice to know what it will do.
+        */}
+        <Button
+          type="button"
+          aria-pressed={addToSelection}
+          variant={addToSelection ? 'primary' : 'ghost'}
+          onClick={onToggleAddToSelection}
+        >
+          Add to selection
+        </Button>
+      </div>
+
+      {selection.canMerge || selection.canUnmerge ? (
+        <p className="font-ui text-body-sm text-muted">
+          Every page has the same layout, so this changes all of them.
+        </p>
+      ) : null}
+    </div>
   )
 }
