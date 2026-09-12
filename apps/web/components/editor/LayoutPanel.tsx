@@ -1,18 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
-import { Pin as PinIcon, X } from 'lucide-react'
-import type { BrandColor, PageBackground, Pin, TokenRef } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
+import type { Pin } from '@souqstudio/types'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
-import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl'
 import { MARGIN_STEPS, nearestMarginStep } from '@/lib/offer-book-layout'
+import type { GridPatch } from '@/components/editor/use-grid-patch'
 
 /**
- * The page layout: how many cards across, and what is pinned where. E6-07 and
- * the composition model §4.3 and §6.
+ * The shape of every page: how many cards, how much white edge, and what runs
+ * along the top and bottom. E6-07 and the composition model §4.3.
  *
  * **Density is derived, not chosen.** A 2×2 page *is* showcase and a 5×6 page
  * *is* dense, so there is one control — the track count — and the density
@@ -22,44 +19,19 @@ import { MARGIN_STEPS, nearestMarginStep } from '@/lib/offer-book-layout'
  * choice, because that is the number the owner cares about: it is the print
  * bill, and making them compute it is the thing this panel exists to avoid.
  *
- * **A pin displaces, it never consumes.** Pinning a message into a page of ten
- * products gives eleven positions, not ten with a product dropped — silently
- * losing a product is the class of bug that reaches print — so the arithmetic
- * is shown rather than assumed.
+ * **Bands are here rather than in their own tab because they are structural.**
+ * A header or footer takes a track, which changes every cell's aspect and
+ * therefore which arrangement each card draws at — the same kind of change as
+ * a track count or a margin. The page *background* is the only purely visual
+ * property, and that is the one that got its own tab.
  *
- * **Bands are running, pins are not**, and that is the whole difference between
- * the two halves of this panel. A header or footer set here is written into the
- * master grid, so it appears on every page; a pin belongs to one page. An owner
- * wanting a masthead on page one and nothing after it wants a pin, and one
- * wanting the shop's address at the foot of all nine pages wants a footer.
- *
- * **Every control here sends only what it changed.** `PATCH .../grid` reads the
- * stored grid back into the choice that made it and applies a delta, so setting
- * the margin cannot reset the offer card. Until that seam existed this panel's
- * track-count select did exactly that. `docs/E6-create-flow.md` §5.1.
+ * **Every control sends only what it changed.** `useGridPatch` posts a delta and
+ * the route rebuilds from the stored grid, so setting the margin cannot reset
+ * the offer card. Until that seam existed the track-count select did exactly
+ * that. `docs/E6-create-flow.md` §10.1.
  */
-
-/**
- * `season` is present only while the block's occasion is running — the page
- * computes it, because the window for Ramadan or either Eid is a Hijri
- * calculation rather than a column. `starts` is when the occasion itself begins,
- * which is what a countdown needs; the block is already on offer by then.
- */
-type PinnableBlock = { id: string; name: string; season?: { starts: string } }
-
-/**
- * What the season adds to a panel's name. Days rather than a date: the reason
- * it is at the top of the list is that it is nearly time, and that is the
- * sentence — a date is something the owner has to compare against today.
- */
-function seasonNote(starts: string): string {
-  const days = Math.ceil((new Date(starts).getTime() - Date.now()) / 86_400_000)
-  if (days <= 0) return 'on now'
-  return days === 1 ? 'tomorrow' : `in ${days} days`
-}
 
 type Props = {
-  bookId: string
   perRow: number
   bodyRows: number
   /** Fraction of the page's shorter edge. */
@@ -73,16 +45,13 @@ type Props = {
    * another shape. Nothing errors; this is the only place it is visible.
    */
   cardFits: boolean
-  /** The paper behind every card. Null is `--sq-tpl-paper`. */
-  background: PageBackground | null
-  /** The shop's palette and role resolver, for the background colour picker. */
-  palette: readonly BrandColor[]
-  token: (ref: TokenRef) => string
   offerCount: number
-  pageCount: number
-  pins: Pin[]
-  /** Static blocks only. A repeating block reads an offer, and a pin has none. */
-  blocks: PinnableBlock[]
+  /** The count the route last computed, held by `useGridPatch`. */
+  pages: number
+  /** Shared with the background tab, so one request shape serves both. */
+  patch: (next: GridPatch) => void
+  busy: boolean
+  error: string | null
   /**
    * Static blocks grouped by what they are for.
    *
@@ -93,92 +62,39 @@ type Props = {
    */
   headerBlocks: { id: string; name: string }[]
   footerBlocks: { id: string; name: string }[]
-  blockNames: Record<string, string>
 }
 
 export function LayoutPanel({
-  bookId,
   perRow,
   bodyRows,
   margin,
   headerBlockId,
   footerBlockId,
   cardFits,
-  background,
-  palette,
-  token,
   offerCount,
-  pageCount,
-  pins,
-  blocks,
+  pages,
+  patch,
+  busy,
+  error,
   headerBlocks,
   footerBlocks,
-  blockNames,
 }: Props) {
-  const router = useRouter()
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const [pages, setPages] = React.useState(pageCount)
-
-  // The server recomposes on every change, so the count from props is the truth
-  // as soon as it lands; this holds the answer the route gave in the meantime.
-  React.useEffect(() => setPages(pageCount), [pageCount])
-
-  /**
-   * Send one field. Everything absent is left as it is by the route, which is
-   * what stops the margin control from resetting the offer card.
-   */
-  async function setGrid(next: {
-    perRow?: number
-    bodyRows?: number
-    margin?: number
-    headerBlockId?: string | null
-    footerBlockId?: string | null
-    background?: PageBackground | null
-  }) {
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/v1/offer-books/${bookId}/grid`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(next),
-      })
-      const body = (await res.json()) as {
-        data: { pages: number } | null
-        error: { message: string } | null
-      }
-      if (body.data === null) {
-        setError(body.error?.message ?? 'That layout could not be applied.')
-        return
-      }
-      setPages(body.data.pages)
-      router.refresh()
-    } catch {
-      setError('That layout could not be applied. Check your connection.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-ui text-label font-medium text-primary">Layout</h2>
-
       <div className="grid grid-cols-2 gap-2">
         <Select
           label="Across"
           value={String(perRow)}
           disabled={busy}
           options={[1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) }))}
-          onChange={(event) => void setGrid({ perRow: Number(event.target.value) })}
+          onChange={(event) => patch({ perRow: Number(event.target.value) })}
         />
         <Select
           label="Down"
           value={String(bodyRows)}
           disabled={busy}
           options={[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ value: String(n), label: String(n) }))}
-          onChange={(event) => void setGrid({ bodyRows: Number(event.target.value) })}
+          onChange={(event) => patch({ bodyRows: Number(event.target.value) })}
         />
       </div>
 
@@ -203,7 +119,7 @@ export function LayoutPanel({
           value: String(step.value),
           label: step.label,
         }))}
-        onChange={(event) => void setGrid({ margin: Number(event.target.value) })}
+        onChange={(event) => patch({ margin: Number(event.target.value) })}
         hint="The white edge around every page."
       />
 
@@ -225,21 +141,13 @@ export function LayoutPanel({
         </p>
       ) : null}
 
-      <PageBackgroundControl
-        value={background}
-        onChange={(next) => void setGrid({ background: next })}
-        palette={palette}
-        token={token}
-        disabled={busy}
-      />
-
       <Band
         title="Header"
         empty="No band across the top."
         blocks={headerBlocks}
         value={headerBlockId}
         disabled={busy}
-        onChange={(next) => void setGrid({ headerBlockId: next })}
+        onChange={(next) => patch({ headerBlockId: next })}
       />
 
       <Band
@@ -248,16 +156,7 @@ export function LayoutPanel({
         blocks={footerBlocks}
         value={footerBlockId}
         disabled={busy}
-        onChange={(next) => void setGrid({ footerBlockId: next })}
-      />
-
-      <Pins
-        bookId={bookId}
-        pins={pins}
-        blocks={blocks}
-        blockNames={blockNames}
-        offerCount={offerCount}
-        disabled={busy}
+        onChange={(next) => patch({ footerBlockId: next })}
       />
 
       {error ? (
@@ -325,185 +224,5 @@ function Band({
       onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
       hint={blocks.length === 0 ? 'No blocks of this kind in your library yet.' : 'On every page.'}
     />
-  )
-}
-
-function Pins({
-  bookId,
-  pins,
-  blocks,
-  blockNames,
-  offerCount,
-  disabled,
-}: {
-  bookId: string
-  pins: Pin[]
-  blocks: PinnableBlock[]
-  blockNames: Record<string, string>
-  offerCount: number
-  disabled: boolean
-}) {
-  const router = useRouter()
-  const [open, setOpen] = React.useState(false)
-  /**
-   * **In season first — E7-03's composer half.** A seasonal panel is no use in
-   * a list of forty a fortnight after Eid, and it is the first thing an owner
-   * wants in the fortnight before it. The order is otherwise untouched: only
-   * the flag is compared, so a browser whose sort is not stable cannot reshuffle
-   * the rest.
-   */
-  const ordered = React.useMemo(
-    () => [...blocks].sort((a, b) => Number(b.season !== undefined) - Number(a.season !== undefined)),
-    [blocks]
-  )
-
-  const [blockId, setBlockId] = React.useState(ordered[0]?.id ?? '')
-  const [page, setPage] = React.useState('1')
-  const [span, setSpan] = React.useState('row')
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-
-  async function add() {
-    if (blockId === '') return
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/v1/offer-books/${bookId}/pins`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          blockId,
-          // One-based on screen, zero-based in the schema. Owners count pages
-          // from one, and the conversion belongs here rather than in their head.
-          pageIndex: Math.max(0, Number(page) - 1),
-          span,
-        }),
-      })
-      const body = (await res.json()) as { data: unknown; error: { message: string } | null }
-      if (body.data === null) {
-        setError(body.error?.message ?? 'That panel could not be pinned.')
-        return
-      }
-      setOpen(false)
-      router.refresh()
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function remove(pinId: string) {
-    setBusy(true)
-    await fetch(`/api/v1/offer-books/${bookId}/pins/${pinId}`, { method: 'DELETE' })
-    setBusy(false)
-    router.refresh()
-  }
-
-  if (blocks.length === 0 && pins.length === 0) return null
-
-  return (
-    <div className="flex flex-col gap-2">
-      <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">
-        Pinned panels
-      </h3>
-
-      {pins.length === 0 && !open ? (
-        <p className="font-ui text-body-sm text-muted">
-          A header, a message or a brand panel parked on a page. Products move
-          around it rather than being dropped.
-        </p>
-      ) : null}
-
-      <ul className="flex flex-col">
-        {pins.map((pin) => (
-          <li key={pin.id} className="flex min-h-row items-center justify-between gap-2">
-            <span className="min-w-0 truncate font-ui text-body-sm text-secondary">
-              {blockNames[pin.blockId] ?? 'Panel'}{' '}
-              <span className="text-muted">
-                · page <Figure value={pin.pageIndex + 1} size="data-sm" />
-              </span>
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              aria-label="Unpin this panel"
-              disabled={busy || disabled}
-              onClick={() => void remove(pin.id)}
-            >
-              <X className="size-4" aria-hidden="true" strokeWidth={2} />
-            </Button>
-          </li>
-        ))}
-      </ul>
-
-      {open ? (
-        <div className="flex flex-col gap-2 rounded-control border-hairline border-border-subtle p-3">
-          <Select
-            label="Panel"
-            value={blockId}
-            // The label carries the season, because a native `<option>` is text
-            // and cannot take a badge — the same limit `InlineSelect` documents.
-            options={ordered.map((block) => ({
-              value: block.id,
-              label:
-                block.season === undefined
-                  ? block.name
-                  : `${block.name} · ${seasonNote(block.season.starts)}`,
-            }))}
-            onChange={(event) => setBlockId(event.target.value)}
-          />
-          <Select
-            label="How much of the page"
-            value={span}
-            options={[
-              { value: 'row', label: 'A band across the page' },
-              { value: 'half-row', label: 'Half a row' },
-              { value: 'page', label: 'The whole page' },
-            ]}
-            onChange={(event) => setSpan(event.target.value)}
-          />
-          <Select
-            label="On page"
-            value={page}
-            options={Array.from({ length: 12 }, (_, index) => ({
-              value: String(index + 1),
-              label: String(index + 1),
-            }))}
-            onChange={(event) => setPage(event.target.value)}
-          />
-
-          {/* The arithmetic, out loud. Composition model §6.3: an owner must be
-              able to see that nothing was dropped to make room. */}
-          <p className="font-ui text-body-sm text-muted">
-            <Figure value={offerCount} size="data-sm" /> offers + this panel. The
-            products it covers move on rather than being dropped.
-          </p>
-
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="primary" loading={busy} onClick={() => void add()}>
-              Pin it
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={disabled || blocks.length === 0}
-          onClick={() => setOpen(true)}
-        >
-          <PinIcon className="size-4" aria-hidden="true" strokeWidth={1.75} />
-          Pin a panel
-        </Button>
-      )}
-
-      {error ? (
-        <p className="font-ui text-body-sm text-critical-fg" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
   )
 }

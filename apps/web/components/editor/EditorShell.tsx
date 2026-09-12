@@ -8,6 +8,10 @@ import type { FlowPage } from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
+import { PinsPanel } from '@/components/editor/PinsPanel'
+import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl'
+import { Tabs, TabPanel } from '@/components/ui/tabs'
+import { useGridPatch } from '@/components/editor/use-grid-patch'
 import { OfferTray } from '@/components/editor/OfferTray'
 import {
   OfferProperties,
@@ -88,6 +92,25 @@ type Props = {
   gridProblems: { code: string }[]
 }
 
+/**
+ * The four things an owner adjusts about a book, in the order they reach for
+ * them: what is in it, how the page is shaped, what the page looks like, and
+ * what is parked on a particular page.
+ *
+ * **The same four for every kind**, which is a decision rather than an
+ * omission. A square post has no footer *by default* and can still be given
+ * one; a one-page status can still take a pin, which displaces an offer onto a
+ * second page. Hiding a tab by format would remove things an owner can
+ * genuinely do. What varies by book is inside the panels — `PinsPanel` bounds
+ * its page select to the pages that exist, rather than this list changing shape.
+ */
+const TOOLS = [
+  { value: 'offers', label: 'Offers' },
+  { value: 'layout', label: 'Layout' },
+  { value: 'background', label: 'Background' },
+  { value: 'pins', label: 'Pins' },
+]
+
 export function EditorShell({
   bookId,
   title,
@@ -123,6 +146,19 @@ export function EditorShell({
   // The shop's colours, for the page-background picker. `BookPage` resolves its
   // own from the same kit; this is the panel's copy of the same read.
   const palette = React.useMemo(() => resolvePalette(kit), [kit])
+
+  /**
+   * Which tool's settings the start pane is showing.
+   *
+   * Local rather than in the store or the URL: it is a view preference with no
+   * consequence, nothing else reads it, and a book deep-linked to its Background
+   * tab is not a thing anyone has asked to share.
+   */
+  const [tool, setTool] = React.useState('offers')
+
+  // One request shape for the two tabs that write to the grid. The route takes
+  // a delta, so each control sends only its own field.
+  const grid = useGridPatch(bookId, pages.length)
 
   // One set for the whole book, assembled from the pages. Each page reports its
   // own, so the union has to be held here rather than replaced per page — page
@@ -219,7 +255,7 @@ export function EditorShell({
       <CanvasDrawerToggles
         open={drawer.open}
         onToggle={drawer.toggle}
-        startLabel="Offers and layout"
+        startLabel="Tools"
         endLabel="Offer"
       />
 
@@ -230,31 +266,80 @@ export function EditorShell({
           side="start"
           open={drawer.open === 'start'}
           onClose={drawer.close}
-          className="flex-col gap-6 p-4"
+          className="flex-col"
         >
-          <OfferTray bookId={bookId} />
+          {/*
+            **The tabs sit on top of the pane, not down its edge.** A vertical
+            icon rail is the card designer's arrangement and it is right there:
+            its glyphs are the universal drawing vocabulary, and picking one
+            means picking a tool to draw with. Nothing here is drawn. The
+            artboard is engine output and these are the settings behind it, so
+            the question is *which settings am I looking at* — which is a tab.
 
-          <LayoutPanel
-            bookId={bookId}
-            perRow={layout.perRow}
-            bodyRows={layout.bodyRows}
-            margin={layout.margin}
-            headerBlockId={layout.headerBlockId}
-            footerBlockId={layout.footerBlockId}
-            cardFits={layout.cardFits}
-            background={layout.background}
-            palette={palette}
-            token={(ref) => resolveToken(palette, ref)}
-            offerCount={offers.length}
-            pageCount={pages.length}
-            pins={pins}
-            blocks={pinnable}
-            headerBlocks={headerBlocks}
-            footerBlocks={footerBlocks}
-            blockNames={Object.fromEntries(
-              Object.values(blocks).map((block) => [block.id, block.name])
-            )}
+            It also keeps the parity rule intact rather than breaking it: that
+            rule governs the artboard — padding, zoom, selection, handles — and
+            says nothing about how each editor arranges its own chrome.
+          */}
+          <Tabs
+            items={TOOLS}
+            value={tool}
+            onValueChange={setTool}
+            label="Offer book tools"
+            className="shrink-0 px-3"
           />
+
+          <div className="min-h-0 flex-1 overflow-auto p-3">
+            <TabPanel value="offers" active={tool === 'offers'}>
+              <OfferTray bookId={bookId} />
+            </TabPanel>
+
+            <TabPanel value="layout" active={tool === 'layout'}>
+              <LayoutPanel
+                perRow={layout.perRow}
+                bodyRows={layout.bodyRows}
+                margin={layout.margin}
+                headerBlockId={layout.headerBlockId}
+                footerBlockId={layout.footerBlockId}
+                cardFits={layout.cardFits}
+                offerCount={offers.length}
+                pages={grid.pages}
+                patch={(next) => void grid.patch(next)}
+                busy={grid.busy}
+                error={grid.error}
+                headerBlocks={headerBlocks}
+                footerBlocks={footerBlocks}
+              />
+            </TabPanel>
+
+            <TabPanel value="background" active={tool === 'background'}>
+              <PageBackgroundControl
+                value={layout.background}
+                onChange={(next) => void grid.patch({ background: next })}
+                palette={palette}
+                token={(ref) => resolveToken(palette, ref)}
+                disabled={grid.busy}
+              />
+              {grid.error !== null ? (
+                <p className="pt-2 font-ui text-body-sm text-critical-fg" role="alert">
+                  {grid.error}
+                </p>
+              ) : null}
+            </TabPanel>
+
+            <TabPanel value="pins" active={tool === 'pins'}>
+              <PinsPanel
+                bookId={bookId}
+                pins={pins}
+                blocks={pinnable}
+                blockNames={Object.fromEntries(
+                  Object.values(blocks).map((block) => [block.id, block.name])
+                )}
+                offerCount={offers.length}
+                pageCount={pages.length}
+                disabled={grid.busy}
+              />
+            </TabPanel>
+          </div>
         </CanvasDrawer>
 
         <div className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">

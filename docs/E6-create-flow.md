@@ -761,3 +761,104 @@ back to paper, the two would have looked identical until something queried
 - **The wizard, the preview and the band controls are still unrendered.** This
   session drove the *background* end to end, which is what was broken. §9.4 and
   §10.6 still stand for everything else.
+
+
+---
+
+## 12. The editor's tool tabs, 12 September
+
+The start pane was one scroll holding everything. It is four tabs now:
+**Offers · Layout · Background · Pins**.
+
+### 12.1 Why tabs and not a rail
+
+The first proposal was to copy the card designer: a vertical `ToolRail` on the
+start edge with a collapsible pane beside it. That was wrong, and the reason is
+worth keeping.
+
+**A vertical icon rail says *pick a tool to draw with*.** That is exactly right
+in the designer, where an owner places elements. It is exactly wrong here: the
+composition model is explicit that the artboard is engine output and that owners
+"do not place cards, draw slots, or free-position anything". Nothing in this
+editor is drawn. The question a book editor's chrome answers is *which settings
+am I looking at*, and that is a tab.
+
+**Canvas parity survives this.** The rule governs the artboard — "identical
+padding, zoom controls, selection outline and handle treatment" — and says
+nothing about how each editor arranges its own chrome. Two editors doing
+different jobs may reach for different vocabularies; two artboards may not.
+
+**The book already had its layer list.** The designer's `LayerList` is elements
+the owner placed, in paint order. The book's equivalent is the offer tray —
+offers in reading order, reorderable by drag — and it has existed since E6. What
+was missing was never a layer panel. It was the control that switches what the
+pane shows.
+
+### 12.2 `Tabs` was specified and unbuilt
+
+`references/component-inventory.md` has carried a `Tabs` entry at
+`components/ui/tabs.tsx` with an exact prop signature since before any of this,
+status `spec`, zero implementations. (`ArrangementTabs` in the designer is
+misleadingly named: an `InlineSelect` and a button.) So this filled a documented
+gap rather than inventing a primitive, and it went in the file whose whole
+purpose is stopping two sessions from building the same control twice.
+
+Two things were added to the spec in the building, both recorded there:
+
+- **`label`.** A `role="tablist"` with no accessible name is a row of words whose
+  purpose is visible only on screen.
+- **A roving tabindex.** A tablist is not a row of buttons. The row is one tab
+  stop and arrows move within it, per WAI-ARIA; four tabs each taking their own
+  tab stop is four presses to get past them and no arrow keys either.
+
+`TabPanel` hides rather than unmounts, so switching away from a half-edited
+gradient or a partly filled pin form does not discard it.
+
+### 12.3 The same four tabs for every kind
+
+The ask was tools that vary by post type. Built deliberately as a fixed four, and
+the reasoning is the part worth keeping: **a square post has no footer by
+default and can still be given one; a one-page status can still take a pin,
+which displaces an offer onto a second page.** Hiding a tab by format would
+remove things an owner can genuinely do.
+
+What varies is *inside* the panels, driven by what the book can actually do
+rather than by what kind it is. Page count is the fact; kind is a proxy for it.
+
+### 12.4 A bug that fell out of it
+
+**The pin page select offered a flat 1 to 12 whatever the book was.** On a
+single-page square post that is eleven choices pointing at pages that do not
+exist — and it did not error, because `flowBook` generates pages far enough to
+reach the last pin. A panel pinned to page 12 of a one-page post silently
+produced eleven empty pages.
+
+`pinPageOptions` bounds it to the pages that exist plus one, and the plus-one is
+deliberate: pinning onto the next page is how an owner extends a book, so the
+option stays and says `2 (adds a page)`. Exported and tested, because the flat
+list read as perfectly reasonable and was wrong for three of the four kinds.
+
+### 12.5 The files
+
+| File | What |
+| --- | --- |
+| `components/ui/tabs.tsx` | New. `Tabs` + `TabPanel`, to the inventory's signature |
+| `references/component-inventory.md` | `Tabs` → `built`, with `label` and the keyboard contract |
+| `components/editor/use-grid-patch.ts` | New. The grid PATCH, shared by Layout and Background |
+| `components/editor/PinsPanel.tsx` | New. Extracted from `LayoutPanel`; `pinPageOptions` |
+| `components/editor/PinsPanel.test.ts` | New. The page bound |
+| `components/editor/LayoutPanel.tsx` | 509 → 240 lines: tracks, margin, bands |
+| `components/editor/EditorShell.tsx` | The tab row and the four panels |
+
+### 12.6 Verified
+
+Driven against the running app on a real book: tablist named, roving tabindex
+(active `0`, rest `-1`), `aria-selected` / `aria-controls` / `aria-labelledby`
+paired, only the active panel unhidden, and all four panels rendering their
+controls. `pnpm typecheck`, `lint`, **509 web tests**, `build` and
+`check:classes` pass.
+
+**Not verified:** the tabs have not been *clicked* — switching, arrow keys and
+focus movement are client behaviour that curl cannot exercise. That needs a
+browser, which this repo still has no driver for. §11.9's gradient question is
+in the same position.
