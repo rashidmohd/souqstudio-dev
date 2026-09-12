@@ -704,16 +704,60 @@ is already in one place.
 | `apps/web/components/editor/PageBackgroundControl.tsx` | New. Paper / Colour / Image |
 | `offer-books/[id]/grid/route.ts` | `background` on the delta patch, validated and tenancy-checked |
 
-### 11.8 Still owed
+### 11.8 The bug, and what running it found
 
-- **The migration has not been run.** There is no database in this environment, so
-  `ALTER TABLE "page_grids" ADD COLUMN "background" JSONB` is written and unapplied.
-  `pnpm db:migrate` before anything is deployed, and the app will 500 on any book
-  read until it is.
-- **A gradient is stored but never checked for contrast.** Same class of thing as
-  §11.5, and the same answer for now.
-- **Still not opened in a browser**, which is now three sessions of work deep.
-  §9.4 and §10.6 say the same thing and they are getting louder: the wizard, the
-  preview, the margin and band controls, and now a colour picker, a file upload,
-  an opacity slider and a gradient rendered at page scale — none of it has been
-  rendered once.
+**It shipped broken, and the cause is worth recording because nothing in the
+toolchain could see it.** The route rebuilt the grid with the background, echoed
+the background back in its response, and then wrote this:
+
+```ts
+await prisma.pageGrid.update({
+  where: { id: master.id },
+  data: { cols, rows, gap, margin, regions },   // no background
+})
+```
+
+Every layer was correct except the one that persists. The control sent, the route
+answered `200` with the background in the body, `router.refresh()` re-read the old
+row, and nothing changed. Both colour and image failed together because both go
+through that one update.
+
+Typecheck could not see it: the update simply did not mention a nullable column.
+Lint could not. The round-trip tests in `offer-book-grid.test.ts` could not — they
+exercise `gridForKind` and `readGridChoice`, which were both right. **Only running
+it finds an omitted field in a Prisma call**, and the thing that made it visible
+was a `curl` against the real route followed by a `SELECT`.
+
+The fix also had to choose a null: on a `Json?` column Prisma makes you say which.
+`Prisma.JsonNull` stores the JSON value `null` *in* the column; `Prisma.DbNull`
+makes the column itself NULL. Only the second means "no background" — and because
+`readBackground` reads a stored JSON null as an object with no `from` and falls
+back to paper, the two would have looked identical until something queried
+`IS NULL`.
+
+**Verified against the running app**, on a real book:
+
+| Path | Evidence |
+| --- | --- |
+| Flat colour | `<rect width="1080" height="1080" fill="#1cb74d">` — the shop's own `primary`, resolved from their palette |
+| Gradient | `<linearGradient>` with both stops, `<rect … fill="url(#…-page-ground)">` |
+| Image | `<image href="https://…/blocks/demo123" preserveAspectRatio="xMidYMid slice" opacity="0.4">`, paper rect beneath |
+| Tenancy | another org's key → `asset_not_found` |
+| §11.4's gap | catalog product images now render in the editor too |
+
+### 11.9 Still owed
+
+- **The gradient's element id carries colons.** `React.useId()` yields `:R7b7rrqfj6:`,
+  so the paint reference is `url(#:R7b7rrqfj6:-page-ground)`. Colons are legal in a
+  URI fragment and browsers do resolve this, and the markup is structurally right —
+  but it was confirmed by reading HTML, not by looking at a painted page. **The same
+  id scheme is `fillPaint`'s**, so a block gradient has the same exposure, and no
+  seeded block uses a gradient (`usesOnlyRoles` refuses one), which means this may
+  never have actually rendered anywhere. Stripping the colons in `paintFill` is a
+  one-line hardening and would also derisk E9, which renders these SVGs through
+  Playwright rather than a browser.
+- **A gradient is stored but never checked for contrast.** Same class as §11.5, same
+  answer for now.
+- **The wizard, the preview and the band controls are still unrendered.** This
+  session drove the *background* end to end, which is what was broken. §9.4 and
+  §10.6 still stand for everything else.

@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import type { PageBackground } from '@souqstudio/types'
-import { prisma } from '@souqstudio/db'
+import { Prisma, prisma } from '@souqstudio/db'
 import { pageCountFor } from '@souqstudio/engine'
 import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
@@ -260,6 +260,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       rows: grid.rows,
       gap: grid.gap,
       margin: grid.margin ?? 0,
+      /*
+       * **`Prisma.DbNull`, not `null`.** On a `Json?` column Prisma makes you say
+       * which null you mean: `JsonNull` stores the JSON value `null` *in* the
+       * column, `DbNull` makes the column itself NULL. Only the second is what
+       * "this book has no background" means — `readBackground` would read a
+       * stored JSON null as an object with no `from` and fall back to paper, so
+       * the two would look identical until something queried `IS NULL`.
+       *
+       * This whole write is a rebuild, so an absent background here is a
+       * background the owner cleared and the column has to be cleared with it.
+       */
+      background:
+        grid.background === undefined
+          ? Prisma.DbNull
+          : (grid.background as unknown as object),
       regions: grid.regions as unknown as object[],
     },
   })
