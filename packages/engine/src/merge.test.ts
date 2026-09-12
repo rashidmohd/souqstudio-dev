@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
+import type { Region } from '@souqstudio/types'
 import type { CellSpan } from './geometry'
 import {
   expandSpan,
   hasMergeIn,
   mergeAt,
+  mergeRegions,
   mergeSpan,
   normalizeMerges,
   unionSpan,
@@ -136,5 +138,79 @@ describe('hasMergeIn', () => {
   it('reports whether a selection has anything to unmerge', () => {
     expect(hasMergeIn([span(0, 0, 1, 1)], span(1, 1))).toBe(true)
     expect(hasMergeIn([span(0, 0, 1, 1)], span(3, 2))).toBe(false)
+  })
+})
+
+describe('mergeRegions', () => {
+  const cell = (id: string, col: number, row: number): Region => ({
+    id,
+    colStart: col,
+    colEnd: col,
+    rowStart: row,
+    rowEnd: row,
+    blockId: 'blk_card',
+    fill: 'flow',
+  })
+
+  /** A 3×2 body with a footer band under it. */
+  const grid = (): Region[] => [
+    cell('r0c0', 0, 0),
+    cell('r0c1', 1, 0),
+    cell('r0c2', 2, 0),
+    cell('r1c0', 0, 1),
+    cell('r1c1', 1, 1),
+    cell('r1c2', 2, 1),
+    { id: 'footer', colStart: 0, colEnd: 2, rowStart: 2, rowEnd: 2, blockId: 'blk_footer', fill: 'static' },
+  ]
+
+  const ids = (regions: Region[]) =>
+    regions
+      .filter((r) => r.fill === 'flow')
+      .sort((a, b) => a.rowStart - b.rowStart || a.colStart - b.colStart)
+      .map((r) => r.id)
+
+  it('returns the regions untouched when the page merges nothing', () => {
+    expect(mergeRegions(grid(), [], 0)).toEqual(grid())
+  })
+
+  it('joins the merged cells into one region at the start cell id', () => {
+    const out = mergeRegions(grid(), [span(0, 0, 1, 0)], 0)
+    expect(ids(out)).toEqual(['r0c0', 'r0c2', 'r1c0', 'r1c1', 'r1c2'])
+    expect(out.find((r) => r.id === 'r0c0')).toMatchObject({ colStart: 0, colEnd: 1 })
+  })
+
+  it('leaves bands alone — a footer is not a cell anyone merges', () => {
+    const out = mergeRegions(grid(), [span(0, 0, 2, 1)], 0)
+    expect(out.find((r) => r.id === 'footer')).toMatchObject({ fill: 'static', rowStart: 2 })
+  })
+
+  it('shifts body rows onto grid rows, so a header cannot renumber a merge', () => {
+    // Body row 0 with a masthead above it is grid row 1. The merge is authored
+    // in body space and lands one row down.
+    const withHeader = grid().map((r) =>
+      r.fill === 'flow' ? { ...r, rowStart: r.rowStart + 1, rowEnd: r.rowEnd + 1 } : r
+    )
+    const out = mergeRegions(withHeader, [span(0, 0, 1, 0)], 1)
+    expect(out.find((r) => r.id === 'r0c0')).toMatchObject({ rowStart: 1, rowEnd: 1, colEnd: 1 })
+  })
+
+  it('skips a merge whose start cell this grid does not have', () => {
+    // It describes a layout this page is not drawing. Inventing a region for it
+    // would put a card where the grid has none.
+    expect(ids(mergeRegions(grid(), [span(5, 5, 6, 5)], 0))).toEqual(ids(grid()))
+  })
+
+  it('covers every cell exactly once', () => {
+    const out = mergeRegions(grid(), [span(0, 0, 1, 1)], 0).filter((r) => r.fill === 'flow')
+    const seen = new Set<string>()
+    for (const r of out) {
+      for (let row = r.rowStart; row <= r.rowEnd; row += 1) {
+        for (let col = r.colStart; col <= r.colEnd; col += 1) {
+          expect(seen.has(`${row},${col}`)).toBe(false)
+          seen.add(`${row},${col}`)
+        }
+      }
+    }
+    expect(seen.size).toBe(6)
   })
 })

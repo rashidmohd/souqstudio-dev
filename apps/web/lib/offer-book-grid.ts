@@ -1,4 +1,4 @@
-import { bookletGrid, normalizeMerges, postGrid, type CellSpan } from '@souqstudio/engine'
+import { bookletGrid, postGrid } from '@souqstudio/engine'
 import type { PageBackground, PageGrid } from '@souqstudio/types'
 import { KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
 
@@ -57,17 +57,6 @@ export interface GridChoice {
   /** Overrides the kind's own count. The editor's layout panel sends these. */
   perRow?: number
   bodyRows?: number
-  /**
-   * Cells the owner merged, in body-card coordinates. Composition model §4.
-   *
-   * **Part of the choice, which is the only place it can live.** This route
-   * rebuilds the master from scratch on every edit, so anything that is not an
-   * input here is discarded — a merge stored only as a region shape would
-   * survive until the owner next touched the margin, and then quietly stop
-   * being a hero. `readGridChoice` reads them back off the regions for exactly
-   * that reason.
-   */
-  merges?: readonly CellSpan[]
 }
 
 /**
@@ -90,10 +79,6 @@ export function gridForKind(choice: GridChoice): PageGrid {
     // default" and `null` as "no band". Normalising here would lose that.
     ...(choice.headerBlockId === undefined ? {} : { headerBlockId: choice.headerBlockId }),
     ...(choice.footerBlockId === undefined ? {} : { footerBlockId: choice.footerBlockId }),
-    // `composeGrid` normalises these against the track count it is building, so
-    // a merge that the new `perRow` cannot hold is dropped there rather than
-    // here — this function does not yet know what the counts resolved to.
-    ...(choice.merges === undefined ? {} : { merges: choice.merges }),
   }
 
   return spec.footer ? bookletGrid(options) : postGrid(options)
@@ -127,12 +112,10 @@ export function gridForFormat(format: string, options: Omit<GridChoice, 'kind'> 
  * rebuilding would flatten them; that is a real limit and it is the same limit
  * the layout route already has by rebuilding at all.
  *
- * **Merges are read back the same way, and for a sharper reason.** They are the
- * one part of the choice an owner authors on the artboard rather than in a
- * panel, so every *other* control — margin, bands, background, track count —
- * rebuilds the grid underneath them. Derived here rather than stored on the book
- * beside the regions, because a `page_grids` row already says which cells are
- * one region, and the copy nothing renders from is the one that goes stale.
+ * **Merges are not here, and that is deliberate.** They were, briefly, which made
+ * them a property of the master and therefore of every body page at once. A merge
+ * belongs to the page an owner made it on, so it lives on `offer_book_pages` and
+ * `flowBook` applies it per page. Nothing in this choice varies by page.
  */
 export function readGridChoice(format: string, grid: PageGrid): GridChoice {
   const flowing = grid.regions.find((region) => region.fill === 'flow')
@@ -145,7 +128,6 @@ export function readGridChoice(format: string, grid: PageGrid): GridChoice {
   return {
     kind: kindOf(format),
     perRow: grid.cols.length,
-    merges: readMerges(grid),
     // A grid with bands and no cards is a corrupt row rather than a layout, and
     // `resolveTracks` throws on zero tracks anyway. One is the floor the route's
     // own schema already sets.
@@ -160,47 +142,4 @@ export function readGridChoice(format: string, grid: PageGrid): GridChoice {
     headerBlockId: header?.blockId ?? null,
     footerBlockId: footer?.blockId ?? null,
   }
-}
-
-/**
- * The merges a stored grid is already drawing, in body-card coordinates.
- *
- * A flowing region covering more than one cell *is* a merge — there is nothing
- * else it could be, since `composeGrid` writes every unmerged cell as its own
- * region. So this is a read rather than a lookup.
- *
- * **The row offset is read off the regions, not off the bands.** A header takes
- * the top track, so a region's `rowStart` is one greater than the body row it
- * draws; the smallest `rowStart` among flowing regions is the top body row,
- * which is true whether or not a band exists and true whether or not that row is
- * merged. Counting bands instead would mean this function and `composeGrid`
- * each held their own opinion about where the cards begin.
- */
-function readMerges(grid: PageGrid): CellSpan[] {
-  const flowing = grid.regions.filter((region) => region.fill === 'flow')
-  if (flowing.length === 0) return []
-
-  const rowOffset = flowing.reduce((top, region) => Math.min(top, region.rowStart), Infinity)
-
-  const merged = flowing
-    .filter((region) => region.colStart !== region.colEnd || region.rowStart !== region.rowEnd)
-    .map((region) => ({
-      colStart: region.colStart,
-      colEnd: region.colEnd,
-      rowStart: region.rowStart - rowOffset,
-      rowEnd: region.rowEnd - rowOffset,
-    }))
-
-  // Normalised on the way out as well as the way in. A stored grid predates any
-  // check this function could make — it was written by an earlier version of
-  // the composer, or by hand — and handing an out-of-bounds span to a rebuild
-  // would have `composeGrid` drop it silently on the next edit rather than this
-  // one. Same answer, one step earlier, where the caller can see it.
-  const header = grid.regions.some((region) => region.id === 'header')
-  const footer = grid.regions.some((region) => region.id === 'footer')
-
-  return normalizeMerges(merged, {
-    perRow: grid.cols.length,
-    bodyRows: Math.max(1, grid.rows.length - (header ? 1 : 0) - (footer ? 1 : 0)),
-  })
 }

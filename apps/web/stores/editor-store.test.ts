@@ -171,10 +171,10 @@ describe('save status', () => {
 })
 
 /**
- * Cell selection, which is two corners and nothing else.
+ * Cell selection: two corners, and the page they are on.
  *
  * The rectangle they imply — and the growing it does to swallow a merge it only
- * half covers — is derived in `EditorShell`, where the master's merges are. This
+ * half covers — is derived in `EditorShell`, where that page's merges are. This
  * store holds the gesture.
  */
 describe('cell selection', () => {
@@ -189,28 +189,42 @@ describe('cell selection', () => {
     useEditorStore.getState().clearCells()
   })
 
-  it('anchors on a plain click', () => {
-    useEditorStore.getState().selectCell(cell(1, 0), false)
+  it('anchors on a plain click, and records the page', () => {
+    useEditorStore.getState().selectCell(0, cell(1, 0), false)
 
-    const { cellAnchor, cellFocus } = useEditorStore.getState()
+    const { cellAnchor, cellFocus, cellPage } = useEditorStore.getState()
     expect(cellAnchor).toEqual(cell(1, 0))
     expect(cellFocus).toEqual(cell(1, 0))
+    expect(cellPage).toBe(0)
   })
 
-  it('moves the focus and keeps the anchor when extending', () => {
+  it('moves the focus and keeps the anchor when extending on the same page', () => {
     const store = useEditorStore.getState()
-    store.selectCell(cell(0, 0), false)
-    store.selectCell(cell(2, 1), true)
+    store.selectCell(0, cell(0, 0), false)
+    store.selectCell(0, cell(2, 1), true)
 
     expect(useEditorStore.getState().cellAnchor).toEqual(cell(0, 0))
     expect(useEditorStore.getState().cellFocus).toEqual(cell(2, 1))
   })
 
+  it('starts over when the extension lands on a different page', () => {
+    // A merge belongs to one page, so a selection does too. There is no
+    // rectangle spanning a page break to extend into.
+    const store = useEditorStore.getState()
+    store.selectCell(0, cell(0, 0), false)
+    store.selectCell(1, cell(2, 1), true)
+
+    const { cellAnchor, cellFocus, cellPage } = useEditorStore.getState()
+    expect(cellPage).toBe(1)
+    expect(cellAnchor).toEqual(cell(2, 1))
+    expect(cellFocus).toEqual(cell(2, 1))
+  })
+
   it('re-anchors on a plain click after a range', () => {
     const store = useEditorStore.getState()
-    store.selectCell(cell(0, 0), false)
-    store.selectCell(cell(2, 1), true)
-    store.selectCell(cell(3, 2), false)
+    store.selectCell(0, cell(0, 0), false)
+    store.selectCell(0, cell(2, 1), true)
+    store.selectCell(0, cell(3, 2), false)
 
     expect(useEditorStore.getState().cellAnchor).toEqual(cell(3, 2))
     expect(useEditorStore.getState().cellFocus).toEqual(cell(3, 2))
@@ -219,16 +233,19 @@ describe('cell selection', () => {
   it('anchors when asked to extend from nothing', () => {
     // The first pointer event of a drag arrives before anything is selected.
     // Refusing it would make the gesture start on the second cell.
-    useEditorStore.getState().selectCell(cell(1, 1), true)
+    useEditorStore.getState().selectCell(2, cell(1, 1), true)
     expect(useEditorStore.getState().cellAnchor).toEqual(cell(1, 1))
+    expect(useEditorStore.getState().cellPage).toBe(2)
   })
 
   it('clears', () => {
     const store = useEditorStore.getState()
-    store.selectCell(cell(0, 0), false)
+    store.selectCell(0, cell(0, 0), false)
     store.clearCells()
 
-    expect(useEditorStore.getState().cellAnchor).toBeNull()
-    expect(useEditorStore.getState().cellFocus).toBeNull()
+    const { cellAnchor, cellFocus, cellPage } = useEditorStore.getState()
+    expect(cellAnchor).toBeNull()
+    expect(cellFocus).toBeNull()
+    expect(cellPage).toBeNull()
   })
 })

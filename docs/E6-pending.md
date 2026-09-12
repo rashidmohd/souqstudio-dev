@@ -801,3 +801,50 @@ neighbours; on it is the one primary in the panel, because blue carries active s
 The lesson is not "ghost is wrong". It is that a variant is only legible relative to what
 sits next to it, and `component-inventory.md` cannot encode that. It is a screenshot
 check, and it took a screenshot to see it.
+
+### Merging moved onto the page — 12 September
+
+The composition model said one master grid is instanced on every body page, and that
+merging two cells therefore merges them on all nine: *"One merge gesture styles nine
+pages, which is what anyone actually wants. Nobody hand-merges cells nine times."*
+
+**That is not what anyone actually wanted.** The first thing tried in the built editor was
+merging two cells on page one, and the report was that page two had changed too — twice,
+before it was clear this was the design rather than a defect. A hero belongs to the page an
+owner put it on.
+
+So merges came off the master and onto `offer_book_pages.merges`:
+
+- **The master still owns everything else** — cards across and down, the margin, the
+  running bands, the paper. Those are the book's, and changing one still changes every
+  page at once. Merging is the single exception, and it is the one an owner makes while
+  looking at a particular page.
+- **`composeGrid` went back to one region per cell.** It writes the grid every page starts
+  from and nothing more. `mergeRegions` in the engine applies a page's merges to that,
+  and `flowBook` calls it per page.
+- **The flow does not restart at a merge.** One cursor runs over the whole book and asks
+  each page only for its own cells, so a page holding a merged hero holds one card fewer
+  and the products carry on onto the next page. That was the owner's own phrasing —
+  "grid flow the continuity" — and it is the property that keeps a merge a layout decision
+  rather than a pagination one.
+- **`FlowPage` now carries `cells` and `merges`.** Neither is derivable from the master any
+  more, because the master does not know what a page joined. `merges` is carried rather
+  than read back off `cells` because a merge sitting under a pin has no cell on that page,
+  and an editor reconstructing the set from what it can see would silently drop it.
+- **A selection belongs to a page.** The store holds `cellPage` beside the two corners, a
+  shift-click on another page starts a new selection rather than spanning a page break, and
+  only the owning page draws a ring. The panel names the page in words — "This changes page
+  1 only" — because an owner three pages down cannot see which page is about to change.
+
+`cardFit` widened again with it: it now checks every flowing placement in the *book*
+rather than on page one, because page one's shapes no longer say anything about page two's.
+
+### What this leaves open
+
+- **Per-page background.** The owner asked for this in the same breath — "if they want to
+  change the bg they can change even a particular page". The mechanism is now in place:
+  `offer_book_pages` is the row, and `PATCH .../pages/:index/merges` is the shape the route
+  would copy. `page_grids.background` stays the book's default; a page column would
+  override it. Not built.
+- **Nothing migrates.** Every master grid in the database held one region per cell already,
+  so the column was added empty and no grid needed unpicking.

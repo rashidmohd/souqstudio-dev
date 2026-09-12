@@ -4,11 +4,9 @@ import { prisma } from '@souqstudio/db'
 import {
   arrangementCovers,
   flowBook,
-  masterCells,
   validateGrid,
   type CellSpan,
   type FlowPage,
-  type MasterCell,
 } from '@souqstudio/engine'
 import type { Block, PageBackground, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
 import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
@@ -98,25 +96,7 @@ export interface ComposedBook {
     cardFits: boolean
     /** The aspect that was judged, for a message that can be specific. */
     cellAspect: number | null
-    /**
-     * The cells the owner has merged, in body-card coordinates. §4 of the
-     * composition model — a hero is a merged 2×2 region, and a merge is what
-     * the artboard authors rather than a panel.
-     */
-    merges: CellSpan[]
   }
-  /**
-   * Every flowing cell of the master, as a rectangle on the page.
-   *
-   * **Not derivable from `pages`**, which is why it is its own field. A
-   * placement exists only where an offer landed; the editor has to be able to
-   * select and merge the empty cells at the end of the last page, which is
-   * exactly where a hero goes.
-   *
-   * One set for the whole book, because there is one master: every body page is
-   * an instance of it, so a cell is at the same rectangle on all of them.
-   */
-  cells: MasterCell[]
   /**
    * The bounded nudges an owner has made, by page index. E6-04.
    *
@@ -157,7 +137,7 @@ export async function loadBook(
         select: { cols: true, rows: true, gap: true, margin: true, background: true, regions: true },
         take: 1,
       },
-      pages: { select: { index: true, slotOverrides: true } },
+      pages: { select: { index: true, slotOverrides: true, merges: true } },
       pins: {
         select: {
           id: true,
@@ -311,8 +291,23 @@ export async function loadBook(
     rowEnd: pin.rowEnd,
   }))
 
+  /**
+   * What each page does with the master, by page index.
+   *
+   * **Read here and applied by the engine**, never baked into the stored grid:
+   * the master is one region per cell and stays that way, so a page with no row
+   * of its own simply draws it. That is what lets page one hold a hero and page
+   * two not.
+   */
+  const merges: Record<number, CellSpan[]> = {}
+  for (const row of book.pages) {
+    const spans = readMerges(row.merges)
+    if (spans.length > 0) merges[row.index] = spans
+  }
+
   const flow = flowBook({
     master,
+    merges,
     offerIds: offers.map((offer) => offer.id),
     pins,
     page,
@@ -345,10 +340,8 @@ export async function loadBook(
       headerBlockId: choice.headerBlockId ?? null,
       footerBlockId: choice.footerBlockId ?? null,
       background: choice.background ?? null,
-      merges: [...(choice.merges ?? [])],
-      ...cardFit(flow.pages[0], blocks),
+      ...cardFit(flow.pages, blocks),
     },
-    cells: masterCells(master, page, edition === 'ar' ? 'rtl' : 'ltr'),
     overrides: Object.fromEntries(
       book.pages.map((page) => [page.index, readOverrides(page.slotOverrides)])
     ),
@@ -431,29 +424,32 @@ async function loadBlocks(
  * open ranges for exactly that reason; the repeating card is the one drawn
  * nine times per page, and the one whose stretch an owner will notice.
  *
- * **Every flowing placement on page one, not the first one.** This checked one
- * placement for as long as every flowing region was the same rectangle, which
- * was true until cells could be merged: a 2×2 hero and the cards beside it are
- * one block at two shapes, and the seeded cards carry `TALL` and `WIDE` with
- * nothing between them. Reading only the first would report on whichever
- * happened to come first in reading order — the hero, if the merge is at the top
- * left — and stay silent about nine stretched cards below it, or the reverse.
+ * **Every flowing placement in the book, not the first one on page one.** This
+ * checked a single placement for as long as every flowing region was the same
+ * rectangle — true until cells could be merged. A 2×2 hero and the cards beside
+ * it are one block at two shapes, and the seeded cards carry `TALL` and `WIDE`
+ * with nothing between them; reading only the first would report on whichever
+ * came first in reading order and stay silent about nine stretched cards below.
  *
- * So a page fits when *every* shape on it fits, and the aspect reported is the
- * first one that does not. The panel's message names a fix rather than a
- * number, so the worst offender is the useful one to carry back.
+ * It spans every page rather than the first because merges are a *page's*
+ * decision now: page one can hold a hero that page two does not, so page one's
+ * shapes say nothing about page two's.
+ *
+ * A book fits when every shape in it fits, and the aspect reported is the first
+ * one that does not. The panel's message names a fix rather than a number, so
+ * the worst offender is the useful one to carry back.
  *
  * A book with no offers has no placement to measure and returns `cardFits: true`
  * — there is nothing being drawn wrong, and warning about an empty book is a
  * warning an owner cannot act on.
  */
 function cardFit(
-  page: FlowPage | undefined,
+  pages: readonly FlowPage[],
   blocks: Record<string, Block>
 ): { cardFits: boolean; cellAspect: number | null } {
-  const placements = (page?.placements ?? []).filter(
-    (candidate) => candidate.kind === 'flow' && candidate.offerId !== null
-  )
+  const placements = pages
+    .flatMap((page) => page.placements)
+    .filter((candidate) => candidate.kind === 'flow' && candidate.offerId !== null)
   if (placements.length === 0) return { cardFits: true, cellAspect: null }
 
   let first: number | null = null
@@ -1207,4 +1203,38 @@ export async function duplicateBook(
   })
 
   return { id: created.id, title, offers: source.offers.length }
+}
+
+/**
+ * A page's stored merges, narrowed enough to hand to the engine.
+ *
+ * `offer_book_pages.merges` is a Json column, so it arrives as `unknown`.
+ * **Unlike a malformed grid this never throws**: a page whose merges cannot be
+ * read is a page that draws the master, which is a layout, not a crash. The
+ * engine normalises again on the way in — dropping anything the track count
+ * cannot hold — so this only has to establish the shape.
+ */
+function readMerges(value: unknown): CellSpan[] {
+  if (!Array.isArray(value)) return []
+
+  const out: CellSpan[] = []
+  for (const entry of value) {
+    if (entry === null || typeof entry !== 'object') continue
+    const span = entry as Record<string, unknown>
+    if (
+      typeof span.colStart !== 'number' ||
+      typeof span.colEnd !== 'number' ||
+      typeof span.rowStart !== 'number' ||
+      typeof span.rowEnd !== 'number'
+    ) {
+      continue
+    }
+    out.push({
+      colStart: span.colStart,
+      colEnd: span.colEnd,
+      rowStart: span.rowStart,
+      rowEnd: span.rowEnd,
+    })
+  }
+  return out
 }

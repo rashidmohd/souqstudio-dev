@@ -366,16 +366,25 @@ The grid is already paid for, so take all of them:
 Body pages are not authored individually. There is **one master grid**, and every body page
 is an instance of it rendered with different products.
 
-- Merge two cells on any body page and **all body pages change** — the edit went to the
-  master.
+- ~~Merge two cells on any body page and **all body pages change** — the edit went to the
+  master.~~ **Superseded on 12 September.** Merging is the one layout decision that
+  belongs to a page: merging the first two cells of page one leaves page two alone. Pages
+  share the tracks, the bands, the margin and the paper; `offer_book_pages.merges` holds
+  what each page does with them, and `flowBook` applies them per page while one product
+  cursor runs through the whole book. `E6-pending.md` §10. Everything else in this section
+  still holds.
 - With no products loaded, the editor shows the master with dummy data. That is not a
   special case; it is the same page.
 - **Detach** — "customize this page only" — breaks one page off the master. Rare, explicit,
   and mostly unnecessary once pins exist (§6).
 - Cover and back pages are always detached and never repeat.
 
-One merge gesture styles nine pages, which is what anyone actually wants. Nobody hand-merges
-cells nine times.
+~~One merge gesture styles nine pages, which is what anyone actually wants. Nobody
+hand-merges cells nine times.~~ **This turned out to be wrong in use.** A hero belongs to
+the page an owner put it on, and the first thing anyone tried was merging two cells on
+page one and expecting page two to keep its nine. Track counts, bands, margin and paper
+are still the master's and still change every page at once — which is the part of this
+argument that survived.
 
 ---
 

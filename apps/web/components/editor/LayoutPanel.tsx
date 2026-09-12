@@ -103,6 +103,8 @@ type Props = {
    * button did not work. This stays set until the new grid is on screen.
    */
   pendingCells: 'merge' | 'unmerge' | null
+  /** Which page the selection is on, zero-based. Null when nothing is selected. */
+  selectedPage: number | null
 }
 
 export function LayoutPanel({
@@ -125,6 +127,7 @@ export function LayoutPanel({
   addToSelection,
   onToggleAddToSelection,
   pendingCells,
+  selectedPage,
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
@@ -196,6 +199,7 @@ export function LayoutPanel({
         addToSelection={addToSelection}
         onToggleAddToSelection={onToggleAddToSelection}
         pending={pendingCells}
+        page={selectedPage}
       />
 
       <Band
@@ -295,11 +299,11 @@ function Band({
  * exactly the affordance that disappears on an iPad, so the selection happens on
  * the canvas and the naming happens in a panel that is always there.
  *
- * **It says what a merge costs before the owner spends it.** One master grid is
- * instanced on every body page, so merging two cells on page one merges them on
- * all nine — which is what anybody actually wants, and which is also completely
- * invisible if the only page they are looking at is page one. The selection ring
- * appearing on every page says it once; this says it in words.
+ * **A merge belongs to the page it was made on.** Merging the first two cells of
+ * page one leaves page two alone — pages share the tracks, the bands and the
+ * paper, and nothing else. The ring drawn on that page and no other says it
+ * once; the line under the buttons names the page in words, because an owner
+ * three pages down cannot see which page they are about to change.
  *
  * **Empty is a state, not a disabled button with no explanation.** With nothing
  * selected this names the gesture that fills it, because "Merge (disabled)" is a
@@ -313,6 +317,7 @@ function Cells({
   addToSelection,
   onToggleAddToSelection,
   pending,
+  page,
 }: {
   selection: { cells: number; canMerge: boolean; canUnmerge: boolean }
   disabled: boolean
@@ -321,6 +326,7 @@ function Cells({
   addToSelection: boolean
   onToggleAddToSelection: () => void
   pending: 'merge' | 'unmerge' | null
+  page: number | null
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-block bg-sand p-3">
@@ -385,9 +391,17 @@ function Cells({
         </Button>
       </div>
 
-      {selection.canMerge || selection.canUnmerge ? (
+      {/*
+        **Which page, by number, and it matters.** Merging changes the page the
+        cells are on and no other, so the panel names it: an owner who has
+        scrolled three pages down needs to know which page is about to change
+        before they change it, and the selection ring alone only tells them once
+        they have found it again.
+      */}
+      {(selection.canMerge || selection.canUnmerge) && page !== null ? (
         <p className="font-ui text-body-sm text-muted">
-          Every page has the same layout, so this changes all of them.
+          This changes page <Figure value={page + 1} size="data-sm" /> only. Other
+          pages keep their own layout.
         </p>
       ) : null}
     </div>

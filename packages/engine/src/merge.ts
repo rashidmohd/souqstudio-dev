@@ -19,6 +19,7 @@
  * only which cells belong together.
  */
 
+import type { Region } from '@souqstudio/types'
 import type { CellSpan } from './geometry'
 import { spansIntersect } from './geometry'
 
@@ -176,4 +177,77 @@ export function unmergeSpan(merges: readonly CellSpan[], span: CellSpan): CellSp
 /** Whether a selection has anything to unmerge. */
 export function hasMergeIn(merges: readonly CellSpan[], span: CellSpan): boolean {
   return merges.some((merge) => spansIntersect(merge, span))
+}
+
+/**
+ * Apply a page's merges to the flowing cells it inherited.
+ *
+ * **This is where a merge becomes geometry, and it happens per page.** The
+ * master grid defines the tracks, the bands and one cell per position; a page
+ * says which of those cells it draws as one. Two pages of the same book can
+ * therefore disagree about their cells and agree about everything else, which is
+ * what "merge the first two cells on page one" has to mean if page two is not to
+ * change with it.
+ *
+ * **A merged region takes the id of its start cell**, which is the one id in the
+ * merge that survives it. Merging `r0c0` with `r0c1` leaves a region still
+ * called `r0c0`, so a nudge made on that card before the merge still finds it —
+ * `slotOverrides` keys on `regionId` + `offerId`. The absorbed cells' ids go
+ * away with the cells, and their nudges orphan, which is what `findOverride` not
+ * matching already means everywhere else.
+ *
+ * Static regions pass through untouched: a band is not a cell anyone merges.
+ *
+ * `rowOffset` converts body-card coordinates — row 0 is the first row of *cards*
+ * — into the grid rows the regions actually sit on. A header band is what makes
+ * those differ, and keeping merges in body space is what stops adding one from
+ * renumbering every merge in the book.
+ */
+export function mergeRegions(
+  regions: readonly Region[],
+  merges: readonly CellSpan[],
+  rowOffset: number
+): Region[] {
+  if (merges.length === 0) return [...regions]
+
+  const flowing = regions.filter((region) => region.fill === 'flow')
+  const rest = regions.filter((region) => region.fill !== 'flow')
+
+  /* In grid rows, which is what the regions are in. */
+  const shifted = merges.map((merge) => ({
+    ...merge,
+    rowStart: merge.rowStart + rowOffset,
+    rowEnd: merge.rowEnd + rowOffset,
+  }))
+
+  const out: Region[] = []
+  const swallowed = new Set<string>()
+
+  for (const merge of shifted) {
+    // The region at the merge's start cell names the merged one. A merge whose
+    // start cell is not a region of this grid is skipped rather than invented:
+    // it describes a layout this page does not have.
+    const anchor = flowing.find(
+      (region) => region.colStart === merge.colStart && region.rowStart === merge.rowStart
+    )
+    if (anchor === undefined) continue
+
+    for (const region of flowing) {
+      if (spansIntersect(region, merge)) swallowed.add(region.id)
+    }
+
+    out.push({
+      ...anchor,
+      colStart: merge.colStart,
+      colEnd: merge.colEnd,
+      rowStart: merge.rowStart,
+      rowEnd: merge.rowEnd,
+    })
+  }
+
+  for (const region of flowing) {
+    if (!swallowed.has(region.id)) out.push(region)
+  }
+
+  return [...rest, ...out]
 }

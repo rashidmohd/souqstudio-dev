@@ -14,7 +14,6 @@ import {
   unmergeSpan,
   type CellSpan,
   type FlowPage,
-  type MasterCell,
 } from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
@@ -27,6 +26,7 @@ import {
 } from '@/components/editor/BookToolRail'
 import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl'
 import { useGridPatch } from '@/components/editor/use-grid-patch'
+import { usePageMerges } from '@/components/editor/use-page-merges'
 import { OfferTray } from '@/components/editor/OfferTray'
 import {
   OfferProperties,
@@ -85,16 +85,7 @@ type Props = {
     cardFits: boolean
     /** The paper behind every card. Null is `--sq-tpl-paper`. */
     background: PageBackground | null
-    /** The cells already merged, in body-card coordinates. */
-    merges: CellSpan[]
   }
-  /**
-   * Every flowing cell of the master, as a rectangle on the page.
-   *
-   * One set for the whole book: there is one master and every body page is an
-   * instance of it, so a cell is at the same rectangle on all of them.
-   */
-  cells: MasterCell[]
   /**
    * Where uploaded artwork lives, for a page background and for any `image`
    * element inside a block.
@@ -132,7 +123,6 @@ export function EditorShell({
   overrides,
   pins,
   layout,
-  cells,
   pinnable,
   headerBlocks,
   footerBlocks,
@@ -146,6 +136,7 @@ export function EditorShell({
   const markEscalated = useEditorStore((state) => state.markEscalated)
   const cellAnchor = useEditorStore((state) => state.cellAnchor)
   const cellFocus = useEditorStore((state) => state.cellFocus)
+  const cellPage = useEditorStore((state) => state.cellPage)
   const selectCell = useEditorStore((state) => state.selectCell)
   const clearCells = useEditorStore((state) => state.clearCells)
   const flagged = useFlaggedCount()
@@ -186,6 +177,7 @@ export function EditorShell({
   // One request shape for the two tabs that write to the grid. The route takes
   // a delta, so each control sends only its own field.
   const grid = useGridPatch(bookId, pages.length)
+  const pageMergeWriter = usePageMerges(bookId)
 
   /**
    * The rectangle the owner's two corners imply, with merges taken in whole.
@@ -196,10 +188,17 @@ export function EditorShell({
    * every spreadsheet does the same — and `expandSpan` is what does that. The
    * store holds two corners and no opinion about the grid's shape.
    */
+  /** The page the selection belongs to, and what it has already merged. */
+  const selectedPage = React.useMemo(
+    () => (cellPage === null ? undefined : pages.find((p) => p.index === cellPage)),
+    [cellPage, pages]
+  )
+  const pageMerges = React.useMemo(() => selectedPage?.merges ?? [], [selectedPage])
+
   const selectionSpan = React.useMemo<CellSpan | null>(() => {
     if (cellAnchor === null || cellFocus === null) return null
-    return expandSpan(unionSpan(cellAnchor, cellFocus), layout.merges)
-  }, [cellAnchor, cellFocus, layout.merges])
+    return expandSpan(unionSpan(cellAnchor, cellFocus), pageMerges)
+  }, [cellAnchor, cellFocus, pageMerges])
 
   /**
    * What the panel needs to know about the selection, in its own words.
@@ -214,15 +213,19 @@ export function EditorShell({
    * covers four cells and has nothing to merge.
    */
   const selection = React.useMemo(() => {
-    if (selectionSpan === null) return { cells: 0, canMerge: false, canUnmerge: false }
+    if (selectionSpan === null || selectedPage === undefined) {
+      return { cells: 0, canMerge: false, canUnmerge: false }
+    }
 
-    const covered = cells.filter((cell) => spansIntersect(cell.body, selectionSpan))
+    const covered = selectedPage.cells.filter((cell) =>
+      spansIntersect(cell.body, selectionSpan)
+    )
     return {
       cells: spanArea(selectionSpan),
       canMerge: covered.length > 1,
-      canUnmerge: hasMergeIn(layout.merges, selectionSpan),
+      canUnmerge: hasMergeIn(pageMerges, selectionSpan),
     }
-  }, [cells, layout.merges, selectionSpan])
+  }, [pageMerges, selectedPage, selectionSpan])
 
   const bounds = { perRow: layout.perRow, bodyRows: layout.bodyRows }
 
@@ -247,24 +250,24 @@ export function EditorShell({
    */
   const [pendingCells, setPendingCells] = React.useState<'merge' | 'unmerge' | null>(null)
 
-  // The new grid has landed — `layout.merges` is a fresh array on every server
-  // render — so whatever was in flight is now on screen.
+  // The new layout has landed — `pages` is a fresh array on every server render
+  // — so whatever was in flight is now on screen.
   React.useEffect(() => {
     setPendingCells(null)
-  }, [layout.merges])
+  }, [pages])
 
   const applyMerges = React.useCallback(
-    (next: readonly CellSpan[], action: 'merge' | 'unmerge') => {
+    (pageIndex: number, next: readonly CellSpan[], action: 'merge' | 'unmerge') => {
       setPendingCells(action)
       // Cleared on failure only. A *success* is not the end of the wait — the
-      // route has written the grid, but the artboard does not move until
+      // route has written the row, but the artboard does not move until
       // `router.refresh()` has re-run the flow engine and the new props land,
       // which is the effect below.
-      void grid.patch({ merges: next }).then((ok) => {
+      void pageMergeWriter.write(pageIndex, next).then((ok) => {
         if (!ok) setPendingCells(null)
       })
     },
-    [grid]
+    [pageMergeWriter]
   )
 
 
@@ -506,20 +509,21 @@ export function EditorShell({
                 pages={grid.pages}
                 patch={(next) => void grid.patch(next)}
                 busy={grid.busy}
-                error={grid.error}
+                error={grid.error ?? pageMergeWriter.error}
                 headerBlocks={headerBlocks}
                 footerBlocks={footerBlocks}
                 selection={selection}
                 addToSelection={addToSelection}
                 onToggleAddToSelection={() => setAddToSelection((on) => !on)}
                 pendingCells={pendingCells}
+                selectedPage={cellPage}
                 onMerge={() => {
-                  if (selectionSpan === null) return
-                  applyMerges(mergeSpan(layout.merges, selectionSpan, bounds), 'merge')
+                  if (selectionSpan === null || cellPage === null) return
+                  applyMerges(cellPage, mergeSpan(pageMerges, selectionSpan, bounds), 'merge')
                 }}
                 onUnmerge={() => {
-                  if (selectionSpan === null) return
-                  applyMerges(unmergeSpan(layout.merges, selectionSpan), 'unmerge')
+                  if (selectionSpan === null || cellPage === null) return
+                  applyMerges(cellPage, unmergeSpan(pageMerges, selectionSpan), 'unmerge')
                 }}
               />
             </div>
@@ -594,11 +598,14 @@ export function EditorShell({
                 */
                 {...(tool === 'layout'
                   ? {
-                      cells,
-                      cellSelection: selectionSpan,
+                      cells: flowPage.cells,
+                      // Only the page that owns the selection draws a ring. A
+                      // merge belongs to one page, so showing it on all of them
+                      // would promise an edit that is not going to happen.
+                      cellSelection: cellPage === flowPage.index ? selectionSpan : null,
                       onSelectCell: (cell, { extend, offerId }) => {
                         const extending = extend || addToSelection
-                        selectCell(cell.body, extending)
+                        selectCell(flowPage.index, cell.body, extending)
                         // A fresh pick means this card; extending a range does
                         // not, and swapping the properties panel for every cell
                         // the pointer crossed would make the gesture unusable.

@@ -133,6 +133,7 @@ export {
   expandSpan,
   hasMergeIn,
   mergeAt,
+  mergeRegions,
   mergeSpan,
   normalizeMerges,
   unionSpan,

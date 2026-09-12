@@ -78,6 +78,16 @@ type EditorState = {
    */
   cellAnchor: CellSpan | null
   cellFocus: CellSpan | null
+  /**
+   * Which page the selection is on.
+   *
+   * **A selection belongs to one page, because a merge does.** Merging the first
+   * two cells of page one leaves page two alone, so there is no such thing as
+   * selecting "the top-left cell" of the book — only of a page. Clicking a cell
+   * on a different page starts a new selection rather than stretching the old
+   * one across a page break, which is not a rectangle in any grid.
+   */
+  cellPage: number | null
 
   save: SaveState
   /** When the last successful save landed. E6-08 asks for "Saved [time]". */
@@ -115,7 +125,7 @@ type EditorState = {
    * selected has no corner to grow from, and refusing it would make the first
    * click of a drag do nothing.
    */
-  selectCell: (cell: CellSpan, extend: boolean) => void
+  selectCell: (pageIndex: number, cell: CellSpan, extend: boolean) => void
   clearCells: () => void
   /** Applies immediately. The caller persists and calls `settle`. */
   applyLocal: (offerId: string, patch: Partial<ComposedOffer>) => void
@@ -160,6 +170,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedOfferId: null,
   cellAnchor: null,
   cellFocus: null,
+  cellPage: null,
   save: 'idle',
   savedAt: null,
   failed: [],
@@ -192,7 +203,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         // take the owner's cells away mid-gesture. A merge that changes the track
         // count is the one case that must clear it, and `EditorShell` does that
         // where it can see the counts.
-        ...(state.bookId === bookId ? {} : { cellAnchor: null, cellFocus: null }),
+        ...(state.bookId === bookId
+          ? {}
+          : { cellAnchor: null, cellFocus: null, cellPage: null }),
         save: 'idle',
         savedAt: state.bookId === bookId ? state.savedAt : null,
         failed: state.bookId === bookId ? state.failed.filter((id) => next[id]) : [],
@@ -214,14 +227,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   select: (offerId) => set({ selectedOfferId: offerId }),
 
-  selectCell: (cell, extend) =>
+  selectCell: (pageIndex, cell, extend) =>
     set((state) =>
-      extend && state.cellAnchor !== null
+      // Extending only continues a selection already on *this* page. A shift
+      // click on the next page down is a new selection, not a rectangle
+      // spanning a page break — there is no such shape.
+      extend && state.cellAnchor !== null && state.cellPage === pageIndex
         ? { cellFocus: cell }
-        : { cellAnchor: cell, cellFocus: cell }
+        : { cellAnchor: cell, cellFocus: cell, cellPage: pageIndex }
     ),
 
-  clearCells: () => set({ cellAnchor: null, cellFocus: null }),
+  clearCells: () => set({ cellAnchor: null, cellFocus: null, cellPage: null }),
 
   applyLocal: (offerId, patch) =>
     set((state) => {

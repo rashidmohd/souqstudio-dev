@@ -12,6 +12,7 @@
 import type { PageGrid, Pin, Region } from '@souqstudio/types'
 import { resolveTracks, type Track } from './tracks'
 import { spanRect, spansIntersect, type CellSpan, type Direction, type Rect } from './geometry'
+import { mergeRegions, normalizeMerges } from './merge'
 import { validateGrid } from './validate'
 
 export interface FlowInput {
@@ -22,6 +23,21 @@ export interface FlowInput {
   pins: readonly Pin[]
   page: { width: number; height: number }
   direction: Direction
+  /**
+   * Merged cells, **per page index**, in body-card coordinates.
+   *
+   * **A page's layout, not the book's, and that is the whole point.** Merging
+   * the first two cells of page one has to leave page two alone, so the master
+   * supplies the tracks, the bands and one cell per position, and each page says
+   * which of its cells it draws as one. Pages with no entry here draw the master
+   * as it stands.
+   *
+   * **The flow does not restart at a merge.** A page with a merged hero holds one
+   * card fewer and the products simply carry on onto the next page — the cursor
+   * is the book's, not the page's. That is what keeps a merge a layout decision
+   * rather than a pagination one.
+   */
+  merges?: Readonly<Record<number, readonly CellSpan[]>>
 }
 
 export interface Placement {
@@ -40,6 +56,26 @@ export interface FlowPage {
   placements: Placement[]
   /** Flow regions this page could hold, after pins took their cells. */
   capacity: number
+  /**
+   * The cells of this page an owner may select, already merged as this page
+   * merges them and with anything a pin took here left out.
+   *
+   * **Per page, because pages no longer have to agree.** This is what the editor
+   * draws its grid and its selection from; it cannot be derived from the master
+   * any more, because the master does not know which cells this page joined.
+   */
+  cells: MasterCell[]
+  /**
+   * This page's merges, as the engine resolved them.
+   *
+   * **Carried rather than left to be read off `cells`.** A merge the page holds
+   * under a pin has no cell here — pinned cells are not offered — so an editor
+   * reconstructing the set from what it can see would quietly drop it the next
+   * time it wrote one. This is what the owner's next merge is computed against.
+   *
+   * Already normalised: anything the track count could not hold is gone.
+   */
+  merges: CellSpan[]
   /**
    * Flow regions a pin displaced **on this page**.
    *
@@ -133,13 +169,37 @@ export function masterCells(
   direction: Direction
 ): MasterCell[] {
   const { cols, rows } = resolveGridTracks(master, page)
+  return cellsFor(master.regions, cols, rows, direction, bodyTop(master.regions))
+}
 
-  const flowing = master.regions.filter((region) => region.fill === 'flow')
-  if (flowing.length === 0) return []
+/**
+ * The first grid row that holds cards.
+ *
+ * Read off the regions rather than counted from the bands: the smallest
+ * `rowStart` among flowing regions is the top body row, which is true whether or
+ * not a masthead sits above it and true whether or not that row is merged.
+ * Counting bands instead would give this file its own opinion about where the
+ * cards begin, and two opinions is one too many.
+ */
+function bodyTop(regions: readonly Region[]): number {
+  const flowing = regions.filter((region) => region.fill === 'flow')
+  // Seeded past the end rather than at zero: `Math.min(0, ...)` would pin the
+  // answer to row zero and quietly undo the whole point of the offset once a
+  // header band pushed the cards down.
+  if (flowing.length === 0) return 0
+  return flowing.reduce((top, region) => Math.min(top, region.rowStart), Infinity)
+}
 
-  const rowOffset = flowing.reduce((top, region) => Math.min(top, region.rowStart), Infinity)
-
-  return flowing
+/** Flowing regions as rectangles, in reading order. */
+function cellsFor(
+  regions: readonly Region[],
+  cols: readonly Track[],
+  rows: readonly Track[],
+  direction: Direction,
+  rowOffset: number
+): MasterCell[] {
+  return regions
+    .filter((region) => region.fill === 'flow')
     .slice()
     .sort((a, b) => a.rowStart - b.rowStart || a.colStart - b.colStart)
     .map((region) => ({
@@ -188,8 +248,48 @@ export function flowBook(input: FlowInput): FlowResult {
   const inReadingOrder = (a: Region, b: Region): number =>
     a.rowStart - b.rowStart || a.colStart - b.colStart
 
-  const flowRegions = master.regions.filter((r) => r.fill === 'flow').sort(inReadingOrder)
   const staticRegions = master.regions.filter((r) => r.fill === 'static').sort(inReadingOrder)
+
+  /*
+   * Body-card row zero, in grid rows. Merges are authored in body space so a
+   * header band cannot renumber them; this is what converts back.
+   */
+  const rowOffset = bodyTop(master.regions)
+
+  const perRow = master.cols.length
+  // Rows of *cards*, counted off the cells rather than by subtracting bands: a
+  // static region is not guaranteed to be a whole row, and the master's flowing
+  // cells are one per position, so their distinct rows are exactly the body.
+  const bodyRows = new Set(
+    master.regions.filter((r) => r.fill === 'flow').map((r) => r.rowStart)
+  ).size
+
+  /**
+   * This page's flowing cells, after this page's merges.
+   *
+   * Computed per page rather than once, because two pages of one book may now
+   * disagree about their cells — that is what merging "on this page only" means.
+   * A page with no merges gets the master's regions unchanged, which is both the
+   * common case and the cheap one.
+   */
+  const regionsFor = (pageIndex: number): { regions: Region[]; merges: CellSpan[] } => {
+    const merges = normalizeMerges(input.merges?.[pageIndex] ?? [], {
+      perRow,
+      bodyRows: Math.max(1, bodyRows),
+    })
+    if (merges.length === 0) {
+      return {
+        regions: master.regions.filter((r) => r.fill === 'flow').sort(inReadingOrder),
+        merges,
+      }
+    }
+    return {
+      regions: mergeRegions(master.regions, merges, rowOffset)
+        .filter((r) => r.fill === 'flow')
+        .sort(inReadingOrder),
+      merges,
+    }
+  }
 
   const lastPinnedPage = pins.reduce((max, pin) => Math.max(max, pin.pageIndex), -1)
 
@@ -204,6 +304,7 @@ export function flowBook(input: FlowInput): FlowResult {
 
   while ((cursor < offerIds.length || index <= lastPinnedPage) && index < guard) {
     const pinsHere = pins.filter((pin) => pin.pageIndex === index)
+    const { regions: flowRegions, merges: mergesHere } = regionsFor(index)
     const placements: Placement[] = []
 
     for (const region of staticRegions) {
@@ -250,7 +351,17 @@ export function flowBook(input: FlowInput): FlowResult {
       })
     }
 
-    pages.push({ index, placements, capacity: openRegions.length, pinnedRegionIds })
+    pages.push({
+      index,
+      placements,
+      capacity: openRegions.length,
+      merges: mergesHere,
+      pinnedRegionIds,
+      // Only the cells this page can actually offer: merged as this page merges
+      // them, minus whatever a pin took here. An owner cannot select a cell the
+      // page is not drawing — that was a defect once already.
+      cells: cellsFor(openRegions, cols, rows, direction, rowOffset),
+    })
     index += 1
   }
 

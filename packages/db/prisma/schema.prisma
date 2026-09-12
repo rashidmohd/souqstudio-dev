@@ -1108,6 +1108,21 @@ model OfferBookPage {
   /// This replaces the book-level `canvasState` Fabric dump. Fabric is no
   /// longer the source of truth for a page; the engine plus these deltas are.
   slotOverrides Json?
+  /// `CellSpan[]` in body-card coordinates — the cells this page draws as one.
+  ///
+  /// **A page's layout, not the book's.** The master grid says how many cards
+  /// go across and down, what the bands are and what the paper is; merging is
+  /// the one layout decision an owner makes about *this page*, so it is stored
+  /// against the page. Merging the first two cells of page one leaves page two
+  /// alone, which is what merging on a page has to mean.
+  ///
+  /// **Body rows, not grid rows**: row 0 is the first row of cards whether or
+  /// not a masthead sits above it. Same reasoning as the `r{row}c{col}` region
+  /// ids — adding a band must not renumber every merge in the book.
+  ///
+  /// The flow does not restart at a merge: a page holding a merged hero holds
+  /// one card fewer and the products carry on onto the next page.
+  merges       Json?
   book          OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, index])

@@ -444,3 +444,83 @@ describe('flowBook — pinned regions are reported per page', () => {
     expect(flow.pages[0]?.pinnedRegionIds).toEqual(['r0c0'])
   })
 })
+
+describe('flowBook — merges belong to a page, not the book', () => {
+  const hero = { colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 0 }
+
+  const cellIds = (page: { cells: { regionId: string }[] }) =>
+    page.cells.map((cell) => cell.regionId)
+
+  it('merges page one and leaves page two alone', () => {
+    // The requirement in one test: merging the first two cells of page one must
+    // not touch page two.
+    const flow = flowBook(
+      input({ master: fullGrid(3, 3), offerIds: offers(18), merges: { 0: [hero] } })
+    )
+
+    expect(cellIds(flow.pages[0]!)).toEqual([
+      'r0c0', 'r0c2', 'r1c0', 'r1c1', 'r1c2', 'r2c0', 'r2c1', 'r2c2',
+    ])
+    expect(cellIds(flow.pages[1]!)).toEqual([
+      'r0c0', 'r0c1', 'r0c2', 'r1c0', 'r1c1', 'r1c2', 'r2c0', 'r2c1', 'r2c2',
+    ])
+    expect(flow.pages[0]!.cells.find((c) => c.regionId === 'r0c0')?.merged).toBe(true)
+    expect(flow.pages[1]!.cells.find((c) => c.regionId === 'r0c0')?.merged).toBe(false)
+  })
+
+  it('keeps the product order continuous across a page that holds one fewer', () => {
+    // A merged hero costs page one a card. The products do not restart or drop:
+    // they carry on onto page two. This is the continuity the owner asked for.
+    const merged = flowBook(
+      input({ master: fullGrid(3, 3), offerIds: offers(18), merges: { 0: [hero] } })
+    )
+
+    const onPage0 = offersOn(merged.pages[0]!)
+    const onPage1 = offersOn(merged.pages[1]!)
+
+    expect(onPage0).toHaveLength(8)
+    expect(onPage0[0]).toBe('off_0')
+    // Page two picks up exactly where page one stopped.
+    expect(onPage1[0]).toBe('off_8')
+    expect(merged.unplacedOfferIds).toEqual([])
+  })
+
+  it('grows the book by a page when merges leave products over', () => {
+    const flow = flowBook(
+      input({ master: fullGrid(3, 3), offerIds: offers(18), merges: { 0: [hero], 1: [hero] } })
+    )
+    expect(flow.pages).toHaveLength(3)
+    expect(flow.unplacedOfferIds).toEqual([])
+  })
+
+  it('is unchanged when no page merges anything', () => {
+    const plain = flowBook(input({ master: fullGrid(3, 3), offerIds: offers(9) }))
+    const empty = flowBook(input({ master: fullGrid(3, 3), offerIds: offers(9), merges: {} }))
+    expect(plain.pages[0]?.placements).toEqual(empty.pages[0]?.placements)
+  })
+
+  it('drops a merge the grid cannot hold rather than clipping it', () => {
+    const flow = flowBook(
+      input({
+        master: fullGrid(2, 2),
+        offerIds: offers(4),
+        merges: { 0: [{ colStart: 2, colEnd: 3, rowStart: 0, rowEnd: 0 }] },
+      })
+    )
+    expect(cellIds(flow.pages[0]!)).toEqual(['r0c0', 'r0c1', 'r1c0', 'r1c1'])
+  })
+
+  it('leaves out cells a pin took here, merged or not', () => {
+    const flow = flowBook(
+      input({
+        master: fullGrid(3, 2),
+        offerIds: offers(6),
+        merges: { 0: [hero] },
+        pins: [
+          { id: 'p', pageIndex: 0, blockId: 'blk_x', colStart: 0, colEnd: 2, rowStart: 0, rowEnd: 0 },
+        ],
+      })
+    )
+    expect(cellIds(flow.pages[0]!)).toEqual(['r1c0', 'r1c1', 'r1c2'])
+  })
+})

@@ -20,10 +20,17 @@ import { MAX_MARGIN } from '@/lib/offer-book-layout'
  * controls that can disagree is one too many. So this changes the tracks and
  * the density follows, rather than the other way round.
  *
- * **One master, and every body page is an instance of it.** Changing it changes
- * every page at once, which is what anybody actually wants — nobody hand-merges
- * cells nine times. A band added here is therefore a *running* header or footer,
- * on every page. One that belongs to page one alone is a pin.
+ * **One master, and every body page is an instance of it.** Changing anything
+ * here changes every page at once: the track counts, the margin, the paper and
+ * the bands are the book's, not a page's. A band added here is therefore a
+ * *running* header or footer, on every page. One that belongs to page one alone
+ * is a pin.
+ *
+ * **Merging is the exception, and it is not on this route.** A merge belongs to
+ * the page an owner made it on — merging the first two cells of page one must
+ * leave page two alone — so it is stored on `offer_book_pages` and written by
+ * `PATCH .../pages/:index/merges`. This route rebuilds the grid every page
+ * starts from; that one says what a single page does with it.
  *
  * **Every field is optional, and absent means unchanged.** The grid is rebuilt
  * from scratch on each edit, because hand-patching tracks and regions in place
@@ -106,38 +113,10 @@ const backgroundSchema = z.union([
   }),
 ])
 
-/**
- * A merge, in body-card coordinates: row 0 is the first row of cards.
- *
- * **Bounded to the same numbers the track counts are**, not to the book's
- * current grid. The route applies a delta — an owner may send `perRow: 4` and a
- * merge spanning column 3 in one request, and validating the merge against the
- * *stored* four-column grid would refuse a pair that is consistent with itself.
- * `composeGrid` normalises against the counts it actually builds with, and drops
- * what does not fit there. This schema's job is to refuse nonsense, not to
- * second-guess the composer.
- */
-const mergeSchema = z.object({
-  colStart: z.number().int().min(0).max(5),
-  colEnd: z.number().int().min(0).max(5),
-  rowStart: z.number().int().min(0).max(7),
-  rowEnd: z.number().int().min(0).max(7),
-})
-
 const schema = z.object({
   /** Cards across a page. More tracks is what density means now. */
   perRow: z.number().int().min(1).max(6).optional(),
   bodyRows: z.number().int().min(1).max(8).optional(),
-  /**
-   * The cells the owner has merged. Composition model §4.
-   *
-   * **The whole set, never a single merge or an unmerge.** Two tabs merging
-   * against different starting states would interleave into a grid neither owner
-   * chose — the same reasoning the offer tray's reorder uses when it sends the
-   * whole order rather than a `{from, to}`. Forty-eight is the largest grid this
-   * route allows, so nothing can name more merges than that.
-   */
-  merges: z.array(mergeSchema).max(48).optional(),
   /** Fraction of the page's shorter edge. Zero is full bleed. */
   margin: z.number().min(0).max(MAX_MARGIN).optional(),
   /** A running band on every page. `null` removes it. */
@@ -274,7 +253,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     // rather than merged with `??`.
     ...(parsed.data.perRow === undefined ? {} : { perRow: parsed.data.perRow }),
     ...(parsed.data.bodyRows === undefined ? {} : { bodyRows: parsed.data.bodyRows }),
-    ...(parsed.data.merges === undefined ? {} : { merges: parsed.data.merges }),
     ...(parsed.data.margin === undefined ? {} : { margin: parsed.data.margin }),
     ...(parsed.data.headerBlockId === undefined
       ? {}
@@ -336,11 +314,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     headerBlockId: applied.headerBlockId ?? null,
     footerBlockId: applied.footerBlockId ?? null,
     background: applied.background ?? null,
-    // Read back off what was *written*, not echoed from what was sent. A merge
-    // the new track count could not hold was dropped by `composeGrid`, and the
-    // editor has to hear that from the grid rather than keep drawing a selection
-    // around a hero the book no longer has.
-    merges: applied.merges ?? [],
     pages,
   })
 }
