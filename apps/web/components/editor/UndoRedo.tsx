@@ -1,8 +1,10 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { Redo2, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { applyStep } from '@/lib/editor-actions'
 import { useEditorStore, type EditorStep } from '@/stores/editor-store'
 
 /**
@@ -31,34 +33,32 @@ export function UndoRedo({ bookId }: { bookId: string }) {
   const setSave = useEditorStore((state) => state.setSave)
   const settle = useEditorStore((state) => state.settle)
 
+  const router = useRouter()
+
   const apply = React.useCallback(
-    async (step: EditorStep, patch: Record<string, unknown>) => {
+    async (step: EditorStep, direction: 'undo' | 'redo') => {
       setSave('saving')
-      try {
-        const res = await fetch(`/api/v1/offer-books/${bookId}/offers/${step.offerId}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(patch),
-        })
-        if (!res.ok) throw new Error('save failed')
-        setSave('saved')
-        settle(step.offerId, true)
-      } catch {
-        setSave('error')
-        settle(step.offerId, false)
-      }
+      const ok = await applyStep(bookId, step, direction)
+      setSave(ok ? 'saved' : 'error')
+      settle(step.offerId, ok)
+      // **A removal is the one step the client cannot draw the result of.**
+      // Putting an offer back changes which cell every later offer flows into,
+      // and that answer belongs to the engine on the server. A price does not:
+      // the card has already redrawn from the store, which is why this refresh
+      // is conditional rather than unconditional.
+      if (ok && step.kind === 'remove') router.refresh()
     },
-    [bookId, setSave, settle]
+    [bookId, router, setSave, settle]
   )
 
   const undo = React.useCallback(() => {
     const step = takeUndo()
-    if (step !== null) void apply(step, step.undo)
+    if (step !== null) void apply(step, 'undo')
   }, [apply, takeUndo])
 
   const redo = React.useCallback(() => {
     const step = takeRedo()
-    if (step !== null) void apply(step, step.redo)
+    if (step !== null) void apply(step, 'redo')
   }, [apply, takeRedo])
 
   React.useEffect(() => {

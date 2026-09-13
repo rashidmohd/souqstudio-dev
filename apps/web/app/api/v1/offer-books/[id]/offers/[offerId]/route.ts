@@ -3,6 +3,7 @@ import { prisma } from '@souqstudio/db'
 import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
+import type { OfferSnapshot } from '@/lib/offer-snapshot'
 
 /**
  * E6-03 — the offer properties an owner actually sets.
@@ -172,6 +173,15 @@ export async function PATCH(
  * catalog.** A catalog product is archived because a published book references
  * it; an offer *is* the reference, and removing it from a draft is the owner
  * saying it does not belong. `offer_items` and the rest cascade from the row.
+ *
+ * **It returns everything needed to put it back.** The design skill →
+ * Destructive actions asks for undo rather than a confirm dialog on exactly
+ * this action, and undo cannot restore what it was never given: the row is gone
+ * the moment this responds. The snapshot travels to the client, sits on the
+ * undo stack, and comes back to `POST .../restore`. It is read *before* the
+ * delete rather than assembled from what the client already has — the client
+ * holds a `ComposedOffer`, which is what the card draws and not what the row
+ * contains, and half of these columns have never reached it.
  */
 export async function DELETE(
   _request: NextRequest,
@@ -186,7 +196,38 @@ export async function DELETE(
       bookId: params.id,
       book: { shop: { organizationId: session.user.organizationId } },
     },
-    select: { id: true, position: true },
+    select: {
+      id: true,
+      position: true,
+      price: true,
+      priceMode: true,
+      comparePrice: true,
+      currency: true,
+      promoTierId: true,
+      unitPriceMode: true,
+      unitPriceValue: true,
+      unitPriceUnit: true,
+      legalLines: true,
+      items: {
+        orderBy: { position: 'asc' },
+        select: {
+          id: true,
+          catalogProductId: true,
+          position: true,
+          connector: true,
+          nameOverrideEn: true,
+          nameOverrideAr: true,
+          specOverrideEn: true,
+          specOverrideAr: true,
+          imageAssetId: true,
+        },
+      },
+      chips: {
+        select: { id: true, kind: true, labelEn: true, labelAr: true, value: true, anchor: true },
+      },
+      footnotes: { select: { id: true, textEn: true, textAr: true, scope: true } },
+      overrides: { select: { shopId: true, price: true, isAvailable: true } },
+    },
   })
   if (offer === null) {
     return fail('not_found', 'That offer does not exist.', 404)
@@ -203,5 +244,37 @@ export async function DELETE(
       WHERE "bookId" = ${params.id} AND position > ${offer.position}`,
   ])
 
-  return ok({ id: offer.id })
+  // Decimals become strings on the way out, as everywhere else money crosses
+  // this boundary. `value` is a chip's JSONB payload; anything that is not an
+  // object is not a payload this app wrote, so it restores as absent rather
+  // than as a shape the chip renderer has no branch for.
+  const snapshot: OfferSnapshot = {
+    id: offer.id,
+    position: offer.position,
+    price: offer.price.toString(),
+    priceMode: offer.priceMode,
+    comparePrice: offer.comparePrice?.toString() ?? null,
+    currency: offer.currency,
+    promoTierId: offer.promoTierId,
+    unitPriceMode: offer.unitPriceMode,
+    unitPriceValue: offer.unitPriceValue?.toString() ?? null,
+    unitPriceUnit: offer.unitPriceUnit,
+    legalLines: offer.legalLines,
+    items: offer.items,
+    chips: offer.chips.map((chip) => ({
+      ...chip,
+      value:
+        chip.value !== null && typeof chip.value === 'object' && !Array.isArray(chip.value)
+          ? (chip.value as Record<string, unknown>)
+          : null,
+    })),
+    footnotes: offer.footnotes,
+    shopOverrides: offer.overrides.map((override) => ({
+      shopId: override.shopId,
+      price: override.price?.toString() ?? null,
+      isAvailable: override.isAvailable,
+    })),
+  }
+
+  return ok({ id: offer.id, snapshot })
 }

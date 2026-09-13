@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
-import { useEditorStore } from '@/stores/editor-store'
+import {
+  useEditorStore,
+  type OfferPatchStep,
+  type OfferRemovalStep,
+} from '@/stores/editor-store'
 
 /**
  * The editor's undo stack and the quality flag the renderer feeds back into it.
@@ -38,13 +42,51 @@ const offer = (id: string, over: Partial<ComposedOffer> = {}): ComposedOffer => 
   ...over,
 })
 
-const step = (offerId: string) => ({
+const step = (offerId: string): OfferPatchStep => ({
+  kind: 'patch',
   offerId,
   label: 'the price',
   undo: { price: '10.00' },
   redo: { price: '12.00' },
   before: { flags: ['no-price'] as ComposedOffer['flags'] },
   after: { flags: [] as ComposedOffer['flags'] },
+})
+
+/** A removal. Its offer is deliberately not in `offers` afterwards — that is
+ *  what the step exists to reverse. */
+const removal = (offerId: string): OfferRemovalStep => ({
+  kind: 'remove',
+  offerId,
+  label: 'Basmati rice',
+  snapshot: {
+    id: offerId,
+    position: 0,
+    price: '24.50',
+    priceMode: 'FIXED',
+    comparePrice: null,
+    currency: 'AED',
+    promoTierId: 'tier_deal',
+    unitPriceMode: 'AUTO',
+    unitPriceValue: null,
+    unitPriceUnit: null,
+    legalLines: [],
+    items: [
+      {
+        id: 'item_1',
+        catalogProductId: 'prod_1',
+        position: 0,
+        connector: null,
+        nameOverrideEn: null,
+        nameOverrideAr: null,
+        specOverrideEn: null,
+        specOverrideAr: null,
+        imageAssetId: null,
+      },
+    ],
+    chips: [],
+    footnotes: [],
+    shopOverrides: [],
+  },
 })
 
 beforeEach(() => {
@@ -72,7 +114,7 @@ describe('undo and redo', () => {
     useEditorStore.getState().push(step('off_1'))
 
     const taken = useEditorStore.getState().takeUndo()
-    expect(taken?.undo).toEqual({ price: '10.00' })
+    expect(taken?.kind === 'patch' && taken.undo).toEqual({ price: '10.00' })
     expect(useEditorStore.getState().offers.off_1?.flags).toEqual(['no-price'])
   })
 
@@ -87,7 +129,7 @@ describe('undo and redo', () => {
     useEditorStore.getState().takeUndo()
 
     const redone = useEditorStore.getState().takeRedo()
-    expect(redone?.redo).toEqual({ price: '12.00' })
+    expect(redone?.kind === 'patch' && redone.redo).toEqual({ price: '12.00' })
     expect(useEditorStore.getState().offers.off_1?.flags).toEqual([])
     expect(useEditorStore.getState().past).toHaveLength(1)
   })
@@ -124,6 +166,71 @@ describe('undo and redo', () => {
     useEditorStore.getState().push(step('off_1'))
     useEditorStore.getState().hydrate({ bookId: 'book_2', offers: [offer('off_1')] })
     expect(useEditorStore.getState().past).toEqual([])
+  })
+})
+
+describe('undoing a removal', () => {
+  it('keeps the step when the offer it removed is gone', () => {
+    // The defect this guards: a removal re-renders the server component, which
+    // re-hydrates this store without the offer — so a filter on "is this offer
+    // still here" would discard the undo in the same breath as the removal.
+    useEditorStore.getState().push(removal('off_2'))
+    useEditorStore.getState().hydrate({ bookId: 'book_1', offers: [offer('off_1')] })
+
+    expect(useEditorStore.getState().past).toHaveLength(1)
+  })
+
+  it('still drops it on a different book', () => {
+    useEditorStore.getState().push(removal('off_2'))
+    useEditorStore.getState().hydrate({ bookId: 'book_2', offers: [offer('off_1')] })
+
+    expect(useEditorStore.getState().past).toEqual([])
+  })
+
+  it('undoes the named step, not the most recent one', () => {
+    // What the toast's Undo needs: by the time an owner reaches for it they may
+    // have priced two other cards, and taking "the last step" would reverse one
+    // of those instead.
+    const removed = removal('off_2')
+    useEditorStore.getState().push(removed)
+    useEditorStore.getState().push(step('off_1'))
+
+    expect(useEditorStore.getState().undoStep(removed)).toBe(true)
+    expect(useEditorStore.getState().past).toEqual([step('off_1')])
+    expect(useEditorStore.getState().future).toEqual([removed])
+  })
+
+  it('refuses a step that is no longer on the stack, so a double tap is a no-op', () => {
+    const removed = removal('off_2')
+    useEditorStore.getState().push(removed)
+
+    expect(useEditorStore.getState().undoStep(removed)).toBe(true)
+    expect(useEditorStore.getState().undoStep(removed)).toBe(false)
+  })
+
+  it('puts a step back without discarding the redo branch', () => {
+    // A failed restore must leave Cmd+Z as a way out — the toast that offered
+    // the Undo has gone by then, and it was the only other one.
+    const removed = removal('off_2')
+    const priced = step('off_1')
+    useEditorStore.getState().push(priced)
+    useEditorStore.getState().takeUndo()
+    useEditorStore.getState().push(removed)
+    useEditorStore.getState().undoStep(removed)
+
+    const branch = useEditorStore.getState().future.filter((entry) => entry !== removed)
+    useEditorStore.getState().requeue(removed)
+
+    expect(useEditorStore.getState().past).toContain(removed)
+    expect(useEditorStore.getState().future).toEqual(branch)
+  })
+
+  it('leaves the other cards alone — the server decides where they flow', () => {
+    // A restored offer changes which cell every later offer lands in, and that
+    // is the engine's answer. The store must not invent a local one.
+    const before = useEditorStore.getState().offers
+    useEditorStore.getState().undoStep(removal('off_2'))
+    expect(useEditorStore.getState().offers).toBe(before)
   })
 })
 

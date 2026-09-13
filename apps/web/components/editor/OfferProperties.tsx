@@ -2,12 +2,13 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { OfferDetails } from '@/components/editor/OfferDetails'
 import { SlotAdjust } from '@/components/editor/SlotAdjust'
+import { moveOffer, removeOffer } from '@/lib/editor-actions'
 import { useEditorStore } from '@/stores/editor-store'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 
@@ -87,6 +88,109 @@ export function OfferProperties({ bookId, tiers, currency, direction }: Props) {
           </ul>
         </div>
       ) : null}
+
+      <OfferActions bookId={bookId} offer={offer} />
+    </div>
+  )
+}
+
+/**
+ * What an owner can do to the card they have selected, rather than to one of
+ * its fields.
+ *
+ * **This is where selecting a card on the artboard stops being a dead end.**
+ * Clicking a cell has selected its offer since E6-02 and every action then
+ * lived across the screen in the tray, matched to the card by its ordinal
+ * number — which is precisely the translation an artboard exists to remove. The
+ * tray keeps its own controls; it is a list, and a list is where you act on
+ * things you have not got in front of you.
+ *
+ * **Persistent controls, not a context menu.** The design skill is explicit
+ * that every hover-revealed affordance needs a persistent equivalent because
+ * the editor ships on tablet, so these are buttons in the panel. A right-click
+ * menu over the artboard is a reasonable *accelerator* on top of this and is
+ * written up in `docs/E6-pending.md`; it is not a home for actions that exist
+ * nowhere else.
+ *
+ * **Remove has no confirmation and that is the system's rule, not a shortcut.**
+ * The design skill → Destructive actions: a toast with Undo beats a dialog for
+ * anything reversible, and removing a product is the example it gives. What
+ * makes it reversible is `POST .../restore` and the snapshot the delete hands
+ * back — see `lib/offer-snapshot.ts`.
+ */
+function OfferActions({ bookId, offer }: { bookId: string; offer: ComposedOffer }) {
+  const router = useRouter()
+  const order = useEditorStore((state) => state.order)
+  const select = useEditorStore((state) => state.select)
+  const [busy, setBusy] = React.useState(false)
+
+  const index = order.indexOf(offer.id)
+
+  async function run(action: () => Promise<boolean>) {
+    setBusy(true)
+    try {
+      await action()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t-hairline border-border-subtle pt-3">
+      <span className="font-ui text-label font-medium text-primary">This card</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busy || index <= 0}
+          onClick={() =>
+            void run(() => moveOffer({ bookId, offerId: offer.id, by: -1, refresh: () => router.refresh() }))
+          }
+        >
+          <ChevronUp className="size-4" aria-hidden="true" strokeWidth={2} />
+          Earlier
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={busy || index === -1 || index === order.length - 1}
+          onClick={() =>
+            void run(() => moveOffer({ bookId, offerId: offer.id, by: 1, refresh: () => router.refresh() }))
+          }
+        >
+          <ChevronDown className="size-4" aria-hidden="true" strokeWidth={2} />
+          Later
+        </Button>
+        <Button
+          type="button"
+          variant="danger"
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              const removed = await removeOffer({
+                bookId,
+                offerId: offer.id,
+                name: offer.name,
+                refresh: () => router.refresh(),
+              })
+              // The panel is about to be describing an offer that is not in the
+              // book. Clearing the selection is what closes it — and undo
+              // re-selects the card it puts back, so the way in survives.
+              if (removed) select(null)
+              return removed
+            })
+          }
+        >
+          <Trash2 className="size-4" aria-hidden="true" strokeWidth={2} />
+          Remove from book
+        </Button>
+      </div>
+      {/* The consequence, said before it happens rather than after. Every offer
+          after this one moves up a cell, which an owner otherwise reads as the
+          book rearranging itself. */}
+      <p className="font-ui text-body-sm text-muted">
+        Removing a card moves every offer after it along by one.
+      </p>
     </div>
   )
 }
@@ -258,6 +362,7 @@ function PriceFields({
     }
     applyLocal(offer.id, after)
     push({
+      kind: 'patch',
       offerId: offer.id,
       label: 'the price',
       undo: { price: wasPrice },
@@ -280,6 +385,7 @@ function PriceFields({
     if ((previous.comparePrice ?? '') === value) return
 
     push({
+      kind: 'patch',
       offerId: offer.id,
       label: 'the was-price',
       undo: { comparePrice: previous.comparePrice ?? null },
@@ -370,6 +476,7 @@ function TierField({
     }
     applyLocal(offer.id, after)
     push({
+      kind: 'patch',
       offerId: offer.id,
       label: 'the promo tier',
       undo: { promoTierId: previous.priceMark.tierId },

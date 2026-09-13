@@ -125,8 +125,8 @@ one, and each has a note at the call site.
 | Thing | What shipped | Why |
 | --- | --- | --- |
 | Status badges | Plain coloured text on the shop and team lists | `StatusPill`'s enum is `live \| failed \| attention \| draft \| archived \| generated`. Nothing covers active/paused or pending/expired, and `attention` would be a lie. Adding values is an inventory amendment — proposed in `component-inventory.md`, not made unilaterally. |
-| Toasts | Inline `role="alert"` / `role="status"` banners | `Toast` has a signature in the inventory and no mounting mechanism — no provider, portal or store. Building one would invent a second API. |
-| Reversible actions | Pause and reactivate use a confirm dialog | The design system prefers undo over confirm, and undo lives in the toast that does not exist. |
+| ~~Toasts~~ | ~~Inline `role="alert"` / `role="status"` banners~~ | **Resolved 13 September.** `Toast` is built to the inventory's signature, with `toast()` and a `<Toaster />` in the dashboard layout. The banners already shipped are not a defect and were left alone; new work uses the toast. |
+| Reversible actions | Pause and reactivate use a confirm dialog | The design system prefers undo over confirm, and undo lived in the toast that did not exist. **The toast exists now** — see the row above — so this is a change waiting to be made rather than a constraint. `ShopList.tsx` carries the note at the call site. Pausing a shop has no restore endpoint yet, which is the same shape of work `POST .../offers/:id/restore` was for E6. |
 | `select.tsx` | Built and added to the inventory after the fact | The inventory listed no select, dropdown or combobox at all, and E2 needed one in four places. |
 | Checkboxes and radios | Native inputs, inline, styled at the call site | Neither is in the inventory. Same reasoning — flagged rather than invented as a shared primitive. |
 | Shop and team lists | `<ul>` of rows, not `DataTable` | A shop row stacks a logo, name, branch and status; as table columns that is a horizontal scroll at 375px. `DataTable` is built and unused, waiting for a list that is genuinely tabular. |

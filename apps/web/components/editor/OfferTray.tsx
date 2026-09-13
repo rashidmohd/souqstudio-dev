@@ -7,6 +7,7 @@ import type { CatalogSearchHit } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Figure } from '@/components/ui/figure'
+import { removeOffer } from '@/lib/editor-actions'
 import { useEditorStore } from '@/stores/editor-store'
 import { displayName, packLabel } from '@/lib/catalog-display'
 
@@ -122,9 +123,19 @@ export function OfferTray({ bookId }: Props) {
     )
   }
 
+  /**
+   * **Shared with the properties panel, not duplicated.** Removing a card from
+   * the list and removing the one you have selected on the artboard are the
+   * same act, so they go through `removeOffer` — which is also what puts the
+   * step on the undo stack and raises the toast that offers to reverse it. It
+   * does not go through `mutate`: it reports its own failures, and a removal
+   * that can be undone must not also leave a red line in the tray.
+   */
   function remove(offerId: string) {
-    void mutate(() =>
-      fetch(`/api/v1/offer-books/${bookId}/offers/${offerId}`, { method: 'DELETE' })
+    const name = offers[offerId]?.name ?? 'That offer'
+    setBusy(true)
+    void removeOffer({ bookId, offerId, name, refresh: () => router.refresh() }).finally(() =>
+      setBusy(false)
     )
   }
 

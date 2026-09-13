@@ -5,6 +5,7 @@ import { clampOverride, isEmptyOverride } from '@souqstudio/engine'
 import type { CellSpan } from '@souqstudio/engine'
 import type { SlotOverride } from '@souqstudio/types'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { OfferSnapshot } from '@/lib/offer-snapshot'
 
 /**
  * The offer book editor's logical state. E6-01.
@@ -36,10 +37,21 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
  *
  * `label` is what the header can name, so an owner is never asked to undo
  * something they cannot identify.
+ *
+ * **Two kinds, because removal is not a patch.** A price change can be undone
+ * by writing the old price back to a row that is still there; a removal has no
+ * row left to write to, so its step carries the whole offer and undoing it is a
+ * `POST .../restore` rather than a `PATCH`. Making the kind a discriminant
+ * rather than an optional field is what stops the two paths being confused:
+ * a remove step has no `undo` patch to send, and the compiler says so.
  */
-export type EditorStep = {
+type StepBase = {
   offerId: string
   label: string
+}
+
+export type OfferPatchStep = StepBase & {
+  kind: 'patch'
   /** The API patch that puts it back. */
   undo: Record<string, unknown>
   /** The patch that re-applies it. */
@@ -48,6 +60,14 @@ export type EditorStep = {
   before: Partial<ComposedOffer>
   after: Partial<ComposedOffer>
 }
+
+export type OfferRemovalStep = StepBase & {
+  kind: 'remove'
+  /** Everything needed to put the offer back, under the id it had. */
+  snapshot: OfferSnapshot
+}
+
+export type EditorStep = OfferPatchStep | OfferRemovalStep
 
 /** E6-06: "max 50 steps". */
 const HISTORY_LIMIT = 50
@@ -159,6 +179,28 @@ type EditorState = {
   push: (step: EditorStep) => void
   /** Take the next step to undo, applying its `before` locally. Null when empty. */
   takeUndo: () => EditorStep | null
+  /**
+   * Undo one *named* step, wherever it sits on the stack.
+   *
+   * **The toast's Undo needs this and `takeUndo` cannot serve it.** A toast
+   * offers to reverse the thing it is reporting, and by the time an owner
+   * reaches for it they may have priced two other cards — so taking "the most
+   * recent step" would undo the wrong one. Returns false when the step is no
+   * longer on the stack, which is how a double-tap becomes a no-op instead of a
+   * second request.
+   */
+  undoStep: (step: EditorStep) => boolean
+  /**
+   * Put a step back on the undo stack after an attempt to apply it failed.
+   *
+   * **Not `push`, which is for something that happened.** `push` clears the
+   * redo branch because a new edit invalidates it; a request that did not land
+   * invalidates nothing, and dropping the branch would take away redos the
+   * owner is still entitled to. Without this a failed Undo is a step that has
+   * left `past`, so the toast is gone, Cmd+Z reaches past it, and the only
+   * route back to the offer is adding it again.
+   */
+  requeue: (step: EditorStep) => void
   /** Take the next step to redo, applying its `after` locally. */
   takeRedo: () => EditorStep | null
 }
@@ -214,8 +256,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         // server component re-renders — after adding an offer, after a reorder.
         // Dropping the history there would take away the undo for the price the
         // owner typed thirty seconds ago.
-        past: state.bookId === bookId ? state.past.filter((step) => next[step.offerId]) : [],
-        future: state.bookId === bookId ? state.future.filter((step) => next[step.offerId]) : [],
+        // **A removal step survives its own offer being gone**, which is the
+        // whole point of it — filtering on "is this offer still here" would
+        // discard the undo for the removal in the same re-render the removal
+        // caused. Patch steps still go: their row is gone for some other
+        // reason, and re-issuing a price against it would 404.
+        past:
+          state.bookId === bookId
+            ? state.past.filter((step) => step.kind === 'remove' || next[step.offerId])
+            : [],
+        future:
+          state.bookId === bookId
+            ? state.future.filter((step) => step.kind === 'remove' || next[step.offerId])
+            : [],
         // The server's copy wins on every hydrate. A nudge is saved as it is
         // made, so anything local that the server does not have is a save that
         // failed — and a delta the database has never heard of is one that will
@@ -347,35 +400,51 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   takeUndo: () => {
-    const state = get()
-    const step = state.past[state.past.length - 1]
+    const step = get().past[get().past.length - 1]
     if (step === undefined) return null
+    return get().undoStep(step) ? step : null
+  },
 
-    const offer = state.offers[step.offerId]
+  undoStep: (target) => {
+    const state = get()
+    if (!state.past.includes(target)) return false
+
+    // Only a patch has a local projection. A removal's card is not in `offers`
+    // to be moved — the artboard gets it back from the server, because a
+    // restored offer changes which cell every *later* offer flows into and
+    // that is the engine's answer to give, not this store's.
+    const offer = target.kind === 'patch' ? state.offers[target.offerId] : undefined
+
     set({
-      past: state.past.slice(0, -1),
-      future: [step, ...state.future].slice(0, HISTORY_LIMIT),
+      past: state.past.filter((step) => step !== target),
+      future: [target, ...state.future].slice(0, HISTORY_LIMIT),
       // Selecting the card being undone is most of what makes undo legible:
       // the owner sees *which* card changed back rather than hunting the page.
-      selectedOfferId: step.offerId,
-      ...(offer === undefined
+      selectedOfferId: target.offerId,
+      ...(offer === undefined || target.kind !== 'patch'
         ? {}
-        : { offers: { ...state.offers, [step.offerId]: { ...offer, ...step.before } } }),
+        : { offers: { ...state.offers, [target.offerId]: { ...offer, ...target.before } } }),
     })
-    return step
+    return true
   },
+
+  requeue: (target) =>
+    set((state) => ({
+      past: [...state.past, target].slice(-HISTORY_LIMIT),
+      future: state.future.filter((step) => step !== target),
+    })),
 
   takeRedo: () => {
     const state = get()
     const [step, ...rest] = state.future
     if (step === undefined) return null
 
-    const offer = state.offers[step.offerId]
+    const offer = step.kind === 'patch' ? state.offers[step.offerId] : undefined
     set({
       past: [...state.past, step].slice(-HISTORY_LIMIT),
       future: rest,
       selectedOfferId: step.offerId,
-      ...(offer === undefined
+      ...(offer === undefined || step.kind !== 'patch'
         ? {}
         : { offers: { ...state.offers, [step.offerId]: { ...offer, ...step.after } } }),
     })

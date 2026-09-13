@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cookies } from 'next/headers'
 import { DashboardRail } from '@/components/shared/dashboard-rail'
+import { Toaster } from '@/components/ui/toast'
 import { getActiveShop } from '@/lib/active-shop'
 import { organizationName } from '@/lib/organization'
 import { RAIL_COOKIE, parseRailState } from '@/lib/rail-preference'
@@ -51,6 +52,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         organizationName={organization}
       />
       <main className="min-w-0 flex-1">{children}</main>
+      {/* One live region for everything under the shell, the editor included —
+          it nests inside this layout rather than escaping it, so a toast raised
+          from the artboard lands here. A second mount would announce twice. */}
+      <Toaster />
     </div>
   )
 }

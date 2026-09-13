@@ -688,6 +688,11 @@ not an *input* to `composeGrid` is discarded on the next change. A merge stored 
 the shape of a region would have survived until the owner next touched the page margin
 and then quietly stopped being a hero, with nothing in the interface saying why.
 
+> **Superseded the next day.** Merges moved off the master onto `offer_book_pages.merges`
+> when it turned out an owner wants a hero on *one* page — see "Merging moved onto the
+> page" below. The paragraph that follows describes the first design and is kept because
+> its reasoning about the rebuild is still why merges cannot live in `page_grids`.
+
 So merges are part of `GridChoice`, and `readGridChoice` derives them back off the
 regions. That is the same seam, and the same reasoning, that already stops the track-count
 select from resetting the offer card: **derived from the regions rather than stored
@@ -738,10 +743,12 @@ the same answer the route already gives for orphaned nudges.
   the stored master, so painting a merge before the write landed would mean a second
   layout engine in the client — the thing this editor has avoided since it was built. The
   buttons disable while the write is in flight.
-- **Not a per-cell card.** Every flowing region still draws the same block; a merged one
-  draws it at a different aspect, and `pickArrangement` picks the arrangement for that
-  aspect. "This cell uses a different design" is a separate feature, and `readGridChoice`
-  reads the card off the first flowing region, so it would need that seam widened first.
+- **Not a per-cell card.** ~~Every flowing region still draws the same block.~~ **Built on
+  13 September** — see "A block per cell" below. It went exactly the way this predicted:
+  `readGridChoice` reads the card off the first flowing region, so the seam had to be
+  widened, and the choices live on the page rather than in the rebuilt grid. What a merged
+  region does *without* a choice of its own is unchanged — the same block at a different
+  aspect, with `pickArrangement` picking the arrangement for it.
 
 ### The defect that use found, and reasoning did not
 
@@ -1033,3 +1040,131 @@ this look like" without asking the owner to remember.
   so a per-cell card is included — but a *panel* in a body cell is static and skipped, which
   is right, and a per-cell card at an odd aspect will report against the book's warning
   rather than naming which cell. Good enough until somebody hits it.
+
+### Removing a card is undoable, and the panel is where it lives — 13 September
+
+The ask was a right-click menu on the artboard to take a product out of the book. What
+that ask is actually about is that **the artboard has been a selection surface and nothing
+else**: clicking a cell has selected its offer since E6-02, and then every action lived
+across the screen in the tray, matched to the card by its ordinal number — which is
+precisely the translation an artboard exists to remove.
+
+A context menu is a reasonable *accelerator* for that and it is not the fix. The design
+skill is explicit that every hover-revealed affordance needs a persistent equivalent
+because the editor ships on tablet, so an action reachable only by right-click is an action
+half the owners cannot reach. The panel is the persistent home; the menu can sit on top of
+it later, and §"Still open" below says what it would cost.
+
+**Three things had to be true before a Remove button was safe to add, and only one of them
+was.**
+
+#### The toast finally exists
+
+`Toast` had a signature in the component inventory and no mounting mechanism, and had done
+since E2 — no provider, no portal, no store. `E2-pending.md` §3 recorded it as a deliberate
+compromise and recorded what it cost in the same breath: *"the design system prefers undo
+over confirm, and undo lives in the toast that does not exist."* So three screens shipped
+inline `role="alert"` banners, and pausing a shop — a reversible act — asks for
+confirmation.
+
+`components/ui/toast.tsx` is the inventory's props, unchanged, plus the mechanism: a
+zustand store, an imperative `toast()` callable from any handler, and one `<Toaster />` in
+the dashboard layout. Imperative rather than a hook because a toast is raised from code
+that has already decided what happened; a hook would put a subscription in every component
+that ever reports anything. The live region renders before any message does, which is what
+makes a screen reader announce one.
+
+**A toast carrying an action holds twice as long as one without, and hover or focus stops
+the clock.** The action's window *is* the toast's lifetime — once it goes there is no way
+back — and someone reading it is someone still deciding.
+
+#### Removal was not reversible, and the undo stack could not have made it so
+
+`EditorStep` was one shape: a field, its old value, its new value, replayed through
+`PATCH .../offers/:offerId`. That cannot express a removal. There is no row to patch, and
+the id in the step points at nothing.
+
+So the step has a kind now, and the removal kind carries a **snapshot** —
+`lib/offer-snapshot.ts`, validated by the same zod schema on the way out of `DELETE` and
+back into `POST .../offers/:offerId/restore`. Two things about it are load-bearing:
+
+- **The id travels with it.** A slot override lives on the *page* and carries an `offerId`,
+  so it does not cascade when the row goes; restoring under a fresh id would leave the
+  nudge pointing at nothing and the card would come back in the wrong place. Undo returns
+  the book to the state it was in, not to one that resembles it.
+- **The row is still hard-deleted.** The reasoning at that call site stands — an offer *is*
+  a reference, and archiving it puts a row in the table that every read then has to learn
+  to ignore. What changed is that its contents are handed to the client on the way out
+  rather than dropped, which is the same shape as the rest of E6-06: logical operations
+  re-issued through the API, not a client's private copy of the truth.
+
+`POST .../restore` re-validates every id in the body against the session's organization —
+book, tier, every product, every shop — exactly as `POST /offers` and `PATCH /offers/:id`
+do. The snapshot came from this server but it arrived by way of a browser, and the route is
+deliberately no more powerful than the two it undoes. It also **refuses an id that is
+already in the book** rather than overwriting it: that is a second undo of the same
+removal, and writing over the row would discard whatever the owner has done to it since.
+
+#### Two orderings that are not arbitrary
+
+- **The step is claimed off the stack before the restore request goes.** Cmd+Z reaches the
+  same step the toast's Undo does; claiming it first is what stops a keystroke and a button
+  both issuing a restore, the second of which comes back `409` and reports a failure to an
+  owner whose offer is sitting right there. And it is claimed *by name* rather than by
+  taking the most recent step — by the time someone reaches for the toast they may have
+  priced two other cards.
+- **A failed restore puts the step back with `requeue`, not `push`.** `push` clears the
+  redo branch, because a new edit invalidates it; a request that did not land invalidates
+  nothing. Without it a failed Undo is a step that has left `past` — the toast is gone,
+  Cmd+Z reaches past it, and the only route back to the offer is adding it again.
+
+#### The defect that only showed up in the hydrate
+
+`hydrate` filtered the undo stack by *is this offer still in the book*, which is right for a
+patch step and catastrophic for a removal one. A removal re-renders the server component,
+which re-hydrates the store without the offer — so the filter discarded the undo in the
+same breath as the removal that created it. The filter keeps `kind === 'remove'` now, and
+there is a test named after the sequence rather than the function.
+
+#### What the panel got
+
+`OfferActions`, at the foot of `OfferProperties`: **Earlier, Later, Remove from book.** The
+tray keeps its own controls — it is a list, and a list is where you act on things you have
+not got in front of you. Both routes go through the same `removeOffer` in
+`lib/editor-actions.ts`, so removing a card from the list and removing the one selected on
+the artboard cannot become two behaviours with two answers about undo.
+
+No confirmation dialog, and that is the system's rule rather than a shortcut: the design
+skill → Destructive actions gives *removing a product* as its example of what a toast with
+Undo beats a dialog at. The consequence is stated in the panel before it happens — every
+offer after this one moves along by one — for the same reason `CellBlockDialog` states its
+own: an owner otherwise reads it as the book quietly rearranging itself.
+
+### Still open on this
+
+- **Not opened in a browser.** Typecheck, lint, build, `check:classes` and 528 tests pass,
+  and every one of the last three defects in `STATUS.md` §1.0 was found by a person opening
+  a screen rather than by any of those. The repository still has no browser driver. The
+  Arabic pass in particular is unverified: the toast anchors with `start-4` and should land
+  bottom-right in an AR interface, and nothing here has proved it does.
+- **The context menu, if it is still wanted.** shadcn's is Radix, which would be the first
+  `@radix-ui/*` package in the tree — `Dialog` is the native `<dialog>` and `Select` is a
+  native `<select>`, both refused the Radix version with written reasoning. There is no
+  platform primitive for a context menu, so the reasoning does not transfer and this is the
+  one where it earns its place. The cost is the tokens pass: the shipped block carries
+  `shadow-md`, `rounded-sm`, `text-sm` and `animate-in zoom-in-95`, none of which resolve
+  here and none of which *error* either. It must mirror `OfferActions` rather than carry
+  items that live nowhere else, and it needs an inventory entry first.
+- **`Delete` on a selected cell** is the accelerator more people reach for than right-click,
+  and it is now safe to add — that was the whole blocker. It was left out of this change
+  because a keystroke that removes whatever is selected wants the browser test that does
+  not exist yet.
+- **Reordering is still not on the undo stack.** `moveOffer` is shared and neither caller
+  records a step, so Cmd+Z reaches past a move to the price before it. It was already true
+  of the tray's arrows; the panel's arrows make it twice as reachable.
+- **`OfferShopOverride` is snapshotted and nothing in the editor writes it yet.** Carried
+  because something will, and a snapshot that silently drops a column is an undo that
+  quietly loses a shop's branch pricing.
+- **`ProductClick` rows are not snapshotted and do not come back.** Analytics on a draft
+  book is close to hypothetical, and reinstating click history from a browser payload is a
+  worse idea than losing it.

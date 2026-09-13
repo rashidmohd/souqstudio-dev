@@ -3,7 +3,7 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 12 September 2026.
+Last updated 13 September 2026.
 
 **The creation flow was rebuilt, the page itself is designable, and the editor grew a tool
 rail.** Starting a book is four steps instead of one form, the twenty-five seeded offer
@@ -25,6 +25,11 @@ invalidates every object already published, and it took the dev deploy down on t
 
 **One thing an owner cannot do today that is not an epic.** A logo upload on the dev
 deployment is broken twice over — see §2.
+
+**`Toast` is built, which unblocks undo-over-confirm everywhere.** It had been `spec` since
+E2 for want of a mounting mechanism, and the first thing built on it is a removal an owner
+can take back: `E2-pending.md` §3's second compromise is now a change waiting to be made
+rather than a constraint. §1.6.
 
 **Two things about today are worth more than the feature list.**
 
@@ -54,14 +59,16 @@ products flow through it.*
 
 **One line to remember before picking anything up: the loop closes now.** A shop owner can
 create an offer book from the catalog or from a price list, see it drawn, price it, reorder
-it, design the page it sits on and edit it — `/editor/new` to `/editor/[id]`. The dev
+it, lay out each page — merged cells, its own paper, a chosen block in any cell — and edit
+it, `/editor/new` to `/editor/[id]`. The dev
 database holds real books, offers and items written through that path rather than through a
 script, including books made through the rebuilt wizard.
 
 **What that leaves on the critical path is E9, and nothing else is close.** A book can be
-made, priced, adjusted, laid out, duplicated and designed for — and it cannot leave the
-product: the `pdf` worker still throws, so there is no export, and E10's share paths do not
-exist. Nothing an owner builds can reach a customer.
+made, priced, adjusted, laid out page by page, duplicated and designed for — and it cannot
+leave the product: the `pdf` worker still throws, so there is no export, and E10's share
+paths do not exist. Nothing an owner builds can reach a customer. **Every day spent on the
+editor widens that gap**, and the last two were.
 
 ---
 
@@ -73,7 +80,7 @@ exist. Nothing an owner builds can reach a customer.
 | **E2** Organization management | Built. Org settings, shops (add, deactivate, archive), team and invites, per-shop access, brand inheritance. See `E2-pending.md`. |
 | **E3** Billing & subscription | Built. Plans, Checkout, upgrade/downgrade, cancel and resume, shop add-on billing, AI credits with rollover and top-ups, invoices, Stripe portal, webhook. See `E3-pending.md`. |
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
-| **E6** Offer book editor | **Built, and the front of it rebuilt on 10–12 September.** Creating a book is four steps rather than one form — pick what you are making (booklet, post, status, poster), pick the offer card from the seeded twenty-five, add products by search *or* by dropping a price list in, then preview what you made and keep it or discard it. Nobody is asked for a name; the editor renames. Then: draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, **set the page margin, its header and footer bands, and a page background of a colour, a gradient or an image**, pin a panel, and duplicate the whole book. The editor's start pane is a tool rail — Offers, Layout, Background, Pins — matching the designer's. Not written: merging cells on the artboard, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-create-flow.md` and `E6-pending.md` §8. |
+| **E6** Offer book editor | **Built, and the front of it rebuilt on 10–12 September.** Creating a book is four steps rather than one form — pick what you are making (booklet, post, status, poster), pick the offer card from the seeded twenty-five, add products by search *or* by dropping a price list in, then preview what you made and keep it or discard it. Nobody is asked for a name; the editor renames. Then: draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, **set the page margin, its header and footer bands, and a page background of a colour, a gradient or an image**, pin a panel, and duplicate the whole book. **Since 12–13 September a page is something an owner lays out**: select cells and merge them, give one page its own paper, and put any block in any single cell — a brand panel in a cell stops it taking a product and the products route around it rather than being dropped. All three belong to the page they were made on, not to the book. The start pane is a tool rail grouped by scope — Offers, Layout, Background, **Page**, Pins. Not written: dragging track edges, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-create-flow.md`, `E6-pending.md` §8 and §10, and §1.5. |
 | **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is sixty-five blocks** — twenty-five offer cards, seven headers and covers, nine panels, five footers, eight square social posts and eleven seasonal bands — and the screen changed shape with it: `/brand/blocks` is now the shop's own blocks alone, with "Add from library" opening a filtered, multi-select picker. Gradients shipped on shape fills. **The price mark now draws from the shape kit too** — a burst, a tag, a ribbon or nothing, fitted by `layoutPriceMark` rather than hand-placed behind it — and the library was pulled apart so twenty-five cards stop reading as one card in costumes. See §1.3. Not written: seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar). See `E7-pending.md` §8. |
 | **E8** AI features | **One of seven built: E8-07 magic block.** Upload a picture, say what kind of thing it is — offer card, header, panel, footer or square post — and a vision model matches it against that kind's designs and nothing else; the result lands as a draft block in the shop's own colours. Route, queue, worker, credits, poll and UI all ship, and it has produced real blocks on dev. Two providers behind `MAGIC_BLOCK_PROVIDER` — Qwen-VL is what has actually run; **the Claude path has never completed a call.** E8-01 to E8-05 (characters, poses, covers, background removal) are unbuilt; E8-06 is the `enrich` worker and still throws. See §1.3 and `E8-ai-features.md`. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
@@ -526,6 +533,90 @@ struck as unfillable.
 
 ---
 
+### 1.5 The page became a thing an owner can lay out — 12–13 September
+
+Full record in `E6-pending.md` §10. The summary, because the composition model now says
+something different from what it said a week ago and anyone touching E6 will meet it.
+
+**Composition model step 4 is built: cells merge.** Click a cell, shift-click or drag to
+extend, Merge. Rectangular only, same as a spreadsheet, and a selection half-covering an
+existing merge grows to take it whole rather than producing an L. The engine had handled
+merges since it existed — `spanRect` draws one, `validateGrid` refuses an overlapping one —
+and nothing in the product could author one.
+
+**The model's "one merge styles nine pages" is superseded, and it was superseded by use.**
+The composition model argued that one master grid instanced on every body page is what
+anyone wants: *"Nobody hand-merges cells nine times."* The first thing tried in the built
+editor was merging two cells on page one and expecting page two to keep its nine — reported
+twice, before it was clear this was the design rather than a defect. A hero belongs to the
+page an owner put it on. So merges moved onto `offer_book_pages`, and the flow applies them
+per page while **one product cursor runs through the whole book**: a page holding a hero
+holds one card fewer and the products carry on. That continuity was the owner's own
+condition, and it is what keeps a merge a layout decision rather than a pagination one.
+
+**Three things a page may now disagree with the book about**, and nothing else: its merged
+cells, its paper, and what any single cell draws. Cards across and down, the margin, the
+running bands and the default paper stay the book's and still change every page at once.
+
+**Putting a brand block in a cell moves the product that was there.** A cell holding a
+block that does not repeat becomes `static`, and `flowBook` routes products around static
+regions exactly as it has routed them around pins since pins were built — *"the offers that
+would have sat there move downstream; the book grows by a page rather than losing a
+product."* No new machinery, and no product is ever dropped.
+
+**The tool rail is grouped by scope.** It was Offers, Layout, Background, Pins — one content
+tab presented as the equal of three design tabs, which the design skill contradicts
+outright: *"The start pane is an offer tray, not a placement palette."* The parity argument
+that justified the rail does not survive inspection either, because the card designer's
+rail is homogeneous — every entry inserts an element — while this one was four unrelated
+kinds of thing in the same clothes. There is a **Page** tab now, holding everything scoped
+to one page, with the active page named once and set by clicking any cell on the artboard.
+Two page-scoped controls had grown two different ways of asking which page; there is one.
+
+**What the tests could not find.** Merging shipped green — twenty tests on the span algebra,
+six on the round trip, the whole chain simulated end to end — and was broken the first time
+anyone pressed the button, because a pinned row still offered its cells and the merge
+landed where that page could not show it. Two more followed: a nine-second unlit wait after
+every press, and a button that read as a heading. Every one of them was in what the
+interface put in front of the owner; the engine was correct throughout. **No amount of
+further unit testing would have found any of the three.** Driving a real browser against a
+real book found all three in an afternoon, and that is now the check this epic is held to.
+
+### 1.6 Removing a card is undoable, and the toast exists at last — 13 September
+
+Full record in `E6-pending.md`, last section. Three things worth carrying here.
+
+**`Toast` is built, and it had been `spec` since E2.** The signature was in the component
+inventory and there was no provider, portal or store to show one through, so three screens
+shipped inline `role="alert"` banners and `E2-pending.md` §3 recorded the compromise along
+with its cost: *"the design system prefers undo over confirm, and undo lives in the toast
+that does not exist."* `toast()` plus one `<Toaster />` in the dashboard layout is the
+mechanism; the props are the inventory's, unchanged. **This unblocks every reversible
+action in the product that currently asks for confirmation**, starting with pausing a shop.
+
+**Removing an offer is reversible now, and the undo stack learned a second kind of step.**
+`EditorStep` was one shape — a field, its old value, its new value, replayed through
+`PATCH`. That cannot express a removal: there is no row left to patch. So `DELETE` hands
+back a full snapshot, the step carries it, and `POST .../offers/:offerId/restore` puts the
+offer back **under its own id** — which matters because a slot override lives on the page
+and carries an `offerId`, so restoring under a fresh one would leave the nudge stranded and
+the card back in the wrong place. The row is still hard-deleted; what changed is that its
+contents are handed over on the way out instead of dropped.
+
+**The artboard's selection is no longer a dead end.** Clicking a cell has selected its offer
+since E6-02 and every action then lived across the screen in the tray, matched to the card
+by its ordinal number. `OfferProperties` now ends in Earlier, Later and Remove from book,
+sharing one implementation with the tray so the two cannot become two behaviours. The ask
+that produced this was a right-click menu; that is an accelerator and is written up as one,
+because the design skill requires a persistent equivalent for anything the editor offers on
+tablet, and shadcn's `ContextMenu` would also be the first Radix package in a tree that has
+twice refused one with written reasoning.
+
+**Checked by: typecheck, lint, build, `check:classes`, 528 tests. Not opened in a browser** —
+and §1.0 is the standing evidence that this is the check that finds what the others cannot.
+The Arabic pass is the specific gap: the toast anchors `start-4` and should land
+bottom-right in an AR interface, and nothing has proved it does.
+
 ## 2. Blocking, and what it blocks
 
 These are cross-cutting. Each one stops or degrades work in epics that have not started
@@ -969,37 +1060,56 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   `fitTextElement` the painter runs — so the flag and the card cannot disagree.
 - **Merging cells on the artboard**, which is composition model step 4's other half and
   the last thing the engine could do that the product could not. Click a cell, shift-click
-  or drag to extend, Merge in the Layout panel; rectangular only, same as a spreadsheet,
-  and a selection that half-covers a merge grows to take it whole. **Merges are part of
-  `GridChoice` and read back off the regions by `readGridChoice`** — no migration, no new
-  column — which is what makes them survive the rebuild every other layout control
-  triggers. A merge the track count can no longer hold is dropped rather than clipped.
-  Two things moved with it: `masterCells` (every flowing cell of the master, including the
-  empty ones no placement covers) and `cardFit`, which now checks every shape on the page
-  rather than the first, because a hero and the cards beside it are one block at two
-  aspects. Not on the undo stack, for the same reason no other grid control is.
-  **A cell a pin has taken on a page is not offered on that page** — `FlowPage` now carries
-  `pinnedRegionIds`. Without it the first merge anyone tried landed on a pinned top row,
-  stored correctly, and changed nothing on the page they were looking at. `E6-pending.md`
-  §10. **A page may now have its own paper** — `offer_book_pages.background`, with three
-  answers rather than two: absent inherits the book, a stored `null` is deliberately plain
-  paper although the book has a ground, an object is the page's own. The value is wrapped
-  because Prisma's two JSON nulls read back identically. The preview and `duplicateBook`
-  both had to learn it. **Merging is per page as of 12 September** — the shared-master behaviour the model
-  specified was rejected in use on sight, twice, so merges moved onto
-  `offer_book_pages.merges` and `flowBook` applies them per page while one product cursor
-  runs through the whole book. Two more defects came out of driving it in a browser: **a nine-second unlit wait**,
-  because `useGridPatch` clears `busy` on the fetch while `router.refresh()` is not awaited
-  — which is a seam *every* control in that panel shares — and a `ghost` button that read
-  as a heading. Both fixed; `E6-pending.md` §10.
+  or drag to extend, Merge in the Page panel; rectangular only, same as a spreadsheet, and
+  a selection that half-covers a merge grows to take it whole. **A merge belongs to the page
+  it was made on** — `offer_book_pages.merges`, applied per page by `flowBook` while one
+  product cursor runs through the whole book, so a page holding a hero holds one card fewer
+  and the products carry on. It shipped for a day as a property of the *master*, which is
+  what the composition model specified and what was rejected in use on sight, twice. A merge
+  the track count can no longer hold is dropped rather than clipped. Not on the undo stack,
+  for the same reason no other grid control is. `E6-pending.md` §10.
+- **A page may have its own paper** — `offer_book_pages.background`, with three answers
+  rather than two: absent inherits the book, a stored `null` is deliberately plain paper
+  although the book has a ground, an object is the page's own. The value is wrapped because
+  Prisma's two JSON nulls read back identically, so without it "inherit" and "none" would
+  be the same value and a background could never be taken off one page. The preview and
+  `duplicateBook` both had to learn it.
+- **A cell can draw a block of its own** — `offer_book_pages.regionBlocks`, picked from a
+  dialog of previews grouped by what a block is for. **A cell holding a block that does not
+  repeat becomes static and the products route around it**, the same rule pins follow, so
+  nothing is ever dropped: an Anniversary band in the top-left cell pushes the tea onto the
+  next page. The engine needed no change, because `Region.blockId` has been per region
+  since the composition model was written; what was missing was somewhere to author it that
+  a grid rebuild would not flatten.
+- **Three defects that only a browser found**, all of them in what the interface put in
+  front of the owner rather than in the engine: cells a pin had taken were still offered,
+  so the first merge anyone tried stored correctly and changed nothing on the page they
+  were looking at; `useGridPatch` cleared `busy` on the *fetch* while `router.refresh()` is
+  not awaited, leaving **nine seconds of unlit wait** after every press; and a `ghost`
+  button read as a heading beside two outlined pills and was reported broken twice while
+  working correctly. All fixed. The middle one is a seam **every** control in that panel
+  still shares.
 
 **What E6 still owns:**
 
 - **Dragging track edges.** The `fr` sizes are uniform and only the count is editable, so a
   page is still rows of equal cards. `resolveTracks` has taken arbitrary `fr` values since
-  it existed; what is missing is the drag and a writer for `cols`/`rows`.
-  **Merging is done** — see below.
+  it existed; what is missing is the drag and a writer for `cols`/`rows`. Merging, per-page
+  paper and per-cell blocks are all built — see above.
 - **Drag from the catalog onto a cell.** Adding is a button; a cell is not a drop target.
+- **No book-wide "change the offer card".** `cardBlockId` is still only set at creation, in
+  `POST /api/v1/offer-books`. The per-cell picker makes its absence stranger: an owner can
+  change one cell's card and not all of them. Small, and the picker is the component.
+- **The `busy`-versus-repaint seam, everywhere else in the Layout panel.** It was fixed for
+  merge and for per-cell blocks, both of which now hold a pending state until the *new grid
+  arrives*. Track count, margin, bands and the book's background still report `busy` against
+  the fetch, which `useGridPatch` clears before `router.refresh()` has re-run anything. They
+  hide it better only because a select keeps showing the value you chose while a page does
+  not.
+- **Pins still asks which page in its own words.** It keeps an "On page" select while
+  everything else page-scoped now follows the Page tab's active page. Folding it in is the
+  obvious next move; it was left because `PinsPanel` also *lists* every pin in the book,
+  which is a different job from editing one page.
 - **Two block element kinds.** The unit-price line and footnote markers are stored, shown in
   the panel, and **cannot be printed**, because a block's element vocabulary has no place to
   put them. Chips draw — a block already carries a `chip` element, and authored chips stack
@@ -1049,6 +1159,14 @@ all of that for nothing *provided it keeps rendering the same component*. Two th
 must carry that a browser gives away free: the shop's palette, for `resolveColor` to have
 anything to resolve against, and a URL for uploaded artwork, which `lib/block-assets.ts`
 builds from `R2_PUBLIC_URL` and an object key.
+
+**A third, added 13 September: the export must render each page's *own* values.** A page may
+now carry its own paper and its own per-cell blocks, so a worker handing `BookPage` the
+book's `layout.background` would print every page on the book's ground and silently lose
+the ones an owner set. `loadBook` already returns `pageBackgrounds`, and the merges and
+per-cell blocks are inside `flow.pages` — but it is one prop, and exactly the kind a worker
+quietly does not pass. `BookPreview` had this bug for a few minutes and it is written up in
+`E6-pending.md` §10.
 
 Two things the export must not lose, both learned the hard way in E6:
 

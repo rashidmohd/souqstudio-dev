@@ -884,7 +884,7 @@ worked around.
 | | |
 | --- | --- |
 | File | `components/ui/toast.tsx` |
-| Status | `spec` |
+| Status | `built` — apps/web only |
 | Governs | SKILL.md → Components → Toasts, and → Destructive actions |
 
 ```tsx
@@ -893,9 +893,30 @@ type ToastProps = {
   tone?: 'default' | 'positive' | 'critical' | 'caution'
   action?: { label: string; onClick: () => void }   // this is where Undo lives
 }
+
+toast(props: ToastProps): void      // raise one, from anywhere on the client
+<Toaster />                         // the live region — mounted once, in (dashboard)/layout
 ```
 
 Anchored bottom inline-start. Errors needing a decision belong in a dialog.
+
+**The mounting mechanism is the part that was missing, and it is why this sat at `spec`
+from E2 to 13 September.** The signature was here and there was nowhere to show one, so
+three screens shipped inline `role="alert"` banners instead and `E2-pending.md` §3 recorded
+it as a deliberate compromise — along with the expensive half of it: *"the design system
+prefers undo over confirm, and undo lives in the toast that does not exist."*
+
+`toast()` is imperative and not a hook: a toast is raised from a handler that has already
+decided what happened, and a hook would put a subscription in every component that ever
+reports anything. `<Toaster />` is the only subscriber, mounts once in the dashboard layout
+— which the editor and the designer nest inside rather than escaping — and renders the live
+region before any message exists, which is what makes a screen reader announce one.
+
+`Toast` itself is exported for a story or an inline use; every real caller wants `toast()`.
+
+A toast carrying an action holds for 10s rather than 5, and hover or focus stops the clock:
+the action's window is the toast's lifetime, and someone reading it is someone still
+deciding.
 
 ### NavItem
 
