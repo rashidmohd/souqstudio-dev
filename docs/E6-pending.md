@@ -995,6 +995,35 @@ cell of page one pushed Pure Ceylon Tea onto page two. Nothing vanished.
   because they carry no offer to give it. A cell is exactly where a repeating card belongs —
   so this is also how an owner gives one cell a different *card*, not only a panel.
 
+### The picker is a dialog, not a select
+
+The first version put sixty-five blocks in a dropdown, which asks an owner to know what
+"Corner flag card" looks like — precisely the knowledge the seeded library exists to save
+them needing. `CellBlockDialog` draws each one instead, in the shop's own colours, filtered
+by what a block is *for*: the same screen they already met when they added blocks to their
+library, and deliberately the same shape as `BlockImportDialog`.
+
+Three things fell out of building it:
+
+- **`BlockTile` was extracted** rather than copied. The import dialog had the tile inline,
+  and a second one would have drifted — the component inventory's rule applied a level down,
+  to a thing the inventory does not list because it had only ever had one caller. What
+  differs between the two callers is *badges*, so badges are a slot: the library marks
+  what is in season and what a plan locks, the cell picker marks what will stop showing a
+  product.
+- **The way back is a tile, not a reset button beside the grid.** "What does this cell
+  draw" has one answer at a time and the book's own card is one of the answers, so it sits
+  in the list with the rest — the same reasoning `Band` uses for putting "None" first in
+  its select.
+- **The consequence is stated before it is committed**, twice: a `NO PRODUCT` chip on every
+  tile that will do it, and a caution line above the button once one is picked. A cell that
+  stops taking a product pushes every offer after it along by one, which an owner otherwise
+  reads as their book quietly rearranging itself.
+
+The block documents travel to the client for this, which is the same payload
+`/brand/blocks` already sends for its own picker. It is the only way to answer "what does
+this look like" without asking the owner to remember.
+
 ### Still owed on this
 
 - **There is no book-wide "change the offer card" control.** `cardBlockId` is still only set

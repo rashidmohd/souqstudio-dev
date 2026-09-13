@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { CalendarClock, Check, Lock } from 'lucide-react'
+import { CalendarClock, Lock } from 'lucide-react'
 import type { BrandKit } from '@souqstudio/types'
 import {
   BLOCK_CATEGORIES,
@@ -12,9 +12,8 @@ import {
 } from '@souqstudio/engine'
 import { Dialog } from '@/components/ui/dialog'
 import { Segmented } from '@/components/ui/segmented'
-import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { BlockTile } from '@/components/blocks/BlockTile'
 import type { LibraryBlock } from '@/components/blocks/BlockLibrary'
-import { cn } from '@/lib/utils'
 
 /**
  * Adding blocks from the seeded library. E7 — `docs/composition-model.md` §3.6.
@@ -92,22 +91,7 @@ const CATEGORY_NOTE: Record<Filter, string> = {
 
 /**
  * The preview box every tile gets, and the blocks are fitted *inside* it.
- *
- * A `lg` dialog is 672px, less 24px of inline padding each side, less two 12px
- * gaps across three columns — so a tile is about 200px and its preview about
- * 176 once the tile's own padding comes off.
- *
- * **Uniform box, block contained within it**, which is the opposite of what the
- * page does. On the page each preview sets its own height and the grid absorbs
- * it; in a three-column picker that produces rows of wildly different heights
- * and a footer strip 22px tall sitting beside a 240px card. Fitting each block
- * into one box keeps the grid a grid and still draws every block at its own
- * proportions — a footer really is a thin strip, and showing it as one is the
- * information.
  */
-const TILE_WIDTH = 176
-const TILE_HEIGHT = 160
-
 export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, onImported }: Props) {
   const [filter, setFilter] = React.useState<Filter>('all')
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set())
@@ -272,14 +256,31 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, on
 
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {shown.map((block) => (
-            <Tile
+            <BlockTile
               key={block.id}
-              block={block}
+              name={block.name}
+              arrangements={block.arrangements}
+              repeats={block.repeats}
               kit={kit}
-              season={inSeason.get(block.id)}
-              now={now}
               selected={selected.has(block.id)}
-              onToggle={() => toggle(block.id)}
+              disabled={block.locked}
+              onSelect={() => toggle(block.id)}
+              badges={
+                <>
+                  {inSeason.get(block.id) !== undefined && now !== null ? (
+                    <span className="flex items-center gap-1 rounded-pill bg-selected-bg px-2 py-px font-ui text-eyebrow uppercase text-selected-fg">
+                      <CalendarClock className="size-3" strokeWidth={1.75} aria-hidden="true" />
+                      {seasonLabel(inSeason.get(block.id) as SeasonWindow, now)}
+                    </span>
+                  ) : null}
+                  {block.locked ? (
+                    <span className="flex items-center gap-1 rounded-pill bg-sand px-2 py-px font-ui text-eyebrow uppercase text-secondary">
+                      <Lock className="size-3" strokeWidth={1.75} aria-hidden="true" />
+                      {block.planTier}
+                    </span>
+                  ) : null}
+                </>
+              }
             />
           ))}
         </ul>
@@ -296,102 +297,9 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, on
  * picture is what a picker should have. `aria-pressed` is what carries the state
  * to anyone not looking at the ring.
  */
-function Tile({
-  block,
-  kit,
-  season,
-  now,
-  selected,
-  onToggle,
-}: {
-  block: LibraryBlock
-  kit: BrandKit
-  season: SeasonWindow | undefined
-  now: Date | null
-  selected: boolean
-  onToggle: () => void
-}) {
-  const size = tileSize(block)
-
-  return (
-    <li>
-      <button
-        type="button"
-        aria-pressed={selected}
-        disabled={block.locked}
-        onClick={onToggle}
-        className={cn(
-          'flex w-full flex-col gap-2 rounded-card border-hairline p-2 text-start',
-          selected
-            ? 'border-border-focus bg-selected-bg'
-            : 'border-border-subtle hover:bg-stone-100',
-          'disabled:opacity-disabled'
-        )}
-      >
-        <div
-          className="relative flex items-center justify-center overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0"
-          style={{ height: TILE_HEIGHT }}
-        >
-          {/* Drawn at the shape the block was designed for, centred in a box
-              every tile shares — a cover, a page panel and a footer strip are
-              not the same object and must not arrive looking like one. */}
-          <BlockPreview arrangements={block.arrangements} kit={kit} {...size} />
-
-          {selected ? (
-            <span className="absolute end-1 top-1 flex size-4 items-center justify-center rounded-pill bg-action-primary text-inverse">
-              <Check className="size-3" strokeWidth={2.5} aria-hidden="true" />
-            </span>
-          ) : null}
-        </div>
-
-        <span className="flex flex-wrap items-center gap-1">
-          <span className="font-ui text-label font-medium text-primary">{block.name}</span>
-          {season !== undefined && now !== null ? (
-            <span className="flex items-center gap-1 rounded-pill bg-selected-bg px-2 py-px font-ui text-eyebrow uppercase text-selected-fg">
-              <CalendarClock className="size-3" strokeWidth={1.75} aria-hidden="true" />
-              {seasonLabel(season, now)}
-            </span>
-          ) : null}
-          {block.locked ? (
-            <span className="flex items-center gap-1 rounded-pill bg-sand px-2 py-px font-ui text-eyebrow uppercase text-secondary">
-              <Lock className="size-3" strokeWidth={1.75} aria-hidden="true" />
-              {block.planTier}
-            </span>
-          ) : null}
-        </span>
-      </button>
-    </li>
-  )
-}
-
-/**
- * What the badge says.
- *
- * **"On now" or a countdown, never a date.** A date is a thing an owner has to
- * compare against today; the reason the block is at the top of the picker is
- * that it is nearly time, and that is the sentence. Days rather than a
- * formatted date also sidesteps the question of which calendar to print it in
- * — the answer for Ramadan is not the same as for back to school.
- */
 function seasonLabel(season: SeasonWindow, now: Date): string {
   const days = Math.ceil((season.starts.getTime() - now.getTime()) / 86_400_000)
   if (days <= 0) return 'On now'
   return days === 1 ? 'Tomorrow' : `In ${days} days`
 }
 
-function tileSize(block: LibraryBlock): { width: number; height: number } {
-  const arrangement = block.arrangements[0]
-
-  // A repeating card is drawn in the shape a booklet cell actually is — it
-  // carries four arrangements and the tall one is the one it was designed in.
-  // A block placed once is drawn at the shape its own aspect range says it was
-  // designed for, which is what `defaultShape` reads in the designer.
-  const natural =
-    block.repeats || arrangement === undefined
-      ? 0.72
-      : Math.min(6, Math.max(0.4, Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)))
-
-  return natural > TILE_WIDTH / TILE_HEIGHT
-    ? { width: TILE_WIDTH, height: Math.round(TILE_WIDTH / natural) }
-    : { width: Math.round(TILE_HEIGHT * natural), height: TILE_HEIGHT }
-}

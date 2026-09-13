@@ -93,7 +93,17 @@ export default async function EditorPage({ params }: { params: { id: string } })
    */
   const cellBlocks = blocks
     .filter((block) => !block.locked && block.status !== 'archived')
-    .map((block) => ({ id: block.id, name: block.name, repeats: block.repeats }))
+    .map((block) => ({
+      id: block.id,
+      name: block.name,
+      repeats: block.repeats,
+      // The picker draws each one rather than naming it, so the documents
+      // travel. That is the same payload `/brand/blocks` already sends for its
+      // own picker, and it is the only way to answer "what does this look like"
+      // without asking the owner to remember.
+      arrangements: block.arrangements,
+      category: block.category,
+    }))
 
   return (
     <EditorShell

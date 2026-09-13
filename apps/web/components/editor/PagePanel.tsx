@@ -67,12 +67,10 @@ type Props = {
    * it did to the other five.
    */
   cell: { regionId: string; blockId: string; takesProduct: boolean } | null
-  /** Everything this shop may put in a cell. `repeats` decides what happens to
-   *  the product that was there. */
-  blocks: { id: string; name: string; repeats: boolean }[]
-  /** The book's repeating card — what a cell draws when it has no choice of its own. */
-  offerCardBlockId: string | null
-  onCellBlock: (blockId: string | null) => void
+  /** What the selected cell draws now, named. Null is the book's own card. */
+  currentBlockName: string | null
+  /** Opens the picker. The dialog itself lives in the shell, beside the writer. */
+  onPickBlock: () => void
   pendingBlock: boolean
 }
 
@@ -95,9 +93,8 @@ export function PagePanel({
   busy,
   error,
   cell,
-  blocks,
-  offerCardBlockId,
-  onCellBlock,
+  currentBlockName,
+  onPickBlock,
   pendingBlock,
 }: Props) {
   return (
@@ -155,9 +152,8 @@ export function PagePanel({
 
       <Design
         cell={cell}
-        blocks={blocks}
-        offerCardBlockId={offerCardBlockId}
-        onChange={onCellBlock}
+        currentName={currentBlockName}
+        onPick={onPickBlock}
         pending={pendingBlock}
         disabled={busy}
       />
@@ -322,22 +318,18 @@ function Cells({
  */
 function Design({
   cell,
-  blocks,
-  offerCardBlockId,
-  onChange,
+  currentName,
+  onPick,
   pending,
   disabled,
 }: {
   cell: { regionId: string; blockId: string; takesProduct: boolean } | null
-  blocks: { id: string; name: string; repeats: boolean }[]
-  offerCardBlockId: string | null
-  onChange: (blockId: string | null) => void
+  /** What it draws now, for a line an owner can read without opening anything. */
+  currentName: string | null
+  onPick: () => void
   pending: boolean
   disabled: boolean
 }) {
-  const cards = blocks.filter((block) => block.repeats)
-  const panels = blocks.filter((block) => !block.repeats)
-
   return (
     <section className="flex flex-col gap-2 rounded-block bg-sand p-3">
       <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">Design</h3>
@@ -348,33 +340,25 @@ function Design({
         </p>
       ) : (
         <>
-          <Select
-            label="This cell draws"
-            value={cell.blockId === offerCardBlockId ? '' : cell.blockId}
-            disabled={disabled || pending || blocks.length === 0}
-            options={[
-              { value: '', label: 'The offer card, like every other cell' },
-              ...cards.map((block) => ({ value: block.id, label: `${block.name} — a card` })),
-              ...panels.map((block) => ({
-                value: block.id,
-                label: `${block.name} — no product`,
-              })),
-            ]}
-            onChange={(event) =>
-              onChange(event.target.value === '' ? null : event.target.value)
-            }
-          />
-
           {/*
-            Said before it happens, not discovered afterwards. A cell that stops
-            taking a product pushes every offer after it along by one, which an
-            owner reads as their book having quietly rearranged itself.
+            **A button into a picker, not a dropdown.** Sixty-five blocks reduced
+            to sixty-five names asks an owner to know what "Corner flag card"
+            looks like, which is the knowledge the seeded library exists to save
+            them needing. The dialog shows each one drawn in their own colours,
+            grouped by what it is for — the same screen they already met when
+            they added blocks to their library.
           */}
           <p className="font-ui text-body-sm text-muted">
-            {cell.takesProduct
-              ? 'Blocks marked “no product” turn this cell into a panel, and the products move along to the next cell.'
-              : 'This cell holds a panel, so it shows no product. The products flow around it.'}
+            Now drawing{' '}
+            <span className="text-primary">
+              {currentName ?? 'the book’s offer card'}
+            </span>
+            {cell.takesProduct ? '.' : '. It shows no product, so the products flow around it.'}
           </p>
+
+          <Button type="button" loading={pending} disabled={disabled} onClick={onPick}>
+            Change design
+          </Button>
         </>
       )}
     </section>

@@ -12,6 +12,7 @@ import {
   spansIntersect,
   unionSpan,
   unmergeSpan,
+  type BlockCategory,
   type CellSpan,
   type FlowPage,
 } from '@souqstudio/engine'
@@ -19,6 +20,7 @@ import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PagePanel } from '@/components/editor/PagePanel'
+import { CellBlockDialog } from '@/components/editor/CellBlockDialog'
 import { PinsPanel } from '@/components/editor/PinsPanel'
 import {
   BookToolRail,
@@ -85,7 +87,13 @@ type Props = {
   pageBackgrounds: Record<number, PageBackground | null>
   /** Everything this shop may put in a single cell. `repeats` decides whether
    *  the cell goes on taking a product. */
-  cellBlocks: { id: string; name: string; repeats: boolean }[]
+  cellBlocks: {
+    id: string
+    name: string
+    repeats: boolean
+    arrangements: Block['arrangements']
+    category: BlockCategory | null
+  }[]
   /** The book's repeating card — what a cell draws with no choice of its own. */
   offerCardBlockId: string | null
   /** The master grid as a set of choices. `loadBook` reads it off the regions. */
@@ -274,6 +282,13 @@ export function EditorShell({
     }
   }, [selectedPage, selectionSpan])
 
+  /** What the selected cell draws now, named — so the panel can say it without
+   *  opening the picker. */
+  const currentBlockName =
+    selectedCell === null || selectedCell.blockId === layout.cardBlockId
+      ? null
+      : (cellBlocks.find((block) => block.id === selectedCell.blockId)?.name ?? null)
+
   /** What this page has already chosen, as the route wants it back. */
   const chosenOnPage = React.useMemo(() => {
     const out: Record<string, string> = {}
@@ -397,6 +412,33 @@ export function EditorShell({
   /** True while a design change is in flight — it re-flows the whole book. */
   const [pendingBlock, setPendingBlock] = React.useState(false)
   React.useEffect(() => setPendingBlock(false), [pages])
+
+  /** Whether the design picker is open. */
+  const [pickingBlock, setPickingBlock] = React.useState(false)
+
+  /**
+   * Write one cell's design, as the whole map for that page.
+   *
+   * A delta into a collection is how two tabs assigning designs against
+   * different starting states interleave into a page neither owner laid out —
+   * the same reasoning the merges writer and the offer tray's reorder both use.
+   */
+  const chooseCellBlock = React.useCallback(
+    (blockId: string | null) => {
+      if (selectedCell === null || cellPage === null) return
+
+      const next = { ...chosenOnPage }
+      if (blockId === null) delete next[selectedCell.regionId]
+      else next[selectedCell.regionId] = blockId
+
+      setPendingBlock(true)
+      setPickingBlock(false)
+      void regionBlocks.write(cellPage, next).then((ok) => {
+        if (!ok) setPendingBlock(false)
+      })
+    },
+    [cellPage, chosenOnPage, regionBlocks, selectedCell]
+  )
 
   /**
    * The paper a given page draws, with whatever is still in flight on top.
@@ -686,23 +728,9 @@ export function EditorShell({
                 busy={grid.busy}
                 error={pageBg.error ?? pageMergeWriter.error ?? regionBlocks.error}
                 cell={selectedCell}
-                blocks={cellBlocks}
-                offerCardBlockId={offerCardBlockId}
+                currentBlockName={currentBlockName}
                 pendingBlock={pendingBlock}
-                onCellBlock={(blockId) => {
-                  if (selectedCell === null || cellPage === null) return
-                  // The whole map for the page, with this cell set or removed.
-                  // A delta into a collection is how two tabs interleave into a
-                  // page neither owner laid out.
-                  const next = { ...chosenOnPage }
-                  if (blockId === null) delete next[selectedCell.regionId]
-                  else next[selectedCell.regionId] = blockId
-
-                  setPendingBlock(true)
-                  void regionBlocks.write(cellPage, next).then((ok) => {
-                    if (!ok) setPendingBlock(false)
-                  })
-                }}
+                onPickBlock={() => setPickingBlock(true)}
                 onMerge={() => {
                   if (selectionSpan === null || cellPage === null) return
                   applyMerges(cellPage, mergeSpan(pageMerges, selectionSpan, bounds), 'merge')
@@ -787,6 +815,21 @@ export function EditorShell({
             </figure>
           ))}
         </div>
+
+        <CellBlockDialog
+          open={pickingBlock}
+          onOpenChange={setPickingBlock}
+          blocks={cellBlocks}
+          kit={kit}
+          current={
+            selectedCell === null || selectedCell.blockId === layout.cardBlockId
+              ? null
+              : selectedCell.blockId
+          }
+          offerCardBlockId={offerCardBlockId}
+          onChoose={chooseCellBlock}
+          busy={pendingBlock}
+        />
 
         <CanvasDrawer
           side="end"
