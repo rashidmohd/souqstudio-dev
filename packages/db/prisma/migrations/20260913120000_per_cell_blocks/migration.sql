@@ -1,0 +1,15 @@
+-- A cell may draw a block of its own.
+--
+-- Every flowing cell drew the book's offer card and nothing else; merging a cell
+-- changed its shape and the card re-laid itself out, which is not the same as
+-- putting something different in it. An owner wants a brand block in the top-left
+-- cell of page one.
+--
+-- The engine has always rendered whatever block a region names — `Region.blockId`
+-- is per region — so nothing in the layout engine changed. What was missing was
+-- somewhere to author it that a grid rebuild would not flatten, which is why this
+-- lives on the page rather than in `page_grids.regions`.
+--
+-- A cell holding a block that does not repeat becomes `static` at flow time and
+-- the products route around it, the same rule pins have always followed.
+ALTER TABLE "offer_book_pages" ADD COLUMN "regionBlocks" JSONB;

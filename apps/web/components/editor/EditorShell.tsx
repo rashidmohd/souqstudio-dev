@@ -29,6 +29,7 @@ import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl
 import { useGridPatch } from '@/components/editor/use-grid-patch'
 import { usePageMerges } from '@/components/editor/use-page-merges'
 import { usePageBackground } from '@/components/editor/use-page-background'
+import { useRegionBlocks } from '@/components/editor/use-region-blocks'
 import { OfferTray } from '@/components/editor/OfferTray'
 import {
   OfferProperties,
@@ -82,6 +83,11 @@ type Props = {
    * means it is deliberately plain paper although the book has a ground.
    */
   pageBackgrounds: Record<number, PageBackground | null>
+  /** Everything this shop may put in a single cell. `repeats` decides whether
+   *  the cell goes on taking a product. */
+  cellBlocks: { id: string; name: string; repeats: boolean }[]
+  /** The book's repeating card — what a cell draws with no choice of its own. */
+  offerCardBlockId: string | null
   /** The master grid as a set of choices. `loadBook` reads it off the regions. */
   layout: {
     perRow: number
@@ -94,6 +100,8 @@ type Props = {
     cardFits: boolean
     /** The paper behind every card. Null is `--sq-tpl-paper`. */
     background: PageBackground | null
+    /** The repeating card every cell draws unless that cell was changed. */
+    cardBlockId: string | null
   }
   /**
    * Where uploaded artwork lives, for a page background and for any `image`
@@ -135,6 +143,8 @@ export function EditorShell({
   overrides,
   pins,
   pageBackgrounds,
+  cellBlocks,
+  offerCardBlockId,
   layout,
   pinnable,
   headerBlocks,
@@ -243,6 +253,39 @@ export function EditorShell({
   const bounds = { perRow: layout.perRow, bodyRows: layout.bodyRows }
 
   /**
+   * The one cell the design picker is about.
+   *
+   * **Exactly one, or none.** "What does this draw" has no answer for a range,
+   * and offering it for six cells would ask an owner to accept whatever it did
+   * to the other five. Merging is the operation for many; this is the operation
+   * for one.
+   */
+  const selectedCell = React.useMemo(() => {
+    if (selectionSpan === null || selectedPage === undefined) return null
+    const covered = selectedPage.cells.filter((cell) =>
+      spansIntersect(cell.body, selectionSpan)
+    )
+    const only = covered.length === 1 ? covered[0] : undefined
+    if (only === undefined) return null
+    return {
+      regionId: only.regionId,
+      blockId: only.blockId,
+      takesProduct: only.fill === 'flow',
+    }
+  }, [selectedPage, selectionSpan])
+
+  /** What this page has already chosen, as the route wants it back. */
+  const chosenOnPage = React.useMemo(() => {
+    const out: Record<string, string> = {}
+    for (const cell of selectedPage?.cells ?? []) {
+      if (layout.cardBlockId !== null && cell.blockId !== layout.cardBlockId) {
+        out[cell.regionId] = cell.blockId
+      }
+    }
+    return out
+  }, [layout.cardBlockId, selectedPage])
+
+  /**
    * **Merges are not optimistic, and that is deliberate.** Every rectangle on
    * this artboard comes from the engine running over the stored master, so a
    * merge drawn before the write landed would be a second layout engine in the
@@ -349,6 +392,11 @@ export function EditorShell({
   const [activePage, setActivePage] = React.useState(0)
 
   const pageBg = usePageBackground(bookId)
+  const regionBlocks = useRegionBlocks(bookId)
+
+  /** True while a design change is in flight — it re-flows the whole book. */
+  const [pendingBlock, setPendingBlock] = React.useState(false)
+  React.useEffect(() => setPendingBlock(false), [pages])
 
   /**
    * The paper a given page draws, with whatever is still in flight on top.
@@ -636,7 +684,25 @@ export function EditorShell({
                 onToggleAddToSelection={() => setAddToSelection((on) => !on)}
                 pendingCells={pendingCells}
                 busy={grid.busy}
-                error={pageBg.error ?? pageMergeWriter.error}
+                error={pageBg.error ?? pageMergeWriter.error ?? regionBlocks.error}
+                cell={selectedCell}
+                blocks={cellBlocks}
+                offerCardBlockId={offerCardBlockId}
+                pendingBlock={pendingBlock}
+                onCellBlock={(blockId) => {
+                  if (selectedCell === null || cellPage === null) return
+                  // The whole map for the page, with this cell set or removed.
+                  // A delta into a collection is how two tabs interleave into a
+                  // page neither owner laid out.
+                  const next = { ...chosenOnPage }
+                  if (blockId === null) delete next[selectedCell.regionId]
+                  else next[selectedCell.regionId] = blockId
+
+                  setPendingBlock(true)
+                  void regionBlocks.write(cellPage, next).then((ok) => {
+                    if (!ok) setPendingBlock(false)
+                  })
+                }}
                 onMerge={() => {
                   if (selectionSpan === null || cellPage === null) return
                   applyMerges(cellPage, mergeSpan(pageMerges, selectionSpan, bounds), 'merge')

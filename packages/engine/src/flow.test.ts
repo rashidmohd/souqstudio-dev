@@ -524,3 +524,85 @@ describe('flowBook — merges belong to a page, not the book', () => {
     expect(cellIds(flow.pages[0]!)).toEqual(['r1c0', 'r1c1', 'r1c2'])
   })
 })
+
+describe('flowBook — a block put in one cell', () => {
+  const brand = { blockId: 'blk_brand', fill: 'static' as const }
+
+  it('stops that cell taking a product, and the products move on', () => {
+    // The requirement: replacing a cell's design with something that does not
+    // repeat must move the product that was there, not drop it.
+    const plain = flowBook(input({ master: fullGrid(3, 1), offerIds: offers(3) }))
+    expect(offersOn(plain.pages[0]!)).toEqual(['off_0', 'off_1', 'off_2'])
+
+    const withBrand = flowBook(
+      input({
+        master: fullGrid(3, 1),
+        offerIds: offers(3),
+        regionBlocks: { 0: { r0c0: brand } },
+      })
+    )
+
+    // `r0c0` now draws the brand block and carries nothing; the three products
+    // shift along and the third needs a second page rather than vanishing.
+    expect(offersOn(withBrand.pages[0]!)).toEqual(['off_0', 'off_1'])
+    expect(offersOn(withBrand.pages[1]!)).toEqual(['off_2'])
+    expect(withBrand.unplacedOfferIds).toEqual([])
+  })
+
+  it('draws it as a static placement carrying no offer', () => {
+    const flow = flowBook(
+      input({ master: fullGrid(2, 1), offerIds: offers(1), regionBlocks: { 0: { r0c0: brand } } })
+    )
+    const placed = flow.pages[0]!.placements.find((p) => p.sourceId === 'r0c0')
+    expect(placed).toMatchObject({ blockId: 'blk_brand', kind: 'static', offerId: null })
+  })
+
+  it('keeps the cell selectable, so it can be changed back', () => {
+    // A cell an owner filled with a brand block must still be a cell. Dropping
+    // it from `cells` would leave them no way to undo it.
+    const flow = flowBook(
+      input({ master: fullGrid(2, 1), offerIds: offers(1), regionBlocks: { 0: { r0c0: brand } } })
+    )
+    const cell = flow.pages[0]!.cells.find((c) => c.regionId === 'r0c0')
+    expect(cell).toBeDefined()
+    expect(cell?.fill).toBe('static')
+    expect(cell?.blockId).toBe('blk_brand')
+  })
+
+  it('swaps the card for another repeating one without costing a product', () => {
+    const flow = flowBook(
+      input({
+        master: fullGrid(2, 1),
+        offerIds: offers(2),
+        regionBlocks: { 0: { r0c0: { blockId: 'blk_price_first', fill: 'flow' } } },
+      })
+    )
+    expect(offersOn(flow.pages[0]!)).toEqual(['off_0', 'off_1'])
+    expect(
+      flow.pages[0]!.placements.find((p) => p.sourceId === 'r0c0')?.blockId
+    ).toBe('blk_price_first')
+  })
+
+  it('belongs to the page it was set on', () => {
+    const flow = flowBook(
+      input({ master: fullGrid(2, 1), offerIds: offers(4), regionBlocks: { 0: { r0c0: brand } } })
+    )
+    expect(flow.pages[0]!.cells.find((c) => c.regionId === 'r0c0')?.fill).toBe('static')
+    expect(flow.pages[1]!.cells.find((c) => c.regionId === 'r0c0')?.fill).toBe('flow')
+  })
+
+  it('applies to a merged region by its start cell id', () => {
+    const flow = flowBook(
+      input({
+        master: fullGrid(3, 1),
+        offerIds: offers(2),
+        merges: { 0: [{ colStart: 0, colEnd: 1, rowStart: 0, rowEnd: 0 }] },
+        regionBlocks: { 0: { r0c0: brand } },
+      })
+    )
+    const placed = flow.pages[0]!.placements.find((p) => p.sourceId === 'r0c0')
+    expect(placed).toMatchObject({ blockId: 'blk_brand', kind: 'static' })
+    // The merged hero is a brand band two cells wide; one product fits beside it.
+    expect(offersOn(flow.pages[0]!)).toEqual(['off_0'])
+  })
+})

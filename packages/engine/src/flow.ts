@@ -9,7 +9,7 @@
  * said unbounded free positioning turns week 33 into a rebuild.
  */
 
-import type { PageGrid, Pin, Region } from '@souqstudio/types'
+import type { PageGrid, Pin, Region, RegionFill } from '@souqstudio/types'
 import { resolveTracks, type Track } from './tracks'
 import { spanRect, spansIntersect, type CellSpan, type Direction, type Rect } from './geometry'
 import { mergeRegions, normalizeMerges } from './merge'
@@ -38,6 +38,30 @@ export interface FlowInput {
    * rather than a pagination one.
    */
   merges?: Readonly<Record<number, readonly CellSpan[]>>
+  /**
+   * Blocks an owner has put in particular cells, by page index and region id.
+   *
+   * **A cell holding something that does not repeat stops taking a product**,
+   * and the products route around it — which is the whole reason this carries a
+   * `fill` rather than just an id. Put a brand block in the top-left cell and the
+   * offer that was there moves to the next cell, the page after it fills up, and
+   * the book grows by a page if it has to. Dropping a product instead is the
+   * class of bug that reaches print, and `flowBook` has refused to do it since
+   * pins were built; this is the same rule reached by a different gesture.
+   *
+   * **The caller decides the fill, not the engine.** Whether a block repeats is a
+   * fact about the block document, which lives in a database the engine has
+   * never read. `categoryRepeats` knows the vocabulary; only the web layer knows
+   * which row was chosen.
+   */
+  regionBlocks?: Readonly<Record<number, Readonly<Record<string, RegionBlock>>>>
+}
+
+/** A block an owner put in one cell, and whether it takes a product. */
+export interface RegionBlock {
+  blockId: string
+  /** `static` is what makes the products route around it. */
+  fill: RegionFill
 }
 
 export interface Placement {
@@ -141,6 +165,10 @@ export interface MasterCell {
   body: CellSpan
   /** Whether it already covers more than one cell. */
   merged: boolean
+  /** The block this cell draws — the book's offer card unless an owner changed it. */
+  blockId: string
+  /** `static` means the cell holds something that does not take a product. */
+  fill: RegionFill
 }
 
 /**
@@ -169,7 +197,13 @@ export function masterCells(
   direction: Direction
 ): MasterCell[] {
   const { cols, rows } = resolveGridTracks(master, page)
-  return cellsFor(master.regions, cols, rows, direction, bodyTop(master.regions))
+  return cellsFor(
+    master.regions.filter((region) => region.fill === 'flow'),
+    cols,
+    rows,
+    direction,
+    bodyTop(master.regions)
+  )
 }
 
 /**
@@ -190,7 +224,15 @@ function bodyTop(regions: readonly Region[]): number {
   return flowing.reduce((top, region) => Math.min(top, region.rowStart), Infinity)
 }
 
-/** Flowing regions as rectangles, in reading order. */
+/**
+ * Regions as rectangles, in reading order.
+ *
+ * **Takes exactly the regions it is given and filters nothing.** A body cell an
+ * owner filled with a brand block is `static` and still has to come back — it is
+ * a cell they must be able to select and change again. Deciding what counts as a
+ * cell is the caller's job, because only the caller knows whether a static
+ * region is a footer band or a cell that used to take a product.
+ */
 function cellsFor(
   regions: readonly Region[],
   cols: readonly Track[],
@@ -199,7 +241,6 @@ function cellsFor(
   rowOffset: number
 ): MasterCell[] {
   return regions
-    .filter((region) => region.fill === 'flow')
     .slice()
     .sort((a, b) => a.rowStart - b.rowStart || a.colStart - b.colStart)
     .map((region) => ({
@@ -212,6 +253,8 @@ function cellsFor(
         rowEnd: region.rowEnd - rowOffset,
       },
       merged: region.colStart !== region.colEnd || region.rowStart !== region.rowEnd,
+      blockId: region.blockId,
+      fill: region.fill,
     }))
 }
 
@@ -272,23 +315,35 @@ export function flowBook(input: FlowInput): FlowResult {
    * A page with no merges gets the master's regions unchanged, which is both the
    * common case and the cheap one.
    */
-  const regionsFor = (pageIndex: number): { regions: Region[]; merges: CellSpan[] } => {
+  const regionsFor = (pageIndex: number): { body: Region[]; merges: CellSpan[] } => {
     const merges = normalizeMerges(input.merges?.[pageIndex] ?? [], {
       perRow,
       bodyRows: Math.max(1, bodyRows),
     })
-    if (merges.length === 0) {
-      return {
-        regions: master.regions.filter((r) => r.fill === 'flow').sort(inReadingOrder),
-        merges,
-      }
-    }
-    return {
-      regions: mergeRegions(master.regions, merges, rowOffset)
-        .filter((r) => r.fill === 'flow')
-        .sort(inReadingOrder),
-      merges,
-    }
+
+    const merged =
+      merges.length === 0 ? master.regions : mergeRegions(master.regions, merges, rowOffset)
+
+    /*
+     * **The body cells, whatever they now hold.** Filtered on the *master's*
+     * notion of a body cell — a flowing region — before any override is applied,
+     * because an override is exactly what turns one of them static. Filtering
+     * after would make a cell holding a brand block indistinguishable from a
+     * footer band, and the editor would stop offering it: an owner could put a
+     * brand block in a cell and have no way to take it out again.
+     */
+    const chosen = input.regionBlocks?.[pageIndex]
+    const body = merged
+      .filter((region) => region.fill === 'flow')
+      .map((region) => {
+        const override = chosen?.[region.id]
+        return override === undefined
+          ? region
+          : { ...region, blockId: override.blockId, fill: override.fill }
+      })
+      .sort(inReadingOrder)
+
+    return { body, merges }
   }
 
   const lastPinnedPage = pins.reduce((max, pin) => Math.max(max, pin.pageIndex), -1)
@@ -304,10 +359,18 @@ export function flowBook(input: FlowInput): FlowResult {
 
   while ((cursor < offerIds.length || index <= lastPinnedPage) && index < guard) {
     const pinsHere = pins.filter((pin) => pin.pageIndex === index)
-    const { regions: flowRegions, merges: mergesHere } = regionsFor(index)
+    const { body, merges: mergesHere } = regionsFor(index)
+
+    // A body cell an owner filled with something that does not repeat is drawn
+    // like a band and takes no product. The bands themselves come from the
+    // master and are the same on every page.
+    const flowRegions = body.filter((region) => region.fill === 'flow')
+    const staticHere = [...staticRegions, ...body.filter((region) => region.fill === 'static')]
+      .sort(inReadingOrder)
+
     const placements: Placement[] = []
 
-    for (const region of staticRegions) {
+    for (const region of staticHere) {
       if (pinsHere.some((pin) => spansIntersect(pin, region))) continue
       placements.push({
         sourceId: region.id,
@@ -334,7 +397,9 @@ export function flowBook(input: FlowInput): FlowResult {
     const openRegions = flowRegions.filter(
       (region) => !pinsHere.some((pin) => spansIntersect(pin, region))
     )
-    const pinnedRegionIds = flowRegions
+    // Every body cell a pin covers here, whether it was taking a product or
+    // holding a brand block: neither is drawn on this page.
+    const pinnedRegionIds = body
       .filter((region) => pinsHere.some((pin) => spansIntersect(pin, region)))
       .map((region) => region.id)
 
@@ -360,7 +425,15 @@ export function flowBook(input: FlowInput): FlowResult {
       // Only the cells this page can actually offer: merged as this page merges
       // them, minus whatever a pin took here. An owner cannot select a cell the
       // page is not drawing — that was a defect once already.
-      cells: cellsFor(openRegions, cols, rows, direction, rowOffset),
+      // **Every body cell, not only the ones taking a product.** A cell holding a
+      // brand block must stay selectable or the owner cannot change it back.
+      cells: cellsFor(
+        body.filter((region) => !pinnedRegionIds.includes(region.id)),
+        cols,
+        rows,
+        direction,
+        rowOffset
+      ),
     })
     index += 1
   }

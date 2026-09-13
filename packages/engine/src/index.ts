@@ -126,6 +126,7 @@ export {
   type FlowPage,
   type MasterCell,
   type Placement,
+  type RegionBlock,
 } from './flow'
 // Merging cells, which is span algebra and nothing else. Composition model §4:
 // rectangular only, same as a spreadsheet. See the file.

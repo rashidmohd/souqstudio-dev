@@ -56,6 +56,24 @@ type Props = {
   pendingCells: 'merge' | 'unmerge' | null
   busy: boolean
   error: string | null
+
+  /**
+   * The one cell the design picker is about, or null when the selection is not
+   * exactly one.
+   *
+   * **One cell, because "what does this draw" has no answer for six of them.**
+   * Merging is the operation for many cells; choosing a design is an operation
+   * for one, and offering it for a range would ask an owner to accept whatever
+   * it did to the other five.
+   */
+  cell: { regionId: string; blockId: string; takesProduct: boolean } | null
+  /** Everything this shop may put in a cell. `repeats` decides what happens to
+   *  the product that was there. */
+  blocks: { id: string; name: string; repeats: boolean }[]
+  /** The book's repeating card — what a cell draws when it has no choice of its own. */
+  offerCardBlockId: string | null
+  onCellBlock: (blockId: string | null) => void
+  pendingBlock: boolean
 }
 
 export function PagePanel({
@@ -76,6 +94,11 @@ export function PagePanel({
   pendingCells,
   busy,
   error,
+  cell,
+  blocks,
+  offerCardBlockId,
+  onCellBlock,
+  pendingBlock,
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
@@ -129,6 +152,15 @@ export function PagePanel({
           </Button>
         ) : null}
       </section>
+
+      <Design
+        cell={cell}
+        blocks={blocks}
+        offerCardBlockId={offerCardBlockId}
+        onChange={onCellBlock}
+        pending={pendingBlock}
+        disabled={busy}
+      />
 
       <Cells
         selection={selection}
@@ -267,5 +299,84 @@ function Cells({
         </p>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * What one cell draws.
+ *
+ * **Every cell drew the book's offer card until this existed.** Merging changed a
+ * cell's *shape* and the card re-laid itself out into its wide arrangement, which
+ * looks like a different design and is not one. An owner wanting a brand block in
+ * the top-left cell had no way to say so.
+ *
+ * **Choosing something that does not repeat moves the products.** A cell holding
+ * a brand block takes no offer, so the offer that was there goes to the next cell
+ * and the book grows by a page rather than losing it. That is the same rule pins
+ * follow, and it is surprising enough that the panel says it in words *before*
+ * the owner picks rather than leaving them to notice a product moved.
+ *
+ * **Grouped by whether a block repeats**, because that is the only distinction
+ * that changes what the cell does. Names alone would not tell an owner that
+ * "Ramadan band" is going to displace their rice.
+ */
+function Design({
+  cell,
+  blocks,
+  offerCardBlockId,
+  onChange,
+  pending,
+  disabled,
+}: {
+  cell: { regionId: string; blockId: string; takesProduct: boolean } | null
+  blocks: { id: string; name: string; repeats: boolean }[]
+  offerCardBlockId: string | null
+  onChange: (blockId: string | null) => void
+  pending: boolean
+  disabled: boolean
+}) {
+  const cards = blocks.filter((block) => block.repeats)
+  const panels = blocks.filter((block) => !block.repeats)
+
+  return (
+    <section className="flex flex-col gap-2 rounded-block bg-sand p-3">
+      <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">Design</h3>
+
+      {cell === null ? (
+        <p className="font-ui text-body-sm text-muted">
+          Pick one card on the page to change what it draws.
+        </p>
+      ) : (
+        <>
+          <Select
+            label="This cell draws"
+            value={cell.blockId === offerCardBlockId ? '' : cell.blockId}
+            disabled={disabled || pending || blocks.length === 0}
+            options={[
+              { value: '', label: 'The offer card, like every other cell' },
+              ...cards.map((block) => ({ value: block.id, label: `${block.name} — a card` })),
+              ...panels.map((block) => ({
+                value: block.id,
+                label: `${block.name} — no product`,
+              })),
+            ]}
+            onChange={(event) =>
+              onChange(event.target.value === '' ? null : event.target.value)
+            }
+          />
+
+          {/*
+            Said before it happens, not discovered afterwards. A cell that stops
+            taking a product pushes every offer after it along by one, which an
+            owner reads as their book having quietly rearranged itself.
+          */}
+          <p className="font-ui text-body-sm text-muted">
+            {cell.takesProduct
+              ? 'Blocks marked “no product” turn this cell into a panel, and the products move along to the next cell.'
+              : 'This cell holds a panel, so it shows no product. The products flow around it.'}
+          </p>
+        </>
+      )}
+    </section>
   )
 }

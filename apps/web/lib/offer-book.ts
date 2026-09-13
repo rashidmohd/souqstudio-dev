@@ -7,6 +7,7 @@ import {
   validateGrid,
   type CellSpan,
   type FlowPage,
+  type RegionBlock,
 } from '@souqstudio/engine'
 import type { Block, PageBackground, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
 import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
@@ -97,6 +98,8 @@ export interface ComposedBook {
     cardFits: boolean
     /** The aspect that was judged, for a message that can be specific. */
     cellAspect: number | null
+    /** The repeating card every cell draws unless an owner changed that cell. */
+    cardBlockId: string | null
   }
   /**
    * The pages that carry their own paper, by page index.
@@ -147,7 +150,15 @@ export async function loadBook(
         select: { cols: true, rows: true, gap: true, margin: true, background: true, regions: true },
         take: 1,
       },
-      pages: { select: { index: true, slotOverrides: true, merges: true, background: true } },
+      pages: {
+        select: {
+          index: true,
+          slotOverrides: true,
+          merges: true,
+          background: true,
+          regionBlocks: true,
+        },
+      },
       pins: {
         select: {
           id: true,
@@ -320,17 +331,63 @@ export async function loadBook(
    */
   const pageBackgrounds: Record<number, PageBackground | null> = {}
 
+  /** Blocks an owner put in particular cells, by page index and region id. */
+  const chosenBlocks: Record<number, Record<string, string>> = {}
+
   for (const row of book.pages) {
     const spans = readMerges(row.merges)
     if (spans.length > 0) merges[row.index] = spans
 
     const own = readPageBackground(row.background)
     if (own !== undefined) pageBackgrounds[row.index] = own
+
+    const chosen = readRegionBlocks(row.regionBlocks)
+    if (Object.keys(chosen).length > 0) chosenBlocks[row.index] = chosen
+  }
+
+  /*
+   * **Loaded before the flow, not after, and that ordering is load-bearing.**
+   * Whether a cell still takes a product depends on whether the block an owner
+   * put in it repeats, and `repeats` is a column on the block. The flow cannot
+   * decide `fill` without it, so the blocks have to be resolved first — this
+   * used to run after `flowBook` because nothing it produced fed back in.
+   */
+  const blocks = await loadBlocks(
+    master,
+    pins,
+    Object.values(chosenBlocks).flatMap((page) => Object.values(page))
+  )
+
+  /**
+   * The per-cell blocks, with each one's fill resolved.
+   *
+   * **A block that does not repeat makes its cell static**, and the products
+   * route around it — the offer that was there moves to the next cell rather
+   * than being dropped, which is the rule pins have followed since they existed.
+   *
+   * **Decided here rather than stored.** `repeats` belongs to the block, and a
+   * copy kept on the page would be a second answer that goes stale the day
+   * somebody edits the block.
+   *
+   * An id that resolved to nothing is skipped rather than drawn as an empty
+   * region: the cell goes back to the book's offer card, which is a layout, and
+   * a hole is not.
+   */
+  const regionBlocks: Record<number, Record<string, RegionBlock>> = {}
+  for (const [index, chosen] of Object.entries(chosenBlocks)) {
+    const forPage: Record<string, RegionBlock> = {}
+    for (const [regionId, blockId] of Object.entries(chosen)) {
+      const block = blocks[blockId]
+      if (block === undefined) continue
+      forPage[regionId] = { blockId, fill: block.repeats ? 'flow' : 'static' }
+    }
+    if (Object.keys(forPage).length > 0) regionBlocks[Number(index)] = forPage
   }
 
   const flow = flowBook({
     master,
     merges,
+    regionBlocks,
     offerIds: offers.map((offer) => offer.id),
     pins,
     page,
@@ -339,11 +396,6 @@ export async function loadBook(
     // an English flyer — the rule `BlockPreview` already states.
     direction: edition === 'ar' ? 'rtl' : 'ltr',
   })
-
-  // Awaited before the return object rather than inside it: `cardFit` needs the
-  // resolved blocks, and an inline `await` in a property initialiser cannot be
-  // read by a sibling property.
-  const blocks = await loadBlocks(master, pins)
 
   return {
     id: book.id,
@@ -363,6 +415,7 @@ export async function loadBook(
       headerBlockId: choice.headerBlockId ?? null,
       footerBlockId: choice.footerBlockId ?? null,
       background: choice.background ?? null,
+      cardBlockId: choice.cardBlockId ?? null,
       ...cardFit(flow.pages, blocks),
     },
     pageBackgrounds,
@@ -394,11 +447,14 @@ export async function loadBook(
  */
 async function loadBlocks(
   master: ReturnType<typeof toMasterGrid>,
-  pins: readonly Pin[]
+  pins: readonly Pin[],
+  /** Blocks an owner put in individual cells. Named nowhere in the grid. */
+  chosen: readonly string[] = []
 ): Promise<Record<string, Block>> {
   const ids = new Set<string>()
   for (const region of master.regions) ids.add(region.blockId)
   for (const pin of pins) ids.add(pin.blockId)
+  for (const blockId of chosen) ids.add(blockId)
   if (ids.size === 0) return {}
 
   const rows = await prisma.block.findMany({
@@ -1021,8 +1077,8 @@ export async function deleteDraftBook(
  * merges, footers and pins already fit whatever the owner swaps in.
  *
  * What is copied: the grids (master, cover, back), the pins, the page rows with
- * their `slotOverrides`, merges and own backgrounds, and every offer with its
- * items, chips, footnotes, legal
+ * their `slotOverrides`, merges, own backgrounds and per-cell blocks, and every
+ * offer with its items, chips, footnotes, legal
  * lines and unit-price settings.
  *
  * **What is deliberately not copied is everything that makes a book public.**
@@ -1073,7 +1129,15 @@ export async function duplicateBook(
           content: true,
         },
       },
-      pages: { select: { index: true, slotOverrides: true, merges: true, background: true } },
+      pages: {
+        select: {
+          index: true,
+          slotOverrides: true,
+          merges: true,
+          background: true,
+          regionBlocks: true,
+        },
+      },
       offers: {
         orderBy: { position: 'asc' },
         select: {
@@ -1163,6 +1227,9 @@ export async function duplicateBook(
             // exists to avoid.
             ...(page.merges === null ? {} : { merges: page.merges as object }),
             ...(page.background === null ? {} : { background: page.background as object }),
+            ...(page.regionBlocks === null
+              ? {}
+              : { regionBlocks: page.regionBlocks as object }),
           })),
         },
       },
@@ -1268,6 +1335,23 @@ function readMerges(value: unknown): CellSpan[] {
       rowStart: span.rowStart,
       rowEnd: span.rowEnd,
     })
+  }
+  return out
+}
+
+/**
+ * A page's per-cell blocks, narrowed enough to look up.
+ *
+ * A Json column, so it arrives as `unknown`. **Never throws**: a page whose
+ * choices cannot be read is a page drawing the book's offer card everywhere,
+ * which is a layout rather than a crash — the same call `readMerges` makes.
+ */
+function readRegionBlocks(value: unknown): Record<string, string> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  const out: Record<string, string> = {}
+  for (const [regionId, blockId] of Object.entries(value)) {
+    if (typeof blockId === 'string' && blockId.length > 0) out[regionId] = blockId
   }
   return out
 }

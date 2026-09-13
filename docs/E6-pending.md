@@ -649,8 +649,12 @@ way to `12.50` never lands as an error nobody asked for. Blur still commits imme
    Merging is built (§10); track sizes are not. Every `fr` is 1 and only the *count* is
    editable, so a page is rows of equal cards. `resolveTracks` has taken arbitrary `fr`
    values since it existed — what is missing is the drag and a writer for `cols`/`rows`.
-2. **Detaching a page from the master**, §5's "customize this page only". Pins retire most
-   of the need for it, which is why it went last and may not be needed at all.
+2. **Detaching a page from the master**, §5's "customize this page only" — **mostly
+   overtaken.** A page now keeps its own merged cells and its own paper without detaching
+   anything, which is what "customize this page" turned out to mean in practice. What is
+   still shared is the track count and the running bands: there is no way to give page one
+   two cards across while the rest have three. Nobody has asked for that, and it should
+   stay unbuilt until somebody does.
 3. **Drag from the catalog onto a cell.** Adding is a button; the cell is not a drop target.
 4. **The two element kinds above**, without which the unit price and footnotes are stored
    and not printed.
@@ -948,3 +952,55 @@ controls, so the hairlines now appear with the tab that names them.
   which is the documented model and the standard canvas pattern. It collides with the
   cell-click-also-selects-the-offer coupling, and E9 export is still the only thing on the
   critical path, so it is written down rather than built.
+
+### A block per cell — 13 September
+
+Every flowing cell drew the book's offer card. Merging changed a cell's *shape* and the
+card re-laid itself out through `pickArrangement` — which looks like a different design and
+is not one. The ask was plain: *"sometimes they want to add a brand block or something."*
+
+**The engine needed nothing.** `Region.blockId` has been per region since the composition
+model was written, and `flowBook` has always rendered whatever a region names. What was
+missing was somewhere to author it that a grid rebuild would not flatten:
+`PATCH .../grid` rebuilds the master from scratch and `readGridChoice` reads the card off
+the *first* flowing region precisely because it assumes they all agree — a comment in that
+file has warned about this since it was written. So the choices live on the page, beside
+the merges, in `offer_book_pages.regionBlocks`.
+
+**The load-bearing half is what happens to the product that was there.** A cell holding a
+block that does not repeat becomes `static` at flow time, and the products route around it:
+the offer that was in it moves to the next cell, the page fills up, and the book grows by a
+page rather than losing a product. That is not new machinery — it is the rule pins have
+followed since they were built, reached by a different gesture. *"Dropping one silently is
+the class of bug that reaches print."*
+
+Verified in a browser against the dev book: putting an Anniversary band in the top-left
+cell of page one pushed Pure Ceylon Tea onto page two. Nothing vanished.
+
+### Four things that only showed up once it ran
+
+- **`repeats` decides the fill, and it is read at load time rather than stored.** A copy
+  kept on the page would be a second answer that goes stale the day somebody edits the
+  block. It also forced `loadBlocks` to move *above* `flowBook` in `loadBook`, which it had
+  never needed to be: nothing the flow produced used to feed back into it.
+- **A static cell must stay selectable.** `cells` was flow regions only, so the first
+  version dropped a cell the moment an owner put a brand block in it — and with it any way
+  to change it back. `cellsFor` now filters nothing and the caller decides what counts as a
+  cell, because only the caller can tell a footer band from a cell that used to take a
+  product.
+- **"Empty cell" was a lie.** The artboard labelled a cell holding a brand block as empty,
+  because the label keyed on the absence of an *offer*. A screen reader was being told the
+  opposite of what is on the page. It names the block now.
+- **A repeating block is allowed here, unlike a band or a pin.** Both of those refuse one,
+  because they carry no offer to give it. A cell is exactly where a repeating card belongs —
+  so this is also how an owner gives one cell a different *card*, not only a panel.
+
+### Still owed on this
+
+- **There is no book-wide "change the offer card" control.** `cardBlockId` is still only set
+  at creation, in `POST /api/v1/offer-books`. The per-cell picker makes its absence
+  stranger: an owner can change one cell's card and not all of them.
+- **`cardFit` does not judge a cell an owner changed.** It checks every flowing placement,
+  so a per-cell card is included — but a *panel* in a body cell is static and skipped, which
+  is right, and a per-cell card at an odd aspect will report against the book's warning
+  rather than naming which cell. Good enough until somebody hits it.

@@ -83,6 +83,18 @@ export default async function EditorPage({ params }: { params: { id: string } })
     .filter((block) => !block.repeats && !block.locked && block.status !== 'archived')
     .map((block) => ({ id: block.id, name: block.name, category: block.category }))
 
+  /*
+   * What an owner may put in one cell, which is **everything usable** — unlike a
+   * band or a pin, both of which refuse a repeating block because they carry no
+   * offer to give it. A cell is exactly where a repeating card belongs, and a
+   * static one turns that cell into a brand block with the products routing
+   * around it. `repeats` travels so the panel can say which is which before the
+   * owner finds out by watching a product move.
+   */
+  const cellBlocks = blocks
+    .filter((block) => !block.locked && block.status !== 'archived')
+    .map((block) => ({ id: block.id, name: block.name, repeats: block.repeats }))
+
   return (
     <EditorShell
       bookId={book.id}
@@ -103,6 +115,8 @@ export default async function EditorPage({ params }: { params: { id: string } })
       overrides={book.overrides}
       pins={book.pins}
       pageBackgrounds={book.pageBackgrounds}
+      cellBlocks={cellBlocks}
+      offerCardBlockId={book.layout.cardBlockId ?? null}
       layout={book.layout}
       // **The composer's half of E7-03.** A seasonal panel is offered first in
       // the week it matters, and the window is computed rather than read off the

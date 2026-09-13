@@ -336,6 +336,7 @@ export function BookPage({
           pinned={page.pinnedRegionIds}
           offerAt={offerAt}
           nameFor={(offerId) => (offerId === null ? null : (offers[offerId]?.name ?? null))}
+          blockName={(blockId) => blocks[blockId]?.name ?? null}
           onSelect={onSelectCell}
         />
       ) : null}
@@ -487,6 +488,7 @@ function CellLayer({
   pinned,
   offerAt,
   nameFor,
+  blockName,
   onSelect,
 }: {
   cells: readonly MasterCell[]
@@ -494,6 +496,7 @@ function CellLayer({
   pinned: readonly string[]
   offerAt: (regionId: string) => string | null
   nameFor: (offerId: string | null) => string | null
+  blockName: (blockId: string) => string | null
   onSelect: (cell: MasterCell, options: { extend: boolean; offerId: string | null }) => void
 }) {
   /**
@@ -577,7 +580,7 @@ function CellLayer({
             // be a lie about it. The position is said in rows and columns rather
             // than as the region id: `r0c1` is how the grid names a cell, not how
             // anybody reads one out.
-            aria-label={name ?? emptyCellLabel(cell)}
+            aria-label={name ?? cellLabel(cell, blockName)}
             aria-pressed={inSelection}
             className="cursor-pointer outline-none"
             onPointerDown={(event) =>
@@ -636,7 +639,12 @@ function pageHairline(cells: readonly MasterCell[]): number {
 }
 
 /**
- * What to call a cell with nothing in it.
+ * What to call a cell carrying no product.
+ *
+ * **"Empty" is only true of a cell that is actually empty.** A cell an owner
+ * filled with a brand block carries no *offer* and is not empty at all; calling
+ * it empty was the first thing this said after per-cell blocks landed, which
+ * would have told a screen reader the opposite of what is on the page.
  *
  * One-based, and **in reading order rather than left to right**: `colStart` is
  * logical, so "column 1" is the first column an owner reads in either edition.
@@ -644,13 +652,17 @@ function pageHairline(cells: readonly MasterCell[]): number {
  * covering four cells would be a description its own owner could not match to
  * what they can see.
  */
-function emptyCellLabel(cell: MasterCell): string {
+function cellLabel(cell: MasterCell, blockName: (blockId: string) => string | null): string {
   const row = cell.body.rowStart + 1
   const column = cell.body.colStart + 1
-  if (!cell.merged) return `Empty cell, row ${row}, column ${column}`
+  const where = cell.merged
+    ? `rows ${row} to ${cell.body.rowEnd + 1}, columns ${column} to ${cell.body.colEnd + 1}`
+    : `row ${row}, column ${column}`
 
-  return (
-    `Empty merged cell, rows ${row} to ${cell.body.rowEnd + 1}, ` +
-    `columns ${column} to ${cell.body.colEnd + 1}`
-  )
+  if (cell.fill === 'static') {
+    const name = blockName(cell.blockId)
+    return name === null ? `Panel, ${where}` : `${name}, ${where}`
+  }
+
+  return cell.merged ? `Empty merged cell, ${where}` : `Empty cell, ${where}`
 }

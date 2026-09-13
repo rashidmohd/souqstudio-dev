@@ -1135,6 +1135,20 @@ model OfferBookPage {
   /// "explicitly none" would be the same value. Nesting one level makes the
   /// distinction survive the round trip.
   background   Json?
+  /// Blocks an owner put in particular cells of this page, as
+  /// `{ [regionId]: blockId }`.
+  ///
+  /// **A cell holding a block that does not repeat stops taking a product**, and
+  /// the products route around it exactly as they route around a pin — the offer
+  /// that was there moves to the next cell and the book grows by a page rather
+  /// than losing it. Whether a block repeats is read from the `blocks` row at
+  /// load time rather than stored here, so a block that changes its mind is not
+  /// contradicted by a stale copy.
+  ///
+  /// Keyed by region id — `r{row}c{col}`, the merged region's start cell — which
+  /// is the same key `slotOverrides` uses and orphans the same way when the
+  /// track count changes.
+  regionBlocks Json?
   book          OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, index])

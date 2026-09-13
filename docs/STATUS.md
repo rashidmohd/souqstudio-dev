@@ -947,6 +947,13 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   as feedback rather than as a second control. Density is derived, never chosen. **Since
   11 September it also carries the page margin, a running header and footer band, and the
   page background** — colour, gradient or image. One route, patched as a delta.
+- **A cell can draw a block of its own** — `offer_book_pages.regionBlocks`, picked in the
+  Page tab. A cell holding a block that does not repeat becomes static and **the products
+  route around it**, the same rule pins follow, so nothing is ever dropped: an Anniversary
+  band in the top-left cell pushes the tea onto the next page. The engine needed no change,
+  because `Region.blockId` has been per region since the composition model was written;
+  what was missing was somewhere to author it that a grid rebuild would not flatten.
+  `E6-pending.md` §10.
 - **A tool rail** on the start pane — Offers, Layout, Background, **Page**, Pins — **grouped
   by scope since 13 September**. Offers, Layout and Background are the book; Page is one
   page's own paper and its merged cells, with the active page named once and set by
