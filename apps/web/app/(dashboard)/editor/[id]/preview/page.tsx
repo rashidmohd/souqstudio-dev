@@ -73,6 +73,7 @@ export default async function BookPreviewPage({ params }: { params: { id: string
         // Arabic UI who is producing an English flyer must see an English flyer.
         direction={book.edition === 'ar' ? 'rtl' : 'ltr'}
         background={book.layout.background}
+        pageBackgrounds={book.pageBackgrounds}
         assetBaseUrl={env.R2_PUBLIC_URL}
         offerCount={book.offers.length}
         canDiscard={book.status === 'draft'}

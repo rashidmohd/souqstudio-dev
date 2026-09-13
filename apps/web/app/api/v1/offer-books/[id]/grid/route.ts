@@ -8,6 +8,7 @@ import { requireApiSession } from '@/lib/api-session'
 import { loadBlock } from '@/lib/blocks'
 import { pageSizeFor, toMasterGrid } from '@/lib/offer-book-compose'
 import { gridForKind, readGridChoice } from '@/lib/offer-book-grid'
+import { backgroundSchema } from '@/lib/offer-book-background'
 import { MAX_MARGIN } from '@/lib/offer-book-layout'
 
 /**
@@ -52,66 +53,6 @@ import { MAX_MARGIN } from '@/lib/offer-book-layout'
  * Adding or removing a band does *not* renumber anything — `offerRegions` takes
  * a row offset precisely so a masthead does not orphan every nudge in the book.
  */
-
-/**
- * A colour, named the same three ways everything else in the model names one.
- *
- * `role` binds a brand-kit slot, `palette` an entry the shop picked, `hex` a
- * literal. A gradient stop is a `FlatColor` and cannot itself be a gradient,
- * which the type already says and this mirrors.
- */
-const flatColorSchema = z.union([
-  // `TokenRef` is six words, not any string — the brand-kit slots a block binds
-  // to. An enum rather than `z.string()` so the parsed type *is* `TokenRef` and
-  // the compiler checks the hand-off, instead of an assertion doing it.
-  z.object({
-    from: z.literal('role'),
-    ref: z.enum(['primary', 'secondary', 'accent', 'surface', 'ink', 'inkMuted']),
-  }),
-  z.object({ from: z.literal('palette'), id: z.string().min(1).max(64) }),
-  // Six digits. Alpha belongs to the element's opacity, where it is one control
-  // an owner can find rather than two that disagree — the rule `ColorValue`
-  // states, with gradient stops as the one documented exception.
-  z.object({ from: z.literal('hex'), hex: z.string().regex(/^#[0-9a-fA-F]{6}$/) }),
-])
-
-/**
- * The paper behind every card.
- *
- * **Validated to the depth the union actually has**, unlike a block's
- * `arrangements`, which are the designer's contract and too deep to re-check per
- * write. This is four shapes and a handful of fields; a malformed one would be
- * stored, read back by `toMasterGrid` and silently fall back to paper, which is
- * a background an owner set and cannot see.
- */
-const backgroundSchema = z.union([
-  flatColorSchema,
-  z.object({
-    from: z.literal('gradient'),
-    // Degrees clockwise from a left-to-right run. Not normalised: `composeGrid`
-    // does not mirror it in an Arabic edition either, because an owner who
-    // angled a ground did so against the artwork they were looking at.
-    angle: z.number().min(0).max(360),
-    stops: z
-      .array(
-        z.object({
-          at: z.number().min(0).max(1),
-          color: flatColorSchema,
-          opacity: z.number().min(0).max(1).optional(),
-        })
-      )
-      // One stop is a flat colour with extra steps and `resolvePaint` collapses
-      // it to one anyway; eight is past the point a gradient reads as a run.
-      .min(2)
-      .max(8),
-  }),
-  z.object({
-    from: z.literal('asset'),
-    assetId: z.string().min(1).max(200),
-    fit: z.enum(['cover', 'contain']).optional(),
-    opacity: z.number().min(0).max(1).optional(),
-  }),
-])
 
 const schema = z.object({
   /** Cards across a page. More tracks is what density means now. */

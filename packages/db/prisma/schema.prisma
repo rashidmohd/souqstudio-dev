@@ -1123,6 +1123,18 @@ model OfferBookPage {
   /// The flow does not restart at a merge: a page holding a merged hero holds
   /// one card fewer and the products carry on onto the next page.
   merges       Json?
+  /// This page's own paper, as `{ background: PageBackground | null }`.
+  ///
+  /// **Three states, which is why it is wrapped.** The column being NULL means
+  /// the page inherits the book's background from `page_grids.background`; a
+  /// stored `{ "background": null }` means this page is deliberately plain paper
+  /// even though the book has a ground; an object is that page's own.
+  ///
+  /// The wrapper exists because Prisma's two JSON nulls cannot be told apart on
+  /// read — `DbNull` and `JsonNull` both come back as `null` — so "inherit" and
+  /// "explicitly none" would be the same value. Nesting one level makes the
+  /// distinction survive the round trip.
+  background   Json?
   book          OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, index])

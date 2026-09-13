@@ -848,3 +848,50 @@ rather than on page one, because page one's shapes no longer say anything about 
   override it. Not built.
 - **Nothing migrates.** Every master grid in the database held one region per cell already,
   so the column was added empty and no grid needed unpicking.
+
+### Per-page background — 12 September
+
+The same request as per-page merging, in the same breath: *"if they want to change the bg
+they can change even a particular page"*. `page_grids.background` stays the book's default;
+`offer_book_pages.background` is what one page says instead.
+
+**Three answers, not two, and that is the whole design.** Absent is "this page draws the
+book's ground". A stored `null` is "this page is plain paper *although* the book has one".
+An object is the page's own. Without the middle answer an owner could put navy on a book
+and never take it off a single page, which is exactly the thing they would want on a page
+carrying a photograph.
+
+**The value is wrapped — `{ background: … }` — because Prisma's two JSON nulls read back
+identically.** `Prisma.DbNull` makes the column NULL and `Prisma.JsonNull` stores the JSON
+value `null` in it, and both come back to the client as `null`. The grid route already
+carries a comment about this trap for the book's own background; here it would have
+collapsed "inherit" and "none" into one state. One level of nesting makes the distinction
+survive the round trip, and `readPageBackground` is the only reader.
+
+**`backgroundSchema` moved to `lib/offer-book-background.ts`.** Two routes now validate the
+same union — the book's and the page's — and a second copy is how they start disagreeing
+about what a gradient may contain. The disagreement would surface as a background an owner
+set and cannot see.
+
+### Three places this had to reach, and two of them are easy to miss
+
+- **The preview.** `BookPreview` drew one background on every page. An owner who gives page
+  three a dark ground and opens the preview to check it has asked precisely the question
+  that screen exists to answer, and it would have answered wrongly. It takes
+  `pageBackgrounds` now. **The lookup is `index in map`, never `?? book`** — nullish
+  coalescing would hand a page set to *none* the book's ground straight back, collapsing
+  the three states to two at the last step.
+- **Duplicating a book.** `duplicateBook` copied `slotOverrides` and would have dropped
+  both `merges` and `background`, so "duplicate last week" would have meant "duplicate the
+  products" and left the owner re-laying out nine pages — the work the button exists to
+  avoid. Both copy now.
+- **E9's export, when it lands.** It renders the same `BookPage` component, so it inherits
+  this for free *provided it is given the per-page values rather than `layout.background`*.
+  That is one prop, and it is the kind of prop a worker quietly does not pass.
+
+### What is still the book's
+
+Cards across and down, the margin, the running header and footer, and the default paper.
+Those change every page at once, which is right: they are the shape of the book. Merging
+and the paper are the two things a page may now disagree about, and both were asked for by
+the person using it rather than designed in.

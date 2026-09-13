@@ -15,7 +15,9 @@ import {
   type CellSpan,
   type FlowPage,
 } from '@souqstudio/engine'
+import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
+import { Select } from '@/components/ui/select'
 import { BookPage } from '@/components/editor/BookPage'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PinsPanel } from '@/components/editor/PinsPanel'
@@ -27,6 +29,7 @@ import {
 import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl'
 import { useGridPatch } from '@/components/editor/use-grid-patch'
 import { usePageMerges } from '@/components/editor/use-page-merges'
+import { usePageBackground } from '@/components/editor/use-page-background'
 import { OfferTray } from '@/components/editor/OfferTray'
 import {
   OfferProperties,
@@ -73,6 +76,13 @@ type Props = {
   /** Bounded nudges by page index, as stored. E6-04. */
   overrides: Record<number, SlotOverride[]>
   pins: Pin[]
+  /**
+   * Pages that carry their own paper, by index.
+   *
+   * An absent key means the page draws the book's background; a `null` value
+   * means it is deliberately plain paper although the book has a ground.
+   */
+  pageBackgrounds: Record<number, PageBackground | null>
   /** The master grid as a set of choices. `loadBook` reads it off the regions. */
   layout: {
     perRow: number
@@ -107,6 +117,9 @@ type Props = {
   gridProblems: { code: string }[]
 }
 
+/** The whole book, or one page by index. */
+type BackgroundScope = 'all' | number
+
 export function EditorShell({
   bookId,
   title,
@@ -122,6 +135,7 @@ export function EditorShell({
   currency,
   overrides,
   pins,
+  pageBackgrounds,
   layout,
   pinnable,
   headerBlocks,
@@ -320,16 +334,64 @@ export function EditorShell({
    * line is the naming. Keeping a draft the server rejected would show an owner a
    * background their book does not have.
    */
-  const [draftBackground, setDraftBackground] = React.useState<
-    PageBackground | null | undefined
-  >(undefined)
+  const [draft, setDraft] = React.useState<
+    { scope: BackgroundScope; value: PageBackground | null } | null
+  >(null)
+
+  /**
+   * Which pages the Background tab is editing: the whole book, or one page.
+   *
+   * **A select rather than a click on the artboard**, matching how Pins already
+   * asks the same question. There is no cell selection in this tab to borrow and
+   * nothing on the page to click that would mean "this page"; an explicit list is
+   * also the only version that works on a tablet with no hover.
+   */
+  const [bgScope, setBgScope] = React.useState<BackgroundScope>('all')
+
+  const pageBg = usePageBackground(bookId)
+
+  /**
+   * The paper a given page draws, with whatever is still in flight on top.
+   *
+   * **Order matters, and a page's own answer beats a book-wide draft.** Dragging
+   * the book's colour must not repaint a page the owner has already given paper
+   * of its own — that page is not inheriting, so it has nothing to hear.
+   */
+  const backgroundFor = React.useCallback(
+    (pageIndex: number): PageBackground | null => {
+      if (draft !== null && draft.scope === pageIndex) return draft.value
+
+      const own = pageBackgrounds[pageIndex]
+      if (own !== undefined) return own
+
+      if (draft !== null && draft.scope === 'all') return draft.value
+      return layout.background
+    },
+    [draft, layout.background, pageBackgrounds]
+  )
+
+  /** Whether the page in scope is still taking the book's answer. */
+  const scopeInherits =
+    bgScope !== 'all' &&
+    pageBackgrounds[bgScope] === undefined &&
+    !(draft !== null && draft.scope === bgScope)
 
   const shownBackground =
-    draftBackground === undefined ? layout.background : draftBackground
+    bgScope === 'all'
+      ? draft !== null && draft.scope === 'all'
+        ? draft.value
+        : layout.background
+      : backgroundFor(bgScope)
 
-  // Once a write lands, `router.refresh()` brings the stored value back down and
+  // Once a write lands, `router.refresh()` brings the stored values back down and
   // the draft has nothing left to say.
-  React.useEffect(() => setDraftBackground(undefined), [layout.background])
+  React.useEffect(() => setDraft(null), [layout.background, pageBackgrounds])
+
+  // A scope that outlived its page — the book got shorter — would edit a page
+  // nobody can see. Back to the book, which always exists.
+  React.useEffect(() => {
+    setBgScope((scope) => (scope !== 'all' && scope >= pages.length ? 'all' : scope))
+  }, [pages.length])
 
   // One set for the whole book, assembled from the pages. Each page reports its
   // own, so the union has to be held here rather than replaced per page — page
@@ -528,14 +590,52 @@ export function EditorShell({
               />
             </div>
 
-            <div hidden={tool !== 'background'}>
+            <div hidden={tool !== 'background'} className="flex flex-col gap-3">
+              {/*
+                **Which pages this changes, asked before it is changed.** The
+                same question `PinsPanel` asks, in the same control, because an
+                owner choosing paper for one page and an owner placing a brand ad
+                on one page are doing the same kind of thing. "All pages" first,
+                because it is the answer for almost every book.
+              */}
+              <Select
+                label="Applies to"
+                value={bgScope === 'all' ? 'all' : String(bgScope)}
+                options={[
+                  { value: 'all', label: 'All pages' },
+                  ...pages.map((flowPage) => ({
+                    value: String(flowPage.index),
+                    label: `Page ${flowPage.index + 1} only`,
+                  })),
+                ]}
+                onChange={(event) =>
+                  setBgScope(
+                    event.target.value === 'all' ? 'all' : Number(event.target.value)
+                  )
+                }
+                hint={
+                  bgScope === 'all'
+                    ? 'The paper behind every page that has not been given its own.'
+                    : scopeInherits
+                      ? 'This page follows the book. Changing it here gives it paper of its own.'
+                      : 'This page has paper of its own.'
+                }
+              />
+
               <PageBackgroundControl
                 value={shownBackground}
                 onChange={(next) => {
-                  setDraftBackground(next)
-                  grid.patchSoon({ background: next }, (ok) => {
-                    if (!ok) setDraftBackground(undefined)
-                  })
+                  const scope = bgScope
+                  setDraft({ scope, value: next })
+                  if (scope === 'all') {
+                    grid.patchSoon({ background: next }, (ok) => {
+                      if (!ok) setDraft(null)
+                    })
+                  } else {
+                    pageBg.writeSoon(scope, { background: next }, (ok) => {
+                      if (!ok) setDraft(null)
+                    })
+                  }
                 }}
                 palette={palette}
                 token={(ref) => resolveToken(palette, ref)}
@@ -548,9 +648,28 @@ export function EditorShell({
                 */
                 disabled={false}
               />
-              {grid.error !== null ? (
+
+              {/*
+                **Only once the page has something of its own to give back.** A
+                reset offered to a page that is already inheriting is a button
+                that cannot do anything, and an owner pressing it learns nothing
+                about why.
+              */}
+              {bgScope !== 'all' && !scopeInherits ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setDraft(null)
+                    void pageBg.write(bgScope, { inherit: true })
+                  }}
+                >
+                  Match all pages
+                </Button>
+              ) : null}
+
+              {grid.error ?? pageBg.error ? (
                 <p className="pt-2 font-ui text-body-sm text-critical-fg" role="alert">
-                  {grid.error}
+                  {grid.error ?? pageBg.error}
                 </p>
               ) : null}
             </div>
@@ -584,7 +703,7 @@ export function EditorShell({
                 // The artboard follows the *book's* language, never the
                 // interface's.
                 direction={edition === 'ar' ? 'rtl' : 'ltr'}
-                background={shownBackground}
+                background={backgroundFor(flowPage.index)}
                 asset={asset}
                 overrides={liveOverrides[flowPage.index] ?? overrides[flowPage.index] ?? []}
                 selectedOfferId={selectedOfferId}

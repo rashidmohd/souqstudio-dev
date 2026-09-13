@@ -41,8 +41,20 @@ type Props = {
   shopName: string
   /** The **book's** language, never the interface's. */
   direction: 'ltr' | 'rtl'
-  /** The paper behind every card. Null is `--sq-tpl-paper`. */
+  /** The paper behind every card, for pages that have not been given their own.
+   *  Null is `--sq-tpl-paper`. */
   background: PageBackground | null
+  /**
+   * Pages that carry their own paper, by index.
+   *
+   * **Here because the preview and the editor must not disagree.** An owner who
+   * gives page three a dark ground and then opens the preview to check it has
+   * asked exactly the question this screen exists to answer; showing them the
+   * book's background on every page would answer it wrongly. An absent key means
+   * the page draws the book's; a `null` value means it is deliberately plain
+   * paper.
+   */
+  pageBackgrounds?: Record<number, PageBackground | null>
   /** Where uploaded artwork lives. A server variable, so it arrives as a prop. */
   assetBaseUrl: string
   offerCount: number
@@ -72,6 +84,7 @@ export function BookPreview({
   shopName,
   direction,
   background,
+  pageBackgrounds = {},
   assetBaseUrl,
   offerCount,
   canDiscard,
@@ -151,7 +164,14 @@ export function BookPreview({
                 kit={kit}
                 shopName={shopName}
                 direction={direction}
-                background={background}
+                /* `?? background` would be wrong: a page set to `null` is
+                   deliberately plain paper, and nullish-coalescing would hand it
+                   the book's ground back. Absent is the only inherit. */
+                background={
+                  page.index in pageBackgrounds
+                    ? (pageBackgrounds[page.index] ?? null)
+                    : background
+                }
                 asset={asset}
               />
             </li>

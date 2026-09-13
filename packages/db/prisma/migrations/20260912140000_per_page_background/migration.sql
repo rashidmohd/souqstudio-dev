@@ -1,0 +1,11 @@
+-- A page may have its own paper.
+--
+-- `page_grids.background` stays the book's default and still applies to every
+-- page that says nothing. This column is what one page says instead: NULL means
+-- inherit, `{"background": null}` means this page is plain paper even though the
+-- book has a ground, and an object is that page's own colour, gradient or
+-- artwork.
+--
+-- Wrapped in an object because Prisma's two JSON nulls read back identically, so
+-- "inherit" and "explicitly none" would otherwise be indistinguishable.
+ALTER TABLE "offer_book_pages" ADD COLUMN "background" JSONB;

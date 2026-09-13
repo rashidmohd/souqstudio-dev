@@ -18,6 +18,7 @@ import {
   type ComposedOffer,
   type Edition,
 } from '@/lib/offer-book-compose'
+import { readPageBackground } from '@/lib/offer-book-background'
 import { gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { readOverrides } from '@/lib/offer-book-overrides'
 import { publicUrl } from '@/lib/r2'
@@ -98,6 +99,15 @@ export interface ComposedBook {
     cellAspect: number | null
   }
   /**
+   * The pages that carry their own paper, by page index.
+   *
+   * **An absent key and a `null` value are different answers.** Absent is "this
+   * page draws the book's background"; `null` is "this page is plain paper,
+   * whatever the book says". Without the second an owner could set a background
+   * on a book and never take it off one page.
+   */
+  pageBackgrounds: Record<number, PageBackground | null>
+  /**
    * The bounded nudges an owner has made, by page index. E6-04.
    *
    * Read here rather than applied here: the engine's output is what the export
@@ -137,7 +147,7 @@ export async function loadBook(
         select: { cols: true, rows: true, gap: true, margin: true, background: true, regions: true },
         take: 1,
       },
-      pages: { select: { index: true, slotOverrides: true, merges: true } },
+      pages: { select: { index: true, slotOverrides: true, merges: true, background: true } },
       pins: {
         select: {
           id: true,
@@ -300,9 +310,22 @@ export async function loadBook(
    * two not.
    */
   const merges: Record<number, CellSpan[]> = {}
+  /**
+   * The pages that have said something about their own paper.
+   *
+   * **Only the ones that have.** A page with no entry draws the book's
+   * background, and a page whose entry is `null` draws plain paper although the
+   * book has a ground — three answers, which is why the column is wrapped and
+   * why this map distinguishes an absent key from a null value.
+   */
+  const pageBackgrounds: Record<number, PageBackground | null> = {}
+
   for (const row of book.pages) {
     const spans = readMerges(row.merges)
     if (spans.length > 0) merges[row.index] = spans
+
+    const own = readPageBackground(row.background)
+    if (own !== undefined) pageBackgrounds[row.index] = own
   }
 
   const flow = flowBook({
@@ -342,6 +365,7 @@ export async function loadBook(
       background: choice.background ?? null,
       ...cardFit(flow.pages, blocks),
     },
+    pageBackgrounds,
     overrides: Object.fromEntries(
       book.pages.map((page) => [page.index, readOverrides(page.slotOverrides)])
     ),
@@ -997,7 +1021,8 @@ export async function deleteDraftBook(
  * merges, footers and pins already fit whatever the owner swaps in.
  *
  * What is copied: the grids (master, cover, back), the pins, the page rows with
- * their `slotOverrides`, and every offer with its items, chips, footnotes, legal
+ * their `slotOverrides`, merges and own backgrounds, and every offer with its
+ * items, chips, footnotes, legal
  * lines and unit-price settings.
  *
  * **What is deliberately not copied is everything that makes a book public.**
@@ -1048,7 +1073,7 @@ export async function duplicateBook(
           content: true,
         },
       },
-      pages: { select: { index: true, slotOverrides: true } },
+      pages: { select: { index: true, slotOverrides: true, merges: true, background: true } },
       offers: {
         orderBy: { position: 'asc' },
         select: {
@@ -1130,6 +1155,14 @@ export async function duplicateBook(
             ...(page.slotOverrides === null
               ? {}
               : { slotOverrides: page.slotOverrides as object }),
+            // **The layout copies with the book, which is the whole point of
+            // duplicating one.** A page's merges and its own paper are decisions
+            // the owner made about last week's book and expects to find in this
+            // week's — dropping them would make "duplicate" mean "duplicate the
+            // products", and re-laying out nine pages is the work the button
+            // exists to avoid.
+            ...(page.merges === null ? {} : { merges: page.merges as object }),
+            ...(page.background === null ? {} : { background: page.background as object }),
           })),
         },
       },

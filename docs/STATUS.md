@@ -970,7 +970,11 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   **A cell a pin has taken on a page is not offered on that page** — `FlowPage` now carries
   `pinnedRegionIds`. Without it the first merge anyone tried landed on a pinned top row,
   stored correctly, and changed nothing on the page they were looking at. `E6-pending.md`
-  §10. **Merging is per page as of 12 September** — the shared-master behaviour the model
+  §10. **A page may now have its own paper** — `offer_book_pages.background`, with three
+  answers rather than two: absent inherits the book, a stored `null` is deliberately plain
+  paper although the book has a ground, an object is the page's own. The value is wrapped
+  because Prisma's two JSON nulls read back identically. The preview and `duplicateBook`
+  both had to learn it. **Merging is per page as of 12 September** — the shared-master behaviour the model
   specified was rejected in use on sight, twice, so merges moved onto
   `offer_book_pages.merges` and `flowBook` applies them per page while one product cursor
   runs through the whole book. Two more defects came out of driving it in a browser: **a nine-second unlit wait**,
