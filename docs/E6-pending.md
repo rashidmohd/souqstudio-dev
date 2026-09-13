@@ -895,3 +895,56 @@ Cards across and down, the margin, the running header and footer, and the defaul
 Those change every page at once, which is right: they are the shape of the book. Merging
 and the paper are the two things a page may now disagree about, and both were asked for by
 the person using it rather than designed in.
+
+### A Page tab, and the tool rail regrouped by scope — 13 September
+
+The rail was Offers, Layout, Background, Pins, and its own doc comment described those as
+*"what is in the book, how the page is shaped, what the page looks like, and what is
+parked on one page"* — one content tab and three design tabs, presented as equals. The
+design skill says something different and says it plainly: **"The start pane is an offer
+tray, not a placement palette."** The rail, added later to match the block designer's, is
+where the editor drifted from that.
+
+**The parity argument that justified it does not hold on inspection.** The card designer's
+rail is homogeneous: every entry in `card-designer/ToolRail.tsx` inserts an element. One
+verb, fifteen nouns. The editor's was four unrelated kinds of thing wearing the same
+clothes. They looked alike and were not, and canvas parity is about how a surface *behaves*
+rather than how many icons are stacked on its edge.
+
+**The sharper problem was self-inflicted.** Merging and the page background are both
+page-scoped, and they had grown two different ways of asking which page: merging took it
+from the cell you clicked, the background from an "Applies to" dropdown added inside the
+Background tab the day before. Two mechanisms, one question, in two tabs, one of which also
+held book-wide settings.
+
+So the rail is now grouped by **scope**, which is the question an owner is actually
+answering:
+
+| Tab | Scope |
+| --- | --- |
+| Offers | What is in the book |
+| Layout | The book's shape: across, down, margin, running bands |
+| Background | The book's default paper |
+| **Page** | **This page: its own paper, its merged cells** |
+| Pins | What is parked on one page |
+
+`PagePanel` names the active page once at the top and everything below it is about that
+page. **Clicking any cell on the artboard sets it**, because the page an owner is working
+on is the page they just touched; the select is the tablet-reachable equivalent and the
+same control `PinsPanel` already uses. The "Applies to" dropdown is gone, and Background is
+the book's default again — which is what it was before per-page paper existed.
+
+The cell grid and the merge gesture moved from the Layout tool to the Page tool with the
+controls, so the hairlines now appear with the tab that names them.
+
+### Still open on this
+
+- **Pins is page-scoped too** and keeps its own "On page" select, so there are still two
+  notions of which page in the editor. Folding it into `PagePanel` is the obvious next
+  move; it was left alone because it also *lists* every pin in the book, which is a
+  different job from editing one page, and no one has complained about it.
+- **The principled end state is different again.** Three panes — tray, artboard, properties
+  — with page and book settings living in the properties pane when nothing is selected,
+  which is the documented model and the standard canvas pattern. It collides with the
+  cell-click-also-selects-the-offer coupling, and E9 export is still the only thing on the
+  critical path, so it is written down rather than built.

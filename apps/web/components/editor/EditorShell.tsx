@@ -15,11 +15,10 @@ import {
   type CellSpan,
   type FlowPage,
 } from '@souqstudio/engine'
-import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
-import { Select } from '@/components/ui/select'
 import { BookPage } from '@/components/editor/BookPage'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
+import { PagePanel } from '@/components/editor/PagePanel'
 import { PinsPanel } from '@/components/editor/PinsPanel'
 import {
   BookToolRail,
@@ -117,8 +116,8 @@ type Props = {
   gridProblems: { code: string }[]
 }
 
-/** The whole book, or one page by index. */
-type BackgroundScope = 'all' | number
+/** What a pending background edit is about: the book's default, or one page. */
+type BackgroundScope = 'book' | number
 
 export function EditorShell({
   bookId,
@@ -305,7 +304,7 @@ export function EditorShell({
    * looks. They go when the tool that needs them goes.
    */
   React.useEffect(() => {
-    if (tool !== 'layout') {
+    if (tool !== 'page') {
       clearCells()
       // The extend mode goes with them. Coming back to Layout and finding the
       // first tap silently extending a selection that is no longer on screen is
@@ -339,14 +338,15 @@ export function EditorShell({
   >(null)
 
   /**
-   * Which pages the Background tab is editing: the whole book, or one page.
+   * The page the Page tab is about.
    *
-   * **A select rather than a click on the artboard**, matching how Pins already
-   * asks the same question. There is no cell selection in this tab to borrow and
-   * nothing on the page to click that would mean "this page"; an explicit list is
-   * also the only version that works on a tablet with no hover.
+   * **One page, named once, shared by everything page-scoped.** Merging took its
+   * page from the clicked cell and the page background took its from a dropdown
+   * in another tab — two mechanisms for one question, which is what made the two
+   * feel like different features. Clicking any cell sets this, and the selector
+   * at the top of the panel sets it too.
    */
-  const [bgScope, setBgScope] = React.useState<BackgroundScope>('all')
+  const [activePage, setActivePage] = React.useState(0)
 
   const pageBg = usePageBackground(bookId)
 
@@ -364,34 +364,35 @@ export function EditorShell({
       const own = pageBackgrounds[pageIndex]
       if (own !== undefined) return own
 
-      if (draft !== null && draft.scope === 'all') return draft.value
+      if (draft !== null && draft.scope === 'book') return draft.value
       return layout.background
     },
     [draft, layout.background, pageBackgrounds]
   )
 
-  /** Whether the page in scope is still taking the book's answer. */
-  const scopeInherits =
-    bgScope !== 'all' &&
-    pageBackgrounds[bgScope] === undefined &&
-    !(draft !== null && draft.scope === bgScope)
+  /** Whether the active page is still taking the book's answer. */
+  const pageInherits =
+    pageBackgrounds[activePage] === undefined &&
+    !(draft !== null && draft.scope === activePage)
 
-  const shownBackground =
-    bgScope === 'all'
-      ? draft !== null && draft.scope === 'all'
-        ? draft.value
-        : layout.background
-      : backgroundFor(bgScope)
+  /** The book's own paper, for the Background tab. */
+  const bookBackground =
+    draft !== null && draft.scope === 'book' ? draft.value : layout.background
 
   // Once a write lands, `router.refresh()` brings the stored values back down and
   // the draft has nothing left to say.
   React.useEffect(() => setDraft(null), [layout.background, pageBackgrounds])
 
-  // A scope that outlived its page — the book got shorter — would edit a page
-  // nobody can see. Back to the book, which always exists.
+  // A page that outlived the book getting shorter would be edited by nobody.
   React.useEffect(() => {
-    setBgScope((scope) => (scope !== 'all' && scope >= pages.length ? 'all' : scope))
+    setActivePage((index) => (index >= pages.length ? Math.max(0, pages.length - 1) : index))
   }, [pages.length])
+
+  // Picking a cell is picking a page. The Page tab follows the artboard rather
+  // than making an owner say twice where they are working.
+  React.useEffect(() => {
+    if (cellPage !== null) setActivePage(cellPage)
+  }, [cellPage])
 
   // One set for the whole book, assembled from the pages. Each page reports its
   // own, so the union has to be held here rather than replaced per page — page
@@ -574,68 +575,24 @@ export function EditorShell({
                 error={grid.error ?? pageMergeWriter.error}
                 headerBlocks={headerBlocks}
                 footerBlocks={footerBlocks}
-                selection={selection}
-                addToSelection={addToSelection}
-                onToggleAddToSelection={() => setAddToSelection((on) => !on)}
-                pendingCells={pendingCells}
-                selectedPage={cellPage}
-                onMerge={() => {
-                  if (selectionSpan === null || cellPage === null) return
-                  applyMerges(cellPage, mergeSpan(pageMerges, selectionSpan, bounds), 'merge')
-                }}
-                onUnmerge={() => {
-                  if (selectionSpan === null || cellPage === null) return
-                  applyMerges(cellPage, unmergeSpan(pageMerges, selectionSpan), 'unmerge')
-                }}
               />
             </div>
 
-            <div hidden={tool !== 'background'} className="flex flex-col gap-3">
+            <div hidden={tool !== 'background'}>
               {/*
-                **Which pages this changes, asked before it is changed.** The
-                same question `PinsPanel` asks, in the same control, because an
-                owner choosing paper for one page and an owner placing a brand ad
-                on one page are doing the same kind of thing. "All pages" first,
-                because it is the answer for almost every book.
+                **The book's paper, and only the book's.** This tab briefly grew
+                an "Applies to" select so it could also write one page, which
+                left two tabs asking which page in two different ways. A page
+                that wants its own paper says so in the Page tab; this is the
+                default every page starts from.
               */}
-              <Select
-                label="Applies to"
-                value={bgScope === 'all' ? 'all' : String(bgScope)}
-                options={[
-                  { value: 'all', label: 'All pages' },
-                  ...pages.map((flowPage) => ({
-                    value: String(flowPage.index),
-                    label: `Page ${flowPage.index + 1} only`,
-                  })),
-                ]}
-                onChange={(event) =>
-                  setBgScope(
-                    event.target.value === 'all' ? 'all' : Number(event.target.value)
-                  )
-                }
-                hint={
-                  bgScope === 'all'
-                    ? 'The paper behind every page that has not been given its own.'
-                    : scopeInherits
-                      ? 'This page follows the book. Changing it here gives it paper of its own.'
-                      : 'This page has paper of its own.'
-                }
-              />
-
               <PageBackgroundControl
-                value={shownBackground}
+                value={bookBackground}
                 onChange={(next) => {
-                  const scope = bgScope
-                  setDraft({ scope, value: next })
-                  if (scope === 'all') {
-                    grid.patchSoon({ background: next }, (ok) => {
-                      if (!ok) setDraft(null)
-                    })
-                  } else {
-                    pageBg.writeSoon(scope, { background: next }, (ok) => {
-                      if (!ok) setDraft(null)
-                    })
-                  }
+                  setDraft({ scope: 'book', value: next })
+                  grid.patchSoon({ background: next }, (ok) => {
+                    if (!ok) setDraft(null)
+                  })
                 }}
                 palette={palette}
                 token={(ref) => resolveToken(palette, ref)}
@@ -648,30 +605,47 @@ export function EditorShell({
                 */
                 disabled={false}
               />
-
-              {/*
-                **Only once the page has something of its own to give back.** A
-                reset offered to a page that is already inheriting is a button
-                that cannot do anything, and an owner pressing it learns nothing
-                about why.
-              */}
-              {bgScope !== 'all' && !scopeInherits ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setDraft(null)
-                    void pageBg.write(bgScope, { inherit: true })
-                  }}
-                >
-                  Match all pages
-                </Button>
-              ) : null}
-
-              {grid.error ?? pageBg.error ? (
+              {grid.error !== null ? (
                 <p className="pt-2 font-ui text-body-sm text-critical-fg" role="alert">
-                  {grid.error ?? pageBg.error}
+                  {grid.error}
                 </p>
               ) : null}
+            </div>
+
+            <div hidden={tool !== 'page'}>
+              <PagePanel
+                page={activePage}
+                pageCount={pages.length}
+                onPage={setActivePage}
+                background={backgroundFor(activePage)}
+                inherits={pageInherits}
+                onBackground={(next) => {
+                  setDraft({ scope: activePage, value: next })
+                  pageBg.writeSoon(activePage, { background: next }, (ok) => {
+                    if (!ok) setDraft(null)
+                  })
+                }}
+                onMatchBook={() => {
+                  setDraft(null)
+                  void pageBg.write(activePage, { inherit: true })
+                }}
+                palette={palette}
+                token={(ref) => resolveToken(palette, ref)}
+                selection={selection}
+                addToSelection={addToSelection}
+                onToggleAddToSelection={() => setAddToSelection((on) => !on)}
+                pendingCells={pendingCells}
+                busy={grid.busy}
+                error={pageBg.error ?? pageMergeWriter.error}
+                onMerge={() => {
+                  if (selectionSpan === null || cellPage === null) return
+                  applyMerges(cellPage, mergeSpan(pageMerges, selectionSpan, bounds), 'merge')
+                }}
+                onUnmerge={() => {
+                  if (selectionSpan === null || cellPage === null) return
+                  applyMerges(cellPage, unmergeSpan(pageMerges, selectionSpan), 'unmerge')
+                }}
+              />
             </div>
 
             <div hidden={tool !== 'pins'}>
@@ -709,13 +683,13 @@ export function EditorShell({
                 selectedOfferId={selectedOfferId}
                 onSelectOffer={select}
                 /*
-                  **Only while the Layout tool is up.** Cell selection and card
+                  **Only while the Page tool is up.** Cell selection and card
                   selection are two rings on one artboard, and an owner pricing
                   offers has no use for the second — so the grid, the hairlines
                   and the merge gesture arrive with the tool that names them and
                   leave with it. Everywhere else this is the artboard it was.
                 */
-                {...(tool === 'layout'
+                {...(tool === 'page'
                   ? {
                       cells: flowPage.cells,
                       // Only the page that owns the selection draws a ring. A

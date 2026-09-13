@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
 import { MARGIN_STEPS, nearestMarginStep } from '@/lib/offer-book-layout'
@@ -18,6 +17,12 @@ import type { GridPatch } from '@/components/editor/use-grid-patch'
  * **Page count is feedback, not a setting.** "42 products → 5 pages" under the
  * choice, because that is the number the owner cares about: it is the print
  * bill, and making them compute it is the thing this panel exists to avoid.
+ *
+ * **This tab is the book, never one page.** Every control on it changes every
+ * page at once, which is what an owner means by "three across" or "a footer on
+ * every page". What one page does differently — its own paper, its merged cells
+ * — is the Page tab, and keeping the two apart is what stopped the editor
+ * asking "which page" in two different ways.
  *
  * **Bands are here rather than in their own tab because they are structural.**
  * A header or footer takes a track, which changes every cell's aspect and
@@ -62,49 +67,6 @@ type Props = {
    */
   headerBlocks: { id: string; name: string }[]
   footerBlocks: { id: string; name: string }[]
-  /**
-   * What the owner has selected on the artboard, and what can be done with it.
-   *
-   * **The gesture is on the canvas and the verb is in the panel**, which is the
-   * split the design system already asks for: an affordance revealed by hover is
-   * no affordance at all on the tablet this editor ships on, so "merge" is a
-   * button with a visible label in a panel rather than something that appears
-   * over a selection.
-   */
-  selection: {
-    /** Cells covered. Zero when nothing is selected. */
-    cells: number
-    /** False for a single cell — merging one cell is not an operation. */
-    canMerge: boolean
-    /** Whether the selection touches anything already merged. */
-    canUnmerge: boolean
-  }
-  onMerge: () => void
-  onUnmerge: () => void
-  /**
-   * Whether a tap extends the selection instead of starting a new one.
-   *
-   * **The tablet's shift key.** Extending a selection is shift-click or a drag,
-   * and an iPad has neither — long-press drag is unreliable there, which is why
-   * the design system asks for a persistent equivalent rather than a gesture.
-   * This is that equivalent, and it costs a mouse user nothing because they
-   * still have both.
-   */
-  addToSelection: boolean
-  onToggleAddToSelection: () => void
-  /**
-   * The cell edit the server has been told about and has not yet sent back.
-   *
-   * **Not `busy`, and the difference is the whole point.** `useGridPatch` clears
-   * `busy` when the *fetch* resolves, but the artboard only changes when
-   * `router.refresh()` finishes re-running the flow engine — which took nine
-   * seconds against a remote database. For those nine seconds every control was
-   * enabled, nothing moved, and the only reasonable conclusion was that the
-   * button did not work. This stays set until the new grid is on screen.
-   */
-  pendingCells: 'merge' | 'unmerge' | null
-  /** Which page the selection is on, zero-based. Null when nothing is selected. */
-  selectedPage: number | null
 }
 
 export function LayoutPanel({
@@ -121,13 +83,6 @@ export function LayoutPanel({
   error,
   headerBlocks,
   footerBlocks,
-  selection,
-  onMerge,
-  onUnmerge,
-  addToSelection,
-  onToggleAddToSelection,
-  pendingCells,
-  selectedPage,
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
@@ -190,17 +145,6 @@ export function LayoutPanel({
           stretched. Try one row fewer, or remove a band.
         </p>
       ) : null}
-
-      <Cells
-        selection={selection}
-        disabled={busy}
-        onMerge={onMerge}
-        onUnmerge={onUnmerge}
-        addToSelection={addToSelection}
-        onToggleAddToSelection={onToggleAddToSelection}
-        pending={pendingCells}
-        page={selectedPage}
-      />
 
       <Band
         title="Header"
@@ -285,125 +229,5 @@ function Band({
       onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
       hint={blocks.length === 0 ? 'No blocks of this kind in your library yet.' : 'On every page.'}
     />
-  )
-}
-
-/**
- * Merging and unmerging, which is the one layout edit an owner makes on the
- * artboard rather than in this panel.
- *
- * **The verb lives here because hover does not exist on a tablet.** The design
- * system permits an icon-only control in the editor toolbar only on condition
- * the same action is reachable with a visible label elsewhere, and forbids
- * revealing a label on hover at all. A toolbar that floats over a selection is
- * exactly the affordance that disappears on an iPad, so the selection happens on
- * the canvas and the naming happens in a panel that is always there.
- *
- * **A merge belongs to the page it was made on.** Merging the first two cells of
- * page one leaves page two alone — pages share the tracks, the bands and the
- * paper, and nothing else. The ring drawn on that page and no other says it
- * once; the line under the buttons names the page in words, because an owner
- * three pages down cannot see which page they are about to change.
- *
- * **Empty is a state, not a disabled button with no explanation.** With nothing
- * selected this names the gesture that fills it, because "Merge (disabled)" is a
- * control that tells an owner nothing about how to enable it.
- */
-function Cells({
-  selection,
-  disabled,
-  onMerge,
-  onUnmerge,
-  addToSelection,
-  onToggleAddToSelection,
-  pending,
-  page,
-}: {
-  selection: { cells: number; canMerge: boolean; canUnmerge: boolean }
-  disabled: boolean
-  onMerge: () => void
-  onUnmerge: () => void
-  addToSelection: boolean
-  onToggleAddToSelection: () => void
-  pending: 'merge' | 'unmerge' | null
-  page: number | null
-}) {
-  return (
-    <div className="flex flex-col gap-2 rounded-block bg-sand p-3">
-      <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">Cells</h3>
-
-      {selection.cells === 0 ? (
-        <p className="font-ui text-body-sm text-muted">
-          Pick a card on the page. To take in more, drag across them, shift-click,
-          or turn on Add to selection.
-        </p>
-      ) : (
-        <p className="font-ui text-body-sm text-muted">
-          <Figure value={selection.cells} size="data-sm" />{' '}
-          {selection.cells === 1 ? 'cell' : 'cells'} selected.{' '}
-          {selection.canMerge ? 'Merging makes them one card.' : 'Take in one more to merge.'}
-        </p>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        {/*
-          `loading` rather than a disabled button, because it holds the width and
-          says *something is happening* rather than *you may not do this*. The
-          grid is rebuilt and re-flowed server-side, so the wait is real and the
-          artboard cannot move until it is over.
-        */}
-        <Button
-          type="button"
-          loading={pending === 'merge'}
-          disabled={disabled || !selection.canMerge}
-          onClick={onMerge}
-        >
-          Merge
-        </Button>
-        <Button
-          type="button"
-          loading={pending === 'unmerge'}
-          disabled={disabled || !selection.canUnmerge}
-          onClick={onUnmerge}
-        >
-          Unmerge
-        </Button>
-        {/*
-          A mode rather than a gesture, and it stays on until it is turned off.
-          `aria-pressed` is what makes it a toggle to a screen reader; the label
-          never changes, because a control that renames itself when pressed is
-          one an owner has to read twice to know what it will do.
-        */}
-        {/*
-          **`secondary` when off, never `ghost`.** A ghost button on this tinted
-          block is bold text with no border and no ground — beside two outlined
-          pills it reads as a heading, not a control, and an owner has no reason
-          to press it. Off it is an outlined pill like its neighbours; on it is
-          the one primary in this panel, because blue carries active state.
-        */}
-        <Button
-          type="button"
-          aria-pressed={addToSelection}
-          variant={addToSelection ? 'primary' : 'secondary'}
-          onClick={onToggleAddToSelection}
-        >
-          Add to selection
-        </Button>
-      </div>
-
-      {/*
-        **Which page, by number, and it matters.** Merging changes the page the
-        cells are on and no other, so the panel names it: an owner who has
-        scrolled three pages down needs to know which page is about to change
-        before they change it, and the selection ring alone only tells them once
-        they have found it again.
-      */}
-      {(selection.canMerge || selection.canUnmerge) && page !== null ? (
-        <p className="font-ui text-body-sm text-muted">
-          This changes page <Figure value={page + 1} size="data-sm" /> only. Other
-          pages keep their own layout.
-        </p>
-      ) : null}
-    </div>
   )
 }

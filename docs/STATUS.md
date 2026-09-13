@@ -947,8 +947,12 @@ reasoning live in `docs/E6-pending.md`; this is the summary.
   as feedback rather than as a second control. Density is derived, never chosen. **Since
   11 September it also carries the page margin, a running header and footer band, and the
   page background** — colour, gradient or image. One route, patched as a delta.
-- **A tool rail** on the start pane — Offers, Layout, Background, Pins — matching the block
-  designer's. §1.4.
+- **A tool rail** on the start pane — Offers, Layout, Background, **Page**, Pins — **grouped
+  by scope since 13 September**. Offers, Layout and Background are the book; Page is one
+  page's own paper and its merged cells, with the active page named once and set by
+  clicking any cell on the artboard. It was four tabs mixing content with design, and the
+  two page-scoped controls had grown two different ways of asking which page. §1.4 and
+  `E6-pending.md` §10.
 - **Pins.** `book_pins` has a writer: pick a panel, a page and a shape rather than four
   coordinates. Only a block that does not repeat may be pinned.
 - **Duplicating a book** — the control the design skill expects to be the most-used in the

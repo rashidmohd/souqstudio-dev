@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import {
+  FileText,
   LayoutGrid,
   PaintBucket,
   PanelLeftClose,
@@ -44,7 +45,7 @@ import type { LucideIcon } from 'lucide-react'
  * the active tool's name as its heading, which is that.
  */
 
-export type BookTool = 'offers' | 'layout' | 'background' | 'pins'
+export type BookTool = 'offers' | 'layout' | 'background' | 'page' | 'pins'
 
 type ToolSpec = {
   key: BookTool
@@ -53,8 +54,15 @@ type ToolSpec = {
 }
 
 /**
- * The four, in the order an owner reaches for them: what is in the book, how
- * the page is shaped, what the page looks like, and what is parked on one page.
+ * The five, ordered by what they reach: the book's contents, the book's shape,
+ * the book's paper, then one page, then what is parked on one.
+ *
+ * **Grouped by scope, because that is the question an owner is actually
+ * answering.** Offers, Layout and Background are the book — change one and every
+ * page changes. Page is this page and no other: its own paper, its merged cells.
+ * Those were mixed together and it showed, because the two page-scoped controls
+ * had ended up asking "which page" in two different ways — one by clicking the
+ * artboard, one by a dropdown. There is one answer now and this tab holds it.
  *
  * **Icons chosen for what they already mean**, not invented. A basket is the
  * things you are selling; a grid is the page; the paint bucket is the same glyph
@@ -69,6 +77,7 @@ export const BOOK_TOOLS: ToolSpec[] = [
   { key: 'offers', label: 'Offers', icon: ShoppingBasket },
   { key: 'layout', label: 'Layout', icon: LayoutGrid },
   { key: 'background', label: 'Background', icon: PaintBucket },
+  { key: 'page', label: 'Page', icon: FileText },
   { key: 'pins', label: 'Pins', icon: Pin },
 ]
 
