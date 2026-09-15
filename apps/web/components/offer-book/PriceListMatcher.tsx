@@ -288,6 +288,22 @@ export function PriceListMatcher({ onResolved, max }: Props) {
           hint="A CSV with a product name in each row, and a barcode and price where you have them. Excel files are not supported yet, so save as CSV first."
           error={error ?? undefined}
         />
+        {/* **A link rather than a Button.** It navigates to a file, and `Button`
+            renders a `<button>` with no `asChild`; wrapping one to make it an
+            anchor would be a second API for a component the inventory owns.
+            Secondary to the drop either way — most owners already have a sheet,
+            and this is for the one who is going to ask their POS for a new one. */}
+        <p className="font-ui text-body-sm text-muted">
+          Not sure of the format?{' '}
+          <a
+            href="/api/v1/catalog/price-list-template"
+            download
+            className="text-link underline-offset-2 hover:underline"
+          >
+            Download a template
+          </a>{' '}
+          with your own products in it, and hand it to whoever runs your till.
+        </p>
       </div>
     )
   }

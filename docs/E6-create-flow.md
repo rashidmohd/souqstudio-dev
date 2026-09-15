@@ -1223,3 +1223,76 @@ other catalog write answers it.
   in `HEADER_HINTS` and the matcher's own mapping screen knows them. A product adopted with
   a name alone cannot draw a unit-price line and cannot publish in Arabic. The sheet often
   has that data; this path throws it away.
+
+---
+
+## 17. The template you hand to the till, 15 September
+
+§15.3 listed this as owed and nothing in the product offered one: no sample file, no help
+page, nothing in `public/`. An owner asking *"what should the CSV look like?"* had no answer
+except to upload something and find out.
+
+`GET /api/v1/catalog/price-list-template` returns one, linked under the dropzone.
+
+### 17.1 Generated, not documented
+
+A column spec on a help page has to be **retyped by whoever runs the shop's POS**, and a
+spec that is retyped is a spec that arrives wrong — a header spelled `Item Code` rather than
+`Barcode` is a column the matcher will not guess and an owner will not think to remap.
+Handing them a file removes the transcription step entirely.
+
+The headers are the exact spellings `HEADER_HINTS` already recognises, so a file returned
+unchanged maps itself with nothing to confirm. They are not the *only* spellings that
+work — the mapping selects stay, because a POS that cannot be told its column names is the
+common case and this template is for the one that can.
+
+**The sample rows are the shop's own products where they have any**, universal ones where
+they do not. They show the shape and they also prove the file works: those rows will match
+when it comes back. Placeholders show only the shape, and a template that matches nothing on
+its first run teaches an owner the feature is broken.
+
+**Three columns, not seven.** `HEADER_HINTS` knows brand, pack size and Arabic name and this
+flow reads none of them. A template offering columns that are silently ignored is worse than
+a narrow one, because the owner fills them in and believes they arrived. When §16.5's "the
+sheet often has that data and this path throws it away" is fixed, the columns belong here.
+
+### 17.2 Three details that are not decoration
+
+- **A BOM, and `charset=utf-8`.** Excel on Windows reads a UTF-8 CSV as the local code page
+  unless the file opens with a byte-order mark, which turns an Arabic product name into
+  mojibake — that the owner then "fixes" by retyping it. `parseSheet` already strips a BOM
+  on the way back in, so the round trip is clean.
+- **CRLF and a trailing newline**, per RFC 4180, because Excel is the reader that cares and
+  a file ending without one is reported by some tools as having a truncated last row.
+- **Quoted only where it has to be.** Quoting every cell is simpler and wrong here: a sheet
+  where everything is wrapped in quotes reads as machine output and invites being cleaned
+  up, where one that looks hand-typed gets edited in place — which is the whole point of a
+  template. Padding is quoted too, because Excel keeps a leading space and our parser trims
+  it, and a name that round-trips differently from how it was written is the kind of
+  difference nobody looks for.
+
+`toCsv` lives in `lib/csv.ts` beside the parser and is held to round-tripping through it:
+commas, embedded quotes and padding all survive.
+
+### 17.3 The example barcodes were wrong, in a template about barcodes
+
+The fallback rows for an organization with an empty catalog first carried three numbers that
+*looked* like GTINs — `6291100000014` and two like it. **All three fail the GS1 check
+digit**, so `hasValidCheckDigit` would have dropped every one on the way back in and the
+owner would have watched the barcode column quietly do nothing, in the file whose job is
+partly to teach them what that column is for.
+
+They are `6291100000012`, `6291100000029` and `6291100000036` now — `629` is the UAE
+prefix — and `csv.test.ts` pins them, so changing a digit fails a test rather than shipping.
+**Nothing else would have caught this**: it is data rather than behaviour, typecheck has no
+opinion on a string, and the only other check is a person scanning a barcode off a screen.
+
+### 17.4 Still owed
+
+- **The catalog import screen has no template**, though `/catalog/import` is the flow with
+  the *permanent* stakes and the full seven-column vocabulary. Same route, different
+  column list, and it should not be the same file.
+- **Nothing tells an owner what came back.** The template teaches the request; it does not
+  help the owner whose POS exports something else entirely, which is most of them.
+- **Not opened in a browser**, and the Excel behaviours above — the BOM in particular — are
+  exactly the kind that only a real spreadsheet application can confirm.

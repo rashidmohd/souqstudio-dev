@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { detectDelimiter, parseDelimited, parseSheet, toRecord } from '@/lib/csv'
+import { hasValidCheckDigit } from '@souqstudio/types'
+import { detectDelimiter, parseDelimited, parseSheet, toCsv, toRecord } from '@/lib/csv'
 
 /**
  * The CSV parser, E5-06.
@@ -133,5 +134,60 @@ describe('toRecord', () => {
 
   it('fills a short row with empty strings rather than undefined', () => {
     expect(toRecord(['Item', 'Rate'], ['Rice'])).toEqual({ Item: 'Rice', Rate: '' })
+  })
+})
+
+describe('toCsv', () => {
+  /**
+   * The template the price-list flow hands out. It is opened in Excel by a shop
+   * owner and then passed to whoever runs their POS, so it has to survive being
+   * edited in place and read back by `parseSheet`.
+   */
+  it('quotes only the fields that need it', () => {
+    // A sheet where every cell is quoted reads as machine output and invites
+    // being "cleaned up". One that looks hand-typed gets edited in place.
+    expect(toCsv(['Product name', 'Price'], [['Basmati rice', '12.90']])).toBe(
+      'Product name,Price\r\nBasmati rice,12.90\r\n'
+    )
+  })
+
+  it('quotes a comma, and doubles an embedded quote', () => {
+    expect(toCsv(['a'], [['Rice, 5 kg']])).toBe('a\r\n"Rice, 5 kg"\r\n')
+    expect(toCsv(['a'], [['5" pan']])).toBe('a\r\n"5"" pan"\r\n')
+  })
+
+  it('quotes padding, because Excel keeps it and our parser trims it', () => {
+    expect(toCsv(['a'], [[' Rice ']])).toBe('a\r\n" Rice "\r\n')
+  })
+
+  it('round-trips through parseSheet', () => {
+    // The property that matters: whatever we hand out, we can read back.
+    const headers = ['Product name', 'Barcode', 'Price']
+    const rows = [
+      ['Rice, long grain', '6291234567890', '12.90'],
+      ['Tea 5" tin', '', '4.50'],
+    ]
+    const parsed = parseSheet(toCsv(headers, rows))
+    expect(parsed.headers).toEqual(headers)
+    expect(parsed.rows).toEqual(rows)
+  })
+})
+
+describe('the price-list template example barcodes', () => {
+  /**
+   * The fallback rows in `GET /api/v1/catalog/price-list-template`, for an
+   * organization whose catalog is empty.
+   *
+   * **They are data, not behaviour, and they were wrong first time.** Three
+   * numbers that looked like barcodes in a template whose job is partly to teach
+   * what a barcode column is — `hasValidCheckDigit` would have dropped every one
+   * of them on the way back in, and the owner would have seen the barcode column
+   * quietly do nothing. Pinned here so changing a digit fails a test rather than
+   * shipping.
+   */
+  it('carry correct GS1 check digits', () => {
+    for (const code of ['6291100000012', '6291100000029', '6291100000036']) {
+      expect(hasValidCheckDigit(code)).toBe(true)
+    }
   })
 })

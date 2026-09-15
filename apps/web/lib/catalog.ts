@@ -594,6 +594,51 @@ export type NewProductImage = {
 }
 
 /**
+ * A few real products to seed the downloadable price-list template.
+ *
+ * **The shop's own lines first, then the universal catalog.** A template filled
+ * with products the owner recognises shows the shape *and* proves the file
+ * works — those rows will match when it comes back. Invented placeholders show
+ * only the shape, and a template that matches nothing on its first run teaches
+ * the owner the feature is broken.
+ *
+ * Only rows that have a barcode, because the template's job is partly to say
+ * that the barcode column is the one worth filling in.
+ *
+ * Two queries rather than one ordered by `organizationId` — Postgres sorts NULLs
+ * first on DESC, so "own before universal" is a `NULLS LAST` the query builder
+ * does not express, and topping up is clearer than the raw SQL that would.
+ */
+export async function templateSampleProducts(
+  session: VerifiedSession,
+  limit = 3
+): Promise<Array<{ nameEn: string; barcode: string }>> {
+  const select = { nameEn: true, barcode: true } as const
+  const where = { archivedAt: null, barcode: { not: null } } as const
+
+  const own = await prisma.catalogProduct.findMany({
+    where: { ...where, organizationId: session.user.organizationId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select,
+  })
+
+  const universal =
+    own.length >= limit
+      ? []
+      : await prisma.catalogProduct.findMany({
+          where: { ...where, organizationId: null },
+          orderBy: { nameEn: 'asc' },
+          take: limit - own.length,
+          select,
+        })
+
+  return [...own, ...universal].flatMap((product) =>
+    product.barcode === null ? [] : [{ nameEn: product.nameEn, barcode: product.barcode }]
+  )
+}
+
+/**
  * Adopt price-list rows the matcher could not place into the shop's own
  * collection. `docs/E6-create-flow.md` §16.
  *

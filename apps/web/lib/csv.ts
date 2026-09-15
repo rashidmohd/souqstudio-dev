@@ -186,3 +186,36 @@ export function toRecord(headers: string[], row: string[]): Record<string, strin
   })
   return record
 }
+
+/**
+ * One field, quoted only when it has to be. RFC 4180.
+ *
+ * **Quoting everything would be simpler and is wrong here**, because the file
+ * this builds is opened in Excel by a shop owner and then handed to whoever runs
+ * their POS. A sheet where every cell is wrapped in quotes reads as machine
+ * output and invites being "cleaned up"; one that looks like something a person
+ * typed gets edited in place, which is the whole point of a template.
+ *
+ * A leading or trailing space is quoted too: Excel keeps it, our parser trims
+ * it, and a name that round-trips differently from how it was written is the
+ * kind of difference nobody looks for.
+ */
+function field(value: string): string {
+  const needsQuotes = /[",\r\n]/.test(value) || value !== value.trim()
+  return needsQuotes ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+/**
+ * Rows to a CSV document, for the template the price-list flow hands out.
+ *
+ * **CRLF, and a trailing newline.** RFC 4180 says CRLF and Excel on Windows is
+ * the reader that cares; a file ending without a newline is one some tools
+ * report as having a truncated last row.
+ *
+ * The inverse of `parseSheet` for everything this writes — commas, quotes and
+ * newlines inside a cell all survive the round trip, which
+ * `csv.test.ts` holds it to.
+ */
+export function toCsv(headers: readonly string[], rows: ReadonlyArray<readonly string[]>): string {
+  return [headers, ...rows].map((row) => row.map(field).join(',')).join('\r\n') + '\r\n'
+}
