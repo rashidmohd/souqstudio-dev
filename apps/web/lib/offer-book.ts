@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { adoptRowsIntoCatalog } from '@/lib/catalog'
 import { prisma } from '@souqstudio/db'
 import {
   arrangementCovers,
@@ -593,10 +594,24 @@ export interface CreateFromCatalogInput extends CreateBookInput {
 
 export interface CreateFromRowsInput extends CreateBookInput {
   /**
-   * Products the owner matched from a price list, with the promotion the sheet
+   * Every row of the price list, matched or not, with the promotion the sheet
    * gave for each. Order is the sheet's order.
    */
-  rows: PendingOffer[]
+  rows: Array<Omit<PendingOffer, 'catalogProductId'> & SheetRow>
+}
+
+/**
+ * How a price-list row names its product: by a catalog row, or by the words on
+ * the sheet.
+ *
+ * **Not matching is not a failure and does not drop the row.** The catalog is
+ * how an offer finds its *photograph*; a shop's own lines are in nobody's
+ * universal catalog and are still the products they are promoting.
+ */
+interface SheetRow {
+  catalogProductId: string | null
+  name: string
+  barcode?: string | undefined
 }
 
 /** One offer to write: a product, what it costs, and what the sheet called it. */
@@ -895,11 +910,44 @@ export async function createBookFromRows(
 
   // The client sent these product ids, so they get the same filter the
   // search-and-pick path gets. A matched row is still a client-supplied id.
-  const allowed = await visibleProductIds(
-    input.rows.map((row) => row.catalogProductId),
-    organizationId
+  const claimed = input.rows.flatMap((row) =>
+    row.catalogProductId === null ? [] : [row.catalogProductId]
   )
-  const offers = input.rows.filter((row) => allowed.has(row.catalogProductId))
+  const allowed = await visibleProductIds(claimed, organizationId)
+
+  /*
+   * **Rows the catalog does not have become products, here, as the book is
+   * made.** Not in a step of their own and not behind a button: an owner
+   * importing their price list is telling us what they sell, and asking them to
+   * confirm that their own bakery counter may be written down is a question
+   * with one answer.
+   *
+   * **At creation rather than at matching**, so an owner who uploads the wrong
+   * file and walks away leaves nothing behind. Nothing is written until they
+   * commit to the book.
+   *
+   * A row whose id was dropped by `visibleProductIds` is adopted too — it named
+   * a product of somebody else's, so as far as this organization is concerned
+   * the catalog has never heard of it, which is the same case.
+   */
+  const orphans = input.rows.flatMap((row, index) =>
+    row.catalogProductId !== null && allowed.has(row.catalogProductId)
+      ? []
+      : [{ index, nameEn: row.name, ...(row.barcode === undefined ? {} : { barcode: row.barcode }) }]
+  )
+  const adopted = new Map(
+    (await adoptRowsIntoCatalog(organizationId, orphans)).map((row) => [row.index, row.catalogProductId])
+  )
+
+  const offers = input.rows.flatMap((row, index) => {
+    const catalogProductId =
+      row.catalogProductId !== null && allowed.has(row.catalogProductId)
+        ? row.catalogProductId
+        : adopted.get(index) ?? null
+    // Only if adopting it failed, which `adoptRowsIntoCatalog` does not do
+    // quietly — but a row with no product is an offer with nothing to draw.
+    return catalogProductId === null ? [] : [{ ...row, catalogProductId }]
+  })
   if (offers.length === 0) return null
 
   const book = await insertBook(
@@ -1047,6 +1095,12 @@ export async function createBookFromImport(
           : [
               {
                 catalogProductId: row.catalogProductId,
+                // **Never read, and empty rather than invented.** A committed
+                // E5-06 import has already written its products into the
+                // catalog, and the `flatMap` above drops any row that did not —
+                // so every row reaching here carries an id, and `name` is only
+                // ever consulted when the id is null.
+                name: '',
                 // Prisma returns Decimal; it stays a string the whole way back
                 // to Prisma, exactly as the import took care to read it.
                 price: row.price === null ? null : row.price.toString(),

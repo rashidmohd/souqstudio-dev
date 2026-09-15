@@ -668,10 +668,9 @@ export async function templateSampleProducts(
  * mispairing here puts one row's product against another row's price.
  */
 export async function adoptRowsIntoCatalog(
-  session: VerifiedSession,
+  organizationId: string,
   rows: ReadonlyArray<{ index: number; nameEn: string; barcode?: string | undefined }>
 ): Promise<Array<{ index: number; catalogProductId: string }>> {
-  const organizationId = session.user.organizationId
   if (rows.length === 0) return []
 
   return prisma.$transaction(async (tx) => {

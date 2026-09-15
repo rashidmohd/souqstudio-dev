@@ -1400,3 +1400,89 @@ flyer.
   it.
 - **No test of the write path.** `insertBook` now writes `comparePrice` and a chip row, and
   that is a Prisma call — the same gap §16.5 records.
+
+---
+
+## 19. Matching is how an offer finds its photograph, not a gate, 15 September
+
+§16 decided that an unmatched row goes into the shop's own collection and put it behind a
+button. That was still the wrong shape, and the owner said so: *"we don't have to match the
+products in our product catalog — we are keeping the product catalog mainly to get the
+images of those products."*
+
+**That is the correct reading of what the catalog is for in this flow**, and two things
+follow from it:
+
+- **A row that matches nothing is not a problem to resolve.** It is a product the shop
+  sells. The wizard refusing to continue — *"None of those rows matched a product yet"* —
+  was the product telling an owner their own price list was invalid.
+- **There is nothing to ask.** An owner importing their price list is telling us what they
+  sell; asking them to confirm that their own bakery counter may be written down is a
+  question with one answer, and a button for it is a step.
+
+So the button is gone, the standalone `POST /api/v1/catalog/products` that backed it is gone
+with it, and **`createBookFromRows` adopts every orphan row as it creates the book.**
+
+### 19.1 At creation, not at matching
+
+Nothing is written while an owner is still looking at the match table. Upload the wrong
+file, press "Different file", close the tab — and the catalog is exactly as it was. The
+write happens once, in the same call that makes the book, which is also the moment the
+owner has committed to it.
+
+A row whose `catalogProductId` was dropped by `visibleProductIds` is adopted too. It named a
+product belonging to another organization, so as far as this one is concerned the catalog
+has never heard of it — the same case, and previously the same silent drop.
+
+### 19.2 The placeholder was already right
+
+`Packshot` in `components/blocks/draw.tsx` has drawn one since it was written, with the
+reasoning already in place: *"The placeholder is not a failure state and must not look like
+one. 4.2% of the catalog has an image today, so a page of real offers is mostly this."*
+Nothing needed building. The `no-image` flag is what tells the owner, in the editor's
+"Before publishing" list, rather than the card looking broken on the page.
+
+### 19.3 What the screen says now
+
+| Before | Now |
+| --- | --- |
+| "Not in your catalog. This row is skipped." | "New to your catalog. It goes in the book with a placeholder photo." |
+| A button: "Add to my catalog" | A sentence: these rows go in the book and are added to your products, so they match on their own next time |
+| "None of those rows matched a product yet." | "That file has no rows we can read. Check the product name column." |
+
+The last one matters most: the only way to have nothing now is to have uploaded nothing
+usable, so the message names the column to look at rather than blaming the match.
+
+### 19.4 The photograph is the open half — E5-07
+
+The owner's own next step: *"offer book menu, add QR code button — they get a different QR
+code for each product and can scan it and upload or take the photo. Or they can simply
+upload the product photo from the offer booklet editor."*
+
+**That is E5-07, it is specified, and the schema for it already exists.** `CaptureSession`
+is in `schema.prisma` — organization- and shop-scoped, token-hashed the same way sessions
+are, with an `importId` for the run the photographs flow back into. `docs/E5-product-catalog.md`
+§E5-07 carries the rules: the phone **never** gets a shop-owner session, each photo writes an
+`ImageAsset` ORIGINAL and enqueues the cutout, and an expired code renders "this link has
+expired" rather than an error.
+
+What does not exist: `app/capture/[code]`, the route that mints a session, the QR itself, and
+any way to upload a photo for one offer from the editor. Two things worth deciding before it
+is built:
+
+- **Per product or per session.** The owner said a QR *per product*, which is the better
+  scan-and-shoot loop — no picking from a list on a phone in an aisle. It also means a page
+  of forty QR codes, so the printable sheet is part of the feature rather than an
+  afterthought.
+- **The editor upload is the smaller half and unblocks the same gap.** One offer, one
+  photo, from the properties panel. It needs only the R2 upload path — **which began working
+  on 15 September** and had never been exercised before that, so this is newly possible.
+
+### 19.5 Still owed
+
+- **Adopted products carry a name and nothing else.** Brand, pack size and Arabic name are
+  in the sheet and in `HEADER_HINTS`, and this path still throws them away — so an adopted
+  product cannot draw a unit-price line and cannot publish in Arabic. Unchanged from §16.5
+  and now more visible, because these rows are the common case rather than the exception.
+- **No test of the write path**, still: adoption and book creation are both Prisma calls.
+- **Not opened in a browser.**

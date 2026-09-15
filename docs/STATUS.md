@@ -985,6 +985,14 @@ before it starts.
 
 ### E5 — Product catalog (MVP) — search and browsing are built
 
+**E5-07 phone capture is the thing to build next here, and it is newly unblocked.** A price
+list now creates an offer for every row, matched or not, so a book can be full of the shop's
+own products drawing the placeholder packshot — and nothing in the product lets an owner put
+a photograph on one. `CaptureSession` is already in the schema, token-hashed and shop-scoped;
+what is missing is `app/capture/[code]`, the QR, and a per-offer upload in the editor. The
+smaller half is the editor upload, which needs only the R2 path that started working on
+15 September. `E6-create-flow.md` §19.4.
+
 **E5-01, E5-02, E5-03, E5-04 and E5-06 ship.** `/catalog` is a search box over both
 collections with the category tiles as its empty state, a barcode goes to its own lookup
 rather than to full-text search, a search or scan that finds nothing offers to add the
@@ -1430,7 +1438,7 @@ These are waiting on a human, not on effort. Each one changes what gets built.
 | **`Select` has no `size` prop** | any row pairing a select with an `lg` input | the inventory raised it at E2 and it has now bitten twice. `ColorField` got the prop; `Select` still has not |
 | **Forcing an incomplete owner into the wizard** from anywhere in the dashboard | nothing | `E4-pending.md` §2 |
 | **`StatusPill` enum** — no value for active/paused/pending/expired | the pill, and three screens using plain text instead | `E2-pending.md` §6 Q1 |
-| ~~**What a CSV row that matches no product should do**~~ | — | **Decided 15 September**: it goes into the shop's own collection, with no image and no contribution row. `E6-create-flow.md` §16. The flyer flow does now write products; what answered the objection is that the alternative was a book missing a grocery's private label and a pharmacy's entire stock |
+| ~~**What a CSV row that matches no product should do**~~ | — | **Decided 15 September**: it goes into the shop's own collection as the book is created, with no image and no contribution row, and with nothing asked. Matching is how an offer finds its *photograph*, not a gate on what a shop may promote. `E6-create-flow.md` §16 and §19 |
 | **A browser driver** — Playwright plus a Chromium binary, or nothing | every UI change from here | §1.0. Three defects in two days were found by a person opening a screen; `curl` proves structure and cannot prove behaviour or contrast. It is a dependency install, so it is a decision rather than a task |
 | **Cards have no `SQUARISH` arrangement** — add one to the twenty-five, or keep constraining grids to `TALL`/`WIDE` | posters and any hand-built grid | `E6-create-flow.md` §7 and §10.4. `pickArrangement` falls back silently, so the failure is a stretched card and not an error. The shipped defaults dodge it; the editor's layout panel can still reach it, and warns |
 

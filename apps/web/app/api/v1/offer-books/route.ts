@@ -85,7 +85,23 @@ const createSchema = z.union([
     rows: z
       .array(
         z.object({
-          catalogProductId: z.string().min(1),
+          /**
+           * The catalog row this offer draws from, or **null when the sheet
+           * named something the catalog has never heard of**.
+           *
+           * Null does not drop the row. The catalog is how an offer finds its
+           * *photograph*, not a list of what a shop may promote — a grocery's
+           * private label and a pharmacy's entire stock are in nobody's
+           * universal catalog. `createBookFromRows` writes those into the
+           * organization's own collection as it creates the book, and the card
+           * draws the placeholder `Packshot` already has until somebody adds a
+           * picture.
+           */
+          catalogProductId: z.string().min(1).nullable(),
+          /** The sheet's spelling. Required, because it is what gets written. */
+          name: z.string().trim().min(1).max(200),
+          /** Check-digit tested before it is stored — see `adoptRowsIntoCatalog`. */
+          barcode: z.string().trim().max(64).optional(),
           /** The mark. What the customer pays. */
           price: priceSchema,
           /**

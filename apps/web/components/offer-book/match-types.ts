@@ -23,7 +23,22 @@ import type { CatalogProductSummary, ImportRowStatus } from '@souqstudio/types'
  * to be added in both places.
  */
 export type ResolvedRow = {
-  catalogProductId: string
+  /**
+   * The catalog row this offer draws from, or **null when the sheet named a
+   * product the catalog has never heard of**.
+   *
+   * Null is not a failure and does not drop the row. The catalog is how an offer
+   * finds its *photograph*; a shop's own lines — private label, the bakery
+   * counter — are in nobody's universal catalog and are still the products they
+   * are promoting. `POST /api/v1/offer-books` writes them into the
+   * organization's own collection as it creates the book, and the card draws the
+   * placeholder until somebody adds a picture.
+   */
+  catalogProductId: string | null
+  /** The sheet's spelling, carried so the server can create the row. */
+  name: string
+  /** Validated on the server before it is written. */
+  barcode?: string
   /** The mark. What the customer pays. */
   price: string | null
   /** The strikethrough, where the sheet gave a genuine was-price. */

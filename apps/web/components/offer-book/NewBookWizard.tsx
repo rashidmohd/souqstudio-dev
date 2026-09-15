@@ -102,10 +102,14 @@ export function NewBookWizard({ blocks, kit, lang }: Props) {
     // explanation is a dead end: submit, then say what is missing.
     if (kind === null) return setError('Pick what you want to make.')
     if (count === 0) {
+      // **Not "nothing matched".** Matching is how an offer finds its
+      // photograph, not a gate on what may go in the book — an unmatched row is
+      // written into this shop's own products as the book is created. The only
+      // way to have nothing here is to have uploaded nothing usable.
       return setError(
         source === 'catalog'
           ? 'Add at least one product.'
-          : 'None of those rows matched a product yet.'
+          : 'That file has no rows we can read. Check the product name column.'
       )
     }
 

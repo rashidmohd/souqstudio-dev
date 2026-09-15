@@ -253,65 +253,6 @@ export function PriceListMatcher({ onResolved, max }: Props) {
   }
 
   /**
-   * Put the rows the matcher could not place into the shop's own catalog.
-   *
-   * **This is the half of a price list that the universal catalog will never
-   * have** — private label, the bakery counter, local brands. Before this they
-   * were listed and skipped, so a grocery got a book missing exactly the lines
-   * they make the most margin on.
-   *
-   * The new products land in `picks`, which is the mechanism the ambiguous rows
-   * already use, so nothing downstream needs to know they were created rather
-   * than chosen. They have no photograph — `no-image` is a composer flag the
-   * editor already lists under "Before publishing", which makes the gap
-   * something the product mentions rather than something that blocked the book.
-   */
-  async function adopt() {
-    if (matched === null) return
-    const rows = matched.flatMap((row) => {
-      if (row.status !== 'UNMATCHED' || (picks[row.index] ?? null) !== null) return []
-      const source = sent[row.index]
-      if (source === undefined) return []
-      return [
-        {
-          index: row.index,
-          nameEn: row.name,
-          ...(source.barcode === undefined ? {} : { barcode: source.barcode }),
-        },
-      ]
-    })
-    if (rows.length === 0) return
-
-    setError(null)
-    setBusy(true)
-    try {
-      const res = await fetch('/api/v1/catalog/products', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rows }),
-      })
-      const body = await res.json()
-
-      if (!res.ok || body.error) {
-        setError(body.error?.message ?? 'Those products could not be added. Try again.')
-        return
-      }
-
-      setPicks((current) => {
-        const next = { ...current }
-        for (const row of body.data.rows as Array<{ index: number; catalogProductId: string }>) {
-          next[row.index] = row.catalogProductId
-        }
-        return next
-      })
-    } catch {
-      setError('Those products could not be added. Check your connection and try again.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /**
    * How many rows in the chosen column actually carry a barcode.
    *
    * **Because "SKU" is offered and is usually not one.** The route silently
@@ -348,8 +289,12 @@ export function PriceListMatcher({ onResolved, max }: Props) {
   const resolved = React.useMemo<ResolvedRow[]>(() => {
     if (matched === null) return []
     return matched.flatMap((row) => {
+      // **Every row, whether or not it matched.** The catalog is how an offer
+      // finds its photograph, not a list of what a shop is allowed to promote —
+      // and a grocery's private label is in nobody's universal catalog. An
+      // unmatched row goes to the server with its name and is written into the
+      // organization's own collection as the book is created.
       const productId = row.product?.id ?? picks[row.index] ?? null
-      if (productId === null) return []
 
       // **The promotion comes from `sent`, not from the match response.** The
       // matcher echoes the price it was given and knows nothing about the
@@ -358,6 +303,8 @@ export function PriceListMatcher({ onResolved, max }: Props) {
       return [
         {
           catalogProductId: productId,
+          name: row.name,
+          ...(source?.barcode === undefined ? {} : { barcode: source.barcode }),
           price: source?.price ?? row.price,
           comparePrice: source?.comparePrice ?? null,
           ...(source?.chip === undefined ? {} : { chip: source.chip }),
@@ -468,7 +415,6 @@ export function PriceListMatcher({ onResolved, max }: Props) {
           picks={picks}
           busy={busy}
           onPick={(index, id) => setPicks((current) => ({ ...current, [index]: id }))}
-          onAdopt={adopt}
           onRestart={() => {
             setSheet(null)
             setMatched(null)
@@ -491,7 +437,6 @@ function MatchTable({
   picks,
   busy,
   onPick,
-  onAdopt,
   onRestart,
 }: {
   rows: MatchedRow[]
@@ -500,7 +445,6 @@ function MatchTable({
   picks: Picks
   busy: boolean
   onPick: (index: number, productId: string | null) => void
-  onAdopt: () => void
   onRestart: () => void
 }) {
   // Counted as *still* unmatched: a row that has been adopted has a product now
@@ -527,26 +471,21 @@ function MatchTable({
         </Button>
       </div>
 
-      {/* **Offered once for all of them, not per row.** Forty of a shop's own
-          lines is the ordinary case, not the exception, and a button on each
-          card would be forty decisions about a question the owner answers once.
-          Named with the count so it says what it will do before it does it. */}
+      {/* **Said once, not asked once.** These rows are not a problem to resolve:
+          the catalog is how an offer finds its photograph, and a shop's own
+          lines are in nobody's universal catalog. They are written into this
+          organization's own collection as the book is created — not before, so
+          an owner who uploads the wrong file and walks away leaves nothing
+          behind. */}
       {unmatched > 0 ? (
         <Card padding="compact">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="min-w-0 font-ui text-body-sm text-secondary">
-              <Figure value={unmatched} size="data-sm" />{' '}
-              {unmatched === 1 ? 'row is' : 'rows are'} not in your catalog. Add them and they
-              go in this book — and match on their own next time.
-            </p>
-            <Button type="button" onClick={onAdopt} loading={busy}>
-              <Plus className="size-4" aria-hidden="true" strokeWidth={2} />
-              Add to my catalog
-            </Button>
-          </div>
+          <p className="font-ui text-body-sm text-secondary">
+            <Figure value={unmatched} size="data-sm" />{' '}
+            {unmatched === 1 ? 'row is' : 'rows are'} new to your catalog. They go in this
+            book and are added to your products, so they match on their own next time.
+          </p>
           <p className="pt-1 font-ui text-body-sm text-muted">
-            They will have no photo until you add one. The editor lists that before you
-            publish.
+            Their cards show a placeholder until you add a photo.
           </p>
         </Card>
       ) : null}
@@ -692,7 +631,7 @@ function RowResult({ row, picked }: { row: MatchedRow; picked: string | null }) 
   return (
     <span className="flex items-center gap-1 font-ui text-body-sm text-muted">
       <AlertTriangle className="size-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
-      Not in your catalog. This row is skipped.
+      New to your catalog. It goes in the book with a placeholder photo.
     </span>
   )
 }
