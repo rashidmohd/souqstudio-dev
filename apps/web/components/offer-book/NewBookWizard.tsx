@@ -9,6 +9,7 @@ import { Figure } from '@/components/ui/figure'
 import { BOOK_KINDS, KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { ChoiceCard } from '@/components/offer-book/ChoiceCard'
 import { DesignPicker } from '@/components/offer-book/DesignPicker'
+import type { ResolvedRow } from '@/components/offer-book/match-types'
 import { PriceListMatcher } from '@/components/offer-book/PriceListMatcher'
 import { ProductSearch } from '@/components/offer-book/ProductSearch'
 import { WizardStep } from '@/components/offer-book/WizardStep'
@@ -77,7 +78,7 @@ export function NewBookWizard({ blocks, kit, lang }: Props) {
 
   const [source, setSource] = React.useState<Source>('catalog')
   const [picked, setPicked] = React.useState<CatalogSearchHit[]>([])
-  const [rows, setRows] = React.useState<Array<{ catalogProductId: string; price: string | null }>>(
+  const [rows, setRows] = React.useState<ResolvedRow[]>(
     []
   )
 
@@ -87,7 +88,7 @@ export function NewBookWizard({ blocks, kit, lang }: Props) {
   // Referentially stable, or the effect inside `PriceListMatcher` that reports
   // its resolved rows fires on every render of this component.
   const takeRows = React.useCallback(
-    (next: Array<{ catalogProductId: string; price: string | null }>) => setRows(next),
+    (next: ResolvedRow[]) => setRows(next),
     []
   )
 

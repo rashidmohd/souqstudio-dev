@@ -593,17 +593,35 @@ export interface CreateFromCatalogInput extends CreateBookInput {
 
 export interface CreateFromRowsInput extends CreateBookInput {
   /**
-   * Products the owner matched from a price list, with the price the sheet gave
-   * for each. Order is the sheet's order.
+   * Products the owner matched from a price list, with the promotion the sheet
+   * gave for each. Order is the sheet's order.
    */
-  rows: Array<{ catalogProductId: string; price: string | null }>
+  rows: PendingOffer[]
 }
 
-/** One offer to write: a product, and what it costs. */
+/** One offer to write: a product, what it costs, and what the sheet called it. */
 interface PendingOffer {
   catalogProductId: string
   /** A decimal string, or null for "the owner has not said yet". */
   price: string | null
+  /**
+   * The strikethrough, where the sheet gave a higher price to strike through.
+   *
+   * **Resolved before it gets here**, by `resolvePrices` in `lib/offer-import.ts`
+   * — including the inversion, because a till calls the shelf price "price" and
+   * an offer calls the promotion `price`. Nothing downstream should be deciding
+   * which of two numbers is the bigger one.
+   */
+  comparePrice?: string | null | undefined
+  /**
+   * A promotion the prices do not express — buy-one-get-one and its relatives,
+   * or whatever the owner wrote in that column.
+   *
+   * Becomes an `OfferChip`, not a promo tier: a tier is org-level visual
+   * emphasis configured once, and one per mechanic would turn the tier list into
+   * a list of this week's promotions.
+   */
+  chip?: { labelEn: string; labelAr: string | null } | undefined
 }
 
 /**
@@ -740,6 +758,10 @@ async function insertBook(
         // to Prisma's Decimal — going through a float to store money is how 9.95
         // becomes 9.949999999999999.
         price: offer.price ?? 0,
+        // Null and absent are the same thing for a was-price and neither is
+        // zero — `comparePrice` is nullable precisely so that "no was-price" is
+        // sayable, where `price` is NOT NULL and has to use zero plus a flag.
+        comparePrice: offer.comparePrice ?? null,
         currency: 'AED',
         promoTierId: prepared.tierId,
       })),
@@ -760,6 +782,33 @@ async function insertBook(
         return offerId === undefined
           ? []
           : [{ offerId, catalogProductId: offer.catalogProductId, position: 0 }]
+      }),
+    })
+
+    /*
+     * The promotions the prices cannot say. **`CUSTOM` and `TOP_START`**: the
+     * other chip kinds mean specific things — `ORIGIN` is a country, `SCALE` is
+     * a quantity, `LOYALTY` an amount — and a buy-one-get-one is none of them.
+     * The anchor is logical, so it lands on the correct corner in an Arabic
+     * edition with no second rule.
+     *
+     * Written unconditionally rather than behind a length check on purpose: the
+     * flatMap is the condition, and a sheet where nobody named a promotion
+     * produces an empty array and one no-op call.
+     */
+    await tx.offerChip.createMany({
+      data: offers.flatMap((offer, position) => {
+        const offerId = byPosition.get(position)
+        if (offerId === undefined || offer.chip === undefined) return []
+        return [
+          {
+            offerId,
+            kind: 'CUSTOM' as const,
+            labelEn: offer.chip.labelEn,
+            labelAr: offer.chip.labelAr,
+            anchor: 'TOP_START' as const,
+          },
+        ]
       }),
     })
 

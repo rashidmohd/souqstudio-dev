@@ -1,6 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { MatchedRow as FromRoute } from '@/app/api/v1/offer-books/match/route'
-import { barcodeHint, type MatchedRow as FromClient } from '@/components/offer-book/match-types'
+import {
+  barcodeHint,
+  guessOfferColumns,
+  type MatchedRow as FromClient,
+} from '@/components/offer-book/match-types'
 
 /**
  * The two `MatchedRow` declarations, held to being one shape.
@@ -59,5 +63,70 @@ describe('barcodeHint', () => {
 
   it('says so when every row carries one', () => {
     expect(barcodeHint({ valid: 40, total: 40 })).toContain('Every row')
+  })
+})
+
+describe('guessOfferColumns', () => {
+  /**
+   * **Exact matching, where `inferColumnMap` matches on substrings**, and that
+   * difference is the whole reason these live apart. The catalog importer's
+   * guesser claimed `Price before` for `price` because it contains "price",
+   * left `Price now` with nothing, and claimed `Offer type` for `specEn`
+   * because it contains "type" — on the template this app hands out.
+   */
+  it('maps the template this app generates', () => {
+    expect(
+      guessOfferColumns([
+        'Product name',
+        'Barcode',
+        'Price before',
+        'Price now',
+        'Discount %',
+        'Offer type',
+      ])
+    ).toEqual({
+      was: 'Price before',
+      now: 'Price now',
+      percent: 'Discount %',
+      type: 'Offer type',
+    })
+  })
+
+  it('reads a till export that names things its own way', () => {
+    expect(guessOfferColumns(['Description', 'EAN', 'Old Price', 'Offer Price'])).toMatchObject({
+      was: 'Old Price',
+      now: 'Offer Price',
+    })
+  })
+
+  it('takes a lone price column as the price, not the was-price', () => {
+    // The commonest sheet of all: one price and nothing else. Reading it as a
+    // was-price would print a strikethrough over a promotion that is not there.
+    expect(guessOfferColumns(['Item', 'SKU', 'Price'])).toMatchObject({ was: '', now: 'Price' })
+  })
+
+  it('reads Arabic headers', () => {
+    expect(guessOfferColumns(['المنتج', 'السعر القديم', 'السعر', 'نوع العرض'])).toMatchObject({
+      was: 'السعر القديم',
+      now: 'السعر',
+      type: 'نوع العرض',
+    })
+  })
+
+  it('never gives one column to two fields', () => {
+    // `Discount` is in the percent hints and `Deal` in the type hints; a sheet
+    // using one word for both must not have it counted twice.
+    const guessed = guessOfferColumns(['Price', 'Discount'])
+    const claimed = Object.values(guessed).filter((value) => value !== '')
+    expect(new Set(claimed).size).toBe(claimed.length)
+  })
+
+  it('guesses nothing rather than guessing wrong', () => {
+    expect(guessOfferColumns(['Column A', 'Column B'])).toEqual({
+      was: '',
+      now: '',
+      percent: '',
+      type: '',
+    })
   })
 })

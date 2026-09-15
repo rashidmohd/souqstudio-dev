@@ -83,7 +83,33 @@ const createSchema = z.union([
   }),
   baseSchema.extend({
     rows: z
-      .array(z.object({ catalogProductId: z.string().min(1), price: priceSchema }))
+      .array(
+        z.object({
+          catalogProductId: z.string().min(1),
+          /** The mark. What the customer pays. */
+          price: priceSchema,
+          /**
+           * The strikethrough. **Resolved on the client by `resolvePrices`**,
+           * including the inversion between a till's naming and an offer's, so
+           * this route never decides which of two numbers is the bigger one —
+           * there is exactly one place that reasoning lives.
+           */
+          comparePrice: priceSchema,
+          /**
+           * A promotion the two prices cannot express, as it will appear on the
+           * card. Bounded at 40 because it is laid out by the fit ladder, and
+           * `labelAr` is nullable because only the closed set in `OFFER_TYPES`
+           * has a translation — a phrase an owner typed has none, which is the
+           * gap §18.4 records.
+           */
+          chip: z
+            .object({
+              labelEn: z.string().trim().min(1).max(40),
+              labelAr: z.string().trim().min(1).max(60).nullable(),
+            })
+            .optional(),
+        })
+      )
       .min(1)
       .max(MAX_OFFERS),
   }),

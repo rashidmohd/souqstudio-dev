@@ -14,6 +14,24 @@ import type { CatalogProductSummary, ImportRowStatus } from '@souqstudio/types'
  * assignment in both directions, which is the cheapest way to make a drift
  * between them a compile error rather than a runtime surprise.
  */
+/**
+ * One resolved row on its way to `POST /api/v1/offer-books`.
+ *
+ * **Declared here rather than in either component**, because the matcher
+ * produces it and the wizard posts it, and a shape spelled out twice is a shape
+ * that drifts — the price columns were added on 15 September and would have had
+ * to be added in both places.
+ */
+export type ResolvedRow = {
+  catalogProductId: string
+  /** The mark. What the customer pays. */
+  price: string | null
+  /** The strikethrough, where the sheet gave a genuine was-price. */
+  comparePrice: string | null
+  /** A promotion the two prices cannot express. */
+  chip?: { labelEn: string; labelAr: string | null }
+}
+
 export type MatchedRow = {
   /** Position in the sheet. Keys the table, and orders the resulting book. */
   index: number
@@ -52,3 +70,63 @@ export function barcodeHint(stats: { valid: number; total: number } | null): str
   }
   return 'Every row carries a barcode. These will match exactly.'
 }
+
+/**
+ * Header spellings for the promotion columns, guessed here rather than by
+ * `inferColumnMap`.
+ *
+ * **`HEADER_HINTS` is the *catalog's* vocabulary and none of these are catalog
+ * fields** — a catalog product has no price at all, let alone a was-price or a
+ * promotion. Teaching it promo semantics to serve this screen would risk the
+ * import that writes products to serve the one that writes a flyer.
+ *
+ * **Matched exactly, where `inferColumnMap` matches on substrings**, and that
+ * difference is the whole reason this exists. Substring matching claimed
+ * `Price before` for `price` because it contains "price", left `Price now` with
+ * nothing, and claimed `Offer type` for `specEn` because it contains "type" —
+ * on the template this app hands out. Exact matching cannot do any of that; the
+ * cost is that an unlisted spelling is guessed as nothing rather than guessed
+ * as the wrong thing, which on a screen with four selects and a visible result
+ * is the better failure.
+ */
+const NOW_HINTS = ['pricenow', 'nowprice', 'newprice', 'offerprice', 'promoprice', 'specialprice', 'price', 'sellingprice', 'rate', 'amount', 'السعر']
+const WAS_HINTS = ['pricebefore', 'beforeprice', 'wasprice', 'oldprice', 'was', 'old', 'regularprice', 'normalprice', 'listprice', 'mrp', 'السعرالقديم', 'قبل']
+const PERCENT_HINTS = ['discount', 'discountpercent', 'discountpct', 'percent', 'percentage', 'off', 'savepercent', 'نسبةالخصم', 'الخصم']
+const TYPE_COLUMN_HINTS = ['offertype', 'promotype', 'promotiontype', 'dealtype', 'type', 'promotion', 'deal', 'نوعالعرض']
+
+function normalizeHeader(header: string): string {
+  return header.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+/** First header matching one of `hints` exactly, and not already claimed. */
+export function guessHeader(headers: string[], hints: string[], taken: string[]): string {
+  return (
+    headers.find(
+      (header) => !taken.includes(header) && hints.includes(normalizeHeader(header))
+    ) ?? ''
+  )
+}
+
+/**
+ * All four promotion columns at once, each claiming a header the others cannot
+ * then take.
+ *
+ * **Was before now**, because a sheet with only `Price` means the price — and a
+ * sheet with `Old Price` and `Price` means both, with the second being the
+ * promotion. Claiming `now` first would take `Price` from a sheet that has a
+ * was-price to pair it with, which is the same answer, and claiming `was` first
+ * costs nothing when there is no was-price column at all.
+ */
+export function guessOfferColumns(headers: string[]): {
+  was: string
+  now: string
+  percent: string
+  type: string
+} {
+  const was = guessHeader(headers, WAS_HINTS, [])
+  const now = guessHeader(headers, NOW_HINTS, [was])
+  const percent = guessHeader(headers, PERCENT_HINTS, [was, now])
+  const type = guessHeader(headers, TYPE_COLUMN_HINTS, [was, now, percent])
+  return { was, now, percent, type }
+}
+

@@ -1100,14 +1100,14 @@ half better and makes the unmatched half more conspicuous.
 
 ### 15.3 Still owed
 
-- **Before-and-after prices.** The sheet carries one price column and an offer has two —
+- ~~**Before-and-after prices.**~~ **Built 15 September — §18.** The sheet carries one price column and an offer has two —
   `price` is the mark and `comparePrice` is the strikethrough. A POS exports the shelf price
   as "price" and the promotion as "offer price", which is the **opposite** of our naming, so
   whatever ships must label them *Price before* and *Price now* rather than echo the sheet.
   Accepting any two of price-before, price-now and discount-percent and deriving the third
   is the shape, because systems differ in which two they export — and where all three are
   present the third is a free consistency check on a stale export.
-- **Mechanic discounts have no home.** Buy-one-get-one and "2 for 20" are not prices: for
+- ~~**Mechanic discounts have no home.**~~ **Built for the named kinds — §18.2. "2 for 20" is still not expressible.** Buy-one-get-one and "2 for 20" are not prices: for
   BOGO the price does not change and writing a `comparePrice` would be a lie on a printed
   flyer. `OfferChip` with `CUSTOM` is the nearest fit and needs a fixed bilingual phrase
   table, because a CSV will not carry `labelAr` and E5 §2 makes a missing one a publish-time
@@ -1117,7 +1117,7 @@ half better and makes the unmatched half more conspicuous.
 - **Discount percentage is not a badge.** E6 §3 removed the discount-magnitude badge table
   deliberately — *"magnitude does not choose a badge any more, the promo tier does"* — so an
   imported percentage validates the two prices rather than printing anything.
-- **A downloadable template.** Generated per shop rather than documented in a help page:
+- ~~**A downloadable template.**~~ **Built 15 September — §17, and widened to the offer columns in §18.** Generated per shop rather than documented in a help page:
   their currency, the exact header spellings `HEADER_HINTS` already recognises, and three
   real rows from their own catalog. A spec that has to be retyped is a spec that arrives
   wrong. The mapping screen stays regardless — `catalog-import.ts` is explicit that a guess
@@ -1296,3 +1296,107 @@ opinion on a string, and the only other check is a person scanning a barcode off
   help the owner whose POS exports something else entirely, which is most of them.
 - **Not opened in a browser**, and the Excel behaviours above — the BOM in particular — are
   exactly the kind that only a real spreadsheet application can confirm.
+
+---
+
+## 18. The sheet carries the promotion, not just a price, 15 September
+
+§15.3 and §17.4 both listed this as owed and §17 then shipped a template with three columns
+in it — which described what the code read that morning rather than what the import is for.
+**A price list is a shop's promotion.** Taking one price off it left every was-price and
+every buy-one-get-one to be typed back in, card by card, in the editor: exactly the work the
+import exists to remove.
+
+Six columns now, and every one of them is read:
+
+| Column | Becomes |
+| --- | --- |
+| Product name | What is matched |
+| Barcode | What is matched, and trusted over the name |
+| Price before | `offers.comparePrice` — the strikethrough |
+| Price now | `offers.price` — the mark |
+| Discount % | Works out *Price now* when it is absent; never printed |
+| Offer type | An `OfferChip`, for promotions the prices cannot express |
+
+### 18.1 The inversion, and where it is allowed to happen
+
+**A till calls the shelf price "price" and the promotion "offer price". An offer calls the
+promotion `price` and the shelf price `comparePrice`.** Mapped the wrong way round, the
+wrong number is printed in the largest type on the page, and the flyer is where anybody
+finds out.
+
+So it happens exactly once, in `resolvePrices` in `lib/offer-import.ts`, whose arguments are
+named for the *sheet* — `before` and `now`. Nothing downstream decides which of two numbers
+is the bigger one. The mapping screen labels them **Price now** and **Price before** rather
+than echoing the sheet's words, for the same reason.
+
+Three rules fall out of it:
+
+- **Any two of the three, and the third is derived.** Some systems export both prices, some
+  export the shelf price and a percentage.
+- **A strikethrough only when it is genuinely higher.** Equal is a lie on a flyer and lower
+  is worse, so both resolve to no was-price rather than to a printed one.
+- **Where all three are present the percentage is not used** — the prices are what the shop
+  charges — but a disagreement is reported on the row. A percentage that does not match the
+  two prices is a stale export, and that is worth catching before it is printed.
+
+**All of it in minor units.** `parsePrice` hands back a two-decimal string and the column is
+`Decimal(10,2)`; taking a percentage off a float is how 9.95 becomes 9.949999999999999 in a
+number a customer reads off a flyer.
+
+### 18.2 A promotion that is not a price
+
+Buy-one-get-one is not a discount: the price does not move, and writing a was-price for it
+would print a saving the shop is not giving. It is an `OfferChip` — `CUSTOM`, anchored
+`TOP_START`, which is logical and so lands on the correct corner in an Arabic edition.
+
+**Not a promo tier.** A tier is organization-level visual emphasis configured once; one per
+mechanic would turn the tier list into a list of this week's promotions.
+
+`OFFER_TYPES` is a closed set with **bilingual** phrases, because a chip with no Arabic
+cannot publish in an Arabic edition — E5 §2 — and a CSV will never carry a translation. The
+sheet names a *kind* and the phrase comes from the table, which is the same move
+`MAGIC_CATEGORIES` makes for block matching. Adding a mechanic is a row.
+
+**Anything not in the set still reaches the card**, as the owner's own words, bounded to 40
+characters. A shop writing `Ramadan special` means it, and deciding we know their promotions
+better than they do is how a feature loses their trust. That chip is English-only — §18.4.
+
+### 18.3 Two defects the tests found, in code that read fine
+
+- **`1+1` matched nothing.** It is how half the region writes buy-one-get-one, and the
+  normaliser stripped punctuation before comparing — turning it into `11`, which is a
+  spelling of nothing. It fell through to a custom chip reading "1+1". `+` becomes the word
+  `plus` before anything is stripped now.
+- **A percentage rounded to whole numbers was reported as a disagreement.** The tolerance
+  was one fil in each direction; half a percentage point of 30.00 is fifteen. A sheet
+  writing `33` for a third off is not disagreeing, it is quoting a percentage with two fewer
+  digits — so the tolerance scales with the price, and perfectly good sheets stopped
+  carrying a warning.
+
+And one in the template itself: `inferColumnMap` matches on **substrings**, so it claimed
+`Price before` for `price` because it contains "price", left `Price now` with nothing, and
+claimed `Offer type` for `specEn` because it contains "type" — **on the file this app hands
+out.** `guessOfferColumns` in `match-types.ts` matches exactly and claims each header once,
+was-price first. The cost is that an unlisted spelling is guessed as nothing rather than as
+the wrong thing, which on a screen with four selects and a visible result is the better
+failure. `HEADER_HINTS` was left alone: it is the *catalog's* vocabulary, and teaching it
+promo semantics would risk the import that writes products to serve the one that writes a
+flyer.
+
+### 18.4 Still owed
+
+- **A custom chip has no Arabic and nothing says so.** The composer flags `missing-name-ar`
+  for a product and has no equivalent for a chip, so an owner's own phrase prints in English
+  in an Arabic edition — silently. It wants a flag beside the other four in
+  `ComposedOffer['flags']`, which is the engine as well as the composer.
+- **`MULTIBUY` is not expressible.** "2 for 20" is common and needs a quantity alongside a
+  total; `priceMode` is `FIXED | FROM | PER_UNIT` and `prefixLabel` is `FROM | EACH |
+  PER_KG`, none of which say "2 for". A seventh column and a price mode, and it is a
+  decision rather than a task.
+- **Not opened in a browser.** The template round-trips through `parseSheet`,
+  `guessOfferColumns`, `resolvePrices` and `readOfferType` in a scratch script and every
+  value is right; nobody has watched a card draw with a struck-through price and a chip on
+  it.
+- **No test of the write path.** `insertBook` now writes `comparePrice` and a chip row, and
+  that is a Prisma call — the same gap §16.5 records.

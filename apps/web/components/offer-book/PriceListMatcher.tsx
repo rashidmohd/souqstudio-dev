@@ -10,7 +10,13 @@ import { Select } from '@/components/ui/select'
 import { displayName, hasValidCheckDigit, normalizeBarcode, packLabel } from '@/lib/catalog-display'
 import { FIELD_LABEL, inferColumnMap, parsePrice } from '@/lib/catalog-import'
 import { parseSheet } from '@/lib/csv'
-import { barcodeHint, type MatchedRow } from '@/components/offer-book/match-types'
+import {
+  barcodeHint,
+  guessOfferColumns,
+  type MatchedRow,
+  type ResolvedRow,
+} from '@/components/offer-book/match-types'
+import { parsePercent, readOfferType, resolvePrices } from '@/lib/offer-import'
 
 /**
  * Starting a book from a price list. E6 — `docs/E6-create-flow.md` §2.3.
@@ -56,16 +62,35 @@ import { barcodeHint, type MatchedRow } from '@/components/offer-book/match-type
  */
 type Props = {
   /** Rows the owner has resolved, lifted so the wizard can create from them. */
-  onResolved: (rows: Array<{ catalogProductId: string; price: string | null }>) => void
+  onResolved: (rows: ResolvedRow[]) => void
   max: number
 }
 
 type Sheet = { headers: string[]; rows: string[][] }
 
-/** One row as it went to the matcher. */
-type SentRow = { name: string; barcode?: string; price: string | null }
+/**
+ * One row as it went to the matcher, plus everything the sheet said about its
+ * promotion. **The matcher is not told any of it** — `/offer-books/match` is
+ * explicit that it matches and does not read prices — so this is carried here
+ * and handed to `POST /offer-books` once the owner is happy.
+ */
+/** The same option list four selects need: a "none" entry, then the headers. */
+function columnOptions(headers: string[], none: string) {
+  return [{ value: '', label: none }, ...headers.map((header) => ({ value: header, label: header }))]
+}
 
-/** What the owner chose for a row the matcher could not decide. Keyed by row index. */
+type SentRow = {
+  name: string
+  barcode?: string
+  price: string | null
+  comparePrice: string | null
+  chip?: { labelEn: string; labelAr: string | null }
+  /** The sheet's percentage disagreed with its two prices. */
+  mismatch: boolean
+}
+
+/** What the owner chose for a row the matcher could not decide. Keyed by row
+ *  index, and also where an adopted row's new product id lands. */
 type Picks = Record<number, string | null>
 
 export function PriceListMatcher({ onResolved, max }: Props) {
@@ -73,6 +98,9 @@ export function PriceListMatcher({ onResolved, max }: Props) {
   const [nameColumn, setNameColumn] = React.useState('')
   const [barcodeColumn, setBarcodeColumn] = React.useState('')
   const [priceColumn, setPriceColumn] = React.useState('')
+  const [wasColumn, setWasColumn] = React.useState('')
+  const [percentColumn, setPercentColumn] = React.useState('')
+  const [typeColumn, setTypeColumn] = React.useState('')
   const [matched, setMatched] = React.useState<MatchedRow[] | null>(null)
   /**
    * The rows as they were sent, keyed by the index the server answered with.
@@ -109,7 +137,13 @@ export function PriceListMatcher({ onResolved, max }: Props) {
       setSheet({ headers: parsed.headers, rows: parsed.rows })
       setNameColumn(columnFor('nameEn'))
       setBarcodeColumn(columnFor('barcode'))
-      setPriceColumn(columnFor('price'))
+
+      // The promotion columns get their own guess — see `guessOfferColumns`.
+      const offer = guessOfferColumns(parsed.headers)
+      setPriceColumn(offer.now)
+      setWasColumn(offer.was)
+      setPercentColumn(offer.percent)
+      setTypeColumn(offer.type)
       setMatched(null)
       setPicks({})
     }
@@ -122,23 +156,56 @@ export function PriceListMatcher({ onResolved, max }: Props) {
     setError(null)
     setBusy(true)
 
-    const nameAt = sheet.headers.indexOf(nameColumn)
-    const barcodeAt = barcodeColumn === '' ? -1 : sheet.headers.indexOf(barcodeColumn)
-    const priceAt = priceColumn === '' ? -1 : sheet.headers.indexOf(priceColumn)
+    const at = (column: string) => (column === '' ? -1 : sheet.headers.indexOf(column))
+    const nameAt = at(nameColumn)
+    const barcodeAt = at(barcodeColumn)
+    const priceAt = at(priceColumn)
+    const wasAt = at(wasColumn)
+    const percentAt = at(percentColumn)
+    const typeAt = at(typeColumn)
 
-    const rows = sheet.rows
+    const rows: SentRow[] = sheet.rows
       .map((row) => {
         const barcode = barcodeAt === -1 ? '' : normalizeBarcode(row[barcodeAt] ?? '')
+
+        /*
+         * **The inversion happens here, once.** A till calls the shelf price
+         * "price" and the promotion "offer price"; an offer calls the promotion
+         * `price` and the shelf price `comparePrice`. `resolvePrices` takes the
+         * sheet's words — `before` and `now` — so nothing downstream has to know
+         * which of two numbers is the bigger one.
+         *
+         * `parsePrice` and not `Number()`: a cell can read `AED 9,50` or
+         * `12.900`, and it returns a decimal string rather than routing money
+         * through a binary float.
+         */
+        const prices = resolvePrices({
+          before: wasAt === -1 ? null : parsePrice(row[wasAt] ?? ''),
+          now: priceAt === -1 ? null : parsePrice(row[priceAt] ?? ''),
+          percent: percentAt === -1 ? null : parsePercent(row[percentAt] ?? ''),
+        })
+
+        const type = typeAt === -1 ? { kind: 'none' as const } : readOfferType(row[typeAt] ?? '')
+
         return {
           name: (row[nameAt] ?? '').trim(),
           // Omitted rather than sent empty: the route's schema takes an optional
           // string, and `exactOptionalPropertyTypes` means `undefined` and
           // absent are the same thing here and an empty string is not.
           ...(barcode === '' ? {} : { barcode }),
-          // `parsePrice` and not `Number()`. A cell can read `AED 9,50` or
-          // `12.900`, and it returns a decimal string or null rather than routing
-          // money through a binary float.
-          price: priceAt === -1 ? null : parsePrice(row[priceAt] ?? ''),
+          price: prices.price,
+          comparePrice: prices.comparePrice,
+          mismatch: prices.mismatch,
+          ...(type.kind === 'none'
+            ? {}
+            : {
+                chip: {
+                  labelEn: type.labelEn,
+                  // Only the closed set has a translation. An owner's own words
+                  // reach the card in the language they wrote them.
+                  labelAr: type.kind === 'known' ? type.labelAr : null,
+                },
+              }),
         }
       })
       // A row with no name cannot be matched against anything. Dropped here
@@ -156,7 +223,17 @@ export function PriceListMatcher({ onResolved, max }: Props) {
       const res = await fetch('/api/v1/offer-books/match', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rows }),
+        // Only what matching needs. The promotion stays on the client until the
+        // book is created — the route's own comment is explicit that it matches
+        // and does not read prices, and sending it a was-price would invite it
+        // to start.
+        body: JSON.stringify({
+          rows: rows.map(({ name, barcode, price }) => ({
+            name,
+            ...(barcode === undefined ? {} : { barcode }),
+            price,
+          })),
+        }),
       })
       const body = await res.json()
 
@@ -268,13 +345,26 @@ export function PriceListMatcher({ onResolved, max }: Props) {
    * expects the flyer to follow it, which is the same rule
    * `createBookFromImport` states about `rowIndex`.
    */
-  const resolved = React.useMemo(() => {
+  const resolved = React.useMemo<ResolvedRow[]>(() => {
     if (matched === null) return []
     return matched.flatMap((row) => {
       const productId = row.product?.id ?? picks[row.index] ?? null
-      return productId === null ? [] : [{ catalogProductId: productId, price: row.price }]
+      if (productId === null) return []
+
+      // **The promotion comes from `sent`, not from the match response.** The
+      // matcher echoes the price it was given and knows nothing about the
+      // was-price or the chip, by design.
+      const source = sent[row.index]
+      return [
+        {
+          catalogProductId: productId,
+          price: source?.price ?? row.price,
+          comparePrice: source?.comparePrice ?? null,
+          ...(source?.chip === undefined ? {} : { chip: source.chip }),
+        },
+      ]
     })
-  }, [matched, picks])
+  }, [matched, picks, sent])
 
   React.useEffect(() => onResolved(resolved), [resolved, onResolved])
 
@@ -321,23 +411,43 @@ export function PriceListMatcher({ onResolved, max }: Props) {
         />
         <Select
           label={FIELD_LABEL.barcode}
-          options={[
-            { value: '', label: 'No barcode column' },
-            ...sheet.headers.map((header) => ({ value: header, label: header })),
-          ]}
+          options={columnOptions(sheet.headers, 'No barcode column')}
           value={barcodeColumn}
           onChange={(event) => setBarcodeColumn(event.target.value)}
           hint={barcodeHint(barcodeStats)}
         />
+        {/* **Named for the flyer, never for the till.** A POS calls the shelf
+            price "price" and the promotion "offer price"; an offer calls the
+            promotion `price` and the shelf price `comparePrice`. Echoing the
+            sheet's words here is how the two get mapped the wrong way round and
+            the wrong number ends up in the biggest type on the page. */}
         <Select
-          label={FIELD_LABEL.price}
-          options={[
-            { value: '', label: 'No price column' },
-            ...sheet.headers.map((header) => ({ value: header, label: header })),
-          ]}
+          label="Price now"
+          options={columnOptions(sheet.headers, 'No price column')}
           value={priceColumn}
           onChange={(event) => setPriceColumn(event.target.value)}
-          hint="Left out, every offer starts at zero."
+          hint="What the customer pays. Left out, every offer starts at zero."
+        />
+        <Select
+          label="Price before"
+          options={columnOptions(sheet.headers, 'No was-price column')}
+          value={wasColumn}
+          onChange={(event) => setWasColumn(event.target.value)}
+          hint="Printed struck through beside the price. Only used when it is higher."
+        />
+        <Select
+          label="Discount %"
+          options={columnOptions(sheet.headers, 'No discount column')}
+          value={percentColumn}
+          onChange={(event) => setPercentColumn(event.target.value)}
+          hint="Used to work out the price when you have not given one. Never printed."
+        />
+        <Select
+          label="Offer type"
+          options={columnOptions(sheet.headers, 'No offer type column')}
+          value={typeColumn}
+          onChange={(event) => setTypeColumn(event.target.value)}
+          hint="Buy 1 get 1 and the like. Anything we do not know is printed as you wrote it."
         />
       </div>
 
@@ -354,6 +464,7 @@ export function PriceListMatcher({ onResolved, max }: Props) {
       ) : (
         <MatchTable
           rows={matched}
+          sent={sent}
           picks={picks}
           busy={busy}
           onPick={(index, id) => setPicks((current) => ({ ...current, [index]: id }))}
@@ -376,6 +487,7 @@ export function PriceListMatcher({ onResolved, max }: Props) {
 
 function MatchTable({
   rows,
+  sent,
   picks,
   busy,
   onPick,
@@ -383,6 +495,8 @@ function MatchTable({
   onRestart,
 }: {
   rows: MatchedRow[]
+  /** What the sheet said about each row's promotion, by the same index. */
+  sent: SentRow[]
   picks: Picks
   busy: boolean
   onPick: (index: number, productId: string | null) => void
@@ -450,13 +564,7 @@ function MatchTable({
                     </span>
                     <RowResult row={row} picked={picks[row.index] ?? null} />
                   </span>
-                  {row.price === null ? (
-                    <span className="shrink-0 font-ui text-body-sm text-muted">No price</span>
-                  ) : (
-                    <span className="shrink-0 font-ui text-body-sm text-secondary">
-                      AED <Figure value={row.price} size="data-sm" />
-                    </span>
-                  )}
+                  <RowPrice source={sent[row.index]} />
                 </div>
 
                 {row.status === 'AMBIGUOUS' ? (
@@ -487,6 +595,54 @@ function MatchTable({
         ))}
       </ul>
     </div>
+  )
+}
+
+/**
+ * What the sheet said this row costs, and what it called the promotion.
+ *
+ * **Shown before the book exists, because this is the last moment it is
+ * cheap to fix.** A was-price mapped to the wrong column prints the wrong number
+ * in the largest type on the page, and the flyer is where anyone finds out.
+ *
+ * The strikethrough is drawn struck through: the owner is checking that the
+ * mapping is right, and a was-price rendered as plain text beside a price is two
+ * numbers with no relationship on the screen where the relationship is the thing
+ * being checked.
+ */
+function RowPrice({ source }: { source: SentRow | undefined }) {
+  if (source === undefined || source.price === null) {
+    return <span className="shrink-0 font-ui text-body-sm text-muted">No price</span>
+  }
+
+  return (
+    <span className="flex shrink-0 flex-col items-end gap-1">
+      <span className="flex items-baseline gap-2">
+        {source.comparePrice === null ? null : (
+          <span className="font-ui text-body-sm text-muted line-through">
+            <Figure value={source.comparePrice} size="data-sm" />
+          </span>
+        )}
+        <span className="font-ui text-body-sm text-secondary">
+          AED <Figure value={source.price} size="data-sm" />
+        </span>
+      </span>
+
+      {source.chip === undefined ? null : (
+        <span className="rounded-chip bg-sand px-2 font-ui text-body-sm text-primary">
+          {source.chip.labelEn}
+        </span>
+      )}
+
+      {source.mismatch ? (
+        // A percentage column that does not agree with the two prices is a
+        // stale export — the prices were updated and the percentage was not.
+        // The prices win; this says so rather than silently preferring one.
+        <span className="font-ui text-body-sm text-caution-fg">
+          Discount % does not match these prices. The prices are used.
+        </span>
+      ) : null}
+    </span>
   )
 }
 
