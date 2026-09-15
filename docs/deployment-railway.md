@@ -160,13 +160,24 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=souqstudio
 R2_PUBLIC_URL=https://assets.souqstudio.com
-R2_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com
+R2_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com   # bare — see the warning below
 RESEND_API_KEY=re_
 EMAIL_FROM=SouqStudio <send@updates.souqstudio.com>
 OPENAI_API_KEY=sk-
 ANTHROPIC_API_KEY=sk-ant-
 REMBG_SERVICE_URL=
 ```
+
+**`R2_ENDPOINT` must not contain the bucket, in either form it can hide.** Not
+`https://ACCOUNT_ID.r2.cloudflarestorage.com/souqstudio` and not
+`https://souqstudio.ACCOUNT_ID.r2.cloudflarestorage.com`. The SDK is handed `Bucket`
+separately and builds the host from it, so an endpoint already carrying the bucket writes
+every object somewhere `publicUrl()` cannot address — and **nothing about that is visible
+from the app**: the presign succeeds, the PUT returns 200, and only the rendered image is
+missing. This shape sat in the dev deployment for over a week. `lib/env.ts` →
+`withEndpointCheck` now refuses both forms at startup, so the cost of getting it wrong is a
+service that will not boot rather than uploads that vanish. `docs/STATUS.md` §2 has the
+history.
 
 ### worker
 
@@ -183,11 +194,25 @@ R2_PUBLIC_URL=https://assets.souqstudio.com
 
 ### Set every variable before the first deploy
 
-`apps/web/lib/env.ts` and `apps/admin/lib/env.ts` are imported by server components and
-route handlers, so Zod validation runs **during `next build`**, not just at boot. A missing
-`STRIPE_SECRET_KEY` fails the build, not the first checkout. This is deliberate — see
-`.claude/skills/souqstudio-technical/references/environment.md` — but it means a service
-created with empty variables will not build at all.
+**Corrected 15 September: validation does *not* run during the build.** This section used
+to say it did. `apps/web/lib/env.ts` and `apps/admin/lib/env.ts` are imported by server
+components and route handlers, so Zod validation would run during `next build` — except
+both build scripts set `SKIP_ENV_VALIDATION=1`, and deliberately: Railway injects service
+variables into the container that *runs* the app, and a build machine is not a deploy
+machine, so a build that demands a Stripe key it will never call fails for the wrong
+reason.
+
+What this means when a variable is wrong or missing:
+
+- **The build passes.**
+- **The pre-deploy command passes** — `db:migrate && db:seed` does not load this module.
+- **The start command throws**, the healthcheck at `/api/health` never answers, and
+  `restartPolicyMaxRetries: 5` burns through five restarts.
+
+So Railway reports a **deploy or healthcheck failure, never a config error**, and the
+thrown message naming the offending variables is in the *Deploy Logs*. Look there first.
+This is the same trap as the `validateBlock` incident on 10 September, where Railway said
+"build failed" when the build had passed.
 
 `NEXTAUTH_URL` is the one chicken-and-egg: generate the domain first, then set the
 variable, then deploy. `${{RAILWAY_PUBLIC_DOMAIN}}` resolves at deploy time and handles
@@ -241,6 +266,33 @@ common way a builder ends up choosing the wrong package manager.
 
 ---
 
+## 5a. Apply the bucket's CORS policy — once per environment
+
+**A deploy does not carry this and no variable expresses it.** Every upload in the product
+is a cross-origin PUT from a browser against a presigned URL — the logo, a product photo,
+artwork dropped on the designer canvas — so every one of them sends an `OPTIONS` first, and
+a bucket with no policy answers:
+
+```
+403 Forbidden
+<Error><Code>Unauthorized</Code><Message>CORS not configured for this bucket</Message></Error>
+```
+
+**A perfectly correct presigned URL cannot be used by a browser against a bucket with no
+policy**, which is why the endpoint fix above changes nothing on its own.
+
+```bash
+pnpm --filter @souqstudio/web r2:cors
+```
+
+It takes its origins from `APP_ORIGINS`, applies the policy, and **reads it back rather than
+trusting the write**. A script rather than a dashboard click on purpose: a manual step
+nobody records is a manual step that is wrong in the next environment. It is idempotent, so
+running it to find out what a bucket currently has is safe.
+
+Status: **applied on dev (15 September). Never applied on production.** Run it against the
+production bucket before production has a user.
+
 ## 6. Verify
 
 Open `https://YOUR-WEB-DOMAIN/api/health` in a browser — it should return
@@ -260,7 +312,15 @@ endpoint is not reachable from a browser by design — the deploy status badge a
 lines are how you confirm it.
 
 Check the web service's **Deploy Logs** too on the first deploy: the pre-deploy step prints
-Prisma's migration output there, and that is where a migration failure will be visible.
+Prisma's migration output there, and that is where a migration failure will be visible — and
+where a bad environment variable names itself, since validation runs at start rather than at
+build.
+
+**Then upload something.** `/brand` → the logo field is the shortest path. Three independent
+faults on that path were each enough to break it and only one was visible from the code, so
+a green healthcheck says nothing about whether an owner can put an image in their book. If
+the picture does not render afterwards, the object went somewhere unaddressable: check
+`R2_ENDPOINT` first, then §5a.
 
 ## 7. Ongoing deploys
 

@@ -1,16 +1,16 @@
 'use client'
 
 import * as React from 'react'
-import { AlertTriangle, Check, HelpCircle, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Check, HelpCircle, Plus, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FileDropzone } from '@/components/ui/file-dropzone'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
-import { displayName, packLabel } from '@/lib/catalog-display'
+import { displayName, hasValidCheckDigit, normalizeBarcode, packLabel } from '@/lib/catalog-display'
 import { FIELD_LABEL, inferColumnMap, parsePrice } from '@/lib/catalog-import'
 import { parseSheet } from '@/lib/csv'
-import type { MatchedRow } from '@/components/offer-book/match-types'
+import { barcodeHint, type MatchedRow } from '@/components/offer-book/match-types'
 
 /**
  * Starting a book from a price list. E6 — `docs/E6-create-flow.md` §2.3.
@@ -29,13 +29,30 @@ import type { MatchedRow } from '@/components/offer-book/match-types'
  * the answers become the book's offers.
  *
  * **The column map is inferred and not asked about.** `inferColumnMap` already
- * guesses name and price from the header spellings that turn up in real sheets,
- * in English and Arabic. E5-06 puts a mapping *screen* in front of everyone
- * because its stakes are permanent — a wrong guess there matches every row
- * against the wrong number and then writes products. Here the stakes are one
+ * guesses name, barcode and price from the header spellings that turn up in real
+ * sheets, in English and Arabic. E5-06 puts a mapping *screen* in front of
+ * everyone because its stakes are permanent — a wrong guess there matches every
+ * row against the wrong number and then writes products. Here the stakes are one
  * flyer, the wrong guess is visible immediately in the match table, and the
  * recovery is a select at the top of it. Showing the mapping screen to everyone
  * to serve the sheets it gets wrong is a step the majority does not need.
+ *
+ * **Barcode is the strongest column on the sheet and this screen ignored it
+ * until 15 September.** `POST /api/v1/offer-books/match` has always accepted one
+ * and trusts it over any name score — a barcode is an identity where a name is a
+ * guess — and the wizard sent only name and price, so a shop exporting from
+ * their POS was matched on spelling alone. Nothing announced that; the matcher
+ * simply did worse than it could.
+ *
+ * **A column named "SKU" is offered here and is usually not a barcode.** POS
+ * exports label an internal item code that way, and `HEADER_HINTS` maps `sku`
+ * and `code` onto this field because sometimes it is the GTIN. The guard is in
+ * the route rather than here: a value that is not 8, 12, 13 or 14 digits, or
+ * that fails the GS1 check digit, is dropped and the row falls back to matching
+ * by name. So a mis-mapped column costs recall and never causes a wrong match —
+ * which is the trade worth making, because the alternative is refusing the
+ * column and losing every sheet that does put a real barcode under that header.
+ * `barcodeStats` below is what tells the owner which of the two they have.
  */
 type Props = {
   /** Rows the owner has resolved, lifted so the wizard can create from them. */
@@ -45,14 +62,28 @@ type Props = {
 
 type Sheet = { headers: string[]; rows: string[][] }
 
+/** One row as it went to the matcher. */
+type SentRow = { name: string; barcode?: string; price: string | null }
+
 /** What the owner chose for a row the matcher could not decide. Keyed by row index. */
 type Picks = Record<number, string | null>
 
 export function PriceListMatcher({ onResolved, max }: Props) {
   const [sheet, setSheet] = React.useState<Sheet | null>(null)
   const [nameColumn, setNameColumn] = React.useState('')
+  const [barcodeColumn, setBarcodeColumn] = React.useState('')
   const [priceColumn, setPriceColumn] = React.useState('')
   const [matched, setMatched] = React.useState<MatchedRow[] | null>(null)
+  /**
+   * The rows as they were sent, keyed by the index the server answered with.
+   *
+   * **Because `MatchedRow.index` is a position in the *sent* array, not in the
+   * sheet.** Rows with no name are dropped and the rest are sliced to `max`
+   * before sending, so going back to `sheet.rows[index]` to find a barcode would
+   * read a different line — silently, and only for sheets with a blank name in
+   * them.
+   */
+  const [sent, setSent] = React.useState<SentRow[]>([])
   const [picks, setPicks] = React.useState<Picks>({})
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -77,6 +108,7 @@ export function PriceListMatcher({ onResolved, max }: Props) {
 
       setSheet({ headers: parsed.headers, rows: parsed.rows })
       setNameColumn(columnFor('nameEn'))
+      setBarcodeColumn(columnFor('barcode'))
       setPriceColumn(columnFor('price'))
       setMatched(null)
       setPicks({})
@@ -91,16 +123,24 @@ export function PriceListMatcher({ onResolved, max }: Props) {
     setBusy(true)
 
     const nameAt = sheet.headers.indexOf(nameColumn)
+    const barcodeAt = barcodeColumn === '' ? -1 : sheet.headers.indexOf(barcodeColumn)
     const priceAt = priceColumn === '' ? -1 : sheet.headers.indexOf(priceColumn)
 
     const rows = sheet.rows
-      .map((row) => ({
-        name: (row[nameAt] ?? '').trim(),
-        // `parsePrice` and not `Number()`. A cell can read `AED 9,50` or
-        // `12.900`, and it returns a decimal string or null rather than routing
-        // money through a binary float.
-        price: priceAt === -1 ? null : parsePrice(row[priceAt] ?? ''),
-      }))
+      .map((row) => {
+        const barcode = barcodeAt === -1 ? '' : normalizeBarcode(row[barcodeAt] ?? '')
+        return {
+          name: (row[nameAt] ?? '').trim(),
+          // Omitted rather than sent empty: the route's schema takes an optional
+          // string, and `exactOptionalPropertyTypes` means `undefined` and
+          // absent are the same thing here and an empty string is not.
+          ...(barcode === '' ? {} : { barcode }),
+          // `parsePrice` and not `Number()`. A cell can read `AED 9,50` or
+          // `12.900`, and it returns a decimal string or null rather than routing
+          // money through a binary float.
+          price: priceAt === -1 ? null : parsePrice(row[priceAt] ?? ''),
+        }
+      })
       // A row with no name cannot be matched against anything. Dropped here
       // rather than sent and rejected, so the table shows rows, not failures.
       .filter((row) => row.name !== '')
@@ -126,6 +166,7 @@ export function PriceListMatcher({ onResolved, max }: Props) {
       }
 
       setMatched(body.data.rows)
+      setSent(rows)
       setPicks({})
     } catch {
       setError('Those rows could not be matched. Check your connection and try again.')
@@ -133,6 +174,91 @@ export function PriceListMatcher({ onResolved, max }: Props) {
       setBusy(false)
     }
   }
+
+  /**
+   * Put the rows the matcher could not place into the shop's own catalog.
+   *
+   * **This is the half of a price list that the universal catalog will never
+   * have** — private label, the bakery counter, local brands. Before this they
+   * were listed and skipped, so a grocery got a book missing exactly the lines
+   * they make the most margin on.
+   *
+   * The new products land in `picks`, which is the mechanism the ambiguous rows
+   * already use, so nothing downstream needs to know they were created rather
+   * than chosen. They have no photograph — `no-image` is a composer flag the
+   * editor already lists under "Before publishing", which makes the gap
+   * something the product mentions rather than something that blocked the book.
+   */
+  async function adopt() {
+    if (matched === null) return
+    const rows = matched.flatMap((row) => {
+      if (row.status !== 'UNMATCHED' || (picks[row.index] ?? null) !== null) return []
+      const source = sent[row.index]
+      if (source === undefined) return []
+      return [
+        {
+          index: row.index,
+          nameEn: row.name,
+          ...(source.barcode === undefined ? {} : { barcode: source.barcode }),
+        },
+      ]
+    })
+    if (rows.length === 0) return
+
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await fetch('/api/v1/catalog/products', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rows }),
+      })
+      const body = await res.json()
+
+      if (!res.ok || body.error) {
+        setError(body.error?.message ?? 'Those products could not be added. Try again.')
+        return
+      }
+
+      setPicks((current) => {
+        const next = { ...current }
+        for (const row of body.data.rows as Array<{ index: number; catalogProductId: string }>) {
+          next[row.index] = row.catalogProductId
+        }
+        return next
+      })
+    } catch {
+      setError('Those products could not be added. Check your connection and try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * How many rows in the chosen column actually carry a barcode.
+   *
+   * **Because "SKU" is offered and is usually not one.** The route silently
+   * drops a value that fails the GS1 check digit and falls back to the name,
+   * which is the right behaviour and an invisible one: an owner who mapped their
+   * internal item code would see a worse match rate and no reason for it. This
+   * is the reason, said before the matching runs rather than after.
+   *
+   * Counted over the rows that will actually be sent — the same `max` slice and
+   * the same name filter — so the figure cannot disagree with the table below.
+   */
+  const barcodeStats = React.useMemo(() => {
+    if (sheet === null || barcodeColumn === '') return null
+    const at = sheet.headers.indexOf(barcodeColumn)
+    if (at === -1) return null
+
+    const nameAt = nameColumn === '' ? -1 : sheet.headers.indexOf(nameColumn)
+    const rows = sheet.rows
+      .filter((row) => (row[nameAt] ?? '').trim() !== '')
+      .slice(0, max)
+
+    const valid = rows.filter((row) => hasValidCheckDigit(row[at] ?? '')).length
+    return { valid, total: rows.length }
+  }, [sheet, barcodeColumn, nameColumn, max])
 
   /**
    * What the wizard will create from: matched rows, plus the ambiguous ones the
@@ -159,7 +285,7 @@ export function PriceListMatcher({ onResolved, max }: Props) {
           label="Upload a price list"
           accept=".csv,text/csv"
           onFile={read}
-          hint="A CSV with a product name and a price in each row. Excel files are not supported yet, so save as CSV first."
+          hint="A CSV with a product name in each row, and a barcode and price where you have them. Excel files are not supported yet, so save as CSV first."
           error={error ?? undefined}
         />
       </div>
@@ -176,6 +302,16 @@ export function PriceListMatcher({ onResolved, max }: Props) {
           value={nameColumn}
           onChange={(event) => setNameColumn(event.target.value)}
           hint="The column we match against your catalog."
+        />
+        <Select
+          label={FIELD_LABEL.barcode}
+          options={[
+            { value: '', label: 'No barcode column' },
+            ...sheet.headers.map((header) => ({ value: header, label: header })),
+          ]}
+          value={barcodeColumn}
+          onChange={(event) => setBarcodeColumn(event.target.value)}
+          hint={barcodeHint(barcodeStats)}
         />
         <Select
           label={FIELD_LABEL.price}
@@ -203,7 +339,9 @@ export function PriceListMatcher({ onResolved, max }: Props) {
         <MatchTable
           rows={matched}
           picks={picks}
+          busy={busy}
           onPick={(index, id) => setPicks((current) => ({ ...current, [index]: id }))}
+          onAdopt={adopt}
           onRestart={() => {
             setSheet(null)
             setMatched(null)
@@ -223,15 +361,24 @@ export function PriceListMatcher({ onResolved, max }: Props) {
 function MatchTable({
   rows,
   picks,
+  busy,
   onPick,
+  onAdopt,
   onRestart,
 }: {
   rows: MatchedRow[]
   picks: Picks
+  busy: boolean
   onPick: (index: number, productId: string | null) => void
+  onAdopt: () => void
   onRestart: () => void
 }) {
-  const unmatched = rows.filter((row) => row.status === 'UNMATCHED').length
+  // Counted as *still* unmatched: a row that has been adopted has a product now
+  // and belongs with the ready ones, or the tally would keep reporting a problem
+  // the owner has just solved.
+  const unmatched = rows.filter(
+    (row) => row.status === 'UNMATCHED' && (picks[row.index] ?? null) === null
+  ).length
   const open = rows.filter(
     (row) => row.status === 'AMBIGUOUS' && (picks[row.index] ?? null) === null
   ).length
@@ -249,6 +396,30 @@ function MatchTable({
           Different file
         </Button>
       </div>
+
+      {/* **Offered once for all of them, not per row.** Forty of a shop's own
+          lines is the ordinary case, not the exception, and a button on each
+          card would be forty decisions about a question the owner answers once.
+          Named with the count so it says what it will do before it does it. */}
+      {unmatched > 0 ? (
+        <Card padding="compact">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="min-w-0 font-ui text-body-sm text-secondary">
+              <Figure value={unmatched} size="data-sm" />{' '}
+              {unmatched === 1 ? 'row is' : 'rows are'} not in your catalog. Add them and they
+              go in this book — and match on their own next time.
+            </p>
+            <Button type="button" onClick={onAdopt} loading={busy}>
+              <Plus className="size-4" aria-hidden="true" strokeWidth={2} />
+              Add to my catalog
+            </Button>
+          </div>
+          <p className="pt-1 font-ui text-body-sm text-muted">
+            They will have no photo until you add one. The editor lists that before you
+            publish.
+          </p>
+        </Card>
+      ) : null}
 
       <ul className="flex flex-col gap-1">
         {rows.map((row) => (
@@ -330,6 +501,18 @@ function RowResult({ row, picked }: { row: MatchedRow; picked: string | null }) 
       <span className="flex items-center gap-1 font-ui text-body-sm text-caution-fg">
         <HelpCircle className="size-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
         More than one match. Pick one.
+      </span>
+    )
+  }
+
+  if (picked !== null) {
+    // Adopted. It has a product now, and saying *added* rather than repeating
+    // the name is the honest line: the name is the one already above it, and
+    // there is nothing else known about the row yet.
+    return (
+      <span className="flex items-center gap-1 font-ui text-body-sm text-positive-fg">
+        <Check className="size-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
+        Added to your catalog. No photo yet.
       </span>
     )
   }

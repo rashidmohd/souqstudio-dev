@@ -1030,3 +1030,196 @@ reading the class name proves least — `rgba(50,50,50,.25)` on white is
 arithmetic, not a look. This is exactly the kind of thing `pnpm --filter
 @souqstudio/engine gallery` exists for on the artboard side, and chrome has no
 equivalent. A browser would settle it in a glance.
+
+---
+
+## 15. The price list was matched on spelling alone, 15 September
+
+`POST /api/v1/offer-books/match` has accepted a `barcode` per row since it was written, and
+treats one as an identity: `resolveRow` trusts a barcode hit over any name score, because a
+name is a guess and a barcode is not. **`PriceListMatcher` never sent one.** It mapped two
+columns, name and price, so every sheet a shop exported from their POS was matched by
+spelling against a trigram score — with the strongest column on the sheet sitting unused
+next to it.
+
+Nothing announced this. The matcher simply did worse than it could, and the symptom was a
+low match rate that looked like a catalog coverage problem.
+
+### 15.1 A column named "SKU" is usually not a barcode
+
+`HEADER_HINTS` maps `sku` and `code` onto the barcode field, alongside `ean`, `upc`, `gtin`
+and `الباركود`. That is right often enough to keep — plenty of exports label the GTIN that
+way — and wrong often enough to matter, because a POS also labels its *internal* item code
+`SKU`.
+
+**The guard is already in the route rather than in the screen**, and it is the reason this
+was safe to wire up as it stands: `normalizeBarcode` strips separators, `isBarcode` requires
+8, 12, 13 or 14 digits, and `hasValidCheckDigit` applies the GS1 mod-10. A value that fails
+is dropped and the row falls back to its name. So a mis-mapped column **costs recall and
+cannot cause a wrong match** — which is the trade worth making, since refusing the column
+outright would lose every sheet that does put a real barcode under that header.
+
+**What was missing is that the fallback is invisible.** An owner who mapped their internal
+code would see a worse result and no reason for it. `barcodeHint` in `match-types.ts` says
+which of the two they have, before the matching runs and not after:
+
+| Column | What it says |
+| --- | --- |
+| None chosen | Strongly recommended — a barcode is an exact match where a name is a guess |
+| No valid values | Names it as an internal code, and says those rows match on name instead |
+| Some valid | `31 of 40 rows carry a barcode.` The rest match on name |
+| All valid | Every row carries one |
+
+It never refuses the column. A real sheet carries barcodes on the branded lines and internal
+codes on the bakery counter, and a partly-valid column is still worth sending.
+
+**The count is taken over the rows that will actually be sent** — the same `max` slice and
+the same drop-rows-with-no-name filter — so the figure cannot disagree with the table that
+follows it.
+
+`barcodeHint` lives in `match-types.ts` rather than in the component because it is copy with
+four branches and a test is cheaper than a screenshot. That module was already the pure
+client-side half of this flow.
+
+### 15.2 What this does not fix, and it is the larger half
+
+**Barcode matching raises the ceiling on the products the universal catalog has, and does
+nothing about the ones it does not.** There is one universal importer,
+`catalog:import-off`, and Open Food Facts is **food and beverage**. Two of the three
+segments named in the root `CLAUDE.md` — pharmacy and electronics — have no universal
+coverage at all, so for those shops a barcode column is a column of perfectly valid numbers
+matching nothing.
+
+And a shop's own lines — private label, the bakery, local brands — are in nobody's universal
+catalog by definition.
+
+So the decision deferred in §8.1 is the one that decides whether importing a price list is
+useful: **a row that matches nothing is listed and skipped today.** A grocery gets a book
+missing its own lines; a pharmacy gets an empty book. Barcode matching makes the matched
+half better and makes the unmatched half more conspicuous.
+
+### 15.3 Still owed
+
+- **Before-and-after prices.** The sheet carries one price column and an offer has two —
+  `price` is the mark and `comparePrice` is the strikethrough. A POS exports the shelf price
+  as "price" and the promotion as "offer price", which is the **opposite** of our naming, so
+  whatever ships must label them *Price before* and *Price now* rather than echo the sheet.
+  Accepting any two of price-before, price-now and discount-percent and deriving the third
+  is the shape, because systems differ in which two they export — and where all three are
+  present the third is a free consistency check on a stale export.
+- **Mechanic discounts have no home.** Buy-one-get-one and "2 for 20" are not prices: for
+  BOGO the price does not change and writing a `comparePrice` would be a lie on a printed
+  flyer. `OfferChip` with `CUSTOM` is the nearest fit and needs a fixed bilingual phrase
+  table, because a CSV will not carry `labelAr` and E5 §2 makes a missing one a publish-time
+  blocker for Arabic. A `MULTIBUY` price mode is a separate decision — `priceMode` today is
+  `FIXED | FROM | PER_UNIT` and `prefixLabel` is `FROM | EACH | PER_KG`, none of which say
+  "2 for".
+- **Discount percentage is not a badge.** E6 §3 removed the discount-magnitude badge table
+  deliberately — *"magnitude does not choose a badge any more, the promo tier does"* — so an
+  imported percentage validates the two prices rather than printing anything.
+- **A downloadable template.** Generated per shop rather than documented in a help page:
+  their currency, the exact header spellings `HEADER_HINTS` already recognises, and three
+  real rows from their own catalog. A spec that has to be retyped is a spec that arrives
+  wrong. The mapping screen stays regardless — `catalog-import.ts` is explicit that a guess
+  is never a decision.
+
+---
+
+## 16. A row that matches nothing is a product the shop has, 15 September
+
+§8.1 deferred this on 10 September: *"listed and skipped today, or offered a 'create this
+product' control"*, with the objection that the second *"drags catalog editing into a flyer
+flow and raises a permission question."* §15.2 is what forced it — barcode matching raised
+the ceiling on the products the universal catalog has and did nothing for the ones it does
+not, which for a grocery is their private label and their bakery counter, and for a
+pharmacy is everything.
+
+**Decided: an unmatched row goes into the shop's own collection.** Not the universal
+catalog — `catalog_products.organizationId` set, which is the private collection E5 built
+for exactly this. The flyer flow does now write products and the objection stands; what
+answers it is that the alternative was a book missing the lines a shop makes the most
+margin on.
+
+### 16.1 The constraint that decides the shape
+
+**An offer cannot exist without a catalog product.** `OfferItem.catalogProductId` is not
+nullable and carries a foreign key, so "a product that lives only inside this book" is not
+representable — there is no row to point at. Making it nullable was the alternative and it
+is a real change: every renderer, the composer and the export each grow a branch for an
+item with no product, against a rule the schema states plainly, that *an offer is a
+reference*.
+
+**And matching was never really about the catalog — it is about the picture.** A CSV gives
+a name and a price. The packshot, the cutout, the brand lockup and the pack maths behind the
+unit-price line all come off the catalog row. That is why an unmatched row is a real problem
+rather than a bookkeeping one.
+
+### 16.2 No image, deliberately, and that is the whole difference from E5-04
+
+`createOrgProduct` — the E5-04 path — **requires** a photograph and is right to: a product
+contributed from the catalog screen with no picture is not usable on a flyer, and it writes
+a `product_contributions` row so a reviewer can promote it to the universal catalog.
+
+A price-list row is the other case. Forty of a shop's own lines, every one with a name and a
+price and none with a photograph. **Demanding forty uploads before the book can be made is
+where the owner stops.** So `adoptRowsIntoCatalog` creates the row bare, and the card draws
+with `no-image` — already a composer flag, already listed under "Before publishing" in the
+editor. The gap becomes something the product tells them about rather than something that
+blocked them, and a photo added later appears in the book with no rebuild, because the offer
+references the row.
+
+No `product_contributions` row either. That table is E5-05's review queue and review decides
+promotion to the *universal* catalog; there is nothing to promote in a name typed into a
+spreadsheet by somebody describing their own stock, with no image attached. `source` is
+`import`, not `user_contribution` — the enum already carried both.
+
+### 16.3 Three things that had to be got right
+
+- **A barcode the organization already holds is a row to point at, not a row to write.**
+  `@@unique([organizationId, barcode])` would refuse the insert, and failing the whole sheet
+  because one line was adopted last week is the wrong answer. It happens more than it looks:
+  the matcher searches the org's own collection too, so an unmatched row *with* a barcode
+  means the **name** did not match — which is exactly a row adopted from last week's sheet
+  under a different spelling. Those resolve to the existing product.
+- **Duplicates within one sheet.** Two lines carrying the same barcode is a mistake the
+  owner did not notice, and inserting both breaks the same constraint.
+- **An invalid barcode is not stored.** Same GS1 guard as everywhere else. Writing an
+  internal item code into `barcode` claims the column for a number no scanner will produce,
+  and then collides with a real GTIN the day one arrives.
+
+`createManyAndReturn` rather than a create per row — forty round trips inside one
+interactive transaction is how the 5s timeout is reached, which `createBook` learned at
+eleven rows. The results are **paired by position with the rows that produced them**, never
+matched back by name: two lines of a sheet can carry the same name, and a name-keyed map
+hands both rows the same product.
+
+### 16.4 Where it lands in the screen
+
+The new products go into `picks` — the same mechanism the ambiguous rows already use — so
+nothing downstream needs to know they were created rather than chosen. `resolved` already
+reads `row.product?.id ?? picks[row.index]`.
+
+**Offered once for all of them, not per row.** Forty of a shop's own lines is the ordinary
+case, so a button on each card would be forty decisions about a question answered once. The
+control names the count before it acts, and says the two things that follow: they go in this
+book, and they match on their own next time. The photo gap is stated under it rather than
+discovered later.
+
+`viewer` is refused at the route, which is §8.1's permission question answered the way every
+other catalog write answers it.
+
+### 16.5 Still owed
+
+- **No test.** `adoptRowsIntoCatalog` goes through Prisma, and this repo's `lib` tests are
+  pure-function tests — the dedupe logic and the existing-barcode branch are the parts worth
+  covering and neither is reachable without a database. It is the same gap `E2-pending.md`
+  §1 records as "API route tests", and this is a good candidate for the first one.
+- **Not opened in a browser**, like everything else since 13 September.
+- **Nothing offers a photo afterwards.** The flag tells an owner the card has no picture and
+  the editor does not give them a way to fix it from there — the upload path exists
+  (`/catalog` → the product), but it is a different screen and nothing links to it. Worth
+  doing now that R2 uploads actually work.
+- **Pack size, brand and Arabic name are not read from the sheet**, though the columns are
+  in `HEADER_HINTS` and the matcher's own mapping screen knows them. A product adopted with
+  a name alone cannot draw a unit-price line and cannot publish in Arabic. The sheet often
+  has that data; this path throws it away.

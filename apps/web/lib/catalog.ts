@@ -594,6 +594,121 @@ export type NewProductImage = {
 }
 
 /**
+ * Adopt price-list rows the matcher could not place into the shop's own
+ * collection. `docs/E6-create-flow.md` §16.
+ *
+ * **Distinct from `createOrgProduct` in the one way that matters: there is no
+ * image.** E5-04 requires a photograph and is right to — a product added from
+ * the catalog screen is one an owner is contributing, and a contribution with no
+ * picture is not usable on a flyer. A price-list row is the other case: a shop
+ * has forty of their own lines in a spreadsheet, every one of them has a name and
+ * a price and none of them has a photograph, and demanding forty uploads before
+ * the book can be made is where the owner stops.
+ *
+ * So the product is created bare and the card draws with `no-image`, which is
+ * already a first-class composer flag and already listed under "Before
+ * publishing" in the editor. **The gap becomes a thing the product tells them
+ * about rather than a thing that blocked them**, and a photo can be added later
+ * without rebuilding the book — the offer references the row, so the picture
+ * appears the moment the row has one.
+ *
+ * **No `product_contributions` row either**, unlike E5-04. That table is E5-05's
+ * review queue and review decides promotion to the *universal* catalog. There is
+ * nothing to promote here: no image, and a name typed into a spreadsheet by
+ * somebody describing their own stock.
+ *
+ * Returns the created ids paired with the row index they came from, so the
+ * caller can put each one back against its own row. **Paired, never a parallel
+ * array** — the same rule `insertBook` and the CSV parser follow, because a
+ * mispairing here puts one row's product against another row's price.
+ */
+export async function adoptRowsIntoCatalog(
+  session: VerifiedSession,
+  rows: ReadonlyArray<{ index: number; nameEn: string; barcode?: string | undefined }>
+): Promise<Array<{ index: number; catalogProductId: string }>> {
+  const organizationId = session.user.organizationId
+  if (rows.length === 0) return []
+
+  return prisma.$transaction(async (tx) => {
+    /*
+     * **A barcode this organization already holds is a row to point at, not a
+     * row to write.** `@@unique([organizationId, barcode])` would refuse the
+     * insert anyway, and failing the whole sheet because one line was adopted
+     * last week is the wrong answer — the owner wants that product in the book
+     * either way.
+     *
+     * It happens more than it looks: the matcher searches the org's collection
+     * too, so an unmatched row with a barcode means the *name* did not match
+     * anything. A row adopted from last week's sheet under a slightly different
+     * spelling is exactly that shape.
+     */
+    const barcodes = [...new Set(rows.flatMap((row) => (row.barcode ? [row.barcode] : [])))]
+    const existing =
+      barcodes.length === 0
+        ? []
+        : await tx.catalogProduct.findMany({
+            where: { organizationId, barcode: { in: barcodes } },
+            select: { id: true, barcode: true },
+          })
+    const byBarcode = new Map(
+      existing.flatMap((product) => (product.barcode === null ? [] : [[product.barcode, product.id]]))
+    )
+
+    // Within the sheet as well as against the table: two lines of one
+    // spreadsheet carrying the same barcode is a duplicate the owner did not
+    // notice, and inserting both would break the same constraint.
+    const seen = new Set<string>()
+    const toCreate: Array<{ index: number; nameEn: string; barcode: string | null }> = []
+    const resolved: Array<{ index: number; catalogProductId: string }> = []
+
+    for (const row of rows) {
+      const barcode = row.barcode ?? null
+      if (barcode !== null) {
+        const already = byBarcode.get(barcode)
+        if (already !== undefined) {
+          resolved.push({ index: row.index, catalogProductId: already })
+          continue
+        }
+        if (seen.has(barcode)) continue
+        seen.add(barcode)
+      }
+      toCreate.push({ index: row.index, nameEn: row.nameEn, barcode })
+    }
+
+    if (toCreate.length > 0) {
+      // `createManyAndReturn` rather than a create per row: forty round trips
+      // against a hosted database inside one interactive transaction is how the
+      // 5s timeout is hit, which `createBook` learned at eleven rows.
+      const created = await tx.catalogProduct.createManyAndReturn({
+        data: toCreate.map((row) => ({
+          organizationId,
+          nameEn: row.nameEn,
+          barcode: row.barcode,
+          // Not `user_contribution`: that names the E5-04 path, which carries a
+          // photograph and a review row. `import` is what this is.
+          source: 'import',
+        })),
+        select: { id: true, nameEn: true, barcode: true },
+      })
+
+      /*
+       * **Paired by barcode where there is one and by position where there is
+       * not.** `createManyAndReturn` documents its order as the insert order,
+       * and two rows of a sheet can carry the same name — so a name-keyed map
+       * would collide and hand both rows the same product.
+       */
+      created.forEach((product, position) => {
+        const row = toCreate[position]
+        if (row === undefined) return
+        resolved.push({ index: row.index, catalogProductId: product.id })
+      })
+    }
+
+    return resolved
+  })
+}
+
+/**
  * One brand string to a `product_brands` id, creating the row if it is new.
  *
  * `upsert` on the slug rather than find-then-create: two owners adding the same

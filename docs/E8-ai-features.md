@@ -1,5 +1,9 @@
 # E8 — AI Features
 
+**Working notes: `docs/E8-pending.md`.** This file stays the record of what was asked for;
+corrections produced by building E8-07 are recorded there rather than edited in here, as
+with every other epic.
+
 ## Overview
 
 AI features are the differentiation layer of SouqStudio. They go beyond layout automation to give each shop a unique visual identity — branded characters, AI-generated covers, and automatic image cleanup. All AI features are credit-gated.

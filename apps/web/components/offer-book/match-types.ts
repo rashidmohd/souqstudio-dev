@@ -27,3 +27,28 @@ export type MatchedRow = {
   /** Ranked, when it could not. Empty otherwise. */
   candidates: Array<{ product: CatalogProductSummary; score: number }>
 }
+
+/**
+ * What to say under the barcode select.
+ *
+ * **Three states, because there are three situations and they want different
+ * sentences.** No column is a suggestion; a column that checks out is a
+ * reassurance; a column that does not is the one that matters — it names what
+ * the owner probably picked and says what will happen instead, rather than
+ * leaving them to infer it from a match rate.
+ *
+ * It never refuses the column. A sheet can carry barcodes for its branded lines
+ * and internal codes for the rest, and a partial column is still worth sending.
+ */
+export function barcodeHint(stats: { valid: number; total: number } | null): string {
+  if (stats === null) {
+    return 'Strongly recommended. A barcode is an exact match where a name is a guess.'
+  }
+  if (stats.valid === 0) {
+    return 'No value in this column is a barcode — it looks like an internal code. Those rows will be matched on their name instead.'
+  }
+  if (stats.valid < stats.total) {
+    return `${stats.valid} of ${stats.total} rows carry a barcode. The rest will be matched on their name.`
+  }
+  return 'Every row carries a barcode. These will match exactly.'
+}

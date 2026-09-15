@@ -23,8 +23,11 @@ the source per environment; unset is the repo. `docs/block-library-from-r2.md`, 
 its §12 before changing anything `validateBlock` warns about — a stricter check
 invalidates every object already published, and it took the dev deploy down on the 10th.
 
-**One thing an owner cannot do today that is not an epic.** A logo upload on the dev
-deployment is broken twice over — see §2.
+**Uploads work on dev as of 15 September.** The `R2_ENDPOINT` shape was corrected on
+Railway and the bucket now answers a browser PUT — the three faults in §2, found over one
+afternoon on 8 September, are closed on that environment. **Production has had none of it
+applied**, and the CORS policy in particular is a per-environment step rather than a code
+change. §2.
 
 **`Toast` is built, which unblocks undo-over-confirm everywhere.** It had been `spec` since
 E2 for want of a mounting mechanism, and the first thing built on it is a removal an owner
@@ -47,7 +50,8 @@ one of those three was found by the owner opening a screen rather than by anythi
 toolchain.
 
 Per-epic detail lives in the working notes: `docs/E2-pending.md`, `docs/E3-pending.md`,
-`docs/E4-pending.md`, `docs/E5-pending.md`, `docs/E6-pending.md`, `docs/E7-pending.md`.
+`docs/E4-pending.md`, `docs/E5-pending.md`, `docs/E6-pending.md`, `docs/E7-pending.md`,
+`docs/E8-pending.md`.
 The epic specs themselves (`docs/E1-*.md` … `docs/E13-*.md`) stay the record of what was
 asked for — corrections to them are recorded in the pending notes, not edited in.
 
@@ -706,7 +710,7 @@ the camera half of E5-03. The import's match thresholds are unverified against r
 one**: a misspelling inside a longer product name scores under the trigram threshold and
 returns nothing at all. Both are written up in `E5-pending.md` §3.
 
-### `R2_ENDPOINT` still carries the bucket on Railway — logo and image uploads land unreachable
+### `R2_ENDPOINT` carried the bucket on Railway — fixed on dev, 15 September
 
 **Found and fixed locally on 6 September**, while attaching a placeholder image to the demo
 catalog. `apps/web/.env.local` had
@@ -740,8 +744,18 @@ file is not a control.
 `R2_ENDPOINT` is now validated at startup against `R2_BUCKET_NAME` — `lib/env.ts`,
 `withEndpointCheck` — and refuses both shapes it can hide in: the bucket as a path segment
 and the bucket as a host prefix. The app will not boot on the bad value rather than
-uploading into the void. **Fix the Railway variable before the next deploy or dev stops
-serving**, which is the intended trade.
+uploading into the void. That was the intended trade, and it was the thing that finally
+forced the variable to be corrected.
+
+**Corrected on the dev environment on 15 September and uploads are reported working.**
+Which also means the CORS policy below is applied there, because no browser upload survives
+its absence. **Production is untouched on both counts** — a new environment needs the
+variable set and the policy applied before it has a user, and neither is carried by a
+deploy.
+
+The startup check is what makes the endpoint half of this self-enforcing from here: a wrong
+value stops the server instead of writing into the void. **Nothing enforces the CORS half**,
+which is why the script exists and why it reads its own policy back.
 
 ### Every presigned upload URL carried a checksum for an empty body — fixed in code
 
@@ -769,7 +783,7 @@ wrong and is corrected. It is survivable on the logo path only because the compl
 reads the object back and re-parses it with sharp. Any future presigned path that stores
 what it is given does not inherit that.
 
-### The R2 bucket has no CORS policy — every browser upload is blocked before it starts
+### The R2 bucket had no CORS policy — applied on dev, never on production
 
 **Found 8 September, after the two faults above were fixed and the upload still did not
 work.** A preflight against the bucket answers:
@@ -800,7 +814,10 @@ environment.** Run it against the production bucket before production has a user
 **Three independent faults on one path in one afternoon**, and the order they were found in
 is the lesson: the endpoint bug was silent, the checksum bug was loud, and the CORS gap was
 invisible from everything except an actual browser request. Each one alone was enough to
-break the feature; fixing two of them looked exactly like fixing none.
+break the feature; fixing two of them looked exactly like fixing none. **All three are
+closed on dev as of 15 September** — the checksum in code, the endpoint in the Railway
+variable, and CORS on the bucket. The feature working is the only evidence that could have
+told you so, which is the other half of the lesson.
 
 ### A preview route with no auth check was committed — resolved, gone from the tree
 
@@ -1341,6 +1358,15 @@ caught two more defects; `E7-pending.md` has them.
 
 ### E8 — AI features — one built, and three things it left open
 
+**`docs/E8-pending.md` is the working note, written 15 September.** It carries the list
+below plus the two defects the live run found, the deliberate compromises, and the fact
+that **magic block fails every attempt on dev right now.** `MAGIC_BLOCK_PROVIDER` is unset,
+unset means Anthropic, and that key is the literal placeholder `sk-ant-` — which passes the
+`startsWith` check and 401s at use. A real Anthropic key was deferred on 15 September. The
+DashScope key was moved into `apps/worker/.env` the same day, so `MAGIC_BLOCK_PROVIDER=qwen`
+is a one-line fix — but which provider receives shop owners' uploaded images is a decision
+the epic says to make deliberately, so it is left unset rather than flipped.
+
 `E8-07` ships (§1.3). What it leaves on the table, cheapest first:
 
 1. **Finish looking at the renders.** The inset change touched 97 boxes across all four
@@ -1404,7 +1430,7 @@ These are waiting on a human, not on effort. Each one changes what gets built.
 | **`Select` has no `size` prop** | any row pairing a select with an `lg` input | the inventory raised it at E2 and it has now bitten twice. `ColorField` got the prop; `Select` still has not |
 | **Forcing an incomplete owner into the wizard** from anywhere in the dashboard | nothing | `E4-pending.md` §2 |
 | **`StatusPill` enum** — no value for active/paused/pending/expired | the pill, and three screens using plain text instead | `E2-pending.md` §6 Q1 |
-| **What a CSV row that matches no product should do** — listed and skipped today, or offered a "create this product" control | nothing; the flow works either way | deferred deliberately on 10 September. `E6-create-flow.md` §8.1. The second option drags catalog editing into a flyer flow and raises a permission question |
+| ~~**What a CSV row that matches no product should do**~~ | — | **Decided 15 September**: it goes into the shop's own collection, with no image and no contribution row. `E6-create-flow.md` §16. The flyer flow does now write products; what answered the objection is that the alternative was a book missing a grocery's private label and a pharmacy's entire stock |
 | **A browser driver** — Playwright plus a Chromium binary, or nothing | every UI change from here | §1.0. Three defects in two days were found by a person opening a screen; `curl` proves structure and cannot prove behaviour or contrast. It is a dependency install, so it is a decision rather than a task |
 | **Cards have no `SQUARISH` arrangement** — add one to the twenty-five, or keep constraining grids to `TALL`/`WIDE` | posters and any hand-built grid | `E6-create-flow.md` §7 and §10.4. `pickArrangement` falls back silently, so the failure is a stretched card and not an error. The shipped defaults dodge it; the editor's layout panel can still reach it, and warns |
 
