@@ -32,6 +32,8 @@ import { useGridPatch } from '@/components/editor/use-grid-patch'
 import { usePageMerges } from '@/components/editor/use-page-merges'
 import { usePageBackground } from '@/components/editor/use-page-background'
 import { useRegionBlocks } from '@/components/editor/use-region-blocks'
+import { useRemoveKey } from '@/components/editor/use-remove-key'
+import { ArtboardMenu } from '@/components/editor/ArtboardMenu'
 import { OfferTray } from '@/components/editor/OfferTray'
 import {
   OfferProperties,
@@ -409,6 +411,10 @@ export function EditorShell({
   const pageBg = usePageBackground(bookId)
   const regionBlocks = useRegionBlocks(bookId)
 
+  // Delete and Backspace take the selected card out of the book. Safe to bind
+  // only since removal became undoable — see the hook.
+  useRemoveKey({ bookId })
+
   /** True while a design change is in flight — it re-flows the whole book. */
   const [pendingBlock, setPendingBlock] = React.useState(false)
   React.useEffect(() => setPendingBlock(false), [pages])
@@ -761,51 +767,68 @@ export function EditorShell({
         <div className="flex flex-1 flex-col items-center gap-8 overflow-auto p-8">
           {pages.map((flowPage) => (
             <figure key={flowPage.index} className="flex w-full max-w-3xl flex-col items-center gap-2">
-              <BookPage
-                page={flowPage}
-                size={page}
-                offers={drawn}
-                blocks={blocks}
-                kit={kit}
-                shopName={shopName}
-                // The artboard follows the *book's* language, never the
-                // interface's.
-                direction={edition === 'ar' ? 'rtl' : 'ltr'}
-                background={backgroundFor(flowPage.index)}
-                asset={asset}
-                overrides={liveOverrides[flowPage.index] ?? overrides[flowPage.index] ?? []}
-                selectedOfferId={selectedOfferId}
-                onSelectOffer={select}
-                /*
-                  **Only while the Page tool is up.** Cell selection and card
-                  selection are two rings on one artboard, and an owner pricing
-                  offers has no use for the second — so the grid, the hairlines
-                  and the merge gesture arrive with the tool that names them and
-                  leave with it. Everywhere else this is the artboard it was.
-                */
-                {...(tool === 'page'
-                  ? {
-                      cells: flowPage.cells,
-                      // Only the page that owns the selection draws a ring. A
-                      // merge belongs to one page, so showing it on all of them
-                      // would promise an edit that is not going to happen.
-                      cellSelection: cellPage === flowPage.index ? selectionSpan : null,
-                      onSelectCell: (cell, { extend, offerId }) => {
-                        const extending = extend || addToSelection
-                        selectCell(flowPage.index, cell.body, extending)
-                        // A fresh pick means this card; extending a range does
-                        // not, and swapping the properties panel for every cell
-                        // the pointer crossed would make the gesture unusable.
-                        if (!extending && offerId !== null) select(offerId)
-                      },
-                    }
-                  : {})}
-                onEscalated={(ids) => {
-                  escalatedByPage.current[flowPage.index] = ids
-                  markEscalated(Object.values(escalatedByPage.current).flat())
-                }}
-                className="rounded-artboard"
-              />
+              {/* The menu wraps one page. It acts on whatever the click that
+                  opened it selected, and every item in it is also a button in a
+                  panel — see `ArtboardMenu`. */}
+              <ArtboardMenu
+                bookId={bookId}
+                cellLabel={
+                  tool === 'page' && selectedCell !== null
+                    ? (currentBlockName ?? 'Empty cell')
+                    : null
+                }
+                onPickBlock={
+                  tool === 'page' && selectedCell !== null
+                    ? () => setPickingBlock(true)
+                    : undefined
+                }
+              >
+                <BookPage
+                  page={flowPage}
+                  size={page}
+                  offers={drawn}
+                  blocks={blocks}
+                  kit={kit}
+                  shopName={shopName}
+                  // The artboard follows the *book's* language, never the
+                  // interface's.
+                  direction={edition === 'ar' ? 'rtl' : 'ltr'}
+                  background={backgroundFor(flowPage.index)}
+                  asset={asset}
+                  overrides={liveOverrides[flowPage.index] ?? overrides[flowPage.index] ?? []}
+                  selectedOfferId={selectedOfferId}
+                  onSelectOffer={select}
+                  /*
+                    **Only while the Page tool is up.** Cell selection and card
+                    selection are two rings on one artboard, and an owner pricing
+                    offers has no use for the second — so the grid, the hairlines
+                    and the merge gesture arrive with the tool that names them and
+                    leave with it. Everywhere else this is the artboard it was.
+                  */
+                  {...(tool === 'page'
+                    ? {
+                        cells: flowPage.cells,
+                        // Only the page that owns the selection draws a ring. A
+                        // merge belongs to one page, so showing it on all of them
+                        // would promise an edit that is not going to happen.
+                        cellSelection: cellPage === flowPage.index ? selectionSpan : null,
+                        onSelectCell: (cell, { extend, offerId }) => {
+                          const extending = extend || addToSelection
+                          selectCell(flowPage.index, cell.body, extending)
+                          // A fresh pick means this card; extending a range does
+                          // not, and swapping the properties panel for every cell
+                          // the pointer crossed would make the gesture unusable.
+                          if (!extending && offerId !== null) select(offerId)
+                        },
+                      }
+                    : {})}
+                  onEscalated={(ids) => {
+                    escalatedByPage.current[flowPage.index] = ids
+                    markEscalated(Object.values(escalatedByPage.current).flat())
+                  }}
+                  className="rounded-artboard"
+                />
+              </ArtboardMenu>
               {/* On a chip rather than directly on the surround: the canvas
                   surround is the one dark surface in the product and the system
                   defines no ink token for it. Raised in `docs/E6-pending.md`. */}

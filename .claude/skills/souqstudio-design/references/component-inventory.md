@@ -879,6 +879,51 @@ an alpha modifier (`bg-stone-900/40`) cannot work because the palette is bare
 Adding `--sq-ui-scrim` is a token decision, not something to inline. Raised, not
 worked around.
 
+### ContextMenu
+
+| | |
+| --- | --- |
+| File | `components/ui/context-menu.tsx` |
+| Status | `built` — apps/web only |
+| Governs | SKILL.md → Components, and → Touch targets |
+
+```tsx
+<ContextMenu>                       // Radix Root
+  <ContextMenuTrigger asChild>…</ContextMenuTrigger>
+  <ContextMenuContent>              // hairline + surface tone, no elevation
+    <ContextMenuLabel>…             // what the menu is acting on
+    <ContextMenuItem tone?: 'default' | 'danger'>…
+    <ContextMenuSeparator />
+  </ContextMenuContent>
+</ContextMenu>
+```
+
+**An accelerator, never the only route to anything it offers.** Every item must also exist
+as a button on a visible surface — SKILL.md: *"Every hover-revealed affordance needs a
+persistent equivalent, because the editor ships on tablet where hover does not exist."*
+Radix does open this on long-press, so it is not pointer-only, but long-press is
+undiscoverable and competes with the iOS selection callout. A menu holding an action that
+exists nowhere else is a defect, not a shortcut.
+
+**`tone`, not `variant`**, against the convention above, and deliberately: a menu item has
+one visual treatment, and the distinction being drawn is what the action *does*. `danger`
+is the only other value and there will not be a third.
+
+**The first `@radix-ui/*` package in the tree.** `Dialog` is the native `<dialog>` and
+`Select` a native `<select>`, both having refused their Radix versions with the reasoning at
+the call site. There is no platform primitive for a context menu — `contextmenu` is an
+event, not a widget — so the reasoning does not transfer, and the alternative was
+hand-rolling roving focus, typeahead, collision-aware positioning and RTL side-flipping.
+
+**Do not paste shadcn's block for this.** It ships `shadow-md`, `rounded-sm`, `text-sm`,
+`z-50` and `animate-in zoom-in-95`; the scales here are replaced rather than extended, so
+most of those are valid strings that generate no CSS and nothing but `check:classes` can
+see it. Items are full control height (32 / 44 on coarse pointers), not the dense rows a
+menu is usually built with.
+
+`dir` is not set on the content. Radix takes it from the nearest `DirectionProvider` or the
+document, which is what the app already scopes.
+
 ### Toast
 
 | | |

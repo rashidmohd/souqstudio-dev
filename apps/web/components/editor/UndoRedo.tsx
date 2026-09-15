@@ -41,12 +41,12 @@ export function UndoRedo({ bookId }: { bookId: string }) {
       const ok = await applyStep(bookId, step, direction)
       setSave(ok ? 'saved' : 'error')
       settle(step.offerId, ok)
-      // **A removal is the one step the client cannot draw the result of.**
-      // Putting an offer back changes which cell every later offer flows into,
-      // and that answer belongs to the engine on the server. A price does not:
-      // the card has already redrawn from the store, which is why this refresh
-      // is conditional rather than unconditional.
-      if (ok && step.kind === 'remove') router.refresh()
+      // **A patch is the only step the client can draw the result of.**
+      // Putting an offer back, or moving one, changes which cell every later
+      // offer flows into, and that answer belongs to the engine on the server.
+      // A price does not: the card has already redrawn from the store, which is
+      // why this refresh is conditional rather than unconditional.
+      if (ok && step.kind !== 'patch') router.refresh()
     },
     [bookId, router, setSave, settle]
   )

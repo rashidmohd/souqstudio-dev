@@ -314,6 +314,14 @@ export function BookPage({
                 aria-pressed={selected}
                 className="cursor-pointer outline-none"
                 onClick={() => onSelectOffer(placement.offerId as string)}
+                // **Right-click selects before the menu opens**, which is what
+                // lets a context menu act on "the selection" rather than carry
+                // its own idea of what was clicked. Not prevented: the artboard
+                // wrapper is the menu's trigger and still has to see this.
+                //
+                // The cell layer needs no equivalent — its hit targets listen on
+                // `pointerdown`, which the right button fires too.
+                onContextMenu={() => onSelectOffer(placement.offerId as string)}
                 onKeyDown={(event) => {
                   if (event.key !== 'Enter' && event.key !== ' ') return
                   event.preventDefault()

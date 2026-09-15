@@ -38,12 +38,13 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
  * `label` is what the header can name, so an owner is never asked to undo
  * something they cannot identify.
  *
- * **Two kinds, because removal is not a patch.** A price change can be undone
- * by writing the old price back to a row that is still there; a removal has no
- * row left to write to, so its step carries the whole offer and undoing it is a
- * `POST .../restore` rather than a `PATCH`. Making the kind a discriminant
- * rather than an optional field is what stops the two paths being confused:
- * a remove step has no `undo` patch to send, and the compiler says so.
+ * **Three kinds, because not every act is a patch.** A price change can be
+ * undone by writing the old price back to a row that is still there; a removal
+ * has no row left to write to, so its step carries the whole offer and undoing
+ * it is a `POST .../restore`; a reorder belongs to no single offer at all and
+ * is undone by sending the order back. Making the kind a discriminant rather
+ * than an optional field is what stops the paths being confused — a remove step
+ * has no `undo` patch to send, and the compiler says so.
  */
 type StepBase = {
   offerId: string
@@ -67,10 +68,49 @@ export type OfferRemovalStep = StepBase & {
   snapshot: OfferSnapshot
 }
 
-export type EditorStep = OfferPatchStep | OfferRemovalStep
+/**
+ * A move in the book's order.
+ *
+ * **The whole order both ways, not a `{from, to}` pair.** Undoing a move by
+ * swapping the indices back is only correct if nothing else moved in between,
+ * and the route refuses a partial list for the same reason the tray sends a
+ * full one. Two arrays are cheap — five hundred ids is the ceiling — and they
+ * are the only shape that cannot be wrong.
+ *
+ * `offerId` is the card that moved, so the header can name it and undo can
+ * select it. The step still rewrites every position.
+ */
+export type OfferReorderStep = StepBase & {
+  kind: 'reorder'
+  fromOrder: string[]
+  toOrder: string[]
+}
+
+export type EditorStep = OfferPatchStep | OfferRemovalStep | OfferReorderStep
 
 /** E6-06: "max 50 steps". */
 const HISTORY_LIMIT = 50
+
+/**
+ * Whether a step can still be sent, given the offers the book now holds.
+ *
+ * Its own predicate because `hydrate` runs on every server re-render and the
+ * answer differs per kind — getting it wrong in either direction is invisible
+ * until an owner presses undo and either nothing happens or the wrong thing
+ * does.
+ */
+const replayable =
+  (offers: Record<string, ComposedOffer>) =>
+  (step: EditorStep): boolean => {
+    if (step.kind === 'remove') return true
+    if (step.kind === 'reorder') {
+      const ids = Object.keys(offers)
+      return (
+        step.toOrder.length === ids.length && step.toOrder.every((id) => offers[id] !== undefined)
+      )
+    }
+    return offers[step.offerId] !== undefined
+  }
 
 type EditorState = {
   bookId: string
@@ -260,15 +300,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         // whole point of it — filtering on "is this offer still here" would
         // discard the undo for the removal in the same re-render the removal
         // caused. Patch steps still go: their row is gone for some other
-        // reason, and re-issuing a price against it would 404.
-        past:
-          state.bookId === bookId
-            ? state.past.filter((step) => step.kind === 'remove' || next[step.offerId])
-            : [],
-        future:
-          state.bookId === bookId
-            ? state.future.filter((step) => step.kind === 'remove' || next[step.offerId])
-            : [],
+        // reason, and re-issuing a price against it would 404. A reorder goes
+        // when the book it describes is no longer the book on screen — the
+        // route would refuse the list anyway, and refusing it in front of an
+        // owner who pressed undo is worse than not offering it.
+        past: state.bookId === bookId ? state.past.filter(replayable(next)) : [],
+        future: state.bookId === bookId ? state.future.filter(replayable(next)) : [],
         // The server's copy wins on every hydrate. A nudge is saved as it is
         // made, so anything local that the server does not have is a save that
         // failed — and a delta the database has never heard of is one that will

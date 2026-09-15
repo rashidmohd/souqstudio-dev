@@ -1139,29 +1139,105 @@ skill → Destructive actions gives *removing a product* as its example of what 
 Undo beats a dialog at. The consequence is stated in the panel before it happens — every
 offer after this one moves along by one — for the same reason `CellBlockDialog` states its
 own: an owner otherwise reads it as the book quietly rearranging itself.
+### The accelerators, and the Radix decision — 13 September
+
+The three things the section above left open are built, in the order that made each one
+safe rather than the order they were asked for.
+
+#### Reordering is on the undo stack
+
+It never was, in the tray or in the panel, so Cmd+Z reached past a move to the price before
+it. A reorder is a third kind of step: **the whole order both ways, not a `{from, to}`
+pair.** Undoing a move by swapping the indices back is only correct if nothing else moved
+in between, and the route refuses a partial list for exactly that reason — two arrays are
+cheap at a five-hundred-offer ceiling and they are the only shape that cannot be wrong.
+
+`hydrate` needed a third answer too, and it is its own predicate now (`replayable`) because
+each kind gives a different one: a removal survives its offer being gone, a patch does not,
+and **a reorder goes the moment the book it describes is not the book on screen.** The route
+would refuse a stale list anyway; refusing it in front of an owner who just pressed undo is
+worse than not offering it. Adding or removing an offer therefore drops pending reorder
+steps, and there is a test for each direction.
+
+The tray's arrows, the tray's *drag* and the panel's arrows now share one `reorderOffer`.
+That was three copies of "send the whole order" before today, two of them added by me.
+
+#### Delete and Backspace remove the selected card
+
+`components/editor/use-remove-key.ts`. **The only reason this was not built alongside the
+panel's Remove button is that removal was not reversible**; a keystroke that destroys work
+an owner cannot get back is a different proposition from one they can undo.
+
+**It acts on the selection, not on what has focus.** Clicking a cell moves focus to that
+cell's hit target, but clicking a row in the tray selects the same offer and leaves focus in
+the tray — and an owner who just pointed at a card means that card either way. The
+properties panel is showing it, which is the visible answer to *what will this delete*.
+
+Three things it stands off, and the third is the one that would have bitten: text fields,
+where Backspace corrects a price; a held modifier, so the platform keeps Cmd+Backspace; and
+**an open dialog** — `Dialog` is the native `<dialog>`, which contains focus but does not
+stop a window-level listener, so a Backspace typed into the block picker would quietly
+delete the card behind it.
+
+#### The context menu, and the first Radix package in the tree
+
+`components/ui/context-menu.tsx` over `@radix-ui/react-context-menu`, with
+`components/editor/ArtboardMenu.tsx` wiring it to the artboard.
+
+**The dependency was the decision, not the component.** `Dialog` is the native `<dialog>`
+and `Select` a native `<select>`, and both refused their Radix versions with the reasoning
+written at the call site: the platform already does modal containment and the platform
+picker better than a reimplementation will. There is no platform primitive for a context
+menu — `contextmenu` is an event, not a widget — so that reasoning does not transfer, and
+the alternative was hand-rolling roving focus, typeahead, collision-aware positioning and
+RTL side-flipping.
+
+**shadcn's block for this does not resolve here**, which is the tokens pass the last section
+predicted: it ships `shadow-md`, `rounded-sm`, `text-sm` and `animate-in zoom-in-95`, and
+the scales in this repo are *replaced* rather than extended, so most of those are valid
+strings that generate no CSS and nothing but `check:classes` can see it. Every class in the
+file is a token, items are full control height rather than the dense rows a menu usually
+gets, and separation is a hairline and surface tone because `boxShadow` in the Tailwind
+config is `{ none }`.
+
+**Every item in the menu is also a button in a panel, and that is the rule.** The design
+skill requires a persistent equivalent for anything the editor offers, because it ships on
+tablet. Radix does open this on long-press, so it is not pointer-only — but long-press is
+undiscoverable and competes with the iOS selection callout, so the menu is where an owner
+who knows the product goes faster and never where a feature lives. If an item is ever added
+to `ArtboardMenu` that exists nowhere else, that component has become the wrong thing.
+
+**It acts on the selection, and the click that opened it set the selection.** The cell hit
+targets already listened on `pointerdown`, which the right button fires; the card hit
+targets needed an `onContextMenu` for the same job. A menu carrying its own notion of what
+was clicked would be a second answer to *which card*, and the two would disagree the first
+time a click was swallowed. **One root per page, not one per cell** — twelve cells over
+nine pages is a hundred state machines for a surface that can only ever show one menu.
 
 ### Still open on this
 
-- **Not opened in a browser.** Typecheck, lint, build, `check:classes` and 528 tests pass,
-  and every one of the last three defects in `STATUS.md` §1.0 was found by a person opening
-  a screen rather than by any of those. The repository still has no browser driver. The
-  Arabic pass in particular is unverified: the toast anchors with `start-4` and should land
-  bottom-right in an AR interface, and nothing here has proved it does.
-- **The context menu, if it is still wanted.** shadcn's is Radix, which would be the first
-  `@radix-ui/*` package in the tree — `Dialog` is the native `<dialog>` and `Select` is a
-  native `<select>`, both refused the Radix version with written reasoning. There is no
-  platform primitive for a context menu, so the reasoning does not transfer and this is the
-  one where it earns its place. The cost is the tokens pass: the shipped block carries
-  `shadow-md`, `rounded-sm`, `text-sm` and `animate-in zoom-in-95`, none of which resolve
-  here and none of which *error* either. It must mirror `OfferActions` rather than carry
-  items that live nowhere else, and it needs an inventory entry first.
-- **`Delete` on a selected cell** is the accelerator more people reach for than right-click,
-  and it is now safe to add — that was the whole blocker. It was left out of this change
-  because a keystroke that removes whatever is selected wants the browser test that does
-  not exist yet.
-- **Reordering is still not on the undo stack.** `moveOffer` is shared and neither caller
-  records a step, so Cmd+Z reaches past a move to the price before it. It was already true
-  of the tray's arrows; the panel's arrows make it twice as reachable.
+- **Still not opened in a browser.** Typecheck, lint, build, `check:classes` and 533 tests
+  pass; every one of the last several defects in `STATUS.md` §1.0 was found by a person
+  opening a screen rather than by any of those. The specific risks this change adds, none
+  of which any test here can see: whether the menu flips to the correct side in an Arabic
+  interface, whether `asChild` on the artboard wrapper behaves over an `<svg>` on a real
+  pointer, and whether long-press opens it on an iPad without the selection callout
+  fighting it.
+- **Merge and unmerge are not in the menu.** They need a multi-cell selection, so on a
+  single right-clicked cell they would be disabled more often than not. The gesture stays
+  on the Page panel.
+- **`Delete` does nothing to a cell holding a brand block.** Selecting such a cell selects
+  no offer, so the key is a no-op where "clear this cell" is the obvious meaning. The
+  design skill's own list of undo-over-confirm examples includes *clearing a cell*, so the
+  shape is known; it wants `use-region-blocks` to grow a reversible write first.
+- **`ContextMenuCheckboxItem`, `RadioItem` and `Sub` are not wrapped.** Radix ships them
+  and nothing needs them; wrapping a primitive with no caller is how an API gets a second
+  answer before anyone has asked the question.
+- **Reordering by drag still sends on drop only.** The undo step records the drop, so a
+  drag that crossed six rows is one step, which is right — but the tray's arrows generate
+  one step per press, and an owner tapping "earlier" five times has five steps to walk
+  back. Coalescing consecutive moves of the same card inside a short window is the fix if
+  anyone complains.
 - **`OfferShopOverride` is snapshotted and nothing in the editor writes it yet.** Carried
   because something will, and a snapshot that silently drops a column is an undo that
   quietly loses a shop's branch pricing.

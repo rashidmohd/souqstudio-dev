@@ -582,7 +582,7 @@ interface put in front of the owner; the engine was correct throughout. **No amo
 further unit testing would have found any of the three.** Driving a real browser against a
 real book found all three in an afternoon, and that is now the check this epic is held to.
 
-### 1.6 Removing a card is undoable, and the toast exists at last — 13 September
+### 1.6 Removing a card is undoable, and the artboard got its accelerators — 13 September
 
 Full record in `E6-pending.md`, last section. Three things worth carrying here.
 
@@ -606,16 +606,29 @@ contents are handed over on the way out instead of dropped.
 **The artboard's selection is no longer a dead end.** Clicking a cell has selected its offer
 since E6-02 and every action then lived across the screen in the tray, matched to the card
 by its ordinal number. `OfferProperties` now ends in Earlier, Later and Remove from book,
-sharing one implementation with the tray so the two cannot become two behaviours. The ask
-that produced this was a right-click menu; that is an accelerator and is written up as one,
-because the design skill requires a persistent equivalent for anything the editor offers on
-tablet, and shadcn's `ContextMenu` would also be the first Radix package in a tree that has
-twice refused one with written reasoning.
+sharing one implementation with the tray so the two cannot become two behaviours.
 
-**Checked by: typecheck, lint, build, `check:classes`, 528 tests. Not opened in a browser** —
-and §1.0 is the standing evidence that this is the check that finds what the others cannot.
-The Arabic pass is the specific gap: the toast anchors `start-4` and should land
-bottom-right in an AR interface, and nothing has proved it does.
+**The accelerators followed, in the order that made each one safe.** Reordering went onto
+the undo stack — it never was, in either place, so Cmd+Z reached past a move to the price
+before it, and the tray's arrows, the tray's drag and the panel's arrows now share one
+implementation instead of three. `Delete` and `Backspace` remove the selected card, which
+was only ever blocked on removal being reversible. And the artboard has a context menu.
+
+**That last one put the first `@radix-ui/*` package in the tree, which was the decision
+rather than the component.** `Dialog` is the native `<dialog>` and `Select` a native
+`<select>`, both having refused their Radix versions with the reasoning at the call site —
+but there is no platform primitive for a context menu, so that reasoning does not transfer.
+Every item in the menu is also a button in a panel, because the design skill requires a
+persistent equivalent for anything the editor offers on tablet; a menu is where an owner
+who knows the product goes faster, never where a feature lives. **Do not paste shadcn's
+block for this** — it ships `shadow-md`, `rounded-sm`, `text-sm` and `animate-in`, none of
+which resolve against replaced scales and none of which error either.
+
+**Checked by: typecheck, lint, stylelint, build, `check:classes`, 533 tests. Not opened in
+a browser** — and §1.0 is the standing evidence that this is the check that finds what the
+others cannot. Three specific risks nothing here can see: whether the menu flips to the
+correct side in an Arabic interface, whether the toast anchors bottom-right there, and
+whether long-press opens the menu on an iPad without the selection callout fighting it.
 
 ## 2. Blocking, and what it blocks
 

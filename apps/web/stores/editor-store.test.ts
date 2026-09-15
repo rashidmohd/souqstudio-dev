@@ -4,6 +4,7 @@ import {
   useEditorStore,
   type OfferPatchStep,
   type OfferRemovalStep,
+  type OfferReorderStep,
 } from '@/stores/editor-store'
 
 /**
@@ -231,6 +232,60 @@ describe('undoing a removal', () => {
     const before = useEditorStore.getState().offers
     useEditorStore.getState().undoStep(removal('off_2'))
     expect(useEditorStore.getState().offers).toBe(before)
+  })
+})
+
+describe('undoing a move', () => {
+  const reorder = (): OfferReorderStep => ({
+    kind: 'reorder',
+    offerId: 'off_2',
+    label: 'moving Basmati rice',
+    fromOrder: ['off_1', 'off_2'],
+    toOrder: ['off_2', 'off_1'],
+  })
+
+  it('survives a re-hydration that only changed the order', () => {
+    // Which is every re-hydration a move causes: the set is identical and the
+    // sequence is not.
+    useEditorStore.getState().push(reorder())
+    useEditorStore.getState().hydrate({
+      bookId: 'book_1',
+      offers: [offer('off_2'), offer('off_1')],
+    })
+
+    expect(useEditorStore.getState().past).toHaveLength(1)
+  })
+
+  it('goes when an offer it describes has been removed', () => {
+    // The route refuses a list that is not the whole book, and refusing it in
+    // front of an owner who pressed undo is worse than not offering it.
+    useEditorStore.getState().push(reorder())
+    useEditorStore.getState().hydrate({ bookId: 'book_1', offers: [offer('off_1')] })
+
+    expect(useEditorStore.getState().past).toEqual([])
+  })
+
+  it('goes when an offer has been added, because the order no longer covers the book', () => {
+    useEditorStore.getState().push(reorder())
+    useEditorStore.getState().hydrate({
+      bookId: 'book_1',
+      offers: [offer('off_1'), offer('off_2'), offer('off_3')],
+    })
+
+    expect(useEditorStore.getState().past).toEqual([])
+  })
+
+  it('selects the card that moved, not the one it displaced', () => {
+    useEditorStore.getState().push(reorder())
+    useEditorStore.getState().takeUndo()
+    expect(useEditorStore.getState().selectedOfferId).toBe('off_2')
+  })
+
+  it('does not reorder the store itself — the server re-renders the book', () => {
+    const before = useEditorStore.getState().order
+    useEditorStore.getState().push(reorder())
+    useEditorStore.getState().takeUndo()
+    expect(useEditorStore.getState().order).toEqual(before)
   })
 })
 

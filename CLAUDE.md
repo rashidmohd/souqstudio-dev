@@ -110,6 +110,11 @@ One line each. Full reasoning in the `souqstudio-technical` skill.
 - **Resend, not SES** — instant production access. Revisit above 500K emails/month.
 - **RLS at the database level** — application filtering alone is not a tenancy control.
 - **Zustand, not Redux** — Context re-renders too broadly for canvas update frequency.
+- **Platform primitives over Radix, with one exception** — `Dialog` is the native
+  `<dialog>` and `Select` a native `<select>`, because the platform does modal
+  containment and the mobile picker better than a reimplementation. `ContextMenu` is
+  Radix (`components/ui/context-menu.tsx`), because `contextmenu` is an event and not
+  a widget, so there is nothing to prefer. Reach for a third only with that test.
 - **Organization → Shop → User** — billing at org, operations at shop. Load-bearing.
 - **Our own session layer; next-auth for Google OAuth only** — next-auth cannot
   issue a database session for a password login, and revocability is why database

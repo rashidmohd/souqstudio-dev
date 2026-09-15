@@ -36,6 +36,17 @@ export async function applyStep(
       return res.ok
     }
 
+    if (step.kind === 'reorder') {
+      const res = await fetch(`/api/v1/offer-books/${bookId}/offers`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          offerIds: direction === 'undo' ? step.fromOrder : step.toOrder,
+        }),
+      })
+      return res.ok
+    }
+
     // Undoing a removal puts the offer back under its own id; redoing one takes
     // it out again. The snapshot does not change between the two, so a step can
     // be walked back and forth without ever going stale.
@@ -175,10 +186,12 @@ export async function removeOffer({
  * from E6-02, lifted here unchanged so the panel's arrows cannot acquire a
  * second one.
  *
- * **Not optimistic, and not on the undo stack.** Unlike a price, a move changes
- * what every *other* offer's position means — a failed optimistic reorder
- * leaves the tray and the artboard describing different books. The undo stack
- * is a separate question and a real gap; `docs/E6-pending.md` carries it.
+ * **Not optimistic, but it is on the undo stack.** Unlike a price, a move
+ * changes what every *other* offer's position means, so a failed optimistic
+ * reorder leaves the tray and the artboard describing different books — the
+ * request goes first and the server re-renders. The step is recorded only after
+ * the server has taken it, which is the difference between a stack that
+ * describes the book and one that describes what the client attempted.
  */
 export async function moveOffer({
   bookId,
@@ -191,15 +204,48 @@ export async function moveOffer({
   by: -1 | 1
   refresh: () => void
 }): Promise<boolean> {
-  const { order } = useEditorStore.getState()
+  const from = useEditorStore.getState().order.indexOf(offerId)
+  if (from === -1) return false
+  return reorderOffer({ bookId, offerId, toIndex: from + by, refresh })
+}
+
+/**
+ * Move an offer to a given place in the book.
+ *
+ * **The whole order goes, not a move.** Two tabs sending `{from, to}` against
+ * different starting states interleave into an order neither owner chose, and
+ * the route refuses a partial list for the same reason. This is the tray's rule
+ * from E6-02, lifted here unchanged so the panel's arrows, the tray's arrows
+ * and the tray's drag cannot acquire three of them.
+ *
+ * **Not optimistic, but it is on the undo stack.** Unlike a price, a move
+ * changes what every *other* offer's position means, so a failed optimistic
+ * reorder leaves the tray and the artboard describing different books — the
+ * request goes first and the server re-renders. The step is recorded only after
+ * the server has taken it, which is the difference between a stack that
+ * describes the book and one that describes what the client attempted.
+ */
+export async function reorderOffer({
+  bookId,
+  offerId,
+  toIndex,
+  refresh,
+}: {
+  bookId: string
+  offerId: string
+  /** Where it should end up. Out of range is a no-op, not a clamp — a drag that
+   *  left the list is a cancelled gesture, not a request to move to the end. */
+  toIndex: number
+  refresh: () => void
+}): Promise<boolean> {
+  const { order, offers } = useEditorStore.getState()
   const from = order.indexOf(offerId)
-  const to = from + by
-  if (from === -1 || to < 0 || to >= order.length) return false
+  if (from === -1 || toIndex < 0 || toIndex >= order.length || toIndex === from) return false
 
   const next = [...order]
   const [moved] = next.splice(from, 1)
   if (moved === undefined) return false
-  next.splice(to, 0, moved)
+  next.splice(toIndex, 0, moved)
 
   try {
     const res = await fetch(`/api/v1/offer-books/${bookId}/offers`, {
@@ -220,6 +266,14 @@ export async function moveOffer({
     return false
   }
 
+  useEditorStore.getState().push({
+    kind: 'reorder',
+    offerId,
+    // Read as "Undo <label>", so it names the act rather than the field.
+    label: `moving ${offers[offerId]?.name ?? 'that card'}`,
+    fromOrder: order,
+    toOrder: next,
+  })
   refresh()
   return true
 }

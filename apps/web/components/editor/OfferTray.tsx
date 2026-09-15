@@ -7,7 +7,7 @@ import type { CatalogSearchHit } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Figure } from '@/components/ui/figure'
-import { removeOffer } from '@/lib/editor-actions'
+import { moveOffer, removeOffer, reorderOffer } from '@/lib/editor-actions'
 import { useEditorStore } from '@/stores/editor-store'
 import { displayName, packLabel } from '@/lib/catalog-display'
 
@@ -76,51 +76,32 @@ export function OfferTray({ bookId }: Props) {
     }
   }
 
+  /** Shared with the properties panel's arrows, and with the drag below. One
+   *  move, one implementation, one undo step. */
   function move(offerId: string, by: -1 | 1) {
-    const from = order.indexOf(offerId)
-    const to = from + by
-    if (from === -1 || to < 0 || to >= order.length) return
-
-    const next = [...order]
-    const [moved] = next.splice(from, 1)
-    if (moved === undefined) return
-    next.splice(to, 0, moved)
-
-    void mutate(() =>
-      fetch(`/api/v1/offer-books/${bookId}/offers`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ offerIds: next }),
-      })
+    setBusy(true)
+    void moveOffer({ bookId, offerId, by, refresh: () => router.refresh() }).finally(() =>
+      setBusy(false)
     )
   }
 
-  /** Drop `dragged` where `target` currently sits, and send the whole order. */
+  /** Drop `dragged` where `target` currently sits. */
   function dropOn(target: string) {
     const source = dragging
     setDragging(null)
     setOver(null)
     if (source === null || source === target) return
 
-    const from = order.indexOf(source)
-    const to = order.indexOf(target)
-    if (from === -1 || to === -1) return
+    const toIndex = order.indexOf(target)
+    if (toIndex === -1) return
 
-    const next = [...order]
-    const [moved] = next.splice(from, 1)
-    if (moved === undefined) return
-    next.splice(to, 0, moved)
-
-    // The whole order, not a move: two tabs sending `{from, to}` against
-    // different starting states interleave into an order neither owner chose.
-    // The route refuses a partial list for the same reason.
-    void mutate(() =>
-      fetch(`/api/v1/offer-books/${bookId}/offers`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ offerIds: next }),
-      })
-    )
+    setBusy(true)
+    void reorderOffer({
+      bookId,
+      offerId: source,
+      toIndex,
+      refresh: () => router.refresh(),
+    }).finally(() => setBusy(false))
   }
 
   /**

@@ -18,6 +18,7 @@
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/s3-request-presigner": "^3",
     "@prisma/client": "^5.0.0",
+    "@radix-ui/react-context-menu": "^2.3.7",
     "@souqstudio/db": "workspace:*",
     "@souqstudio/email": "workspace:*",
     "@souqstudio/engine": "workspace:*",
