@@ -5,6 +5,10 @@ of the remaining epics needs before it can begin.
 
 Last updated 13 September 2026.
 
+**Home is a shelf of book covers.** The six most recent draw their own first page — the
+real `BookPage` at thumbnail size, not a stored image, so a cover cannot disagree with the
+book it stands for. Earlier ones are a list in a dialog. `docs/E6-create-flow.md` §22.
+
 **A price list now survives being walked away from.** `offer_book_drafts` (migration
 `20260915120000`) keeps the sheet, the column mapping and every choice an owner has made,
 autosaved on the usual two-second debounce, and the create screen says so. Nothing is

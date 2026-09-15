@@ -7,8 +7,14 @@ import { readEffectiveBrand } from '@/lib/brand-kit'
 import { readChecklist } from '@/lib/checklist'
 import { GettingStartedChecklist } from '@/components/shared/GettingStartedChecklist'
 import { OfferBooksList } from '@/components/offer-book/OfferBooksList'
+import { loadBook } from '@/lib/offer-book'
+import { env } from '@/lib/env'
+import type { BookCover } from '@/components/offer-book/OfferBooksList'
 
 export const metadata: Metadata = { title: 'Offer books · SouqStudio' }
+
+/** How many books get a drawn cover. The rest are a list inside a dialog. */
+const COVERS = 6
 
 /**
  * Home. **The offer books list, not a dashboard** — see the design skill,
@@ -57,6 +63,57 @@ export default async function HomePage() {
       })
     : null
 
+  /**
+   * The first page of the six most recent books, drawn rather than described.
+   *
+   * **`loadBook` rather than a narrower reader, and that is deliberate.** The
+   * preview route already states the rule: there is one path that composes a
+   * book and adding a second so a cheaper caller could exist is two paths that
+   * have to agree forever — and the one nobody looks at is the one that drifts.
+   * A thumbnail that disagrees with the page it is a thumbnail of is exactly
+   * that failure, arriving on the first screen an owner sees.
+   *
+   * **Six, because the cost is per book and there is no cheap version of it.**
+   * Each of these is the full composition: the grid, the offers, their products
+   * and the blocks, then the engine. Six in parallel is the same shape as the
+   * preview route doing one, and the rest of the list is a modal that composes
+   * nothing.
+   *
+   * A book that fails to compose contributes no cover rather than no row. The
+   * list is the screen an owner lands on, and one broken book must not take the
+   * others with it.
+   */
+  const covers = await Promise.all(
+    offerBooks.slice(0, COVERS).map(async (book): Promise<[string, BookCover] | null> => {
+      const composed = await loadBook(book.id, session.user.organizationId)
+      const page = composed?.pages[0]
+      if (composed === undefined || composed === null || page === undefined) return null
+
+      // Only the offers this page draws. The others are on pages nobody is
+      // looking at, and a home screen carrying nine pages of composed offers
+      // per book is a payload measured in megabytes.
+      const drawn = new Set(
+        page.placements.flatMap((placement) =>
+          placement.offerId === null ? [] : [placement.offerId]
+        )
+      )
+
+      return [
+        book.id,
+        {
+          page,
+          size: composed.page,
+          offers: Object.fromEntries(
+            composed.offers.filter((offer) => drawn.has(offer.id)).map((offer) => [offer.id, offer])
+          ),
+          blocks: composed.blocks,
+          direction: composed.edition === 'ar' ? 'rtl' : 'ltr',
+          background: composed.pageBackgrounds[0] ?? composed.layout.background,
+        },
+      ]
+    })
+  )
+
   const checklist = await readChecklist({
     userId: session.user.id,
     organizationId: session.user.organizationId,
@@ -83,6 +140,10 @@ export default async function HomePage() {
           ...book,
           updatedAt: book.updatedAt.toISOString(),
         }))}
+        covers={Object.fromEntries(covers.filter((entry) => entry !== null))}
+        kit={brand?.brandKit ?? {}}
+        shopName={shop?.name ?? ''}
+        assetBaseUrl={env.R2_PUBLIC_URL}
       />
     </div>
   )

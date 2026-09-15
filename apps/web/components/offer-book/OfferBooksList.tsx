@@ -3,10 +3,17 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, CopyPlus } from 'lucide-react'
+import { Archive, CopyPlus, FileText, Plus } from 'lucide-react'
+import type { Block, BrandKit, PageBackground } from '@souqstudio/types'
+import type { FlowPage } from '@souqstudio/engine'
 import { Card } from '@/components/ui/card'
+import { Figure } from '@/components/ui/figure'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/shared/empty-state'
+import { BookPage } from '@/components/editor/BookPage'
+import { assetResolver } from '@/lib/block-assets'
+import type { ComposedOffer } from '@/lib/offer-book-compose'
 import { BOOK_CREATION_BUILT, EDITOR_BUILT } from '@/lib/features'
 
 /**
@@ -30,10 +37,54 @@ type OfferBookSummary = {
   updatedAt: string
 }
 
+/**
+ * A book's first page, composed on the server, ready to draw.
+ *
+ * **The real page at a small size, not a picture of it.** The artboard is inline
+ * SVG produced from engine geometry, so a thumbnail is the same component the
+ * editor and the preview use — which means it cannot disagree with the page it
+ * stands for. A stored image would, the first time somebody changed a price.
+ */
+export type BookCover = {
+  page: FlowPage
+  size: { width: number; height: number }
+  offers: Record<string, ComposedOffer>
+  blocks: Record<string, Block>
+  direction: 'ltr' | 'rtl'
+  background: PageBackground | null
+}
+
 const NOT_YET = 'Creating an offer book is not built yet.'
 
-export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
+export function OfferBooksList({
+  books,
+  covers,
+  kit,
+  shopName,
+  assetBaseUrl,
+}: {
+  books: OfferBookSummary[]
+  /** Keyed by book id. Present only for the ones with a drawn cover. */
+  covers: Record<string, BookCover>
+  kit: BrandKit
+  shopName: string
+  assetBaseUrl: string
+}) {
   const router = useRouter()
+  const [showingPast, setShowingPast] = React.useState(false)
+  const asset = React.useMemo(() => assetResolver(assetBaseUrl), [assetBaseUrl])
+
+  /**
+   * Six on the screen and the rest behind a control.
+   *
+   * **A shop makes one of these a week**, so six is a month and a half — far
+   * enough back to find last Ramadan's if you are looking, and short enough that
+   * the screen is the two or three you actually reuse. Everything older is still
+   * one click away and is a list rather than a grid, because by then you are
+   * searching for a name rather than recognising a picture.
+   */
+  const recent = books.slice(0, 6)
+  const past = books.slice(6)
   const [duplicating, setDuplicating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -113,18 +164,140 @@ export function OfferBooksList({ books }: { books: OfferBookSummary[] }) {
         </p>
       ) : null}
 
-      <ul className="flex flex-col gap-2">
-        {books.map((book) => (
-          <li key={book.id}>
-            {/* A row opens the artboard. Wrapped rather than given an onClick:
-                the whole row is the target, and a link is what makes it
-                middle-clickable, focusable and readable to a screen reader as a
-                destination. */}
-            <Row book={book} />
+      {/* **A grid of what they look like, not a list of what they are called.**
+          A shop's books are "last week's", "the Eid one" and "the one with the
+          rice on the front" — recognised by sight long before the title is
+          read. Three across on a desktop, two on a tablet, one on a phone. */}
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {recent.map((book) => (
+          <li key={book.id} className="flex">
+            <BookTile
+              book={book}
+              cover={covers[book.id]}
+              kit={kit}
+              shopName={shopName}
+              asset={asset}
+            />
           </li>
         ))}
       </ul>
+
+      {past.length > 0 ? (
+        <div className="flex">
+          <Button type="button" variant="secondary" onClick={() => setShowingPast(true)}>
+            <Archive className="size-4" aria-hidden="true" strokeWidth={1.75} />
+            Earlier books <Figure value={past.length} size="data-sm" />
+          </Button>
+        </div>
+      ) : null}
+
+      {/* **A list, not a grid, and composing nothing.** By the time an owner is
+          looking this far back they are searching for a name rather than
+          recognising a picture — and a cover is a full composition per book,
+          which is a cost worth paying six times and not forty. */}
+      <Dialog
+        open={showingPast}
+        onOpenChange={setShowingPast}
+        title="Earlier books"
+        description="Everything older than the six on your home screen."
+        size="lg"
+      >
+        <ul className="flex flex-col gap-2">
+          {past.map((book) => (
+            <li key={book.id}>
+              <Row book={book} />
+            </li>
+          ))}
+        </ul>
+      </Dialog>
     </div>
+  )
+}
+
+/**
+ * One book, with its first page drawn on it.
+ *
+ * **The cover is the real page at a small size.** `BookPage` is the same
+ * component the editor and the preview render, so this cannot drift from what
+ * the book actually looks like — which a stored image would, the first time
+ * somebody changed a price.
+ *
+ * `aspect-[3/4]` on the frame rather than letting the page set the height: a
+ * grid of mixed heights reads as broken rather than as varied, and a book can be
+ * a story, a poster or a booklet. The page is `object-contain` inside it, so a
+ * square post sits in a portrait frame with space either side rather than
+ * cropped.
+ */
+function BookTile({
+  book,
+  cover,
+  kit,
+  shopName,
+  asset,
+}: {
+  book: OfferBookSummary
+  cover: BookCover | undefined
+  kit: BrandKit
+  shopName: string
+  asset: (assetId: string) => string | null
+}) {
+  const body = (
+    <Card padding="compact" className="flex w-full flex-col gap-2">
+      <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-100">
+        {cover === undefined ? (
+          // Not an error and not a spinner: a book whose first page could not be
+          // composed still opens, and the tile says what it is rather than
+          // pretending something is loading.
+          <FileText className="size-icon-lg text-secondary" aria-hidden="true" strokeWidth={1.5} />
+        ) : (
+          <BookPage
+            page={cover.page}
+            size={cover.size}
+            offers={cover.offers}
+            blocks={cover.blocks}
+            kit={kit}
+            shopName={shopName}
+            // The **book's** language, never the interface's.
+            direction={cover.direction}
+            background={cover.background}
+            asset={asset}
+            overrides={[]}
+            selectedOfferId={null}
+            // **Both dimensions constrained, so the page fits rather than
+            // crops.** `BookPage` renders `width="100%"` with a viewBox and no
+            // `preserveAspectRatio`, which defaults to `xMidYMid meet` — given a
+            // height as well it letterboxes inside the frame, centred. Width
+            // alone lets a tall page run past the bottom and the frame's
+            // `overflow-hidden` cuts it off, which on a booklet is the half of
+            // the page with the prices on it.
+            className="h-full w-full"
+          />
+        )}
+      </div>
+
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate font-ui text-body text-primary" title={book.title}>
+          {book.title}
+        </span>
+        <span className="font-ui text-body-sm text-muted">
+          {book.status} · {book.format} ·{' '}
+          <span data-figure>
+            {new Date(book.updatedAt).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+            })}
+          </span>
+        </span>
+      </div>
+    </Card>
+  )
+
+  if (!EDITOR_BUILT) return body
+
+  return (
+    <Link href={`/editor/${book.id}`} className="flex w-full rounded-card hover:bg-stone-100">
+      {body}
+    </Link>
   )
 }
 

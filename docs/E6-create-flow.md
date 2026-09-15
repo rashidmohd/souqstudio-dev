@@ -1643,3 +1643,64 @@ Bounded at 512 KB on the way in, which no real sheet approaches and a bug or a p
   shape, and the loser is a set of choices rather than a book.
 - **Not opened in a browser** — and this one has a resume path, a debounce and an
   auto-rematch on mount, which is three things no test here covers.
+
+---
+
+## 22. The books list is a shelf, 15 September
+
+The home screen listed books as rows of text: a title, a status, a format and a date. But a
+shop's books are *"last week's"*, *"the Eid one"* and *"the one with the rice on the
+front"* — recognised by sight long before the title is read, and the title is auto-generated
+anyway (§4), so the row was mostly telling an owner what we called it.
+
+Three across on a desktop, two on a tablet, one on a phone, **six of them**, with the rest
+behind a control.
+
+### 22.1 The thumbnail is the page, not a picture of the page
+
+**No image is stored and none is generated.** The artboard is inline SVG produced from
+engine geometry, so a cover is `BookPage` — the same component the editor and the preview
+render — at a small size. It therefore cannot disagree with the book it stands for, which a
+stored image would the first time somebody changed a price.
+
+**`loadBook` rather than a narrower reader.** The preview route already states the rule:
+there is one path that composes a book, and adding a second so a cheaper caller could exist
+is two paths that must agree forever — with the one nobody looks at being the one that
+drifts. A thumbnail that disagrees with its own book is exactly that failure, arriving on
+the first screen an owner sees.
+
+**Which is why it is six.** Each cover is a full composition: the grid, the offers, their
+products, the blocks, then the engine. Six in parallel is the shape the preview route
+already has for one. Forty would not be.
+
+Only the offers page one *draws* are sent to the client. A home screen carrying nine pages
+of composed offers per book is a payload measured in megabytes.
+
+### 22.2 Three details
+
+- **A fixed 3:4 frame, and the page fits inside it.** A book can be a story, a square post
+  or a booklet, and a grid of mixed heights reads as broken rather than as varied.
+  `BookPage` is given `h-full w-full` so its `preserveAspectRatio` default letterboxes it —
+  **width alone let a tall page run past the frame and get clipped**, which on a booklet is
+  the half of the page with the prices on it.
+- **A book that fails to compose still gets a tile**, with a document glyph instead of a
+  page. The list is the screen an owner lands on and one broken book must not take the
+  others with it; the tile still opens.
+- **Earlier books are a list in a dialog, not more grid.** By the time somebody is looking
+  that far back they are searching for a name rather than recognising a picture — and a
+  cover costs a composition, which is worth paying six times and not forty. The dialog
+  composes nothing.
+
+### 22.3 Still owed
+
+- **Six is a guess.** A shop making one book a week has a month and a half on screen, which
+  felt right and has not been watched. It is one constant.
+- **Nothing lazy-loads.** The six compose on the server before the page paints, so a slow
+  database delays the whole screen rather than the pictures on it. Streaming them in with
+  `Suspense` would let the list and its buttons arrive first — worth doing if the six ever
+  feel slow.
+- **The drafts from §21 are still invisible here.** An unfinished book is exactly the thing
+  this screen should show, and it has no tile: a seventh card reading "you were making one
+  of these" belongs in the grid more than the sixth finished book does.
+- **Not opened in a browser**, and this one is entirely visual — six live artboards at
+  thumbnail size, in a grid, in two directions.
