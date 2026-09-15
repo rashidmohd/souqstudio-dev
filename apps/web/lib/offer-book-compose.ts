@@ -1,4 +1,5 @@
 import type {
+  Block,
   ChipAnchor,
   Connector,
   Currency,
@@ -11,6 +12,7 @@ import type {
 } from '@souqstudio/types'
 import { deriveUnitPrice, unitPriceLabel } from '@souqstudio/types'
 import { minorDigits, toPriceMark } from '@souqstudio/engine'
+import type { FlowPage } from '@souqstudio/engine'
 
 /**
  * Turning the rows of an offer book into what the engine and a renderer need.
@@ -504,4 +506,26 @@ function readBackground(value: unknown): PageBackground | null {
   // The shape below `from` is the write path's contract, the same way an
   // `Arrangement` is the block designer's — see `loadBlocks`.
   return value as PageBackground
+}
+
+
+/**
+ * A book's first page, composed and ready to draw at thumbnail size.
+ *
+ * **Here rather than in the list component** because two callers produce it now
+ * — the home screen for the six it shows, and `POST /api/v1/offer-books/covers`
+ * for the ones inside the "earlier books" dialog — and a shape declared in the
+ * component that consumes it is one the second producer copies.
+ *
+ * The real page at a small size, not a picture of it: the artboard is inline SVG
+ * from engine geometry, so a cover is the same component the editor and the
+ * preview render and cannot disagree with the book it stands for.
+ */
+export type BookCover = {
+  page: FlowPage
+  size: { width: number; height: number }
+  offers: Record<string, ComposedOffer>
+  blocks: Record<string, Block>
+  direction: 'ltr' | 'rtl'
+  background: PageBackground | null
 }

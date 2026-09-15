@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { adoptRowsIntoCatalog } from '@/lib/catalog'
+import type { BookCover } from '@/lib/offer-book-compose'
 import { prisma } from '@souqstudio/db'
 import {
   arrangementCovers,
@@ -1457,4 +1458,49 @@ function readRegionBlocks(value: unknown): Record<string, string> {
     if (typeof blockId === 'string' && blockId.length > 0) out[regionId] = blockId
   }
   return out
+}
+
+
+/**
+ * A book's first page, ready to draw at thumbnail size.
+ * `docs/E6-create-flow.md` §22.
+ *
+ * **`loadBook` rather than a narrower reader.** There is one path that composes
+ * a book, and adding a second so a cheaper caller could exist is two paths that
+ * have to agree forever — the one nobody looks at being the one that drifts. A
+ * thumbnail that disagrees with its own book is that failure on the first screen
+ * an owner sees.
+ *
+ * So a cover is not cheap, and **that is what bounds how many are drawn at
+ * once**: six on the home screen, a page at a time inside the dialog.
+ *
+ * Null for a book that does not exist, is not theirs, or has no first page —
+ * the caller shows a tile without a picture rather than no tile, because a book
+ * that will not compose still opens.
+ */
+export async function composeCover(
+  bookId: string,
+  organizationId: string
+): Promise<BookCover | null> {
+  const composed = await loadBook(bookId, organizationId)
+  const page = composed?.pages[0]
+  if (composed === null || composed === undefined || page === undefined) return null
+
+  // Only the offers this page draws. The rest are on pages nobody is looking
+  // at, and a screen carrying nine pages of composed offers per book is a
+  // payload measured in megabytes.
+  const drawn = new Set(
+    page.placements.flatMap((placement) => (placement.offerId === null ? [] : [placement.offerId]))
+  )
+
+  return {
+    page,
+    size: composed.page,
+    offers: Object.fromEntries(
+      composed.offers.filter((offer) => drawn.has(offer.id)).map((offer) => [offer.id, offer])
+    ),
+    blocks: composed.blocks,
+    direction: composed.edition === 'ar' ? 'rtl' : 'ltr',
+    background: composed.pageBackgrounds[0] ?? composed.layout.background,
+  }
 }
