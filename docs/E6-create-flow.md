@@ -1486,3 +1486,160 @@ is built:
   and now more visible, because these rows are the common case rather than the exception.
 - **No test of the write path**, still: adoption and book creation are both Prisma calls.
 - **Not opened in a browser.**
+
+---
+
+## 20. Choosing a product is a job, not a form field, 15 September
+
+Two of the three things the owner asked for, and the third is §20.3 because it is a
+decision rather than a task.
+
+### 20.1 The picker shows the product
+
+`CatalogProductSummary` has carried `imageUrl` since it was written and the candidate
+picker was rendering the name and the pack label — **the harder half of the same question.**
+Two buttons reading `Almarai Full Cream Milk 1 L` and `Almarai Full Cream Milk 1.5 L` are a
+spot-the-difference puzzle; two packshots are a glance.
+
+`CandidateTile` draws the picture at the large control height, square, with `ImageOff` in
+the same reserved space when there is none — which also tells the owner something true
+before they choose: picking this one gives the card a placeholder. `next/image` with
+`unoptimized`, for the reason `ProductCard` already states: `R2_PUBLIC_URL` is
+per-environment while `remotePatterns` is a hardcoded pair of hosts, so the optimizer
+refuses any bucket that is not one of those two, and the failure is every picture in the
+picker in exactly the environment nobody checked.
+
+### 20.2 Twenty decisions, not two hundred rows
+
+The table listed every row of the sheet. **Most of them are not work**: a matched row is
+decided, and a row the catalog has never seen is a product that gets written down — neither
+is a question, and putting two hundred of them above six real decisions is how a five-minute
+job looks like an afternoon.
+
+So the table shows **the open decisions only, twenty at a time**, with the rest counted in a
+line above. It grows rather than pages: a page control asks an owner to track where they are
+in a job whose whole difficulty is that it is long, where a batch that extends leaves
+everything already done above them, which *is* the progress. Answering a row takes it out of
+the list, so a batch of twenty is twenty questions rather than twenty rows, and the button
+that extends it says how many are left rather than "load more".
+
+**"Show every row" is always there**, because "the other 194 are ready" is a claim, and an
+owner about to print a flyer is entitled to check it rather than take our word for it.
+
+### 20.3 Saving a half-done review — not built, and it is a fork
+
+*"They can start and save in draft because that process will take time."* True, and there
+are two genuinely different answers.
+
+**A. Persist the review.** The sheet and the picks go to the server, the owner comes back to
+a half-answered table. It matches what was asked for literally. It needs a table to hold a
+review that is not a catalog import and not yet a book — `catalog_imports` is E5-06's and
+writing to it drags catalog editing back into the flyer flow, which §2.3 removed on purpose.
+
+**B. Create the book first and review inside it.** Every row becomes an offer immediately —
+ambiguous ones taking the top-ranked candidate — and "is this the right product?" becomes a
+card in the editor with the candidates in its properties panel. Resumable for nothing,
+because a draft book is already a row in the database, and it matches §19: matching is how
+an offer finds its photograph, so getting it wrong is a *picture* that is wrong, not a book
+that cannot be made.
+
+**B is the better architecture and the bigger build.** It needs a way to mark an offer as
+unconfirmed, a way to re-point an offer at a different catalog product, and the candidates
+to survive — none of which exist. A does less and leaves the wall where it is, which is the
+thing the owner is describing.
+
+Worth noting that B also answers §19.4: an offer whose product is wrong and an offer whose
+photograph is missing are the same screen, reached the same way.
+
+### 20.4 Still owed
+
+- **The draft decision above.**
+- **Nothing sorts the decisions.** Twenty arbitrary rows; the ones where the top candidate
+  scored 0.9 and the runner-up 0.3 are nearly decided already, and the ones at 0.55 and 0.54
+  are the real questions. Ordering by how close the top two are would put the genuinely hard
+  ones first — or last, which may be the kinder order.
+- **No keyboard path through a batch.** Twenty decisions is exactly the job that wants
+  arrow-then-enter, and every tile is a button in a grid with no roving focus.
+- **Not opened in a browser.**
+
+---
+
+## 21. The unfinished book is the thing worth saving, 15 September
+
+§20.3 put two options up and the owner picked neither, which was the right
+answer: *"we don't have to create the book — we can save the setting in the draft and start
+collecting the information."*
+
+**Creating the book first was wrong and §19 is why.** Creating a book writes offers, and
+since §19 it also writes the shop's own products for every row the catalog has never seen.
+A book made from an unreviewed sheet is real rows an owner never agreed to, and a half-done
+review that gets abandoned leaves them behind — products in their catalog and a book in
+their list, from a job they walked away from. **Nothing should be written until somebody has
+finished deciding.** What should survive is the deciding.
+
+The journey being protected, in the owner's words: pick a layout, pick a block, upload
+fifty-three rows, press Match, and then sit resolving the ones with two candidates — *"that
+is time consuming, user maybe walk away and come back in the middle of the journey"*. Today
+everything lives in browser memory and a closed tab is the lot.
+
+### 21.1 A draft of the journey, not of the book
+
+`offer_book_drafts` — migration `20260915120000` — is one row per person per shop, holding
+a single JSONB `state`.
+
+**Per person, not per shop.** Two staff starting different books must not overwrite each
+other, and a half-done sheet is somebody's unfinished work rather than the shop's.
+
+**One JSON column rather than a modelled import.** `catalog_imports` already models a sheet
+properly and belongs to E5-06, whose commit writes to the catalog — which §2.3 kept out of
+this flow on purpose. This is the wizard's own state, restored into the same wizard and read
+by nothing else. **The server never parses it**, which is stated at the route: it is
+validated for size and ownership rather than for meaning, and the day a decision depends on
+a field inside it, that field stops being state and becomes a column.
+
+### 21.2 What is saved, and the one thing that is not
+
+The sheet, the column mapping, what is being made, and every choice.
+
+**Not the match results.** They carry a full product summary per candidate, several per row
+— most of a megabyte on a long sheet, and the one part that can be recomputed exactly. So
+resuming re-runs the match, by itself, once: the owner comes back to the table they left
+rather than to a file they have to press Match on again. The choices survive it because they
+are product ids keyed by row index, and the sheet is the same sheet. As a side effect the
+candidates are *fresher* than the ones saved on Tuesday — a product added to the catalog
+since is offered now.
+
+Bounded at 512 KB on the way in, which no real sheet approaches and a bug or a paste would.
+
+### 21.3 The parts that make it believable
+
+- **Debounced two seconds**, the autosave rule in `apps/web/CLAUDE.md`. It matters more here
+  than usual: the thing that changes most is the choices, and an owner working through forty
+  of them would otherwise send forty requests each carrying the whole sheet.
+- **"Saved 14:32. You can leave this and come back."** The quiet persistent status the
+  design system asks for, the same shape `SaveStatus` uses in the editor — never a toast per
+  save, never a Save button implying the work is lost without it. **This is the feature.**
+  An owner will only walk away from forty decisions if the screen has told them it is safe
+  to, and a thing that saves silently has not told them.
+- **Resuming lands on step three** with the layout and the card design already chosen.
+  Walking somebody back through two steps they answered on Tuesday is the thing this exists
+  to stop.
+- **The draft is deleted when the book is made**, and when the owner presses "Different
+  file". Keeping it past either leaves a "continue where you left off" pointing at a job
+  already done, or at a sheet just thrown away. The delete on create is deliberately not
+  awaited: the book exists, and refusing to navigate because a delete did not land trades
+  the thing that worked for nothing.
+
+### 21.4 Still owed
+
+- **Nothing outside this screen knows a draft exists.** The books list is where an owner
+  would look for "you were making one of these" — and it is the entry point that makes
+  coming back a *product* rather than a thing that happens if you navigate to `/editor/new`
+  by yourself. `updatedAt` is stored for exactly that line and nothing reads it yet.
+- **No test.** The routes are Prisma calls and the debounce is a hook; the same gap §16.5
+  and §19.5 record, and this is now the third feature waiting on the first API-route test.
+- **A second tab overwrites the first.** The upsert is last-write-wins on `(shopId,
+  userId)`, with no version and no warning. Two tabs on the same sheet is not a common
+  shape, and the loser is a set of choices rather than a book.
+- **Not opened in a browser** — and this one has a resume path, a debounce and an
+  auto-rematch on mount, which is three things no test here covers.

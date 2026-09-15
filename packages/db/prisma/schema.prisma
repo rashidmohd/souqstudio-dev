@@ -80,6 +80,7 @@ model Organization {
   catalogProducts       CatalogProduct[]
   catalogImports        CatalogImport[]
   captureSessions       CaptureSession[]
+  bookDrafts            OfferBookDraft[]
   promoTiers            PromoTier[]
   /// Blocks this organization authored. A seeded block has no organization.
   blocks                Block[]
@@ -128,6 +129,7 @@ model Shop {
   creditAllocation ShopCreditAllocation?
   offerOverrides   OfferShopOverride[]
   captureSessions  CaptureSession[]
+  bookDrafts       OfferBookDraft[]
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -200,6 +202,7 @@ model User {
   backupCodes          TwoFactorBackupCode[]
   twoFactorChallenges  TwoFactorChallenge[]
   twoFactorEnrollments TwoFactorEnrollment[]
+  bookDrafts           OfferBookDraft[]
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 
@@ -984,6 +987,53 @@ model CatalogImportRow {
   @@unique([importId, rowIndex])
   @@index([importId, status])
   @@map("catalog_import_rows")
+}
+
+/// An offer book somebody has started and not finished. E6 —
+/// `docs/E6-create-flow.md` §21.
+///
+/// **A draft of the *journey*, not of the book.** Creating a book writes offers
+/// and, since 15 September, writes the shop's own products for rows the catalog
+/// has never seen — so a book created from an unreviewed sheet is real rows an
+/// owner never agreed to, and abandoning it leaves them behind. Nothing here is
+/// a product, an offer or a book; it is what somebody had typed and chosen so
+/// far, and it is deleted the moment the book is made.
+///
+/// **One JSON column rather than a modelled import.** `catalog_imports` already
+/// models a sheet properly and belongs to E5-06, whose commit writes to the
+/// catalog — dragging it in here is what `E6-create-flow.md` §2.3 removed on
+/// purpose. What this needs is narrower and entirely private to one screen: the
+/// wizard's own state, restored into the same wizard, read by nothing else. A
+/// column per field would be a second model of a sheet that the server never
+/// reasons about.
+///
+/// Bounded by `MAX_ROWS` at 200 on the routes that write it, which is what keeps
+/// a JSONB value the size of a spreadsheet out of the row.
+model OfferBookDraft {
+  id             String @id @default(cuid())
+  organizationId String
+  shopId         String
+  /// **Per person, not per shop.** Two staff in one shop starting different
+  /// books must not overwrite each other, and a draft is somebody's unfinished
+  /// work rather than the shop's.
+  userId         String
+
+  /// The wizard's state: what is being made, the sheet, the column mapping, the
+  /// matches and every choice made so far. Shape owned by the client that
+  /// writes it — `NewBookWizard` — and validated on the way in.
+  state Json
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  shop         Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  /// What "you were last here on Tuesday" reads from.
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, userId])
+  @@index([organizationId])
+  @@map("offer_book_drafts")
 }
 
 model CaptureSession {

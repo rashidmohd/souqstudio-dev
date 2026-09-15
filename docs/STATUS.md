@@ -5,6 +5,13 @@ of the remaining epics needs before it can begin.
 
 Last updated 13 September 2026.
 
+**A price list now survives being walked away from.** `offer_book_drafts` (migration
+`20260915120000`) keeps the sheet, the column mapping and every choice an owner has made,
+autosaved on the usual two-second debounce, and the create screen says so. Nothing is
+written to the catalog or to `offer_books` until the book is actually made — which matters
+because creating one now also writes the shop's own products for rows the catalog has never
+seen. `docs/E6-create-flow.md` §21.
+
 **The creation flow was rebuilt, the page itself is designable, and the editor grew a tool
 rail.** Starting a book is four steps instead of one form, the twenty-five seeded offer
 cards are finally reachable from it, a price list can be dropped straight in, and a page

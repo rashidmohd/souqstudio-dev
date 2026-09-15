@@ -10,6 +10,7 @@ import { BOOK_KINDS, KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { ChoiceCard } from '@/components/offer-book/ChoiceCard'
 import { DesignPicker } from '@/components/offer-book/DesignPicker'
 import type { ResolvedRow } from '@/components/offer-book/match-types'
+import type { MatcherDraft } from '@/components/offer-book/PriceListMatcher'
 import { PriceListMatcher } from '@/components/offer-book/PriceListMatcher'
 import { ProductSearch } from '@/components/offer-book/ProductSearch'
 import { WizardStep } from '@/components/offer-book/WizardStep'
@@ -61,6 +62,51 @@ const KIND_ICON: Record<BookKind, React.ReactNode> = {
 type Source = 'catalog' | 'sheet'
 type Step = 1 | 2 | 3
 
+/**
+ * What is kept between visits. Written by this component, read by this
+ * component, and by nothing on the server — see the route's own note.
+ */
+type SavedDraft = {
+  kind: BookKind | null
+  cardBlockId: string
+  source: Source
+  matcher: MatcherDraft
+}
+
+/**
+ * Two seconds after the last change, and never on the change itself.
+ *
+ * The autosave rule in `apps/web/CLAUDE.md`, and it matters more here than
+ * usual: the thing that changes most is `picks`, and an owner working through
+ * forty decisions would otherwise send forty requests carrying the whole sheet
+ * each time.
+ *
+ * **The callback is held in a ref rather than in the dependency list.** It
+ * closes over `kind` and `cardBlockId`, so listing it would rebuild the
+ * debounce on every keystroke elsewhere in the wizard and the timer would never
+ * fire.
+ */
+function useDebouncedDraft(save: (draft: MatcherDraft | null) => void) {
+  const latest = React.useRef(save)
+  React.useEffect(() => {
+    latest.current = save
+  }, [save])
+
+  const pending = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(
+    () => () => {
+      if (pending.current !== null) clearTimeout(pending.current)
+    },
+    []
+  )
+
+  return React.useCallback((draft: MatcherDraft | null) => {
+    if (pending.current !== null) clearTimeout(pending.current)
+    pending.current = setTimeout(() => latest.current(draft), 2000)
+  }, [])
+}
+
 export function NewBookWizard({ blocks, kit, lang }: Props) {
   const router = useRouter()
 
@@ -84,6 +130,86 @@ export function NewBookWizard({ blocks, kit, lang }: Props) {
 
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  /**
+   * The half-finished book this person left behind, if there is one.
+   *
+   * **Three states and not two.** `undefined` is "we have not looked yet",
+   * which is different from `null` — "there is nothing" — and the matcher must
+   * not mount until the difference is settled, or it mounts empty and then has
+   * a sheet pushed underneath it. The screen shows nothing for the moment this
+   * takes; a spinner for one read that is usually empty is worse than a beat of
+   * nothing.
+   */
+  const [restored, setRestored] = React.useState<SavedDraft | null | undefined>(undefined)
+  const [savedAt, setSavedAt] = React.useState<string | null>(null)
+  const draftRef = React.useRef<MatcherDraft | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/v1/offer-books/draft')
+        const body = await res.json()
+        if (cancelled) return
+        const draft = body?.data?.draft ?? null
+        setRestored(draft === null ? null : (draft.state as SavedDraft))
+        setSavedAt(draft?.updatedAt ?? null)
+      } catch {
+        // A draft that cannot be read is not a reason to refuse to make a book.
+        if (!cancelled) setRestored(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // What was being made, restored alongside the sheet — an owner who chose a
+  // booklet and a card design on Tuesday should not choose them again.
+  React.useEffect(() => {
+    if (!restored) return
+    if (restored.kind) setKind(restored.kind)
+    if (restored.cardBlockId) setCardBlockId(restored.cardBlockId)
+    if (restored.source) setSource(restored.source)
+    // Straight to the products: the steps behind are answered, and making
+    // somebody walk back through them is the thing this feature exists to stop.
+    setStep(3)
+  }, [restored])
+
+  /**
+   * Save what has been done so far. **Debounced two seconds**, which is the
+   * autosave rule everywhere else in this product — `apps/web/CLAUDE.md`.
+   *
+   * Nothing is saved until there is a sheet: the wizard is three steps and the
+   * first two are seconds of work, where the third is the afternoon this exists
+   * to protect.
+   */
+  const saveDraft = React.useCallback(
+    (matcher: MatcherDraft | null) => {
+      draftRef.current = matcher
+      if (matcher === null) return
+      const state: SavedDraft = {
+        kind,
+        cardBlockId,
+        source,
+        matcher,
+      }
+      void fetch('/api/v1/offer-books/draft', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ state }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body) => {
+          if (body?.data?.updatedAt) setSavedAt(body.data.updatedAt)
+        })
+        .catch(() => undefined)
+    },
+    [kind, cardBlockId, source]
+  )
+
+  const onDraftChange = useDebouncedDraft(saveDraft)
 
   // Referentially stable, or the effect inside `PriceListMatcher` that reports
   // its resolved rows fires on every render of this component.
@@ -137,6 +263,18 @@ export function NewBookWizard({ blocks, kit, lang }: Props) {
         setError(body.error?.message ?? 'The book could not be created. Try again.')
         return
       }
+
+      /*
+       * **The draft is thrown away only once the book exists.** It is the same
+       * work in two forms and keeping both leaves a "continue where you left
+       * off" pointing at a job already done.
+       *
+       * Not awaited, and its failure is not this request's failure: the book is
+       * made, and refusing to navigate because a delete did not land would be
+       * trading the thing that worked for nothing. A stale draft is recoverable
+       * — the owner presses "start again" — where a lost book is not.
+       */
+      void fetch('/api/v1/offer-books/draft', { method: 'DELETE' }).catch(() => undefined)
 
       // Straight to the preview, which is a real book by then. `loadBook` runs
       // the engine over database rows and there is no second path that composes
@@ -232,8 +370,30 @@ export function NewBookWizard({ blocks, kit, lang }: Props) {
 
           {source === 'catalog' ? (
             <ProductSearch picked={picked} onChange={setPicked} max={MAX_OFFERS} />
-          ) : (
-            <PriceListMatcher onResolved={takeRows} max={MAX_OFFERS} />
+          ) : restored === undefined ? null : (
+            <PriceListMatcher
+              onResolved={takeRows}
+              initial={restored?.matcher}
+              onDraftChange={onDraftChange}
+              max={MAX_OFFERS}
+            />
+          )}
+
+          {/* **The quiet persistent status the design system asks for**, and
+              the same shape `SaveStatus` uses in the editor — never a toast per
+              save, and never a Save button implying the work is lost without
+              it. It is the whole promise of this feature: an owner will only
+              walk away from forty decisions if the screen has told them it is
+              safe to. */}
+          {savedAt === null ? null : (
+            <p className="font-ui text-body-sm text-muted">
+              Saved{' '}
+              {new Date(savedAt).toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+              . You can leave this and come back.
+            </p>
           )}
 
           {error ? (

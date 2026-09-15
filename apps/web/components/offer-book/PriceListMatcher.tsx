@@ -1,7 +1,9 @@
 'use client'
 
+import type { CatalogProductSummary } from '@souqstudio/types'
 import * as React from 'react'
-import { AlertTriangle, Check, HelpCircle, Plus, RotateCcw } from 'lucide-react'
+import Image from 'next/image'
+import { AlertTriangle, Check, HelpCircle, ImageOff, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FileDropzone } from '@/components/ui/file-dropzone'
@@ -60,9 +62,38 @@ import { parsePercent, readOfferType, resolvePrices } from '@/lib/offer-import'
  * column and losing every sheet that does put a real barcode under that header.
  * `barcodeStats` below is what tells the owner which of the two they have.
  */
+/**
+ * Everything about a half-done review that is worth keeping.
+ *
+ * **The sheet, the mapping and the choices — and deliberately not the
+ * matches.** Match results carry a full product summary per candidate, several
+ * per row, which is most of a megabyte on a long sheet and the one part that can
+ * be recomputed exactly. Re-running the match on resume is one request, gives
+ * *fresher* candidates than the ones saved on Tuesday, and costs nothing to
+ * store. The choices survive it because they are product ids, and the sheet's
+ * row order is what keys them.
+ */
+export type MatcherDraft = {
+  sheet: { headers: string[]; rows: string[][] }
+  columns: {
+    name: string
+    barcode: string
+    price: string
+    was: string
+    percent: string
+    type: string
+  }
+  /** Row index to the product the owner chose for it. */
+  picks: Record<number, string | null>
+}
+
 type Props = {
   /** Rows the owner has resolved, lifted so the wizard can create from them. */
   onResolved: (rows: ResolvedRow[]) => void
+  /** A review this person started earlier, to pick back up. */
+  initial?: MatcherDraft | undefined
+  /** Called whenever there is something new worth saving. */
+  onDraftChange: (draft: MatcherDraft | null) => void
   max: number
 }
 
@@ -93,14 +124,24 @@ type SentRow = {
  *  index, and also where an adopted row's new product id lands. */
 type Picks = Record<number, string | null>
 
-export function PriceListMatcher({ onResolved, max }: Props) {
-  const [sheet, setSheet] = React.useState<Sheet | null>(null)
-  const [nameColumn, setNameColumn] = React.useState('')
-  const [barcodeColumn, setBarcodeColumn] = React.useState('')
-  const [priceColumn, setPriceColumn] = React.useState('')
-  const [wasColumn, setWasColumn] = React.useState('')
-  const [percentColumn, setPercentColumn] = React.useState('')
-  const [typeColumn, setTypeColumn] = React.useState('')
+/**
+ * How many open decisions to put on screen at once.
+ *
+ * Twenty, because a sheet is two hundred rows and a wall of two hundred is
+ * where an owner closes the tab. It is not a page size — answering a row takes
+ * it out of the list, so this is twenty *questions*, and the button that
+ * extends it says how many are left rather than "load more".
+ */
+const BATCH = 20
+
+export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Props) {
+  const [sheet, setSheet] = React.useState<Sheet | null>(initial?.sheet ?? null)
+  const [nameColumn, setNameColumn] = React.useState(initial?.columns.name ?? '')
+  const [barcodeColumn, setBarcodeColumn] = React.useState(initial?.columns.barcode ?? '')
+  const [priceColumn, setPriceColumn] = React.useState(initial?.columns.price ?? '')
+  const [wasColumn, setWasColumn] = React.useState(initial?.columns.was ?? '')
+  const [percentColumn, setPercentColumn] = React.useState(initial?.columns.percent ?? '')
+  const [typeColumn, setTypeColumn] = React.useState(initial?.columns.type ?? '')
   const [matched, setMatched] = React.useState<MatchedRow[] | null>(null)
   /**
    * The rows as they were sent, keyed by the index the server answered with.
@@ -112,7 +153,11 @@ export function PriceListMatcher({ onResolved, max }: Props) {
    * them.
    */
   const [sent, setSent] = React.useState<SentRow[]>([])
-  const [picks, setPicks] = React.useState<Picks>({})
+  /** Whether the table is showing every row or only the open decisions. */
+  const [showAll, setShowAll] = React.useState(false)
+  /** Set once, when this screen was restored rather than built from a drop. */
+  const [resumedAt] = React.useState<string | null>(initial === undefined ? null : 'resumed')
+  const [picks, setPicks] = React.useState<Picks>(initial?.picks ?? {})
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -315,6 +360,63 @@ export function PriceListMatcher({ onResolved, max }: Props) {
 
   React.useEffect(() => onResolved(resolved), [resolved, onResolved])
 
+  /**
+   * Tell the wizard what is worth saving, whenever it changes.
+   *
+   * **Only once there is a sheet.** Before a file is dropped there is nothing to
+   * come back to, and writing an empty draft would give an owner who opened the
+   * screen and left a "continue where you left off" pointing at nothing.
+   */
+  React.useEffect(() => {
+    if (sheet === null) {
+      onDraftChange(null)
+      return
+    }
+    onDraftChange({
+      sheet,
+      columns: {
+        name: nameColumn,
+        barcode: barcodeColumn,
+        price: priceColumn,
+        was: wasColumn,
+        percent: percentColumn,
+        type: typeColumn,
+      },
+      picks,
+    })
+  }, [
+    sheet,
+    nameColumn,
+    barcodeColumn,
+    priceColumn,
+    wasColumn,
+    percentColumn,
+    typeColumn,
+    picks,
+    onDraftChange,
+  ])
+
+  /**
+   * Resuming runs the match again, once, by itself.
+   *
+   * **Because the alternative is asking someone to press Match on a file they
+   * already matched on Tuesday.** They come back to the table they left, with
+   * their choices on it. The candidates are recomputed rather than restored,
+   * which also means a product added to the catalog since is offered now.
+   *
+   * Guarded on `matched` being null so it never re-runs after the owner has the
+   * table, and on the ref so React 18's double-invoke in development does not
+   * send it twice.
+   */
+  const resumed = React.useRef(false)
+  React.useEffect(() => {
+    if (initial === undefined || resumed.current || sheet === null) return
+    resumed.current = true
+    void match()
+    // `match` closes over this render's columns, which are the restored ones.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   if (sheet === null) {
     return (
       <div className="flex flex-col gap-2">
@@ -414,10 +516,20 @@ export function PriceListMatcher({ onResolved, max }: Props) {
           sent={sent}
           picks={picks}
           busy={busy}
+          showAll={showAll}
+          resumedFrom={resumedAt}
+          onShowAll={setShowAll}
           onPick={(index, id) => setPicks((current) => ({ ...current, [index]: id }))}
           onRestart={() => {
             setSheet(null)
             setMatched(null)
+            setPicks({})
+            // **Cleared on the server too, not just here.** Otherwise the next
+            // visit restores the sheet the owner has just thrown away, which
+            // reads as the product refusing to let go of it.
+            void fetch('/api/v1/offer-books/draft', { method: 'DELETE' }).catch(
+              () => undefined
+            )
           }}
         />
       )}
@@ -436,7 +548,10 @@ function MatchTable({
   sent,
   picks,
   busy,
+  showAll,
+  resumedFrom,
   onPick,
+  onShowAll,
   onRestart,
 }: {
   rows: MatchedRow[]
@@ -444,26 +559,71 @@ function MatchTable({
   sent: SentRow[]
   picks: Picks
   busy: boolean
+  showAll: boolean
+  /** Non-null when this table was restored rather than just built. */
+  resumedFrom: string | null
   onPick: (index: number, productId: string | null) => void
+  onShowAll: (next: boolean) => void
   onRestart: () => void
 }) {
-  // Counted as *still* unmatched: a row that has been adopted has a product now
-  // and belongs with the ready ones, or the tally would keep reporting a problem
-  // the owner has just solved.
   const unmatched = rows.filter(
     (row) => row.status === 'UNMATCHED' && (picks[row.index] ?? null) === null
   ).length
-  const open = rows.filter(
+
+  /**
+   * The rows that actually want the owner's attention: the ones where the
+   * matcher found several products and could not choose between them.
+   *
+   * **Everything else is not work.** A matched row is decided, and a row the
+   * catalog has never seen is a product that gets written down — neither is a
+   * question, and listing two hundred of them above six real decisions is how a
+   * five-minute job looks like an afternoon.
+   */
+  const deciding = rows.filter(
     (row) => row.status === 'AMBIGUOUS' && (picks[row.index] ?? null) === null
+  )
+  const decided = rows.filter(
+    (row) => row.status === 'AMBIGUOUS' && (picks[row.index] ?? null) !== null
   ).length
+
+  /**
+   * How many of the open decisions are on screen.
+   *
+   * **Twenty at a time, and it grows rather than paging.** A page control asks
+   * an owner to keep track of where they are in a job whose whole difficulty is
+   * that it is long; a batch that extends leaves everything they have already
+   * done above them, which is the progress. Answering a row removes it from the
+   * list, so a batch of twenty is twenty decisions rather than twenty rows.
+   */
+  const [shown, setShown] = React.useState(BATCH)
+  const visible = showAll ? rows : deciding.slice(0, shown)
 
   return (
     <div className="flex flex-col gap-3">
+      {resumedFrom !== null ? (
+        <Card padding="compact">
+          <p className="font-ui text-body-sm text-secondary">
+            Picking up where you left off. Your choices were saved.
+          </p>
+        </Card>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="font-ui text-body-sm text-secondary">
-          <Figure value={rows.length - unmatched - open} size="data-sm" /> of{' '}
-          <Figure value={rows.length} size="data-sm" /> rows ready.
-          {open > 0 ? ' Pick a product for the ones we could not decide.' : ''}
+          {deciding.length === 0 ? (
+            <>
+              All <Figure value={rows.length} size="data-sm" /> rows are ready.
+            </>
+          ) : (
+            <>
+              <Figure value={deciding.length} size="data-sm" />{' '}
+              {deciding.length === 1 ? 'row needs' : 'rows need'} you to pick a product.{' '}
+              <span className="text-muted">
+                The other <Figure value={rows.length - deciding.length} size="data-sm" /> are
+                ready.
+              </span>
+            </>
+          )}
         </p>
         <Button type="button" variant="ghost" onClick={onRestart}>
           <RotateCcw className="size-4" aria-hidden="true" strokeWidth={1.75} />
@@ -491,7 +651,7 @@ function MatchTable({
       ) : null}
 
       <ul className="flex flex-col gap-1">
-        {rows.map((row) => (
+        {visible.map((row) => (
           <li key={row.index}>
             <Card padding="compact">
               <div className="flex flex-col gap-2">
@@ -507,33 +667,124 @@ function MatchTable({
                 </div>
 
                 {row.status === 'AMBIGUOUS' ? (
-                  <div className="flex flex-wrap gap-1">
-                    {row.candidates.map((candidate) => {
-                      const chosen = picks[row.index] === candidate.product.id
-                      return (
-                        <button
-                          key={candidate.product.id}
-                          type="button"
-                          onClick={() => onPick(row.index, chosen ? null : candidate.product.id)}
-                          className={
-                            chosen
-                              ? 'min-h-control rounded-control border-hairline border-border-focus bg-selected-bg px-2 font-ui text-body-sm text-primary'
-                              : 'min-h-control rounded-control border-hairline border-border-subtle px-2 font-ui text-body-sm text-secondary hover:bg-stone-100'
-                          }
-                        >
-                          {displayName(candidate.product, 'en')}
-                          {packLabel(candidate.product) ? ` · ${packLabel(candidate.product)}` : ''}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {row.candidates.map((candidate) => (
+                      <li key={candidate.product.id} className="flex">
+                        <CandidateTile
+                          product={candidate.product}
+                          chosen={picks[row.index] === candidate.product.id}
+                          onChoose={(id) => onPick(row.index, id)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
               </div>
             </Card>
           </li>
         ))}
       </ul>
+
+      {/* **Named with what is left, not with "load more".** An owner deciding
+          whether to keep going wants the size of the rest, and a button that
+          says it is also the answer to "how much is left of this". */}
+      {!showAll && deciding.length > shown ? (
+        <Button type="button" variant="secondary" onClick={() => setShown((n) => n + BATCH)}>
+          Show{' '}
+          <Figure value={Math.min(BATCH, deciding.length - shown)} size="data-sm" /> more of{' '}
+          <Figure value={deciding.length - shown} size="data-sm" /> left
+        </Button>
+      ) : null}
+
+      {/* The way to see everything, including the rows that are already
+          decided — because "ready" is a claim, and an owner printing a flyer is
+          entitled to check it rather than take our word for it. */}
+      <Button type="button" variant="ghost" onClick={() => onShowAll(!showAll)}>
+        {showAll ? 'Show only what needs a decision' : 'Show every row'}
+      </Button>
     </div>
+  )
+}
+
+/**
+ * One product the row might be, with its picture.
+ *
+ * **The picture is the whole reason this is a choice an owner can make
+ * quickly.** Two rows of text reading `Almarai Full Cream Milk 1 L` and
+ * `Almarai Full Cream Milk 1.5 L` are a spot-the-difference puzzle; two
+ * packshots are a glance. `CatalogProductSummary` has carried `imageUrl` since
+ * it was written and this picker was rendering the name and the pack label —
+ * the harder half of the same question.
+ *
+ * **A product with no photograph shows the same reserved space the card
+ * does**, rather than collapsing to a text row and making the tiles a
+ * different size each. It also tells the owner something true before they
+ * pick: choosing this one gives the card a placeholder.
+ *
+ * Bordered rather than filled when chosen, and the border is the focus token —
+ * the same treatment selection gets everywhere else in the product.
+ */
+function CandidateTile({
+  product,
+  chosen,
+  onChoose,
+}: {
+  product: CatalogProductSummary
+  chosen: boolean
+  onChoose: (productId: string | null) => void
+}) {
+  const pack = packLabel(product)
+
+  return (
+    <button
+      type="button"
+      aria-pressed={chosen}
+      onClick={() => onChoose(chosen ? null : product.id)}
+      className={[
+        'flex min-h-row w-full items-center gap-2 rounded-control border-hairline p-1 text-start',
+        chosen
+          ? 'border-border-focus bg-selected-bg'
+          : 'border-border-subtle hover:bg-stone-100',
+      ].join(' ')}
+    >
+      {/* `relative`, because `fill` measures against the nearest positioned
+          ancestor. Square at the large control height: a cutout's aspect ratio
+          is whatever the packshot was, and a row of mixed widths reads as
+          broken rather than as varied. */}
+      <span className="relative flex size-control-lg shrink-0 items-center justify-center overflow-hidden rounded-control bg-sand-tint">
+        {product.imageUrl === null ? (
+          // A missing-asset marker inside a tile, not an illustration —
+          // `illustration-selection.md` bars decoration at this size. Same
+          // treatment `ProductCard` gives the same absence.
+          <ImageOff className="size-4 text-secondary" aria-hidden="true" strokeWidth={1.75} />
+        ) : (
+          <Image
+            src={product.imageUrl}
+            alt=""
+            aria-hidden="true"
+            fill
+            sizes="44px"
+            // `unoptimized`, for the reason `ProductCard` states: `R2_PUBLIC_URL`
+            // is per-environment while `remotePatterns` is a hardcoded pair of
+            // hosts, so the optimizer refuses any bucket that is not one of
+            // those two — and the failure is every picture in the picker, in
+            // exactly the environment nobody checked.
+            unoptimized
+            className="object-contain p-1"
+          />
+        )}
+      </span>
+
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate font-ui text-body-sm text-primary">
+          {displayName(product, 'en')}
+        </span>
+        <span className="truncate font-ui text-body-sm text-muted">
+          {[product.brandEn, pack].filter(Boolean).join(' · ') ||
+            (product.imageUrl === null ? 'No photo' : 'No brand')}
+        </span>
+      </span>
+    </button>
   )
 }
 
