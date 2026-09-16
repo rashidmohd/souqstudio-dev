@@ -13,24 +13,30 @@ import { candidateObjects } from './vision-qwen'
 import type { VisionImage } from './magic-prompt'
 
 /**
- * Reading a uniform off a photograph. E8-01.
+ * Reading a uniform off one or more photographs. E8-01.
  *
  * **Behind `MAGIC_BLOCK_PROVIDER`, not `IMAGE_PROVIDER`** — this is a model that
  * reads, and the variable that picks a reader already exists. The two are
  * separate because a deployment may reasonably want one vendor looking at
  * photographs and another drawing.
  *
- * **This is the only call the staff photograph is sent to.** What goes on to the
- * image model is `characterPrompt()`'s sentence about a polo shirt, built from
- * what this returns. One provider sees the picture, once.
+ * **This is the only call the staff photographs are sent to.** What goes on to
+ * the image model is `characterPrompt()`'s sentence about a polo shirt, built
+ * from what this returns. One provider sees the pictures, once.
+ *
+ * **Several angles, one answer.** A back, a sleeve and a logo close-up describe
+ * one garment better than a single flat photograph does — and they are all read
+ * in one call rather than merged afterwards, because merging two independent
+ * descriptions of the same shirt is a job nothing here can do well.
  */
-export async function readUniform(image: VisionImage): Promise<Uniform> {
-  return env.MAGIC_BLOCK_PROVIDER === 'qwen' ? withQwen(image) : withAnthropic(image)
+export async function readUniform(images: readonly VisionImage[]): Promise<Uniform> {
+  if (images.length === 0) throw new UnreadableUniformError()
+  return env.MAGIC_BLOCK_PROVIDER === 'qwen' ? withQwen(images) : withAnthropic(images)
 }
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
 
-async function withAnthropic(image: VisionImage): Promise<Uniform> {
+async function withAnthropic(images: readonly VisionImage[]): Promise<Uniform> {
   const response = await client.messages.parse({
     model: 'claude-opus-5',
     max_tokens: 8000,
@@ -40,14 +46,14 @@ async function withAnthropic(image: VisionImage): Promise<Uniform> {
       {
         role: 'user',
         content: [
-          {
-            type: 'image',
+          ...images.map((image) => ({
+            type: 'image' as const,
             source: {
-              type: 'base64',
+              type: 'base64' as const,
               media_type: image.mediaType,
               data: image.bytes.toString('base64'),
             },
-          },
+          })),
           { type: 'text', text: UNIFORM_QUESTION },
         ],
       },
@@ -61,7 +67,7 @@ interface ChatResponse {
   choices?: { message?: { content?: string | null } }[]
 }
 
-async function withQwen(image: VisionImage): Promise<Uniform> {
+async function withQwen(images: readonly VisionImage[]): Promise<Uniform> {
   if (env.DASHSCOPE_API_KEY === undefined) {
     throw new Error('uniform: MAGIC_BLOCK_PROVIDER is qwen but DASHSCOPE_API_KEY is not set')
   }
@@ -80,12 +86,12 @@ async function withQwen(image: VisionImage): Promise<Uniform> {
         {
           role: 'user',
           content: [
-            {
+            ...images.map((image) => ({
               type: 'image_url',
               image_url: {
                 url: `data:${image.mediaType};base64,${image.bytes.toString('base64')}`,
               },
-            },
+            })),
             { type: 'text', text: UNIFORM_QUESTION },
           ],
         },

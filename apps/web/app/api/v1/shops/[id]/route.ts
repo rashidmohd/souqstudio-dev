@@ -5,6 +5,7 @@ import { ok, fail } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole, requireShopAccess } from '@/lib/authz'
 import { syncShopQuantity } from '@/lib/billing'
+import { MAX_BIO, MAX_STORE_PHOTOS, SHOP_TRADES, type ShopTrade } from '@souqstudio/engine'
 import { BRAND_OVERRIDES } from '@/lib/brand-inheritance'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 
@@ -22,6 +23,23 @@ const patchSchema = z
     location: z.string().trim().max(120).nullable(),
     phone: z.string().trim().max(40).nullable(),
     brandOverride: z.enum(BRAND_OVERRIDES),
+    /**
+     * E8-01's shop profile.
+     *
+     * **`trade` is an enum because it reaches a model prompt.** A free-text
+     * trade would be an unbounded string interpolated into an instruction,
+     * which is both an injection surface and a vocabulary nothing can be tested
+     * against. The owner's own words go in `bio`, which the prompt quotes as
+     * data rather than splicing in as instruction.
+     */
+    trade: z.enum(SHOP_TRADES as unknown as [ShopTrade, ...ShopTrade[]]).nullable(),
+    bio: z.string().trim().max(MAX_BIO).nullable(),
+    /**
+     * R2 object keys of photographs of the shop. Each is checked against this
+     * organization's prefix below — a key is a read instruction to the worker,
+     * and an unchecked one is a read of another tenant's object.
+     */
+    storePhotoKeys: z.array(z.string().min(1).max(200)).max(MAX_STORE_PHOTOS),
   })
   .partial()
 
@@ -89,7 +107,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Built key by key rather than spread wholesale: `exactOptionalPropertyTypes`
   // makes an explicit `undefined` different from an absent key, and Prisma's
   // update input accepts the second but not the first.
-  const { name, location, phone, brandOverride } = parsed.data
+  const { name, location, phone, brandOverride, trade, bio, storePhotoKeys } = parsed.data
+
+  /**
+   * **Every store photo key must be this organization's.** A key is a read
+   * instruction the worker later follows, so one edited by hand is a request to
+   * read another tenant's object and use it as a scene reference. The presign
+   * route mints them under the organization's own prefix; this is the other
+   * half of that rule, and the same check `/blocks/magic` makes.
+   */
+  if (storePhotoKeys !== undefined) {
+    const prefix = `${access.value.shop.organizationId}/`
+    const foreign = storePhotoKeys.some(
+      (key) => !key.startsWith(prefix) || key.includes('..')
+    )
+    if (foreign) {
+      return fail('invalid_input', 'One of those photos does not belong to this shop.', 422)
+    }
+  }
+
   const shop = await prisma.shop.update({
     where: { id: params.id },
     data: {
@@ -97,6 +133,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(location !== undefined ? { location } : {}),
       ...(phone !== undefined ? { phone } : {}),
       ...(brandOverride !== undefined ? { brandOverride } : {}),
+      ...(trade !== undefined ? { trade } : {}),
+      ...(bio !== undefined ? { bio } : {}),
+      ...(storePhotoKeys !== undefined ? { storePhotoKeys } : {}),
     },
     select: {
       id: true,
@@ -105,6 +144,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       phone: true,
       isActive: true,
       brandOverride: true,
+      trade: true,
+      bio: true,
+      storePhotoKeys: true,
     },
   })
 

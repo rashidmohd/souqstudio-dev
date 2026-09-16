@@ -19,7 +19,13 @@ import * as z from 'zod/v4'
 
 // ─── Characters ───────────────────────────────────────────────────────────────
 
-export const CHARACTER_STYLES = ['cartoon', 'semi-realistic', 'flat', 'mascot'] as const
+export const CHARACTER_STYLES = [
+  'cartoon',
+  'semi-realistic',
+  'flat',
+  'mascot',
+  'photo-real',
+] as const
 export type CharacterStyle = (typeof CHARACTER_STYLES)[number]
 
 export const CHARACTER_STYLE_NOTE: Readonly<Record<CharacterStyle, string>> = {
@@ -27,7 +33,32 @@ export const CHARACTER_STYLE_NOTE: Readonly<Record<CharacterStyle, string>> = {
   'semi-realistic': 'Closer to a photograph, still illustrated. Pharmacies and electronics.',
   flat: 'Flat colour, no shading, very few lines. Modern and prints cheaply.',
   mascot: 'A bold character with a big head and simple shapes. Reads at a distance.',
+  'photo-real': 'A photograph of a shop worker, not a drawing. An invented person, never one of your staff.',
 }
+
+/**
+ * **`photo-real` is a photograph of somebody who does not exist, and that is
+ * structural rather than a promise.**
+ *
+ * The uniform photograph never reaches the image model at all: a vision model
+ * reduces it to a sentence about clothing, and that sentence is what is drawn
+ * from. There is no path by which a real employee's face could be conditioned on
+ * — not because a prompt asks for that, but because the picture is not in the
+ * request. Anyone changing the character job should understand that this is the
+ * property being preserved, and that sending the photograph onward would quietly
+ * end it.
+ *
+ * The style still carries its own warning in the prompt, because a model asked
+ * for a photorealistic retail worker can drift toward a recognisable public
+ * likeness without any reference image at all.
+ */
+export const INVENTED_PERSON_STYLES: readonly CharacterStyle[] = ['photo-real', 'semi-realistic']
+
+/** How many extra angles of the uniform may be sent to the vision step. */
+export const MAX_UNIFORM_ANGLES = 3
+
+/** What the owner wants the character for. Free text, quoted as data. */
+export const MAX_GOAL = 200
 
 /**
  * Who the character is, in the sense the spec means: "nationality (drives facial

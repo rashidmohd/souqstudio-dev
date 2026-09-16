@@ -241,6 +241,9 @@ export {
   CHARACTER_STYLES,
   CHARACTER_STYLE_NOTE,
   CHARACTER_VARIATIONS,
+  INVENTED_PERSON_STYLES,
+  MAX_GOAL,
+  MAX_UNIFORM_ANGLES,
   COVER_SHAPES,
   COVER_SHAPE_NOTE,
   COVER_VARIATIONS,
@@ -257,3 +260,18 @@ export {
   type Pose,
   type Uniform,
 } from './character'
+// What a shop is, beyond its name — E8-01's prerequisite. Both the settings
+// screen and the character prompt read it.
+export {
+  MAX_BIO,
+  MAX_STORE_PHOTOS,
+  MIN_BIO,
+  SHOP_TRADES,
+  TRADE_COPY,
+  isShopProfileComplete,
+  isShopTrade,
+  profileGaps,
+  storePhotoKeysOf,
+  type ShopProfile,
+  type ShopTrade,
+} from './shop-profile'

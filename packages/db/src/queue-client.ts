@@ -167,6 +167,25 @@ export interface CharacterGenPayload {
   look: string
   /** ISO timestamp of the consent the owner gave. Never optional. */
   consentedAt: string
+  /**
+   * More angles of the same uniform — a back, a sleeve, a logo close-up.
+   *
+   * **They go to the vision step and stop there**, like `sourceKey`. More angles
+   * means the garment is read rather than guessed from one flat photograph; it
+   * does not mean more pictures of people travelling further.
+   */
+  angleKeys?: string[]
+  /**
+   * Photographs of the shop itself, as a *scene* for the character to stand in.
+   *
+   * **These are the only owner-supplied images that reach the image model.**
+   * They are a different kind of thing from the uniform photograph and are kept
+   * apart from it deliberately — one describes clothing and is consumed by a
+   * reader, the other is a place and is handed to a drawer.
+   */
+  sceneKeys?: string[]
+  /** What the owner wants the character for, in their words. Quoted as data. */
+  goal?: string
 }
 
 /** One pose of an existing character, two variations. E8-02 and E8-03. */

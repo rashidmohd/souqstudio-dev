@@ -2,6 +2,12 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { CREDIT_COSTS, enqueueCharacterGen, getCreditSnapshot, prisma } from '@souqstudio/db'
 import {
+  MAX_GOAL,
+  MAX_UNIFORM_ANGLES,
+  MAX_STORE_PHOTOS,
+  isShopProfileComplete,
+  profileGaps,
+  storePhotoKeysOf,
   CHARACTER_GENDERS,
   CHARACTER_LOOKS,
   CHARACTER_STYLES,
@@ -12,6 +18,8 @@ import {
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { getActiveShop } from '@/lib/active-shop'
+import { isBrandSetupComplete, readEffectiveBrand } from '@/lib/brand-kit'
+import { prisma as db } from '@souqstudio/db'
 import { env } from '@/lib/env'
 
 /**
@@ -46,6 +54,15 @@ const schema = z.object({
    * decision to a later `if` somebody can delete.
    */
   consent: z.literal(true),
+  /** More angles of the same uniform. They reach the vision step and stop. */
+  angleKeys: z.array(z.string().min(1).max(200)).max(MAX_UNIFORM_ANGLES).optional(),
+  /**
+   * Photographs of the shop, as a scene. **The only owner-supplied images that
+   * reach the image model**, which is why they are named apart from the uniform.
+   */
+  sceneKeys: z.array(z.string().min(1).max(200)).max(MAX_STORE_PHOTOS).optional(),
+  /** What the owner wants it for. Quoted into the prompt as data. */
+  goal: z.string().trim().max(MAX_GOAL).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -90,8 +107,56 @@ export async function POST(request: NextRequest) {
    * photograph of somebody's staff.
    */
   const prefix = `${organizationId}/`
-  if (!parsed.data.sourceKey.startsWith(prefix) || parsed.data.sourceKey.includes('..')) {
+  const ownsKey = (key: string) => key.startsWith(prefix) && !key.includes('..')
+
+  const everyKey = [
+    parsed.data.sourceKey,
+    ...(parsed.data.angleKeys ?? []),
+    ...(parsed.data.sceneKeys ?? []),
+  ]
+  if (!everyKey.every(ownsKey)) {
     return fail('invalid_input', 'That upload does not belong to this organization.', 422)
+  }
+
+  /**
+   * **The two prerequisites, checked here and not only in the interface.**
+   *
+   * A character that does not know what the shop sells is four generic people,
+   * and one drawn before the palette exists cannot be matched to the brand it is
+   * for. The flow refuses to start without both, and this is the half of that
+   * refusal a client cannot skip — the screen is the other half.
+   */
+  const shopRow = await db.shop.findUnique({
+    where: { id: shop.id },
+    select: { trade: true, bio: true },
+  })
+
+  const profile = {
+    trade: shopRow?.trade ?? null,
+    bio: shopRow?.bio ?? null,
+    storePhotoKeys: [],
+  }
+
+  if (!isShopProfileComplete(profile)) {
+    return fail(
+      'profile_incomplete',
+      `Tell us ${profileGaps(profile).join(' and ')} in this shop's settings first.`,
+      409
+    )
+  }
+
+  const brand = await readEffectiveBrand({
+    organizationId: shop.organizationId,
+    shopId: shop.id,
+    brandOverride: shop.brandOverride,
+  })
+
+  if (!isBrandSetupComplete(brand.brandKit)) {
+    return fail(
+      'brand_incomplete',
+      'Finish your brand kit first — the character is drawn to match it.',
+      409
+    )
   }
 
   const cost = CREDIT_COSTS.character_gen
@@ -125,6 +190,9 @@ export async function POST(request: NextRequest) {
       gender: parsed.data.gender,
       look: parsed.data.look,
       consentedAt: new Date().toISOString(),
+      ...(parsed.data.angleKeys === undefined ? {} : { angleKeys: parsed.data.angleKeys }),
+      ...(parsed.data.sceneKeys === undefined ? {} : { sceneKeys: parsed.data.sceneKeys }),
+      ...(parsed.data.goal === undefined ? {} : { goal: parsed.data.goal }),
     })
   } catch {
     await prisma.aiJob.update({

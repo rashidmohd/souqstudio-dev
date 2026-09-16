@@ -295,6 +295,48 @@ be written.
 
 ---
 
+## 3c. E8-01 was built as a modal and that was wrong — 16 September
+
+The first build put character creation in a dialog, matching every other AI feature in this
+epic. It was rejected the same day, and the reasons are worth keeping because they are about
+the *product* rather than about this feature.
+
+**A character needs to know what the shop sells, and nothing did.** A butcher's character is
+not an electronics shop's — different uniform, different props, different register — and
+until this the product knew a shop's name and its logo and nothing else. That is a new
+`shops.trade` (a closed enum, because it is interpolated into a prompt as an instruction),
+`shops.bio` (free text, quoted as data) and `shops.storePhotoKeys`, edited in a new section
+of shop settings. `isShopProfileComplete()` is the gate.
+
+**A modal cannot hold a prerequisite.** Two things must be true before a character can be
+made — the shop profile and the brand kit — and both are fixed *elsewhere*. A dialog that
+says "your profile is incomplete" and then has to be dismissed to go and fix it is a dead
+end with a close button on it. It is now `/brand/character`, beside `/brand/blocks`, and the
+gate links to what is missing. **The route enforces the same two conditions**, so the screen
+is a courtesy rather than the control.
+
+**`photo-real` is a fifth style, and the likeness question was answered by the
+architecture.** The owner asked for a photograph rather than a cartoon. The generated person
+is invented and cannot resemble anyone in the uploaded photographs — **not because a prompt
+asks for that, but because those photographs are not in the drawing request**. A vision model
+reduces them to a sentence about clothing and that sentence is what is drawn from. Anyone
+changing `character.job.ts` should understand that this is the property being preserved;
+sending the photograph onward to the image model would quietly end it, with no test failing.
+
+**Two kinds of photograph, kept apart the whole way down.** `angleKeys` are more views of the
+same uniform and go to the *reader*. `sceneKeys` are photographs of the shop and go to the
+*drawer*, as a background for an owner who wants their character standing in their own shop.
+They are separate fields on the payload, separate uploads in the flow, and separate lines in
+the consent — because the shop photographs are the only owner-supplied images that reach the
+image model, and the consent step says so only when they are actually being sent.
+
+**Still owed here:** `pnpm db:push` (or a migration) has not been run for the three new
+`shops` columns — the Prisma client is generated and the code typechecks, but no database has
+them yet. And the flow has never been run end to end, for the same reason everything else in
+this epic has not.
+
+---
+
 ## 4. Carried forward — what the live run found, and why the tests could not
 
 Full write-up in `docs/E8-ai-features.md` → "What the first live run found". The two

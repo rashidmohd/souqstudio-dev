@@ -16,7 +16,6 @@ import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
 import { BrandDirectionDialog } from '@/components/brand/BrandDirectionDialog'
 import { LogoMarkDialog } from '@/components/brand/LogoMarkDialog'
-import { CharacterDialog } from '@/components/brand/CharacterDialog'
 import {
   Image as ImageIcon,
   Palette,
@@ -106,8 +105,6 @@ export function BrandKitScreen({
   const [proposing, setProposing] = React.useState(false)
   /** E8-09. Open from the logo card, for the shop that has no logo file. */
   const [drawing, setDrawing] = React.useState(false)
-  /** E8-01. Its own card — a character is a member of the kit, not a logo. */
-  const [posing, setPosing] = React.useState(false)
 
   // What the server has. Saves advance it; the dirty gates compare against it.
   const [baseline, setBaseline] = React.useState<BrandKit>(brandKit)
@@ -459,23 +456,22 @@ export function BrandKitScreen({
             state={characterCount > 0 ? <><span data-figure>{characterCount}</span> saved</> : 'Not made yet'}
             note={null}
           >
+            {/*
+             * A Link rather than a dialog: making a character is a flow with
+             * prerequisites the owner may have to leave and satisfy, which is
+             * not something a modal can hold. Middle-click and open-in-new-tab
+             * are worth keeping too — the same reasoning the library's Open
+             * control uses.
+             */}
             {canEdit ? (
-              <button
-                type="button"
-                onClick={() => setPosing(true)}
+              <Link
+                href="/brand/character"
                 className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
               >
                 <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
                 {characterCount > 0 ? 'Make another character' : 'Make a character'}
-              </button>
+              </Link>
             ) : null}
-
-            <CharacterDialog
-              open={posing}
-              onOpenChange={setPosing}
-              credits={credits}
-              onCreated={() => router.refresh()}
-            />
           </BrandCard>
 
         </>

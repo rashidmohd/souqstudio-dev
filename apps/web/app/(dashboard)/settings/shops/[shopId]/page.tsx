@@ -6,9 +6,12 @@ import type { Role } from '@souqstudio/types'
 import { requireCompliantSession } from '@/lib/session'
 import { assignableRoles, requireShopAccess, toRole } from '@/lib/authz'
 import { readEffectiveBrand } from '@/lib/brand-kit'
+import { publicUrl } from '@/lib/r2'
+import { storePhotoKeysOf } from '@souqstudio/engine'
 import { ShopForm } from '@/components/shop/ShopForm'
 import { BrandOverrideField } from '@/components/shop/BrandOverrideField'
 import { ShopAccessField } from '@/components/shop/ShopAccessField'
+import { ShopProfileField } from '@/components/shop/ShopProfileField'
 import type { ShopMemberCandidate } from '@/components/shop/ShopAccessField'
 
 export const metadata: Metadata = { title: 'Shop settings · SouqStudio' }
@@ -42,6 +45,10 @@ export default async function ShopSettingsPage({
   const orgRole = toRole(session.user.role)
   const isOwner = orgRole === 'owner'
   const canManage = role === 'owner' || role === 'manager'
+
+  // Read back defensively — it is a JSON column, and `storePhotoKeysOf` is
+  // where the shape is decided rather than assumed.
+  const storePhotoKeys = storePhotoKeysOf(shop.storePhotoKeys)
 
   const [brand, people, grants] = await Promise.all([
     readEffectiveBrand({
@@ -126,6 +133,21 @@ export default async function ShopSettingsPage({
               </p>
             )}
           </section>
+
+          {/*
+           * E8-01's prerequisite, above Brand rather than below it. The order on
+           * this page is the order an owner fills it in, and what the shop sells
+           * is a plainer question than how much of the organization's brand it
+           * replaces.
+           */}
+          <ShopProfileField
+            shopId={shop.id}
+            trade={shop.trade}
+            bio={shop.bio}
+            storePhotoKeys={storePhotoKeys}
+            storePhotoUrls={storePhotoKeys.map(publicUrl)}
+            canEdit={canManage}
+          />
 
           <section className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">

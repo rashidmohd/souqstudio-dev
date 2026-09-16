@@ -90,6 +90,95 @@ must not disagree about what the values mean. `lg` is for screens where a single
 field is the whole task: login, signup, code entry. Dense screens stay on the
 default. The native `size` attribute is omitted so it cannot collide.
 
+### Textarea
+
+| | |
+| --- | --- |
+| File | `components/ui/textarea.tsx` |
+| Status | `built` — apps/web only, E8-01 |
+| Governs | SKILL.md → Components → Inputs (shares the input's shape rules) |
+
+```tsx
+type TextareaProps = {
+  label: string                     // required, like Input
+  hint?: string
+  error?: string
+  required?: boolean
+  rows?: number                     // visible lines before it scrolls; default 4
+} & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'rows'>
+```
+
+**The same shape as `Input` and deliberately not its own idea of one.** Label above
+always, 8px rectangle rather than a pill, hint below, error superseding the hint and
+turning the border critical, `aria-invalid` and `aria-describedby` wired identically. A
+multi-line field that styled itself differently would read as a different kind of control
+for no reason.
+
+`maxLength` gets a live character count, because a field that silently stops accepting
+characters reads as broken. `resize-y` only — a field that can be dragged wider than its
+column breaks the form grid.
+
+**Not a rich text editor, and that was asked.** The fields that wanted this are read by a
+model rather than rendered: a shop's description feeds a generation prompt. Markup in one
+is either stripped before the prompt, making the owner's formatting theatre, or it is not,
+and `<strong>` ends up inside an instruction. Rich text earns its place where something
+renders the formatting. If that changes, it is a **separate** component — not a `variant`
+here, because the value type stops being a string.
+
+**Added by E8-01 without going through this file first**, and recorded rather than left
+implicit: the inventory listed no multi-line input at all, and the shop profile needed one.
+
+### RadioCards
+
+| | |
+| --- | --- |
+| File | `components/ui/radio-cards.tsx` |
+| Status | `built` — apps/web only, E8-01 |
+| Governs | SKILL.md → Components → Inputs; → Forms |
+
+```tsx
+type RadioCardOption<T extends string> = {
+  value: T
+  label: string
+  description?: string              // one line under the label
+  disabled?: boolean
+}
+
+type RadioCardsProps<T extends string> = {
+  label: string                     // the group's legend, always rendered
+  value: T | null
+  options: RadioCardOption<T>[]
+  onChange: (value: T) => void
+  hint?: string
+  error?: string
+  required?: boolean
+  disabled?: boolean
+  columns?: 1 | 2                   // default 2; one column reads as a list
+  name?: string                     // shared radio name; generated when omitted
+  className?: string
+}
+```
+
+**One of several, where each option needs a sentence.** The gap between the two controls
+that already existed: `Segmented` is one-of for a handful of short labels in a single
+shell — it stops working around five and has nowhere to put a description — and `Select`
+hides every option until opened, which is right when labels speak for themselves and wrong
+when the choice is one a person makes once and has to read to make.
+
+Built for the shop's business segment: ten trades, each of which changes what the product
+generates for that shop.
+
+**Real `<input type="radio">` under a styled label, not divs with roles.** Arrow-key
+movement within the group, one tab stop, form association and the accessibility tree all
+come from the platform — the same argument `Select` and `Dialog` already make here. It is
+a `fieldset` with a `legend`, so the hint is announced once for the group rather than once
+per option, and the focus ring goes on the label because the input itself is visually
+minimal.
+
+**Single-select only.** The any-of counterpart is `ToggleBar`, and the same reasoning that
+kept those two apart applies: a `multiple` flag here would change the value type and the
+callback shape, which is two components wearing one name.
+
 ### OtpInput
 
 | | |

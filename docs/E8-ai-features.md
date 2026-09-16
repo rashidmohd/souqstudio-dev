@@ -34,6 +34,12 @@ AI features are the differentiation layer of SouqStudio. They go beyond layout a
 
 ### E8-01 AI Character Creation
 
+**Reshaped on 16 September, after the first build was rejected.** What changed, and why,
+is `E8-pending.md` §3c. In short: it is a **gated flow on its own screen**, not a modal;
+it is gated on a **shop profile** that did not exist before; `photo-real` is a fifth style;
+and the uniform photographs and the shop photographs are two different inputs that go to
+two different models. The spec below is the original ask and is kept as the record of it.
+
 Shop owners create a branded mascot character from their staff uniform. The character becomes part of the brand kit and is reusable across all future offer books.
 
 **Input**

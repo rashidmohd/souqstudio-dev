@@ -107,6 +107,26 @@ model Shop {
   brandOverride  String  @default("inherit") // inherit | logo | colors | full
   isActive       Boolean @default(true)
 
+  /// E8-01. What the shop sells, from `SHOP_TRADES` in @souqstudio/engine —
+  /// grocery | electronics | pharmacy | butcher | bakery | restaurant |
+  /// fashion | hardware | beauty | other.
+  ///
+  /// **Closed, and it steers a prompt.** A generated character for a butcher is
+  /// not a character for an electronics shop, and this is what tells them apart.
+  /// A free-text trade would be an unbounded string reaching a model prompt,
+  /// which is both an injection surface and a vocabulary nothing can be tested
+  /// against. The shop's own words go in `bio`, which is quoted rather than
+  /// interpolated as an instruction.
+  trade          String?
+  /// E8-01. A few sentences the owner writes about the shop. Optional detail on
+  /// top of `trade`, never a substitute for it.
+  bio            String?
+  /// E8-01. R2 object keys of photographs of the shop itself, as a JSON array of
+  /// strings. Used as scene references when an owner wants their character shown
+  /// inside their own shop. Keys rather than URLs, so this survives the bucket
+  /// moving behind a different public origin.
+  storePhotoKeys Json?
+
   /// E2-02. Null while active. A deactivated shop keeps all of its data and
   /// stops generating content. Paired with isActive rather than replacing it:
   /// the boolean is what every query filters on, the timestamp is what the

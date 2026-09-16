@@ -10,7 +10,9 @@ import {
   type CharacterGender,
   type CharacterLook,
   type CharacterStyle,
+  type ShopTrade,
   type Uniform,
+  isShopTrade,
 } from '@souqstudio/engine'
 import { getObjectBytes, putObject } from '../lib/r2'
 import { readUniform } from '../lib/uniform-vision'
@@ -54,7 +56,7 @@ const MEDIA: Readonly<Record<string, 'image/png' | 'image/jpeg' | 'image/webp'>>
 const MAX_EDGE = 1568
 
 export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
-  const { jobId, organizationId, shopId, sourceKey, consentedAt } = job.data
+  const { jobId, organizationId, shopId, sourceKey, consentedAt, goal } = job.data
 
   await prisma.aiJob.update({ where: { id: jobId }, data: { status: 'processing' } })
 
@@ -63,8 +65,34 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
     const gender = oneOf(CHARACTER_GENDERS, job.data.gender, 'gender') as CharacterGender
     const look = oneOf(CHARACTER_LOOKS, job.data.look, 'look') as CharacterLook
 
-    const photo = await prepare(sourceKey)
-    const uniform = await readUniform(photo)
+    /**
+     * The shop's profile, read here rather than carried on the payload.
+     *
+     * It is a fact in the database and a payload is a copy that can be stale by
+     * the time the job runs — and this one decides what the character *is*. A
+     * profile that became incomplete between the route's check and here fails
+     * the job rather than drawing a generic person and charging for it.
+     */
+    const shop = await prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { trade: true, bio: true },
+    })
+    const trade = shop?.trade ?? null
+    const bio = shop?.bio?.trim() ?? ''
+    if (trade === null || !isShopTrade(trade) || bio === '') {
+      throw new Error('character: the shop profile is not complete')
+    }
+
+    /**
+     * **Every angle goes to the reader; only the scene goes to the drawer.**
+     * The two lists are kept apart the whole way down for that reason.
+     */
+    const photos = await Promise.all(
+      [sourceKey, ...(job.data.angleKeys ?? [])].map(prepare)
+    )
+    const scene = await Promise.all((job.data.sceneKeys ?? []).map(prepare))
+
+    const uniform = await readUniform(photos)
 
     /**
      * **`both` is two of each rather than four of whichever the model felt
@@ -79,8 +107,18 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
     const drawn: Buffer[] = []
     for (const one of runs) {
       const images = await draw({
-        prompt: characterPrompt({ uniform, style, gender: one, look }),
+        prompt: characterPrompt({
+          uniform,
+          style,
+          gender: one,
+          look,
+          trade: trade as ShopTrade,
+          bio,
+          inScene: scene.length > 0,
+          ...(goal === undefined ? {} : { goal }),
+        }),
         count: each,
+        ...(scene.length === 0 ? {} : { references: scene }),
       })
       drawn.push(...images)
     }
@@ -108,6 +146,8 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
           gender,
           look,
           consentedAt,
+          trade,
+          inScene: scene.length > 0,
           notes: uniform.notes,
           charged: spend.ok ? spend.charged : 0,
         } as unknown as Prisma.InputJsonValue,
