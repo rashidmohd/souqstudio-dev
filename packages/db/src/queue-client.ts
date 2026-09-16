@@ -142,6 +142,61 @@ export interface LogoGenPayload {
   family: string
 }
 
+/**
+ * A character, four variations. E8-01.
+ *
+ * **Its own payload rather than a branch of `AiJobPayload`**, for the reason
+ * every other job on this queue now has one: that type carries a required
+ * `shopId` and an open index signature, which types nothing.
+ *
+ * `consentedAt` is the record that the owner was told where the photograph goes
+ * before it went. It is carried on the payload rather than looked up because the
+ * route that took the consent is the only thing that can attest to it.
+ */
+export interface CharacterGenPayload {
+  jobId: string
+  organizationId: string
+  shopId: string
+  /** R2 object key of the uniform photograph. Never a client-supplied URL. */
+  sourceKey: string
+  /** One of `CHARACTER_STYLES`, validated by the route that queued this. */
+  style: string
+  /** One of `CHARACTER_GENDERS`. `both` draws two of each. */
+  gender: string
+  /** One of `CHARACTER_LOOKS`. */
+  look: string
+  /** ISO timestamp of the consent the owner gave. Never optional. */
+  consentedAt: string
+}
+
+/** One pose of an existing character, two variations. E8-02 and E8-03. */
+export interface PoseGenPayload {
+  jobId: string
+  organizationId: string
+  shopId: string
+  characterId: string
+  /**
+   * One of `POSES`, or absent when the owner described the pose themselves —
+   * which is E8-03 rather than E8-02, and the only difference between them.
+   */
+  pose?: string
+  described?: string
+}
+
+/** A cover background, three options. E8-04. */
+export interface CoverGenPayload {
+  jobId: string
+  organizationId: string
+  shopId: string
+  /** One of `CAMPAIGNS`. */
+  campaign: string
+  described?: string
+  /** One of `COVER_SHAPES`. */
+  shape: string
+  /** The shop's palette, so the cover is drawn in its colours. */
+  palette: string[]
+}
+
 export interface BgRemovePayload {
   imageUrl: string
   targetPath: string
@@ -174,6 +229,23 @@ export interface BgRemovePayload {
   catalogProductId?: string
   sourceAssetId?: string
   jobId?: string
+  /**
+   * Set when an owner asked for this cutout by hand — E8-05's manual action,
+   * one credit per image.
+   *
+   * **Its absence is what keeps ingest free**, and that is the whole reason this
+   * is a field rather than a rule in the worker. Every cutout today is queued by
+   * an ingest path — a logo upload, a catalog contribution — and E5 §3 is
+   * explicit that the cutout is an ingest stage rather than the owner's chore.
+   * Charging for those because they happen to run the same job would be a
+   * pricing change nobody asked for, applied retroactively to a queue.
+   *
+   * Named apart from `organizationId` and `shopId` above, which mean something
+   * else on this payload: those say *whose brand kit* a logo result is written
+   * back to. These say who pays.
+   */
+  billOrganizationId?: string
+  billShopId?: string
 }
 
 export interface EnrichPayload {
@@ -231,6 +303,27 @@ export async function enqueueBrandDirection(payload: BrandDirectionPayload) {
 
 export async function enqueueLogoGen(payload: LogoGenPayload) {
   return queues.ai.add('ai.logoGen', payload, {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
+  })
+}
+
+export async function enqueueCharacterGen(payload: CharacterGenPayload) {
+  return queues.ai.add('ai.character', payload, {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
+  })
+}
+
+export async function enqueuePoseGen(payload: PoseGenPayload) {
+  return queues.ai.add('ai.pose', payload, {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
+  })
+}
+
+export async function enqueueCoverGen(payload: CoverGenPayload) {
+  return queues.ai.add('ai.cover', payload, {
     attempts: 2,
     backoff: { type: 'exponential', delay: 10000 },
   })

@@ -45,6 +45,37 @@ const schema = z.object({
   DASHSCOPE_BASE_URL:   z.string().url().default('https://dashscope-intl.aliyuncs.com/compatible-mode/v1'),
   /** Overridable because the Qwen vision family moves faster than this repo. */
   QWEN_VISION_MODEL:    z.string().min(1).default('qwen-vl-max'),
+  /**
+   * Which model *draws* — E8-01 to E8-04. Separate from `MAGIC_BLOCK_PROVIDER`,
+   * which picks a model that reads.
+   *
+   * **Unset means image generation is off**, and that is a state rather than a
+   * default. Every other provider variable in this file defaults to a path known
+   * to work; there is no such path here, because no deployment has a key for
+   * either of these yet. Defaulting to one would make the worker refuse to boot
+   * the day this shipped, so instead the four features report themselves
+   * unavailable and their routes refuse before queueing anything.
+   *
+   * Set it, and the key for that provider becomes required at boot — the
+   * `superRefine` below. That is the trade `MAGIC_BLOCK_PROVIDER` already makes:
+   * a provider selected without its key should fail at a deployment rather than
+   * at a shop owner's first generation.
+   */
+  IMAGE_PROVIDER:       z.enum(['gemini', 'qwen']).optional(),
+  GEMINI_API_KEY:       z.string().min(1).optional(),
+  /**
+   * Overridable because the image families move faster than this repo — the
+   * same reasoning `QWEN_VISION_MODEL` carries, and it has already been proved
+   * right once.
+   *
+   * **Both defaults want confirming against current provider docs before a live
+   * run.** They are written from what the families were called when this was
+   * built, and a model id that has moved is a 404 that reads like a bad key.
+   */
+  GEMINI_IMAGE_MODEL:   z.string().min(1).default('gemini-2.5-flash-image'),
+  QWEN_IMAGE_MODEL:     z.string().min(1).default('qwen-image'),
+  /** Qwen's reference-conditioned edit model — what a pose is generated with. */
+  QWEN_IMAGE_EDIT_MODEL: z.string().min(1).default('qwen-image-edit'),
   R2_ACCESS_KEY_ID:     z.string(),
   R2_SECRET_ACCESS_KEY: z.string(),
   R2_BUCKET_NAME:       z.string(),
@@ -58,6 +89,26 @@ const schema = z.object({
  * deployment refusing to start. Checked here so it is the second.
  */
 const parsed = schema.superRefine((value, ctx) => {
+  if (value.IMAGE_PROVIDER === 'gemini' && value.GEMINI_API_KEY === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['GEMINI_API_KEY'],
+      message:
+        'IMAGE_PROVIDER is "gemini", so GEMINI_API_KEY must be set. ' +
+        'Unset IMAGE_PROVIDER to turn image generation off.',
+    })
+  }
+
+  if (value.IMAGE_PROVIDER === 'qwen' && value.DASHSCOPE_API_KEY === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['DASHSCOPE_API_KEY'],
+      message:
+        'IMAGE_PROVIDER is "qwen", so DASHSCOPE_API_KEY must be set. ' +
+        'Unset IMAGE_PROVIDER to turn image generation off.',
+    })
+  }
+
   if (value.MAGIC_BLOCK_PROVIDER === 'qwen' && value.DASHSCOPE_API_KEY === undefined) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

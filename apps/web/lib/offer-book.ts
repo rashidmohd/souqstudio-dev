@@ -208,6 +208,9 @@ export async function loadBook(
               specOverrideAr: true,
               product: {
                 select: {
+                  // E8-05's manual cutout acts on this row, so the panel needs
+                  // to be able to name it.
+                  id: true,
                   nameEn: true,
                   nameAr: true,
                   specEn: true,
@@ -219,11 +222,27 @@ export async function loadBook(
                   packUnit: true,
                   packCount: true,
                   images: {
-                    // An approved CUTOUT first, then anything else. Same
-                    // precedence as `IMAGE_PICK` in `lib/catalog.ts`, expressed
-                    // through the client because there is no lateral here.
-                    where: { reviewState: 'APPROVED' },
-                    orderBy: { kind: 'asc' },
+                    /**
+                     * Every candidate; `pickImage` decides. Same precedence as
+                     * `IMAGE_PICK` in `lib/catalog.ts` — an approved CUTOUT
+                     * first, then the newest of anything else.
+                     *
+                     * **It used to be `orderBy: { kind: 'asc' }` and that was
+                     * backwards.** `kind` is a Postgres enum, and Postgres sorts
+                     * an enum column by its *declaration* order — which is
+                     * ORIGINAL, CUTOUT, THUMB. So ascending put the ORIGINAL
+                     * first and a product with a perfectly good cutout was drawn
+                     * with its background still on, and flagged `fallback-image`
+                     * in the panel, with no way for the owner to clear it.
+                     * Nothing in a test could see it: the composer is pure and
+                     * takes the row it is handed.
+                     *
+                     * Picked in code rather than re-ordered, because the fix
+                     * `desc` would be depends on that same declaration order —
+                     * one reordered enum away from breaking the same way again.
+                     */
+                    where: { reviewState: 'APPROVED', kind: { not: 'THUMB' } },
+                    orderBy: { createdAt: 'desc' },
                     select: { kind: true, r2Key: true },
                   },
                 },
@@ -274,7 +293,7 @@ export async function loadBook(
         chips: offer.chips,
         footnotes: offer.footnotes,
         items: offer.items.map((item) => {
-          const image = item.product.images[0]
+          const image = pickImage(item.product.images)
           return {
             id: item.id,
             position: item.position,
@@ -284,6 +303,7 @@ export async function loadBook(
             specOverrideEn: item.specOverrideEn,
             specOverrideAr: item.specOverrideAr,
             product: {
+              id: item.product.id,
               nameEn: item.product.nameEn,
               nameAr: item.product.nameAr,
               specEn: item.product.specEn,
@@ -1503,4 +1523,19 @@ export async function composeCover(
     direction: composed.edition === 'ar' ? 'rtl' : 'ltr',
     background: composed.pageBackgrounds[0] ?? composed.layout.background,
   }
+}
+
+/**
+ * Which of a product's images a card draws. E5 §3.
+ *
+ * An approved CUTOUT wins; otherwise the newest of what is left, which the
+ * query already ordered. THUMB is excluded by the query — it is a list
+ * thumbnail and never something a printed card is drawn from.
+ *
+ * The rows arrive newest-first, so the `find` is the whole precedence rule.
+ */
+export function pickImage<T extends { kind: 'ORIGINAL' | 'CUTOUT' | 'THUMB' }>(
+  images: readonly T[]
+): T | undefined {
+  return images.find((image) => image.kind === 'CUTOUT') ?? images[0]
 }

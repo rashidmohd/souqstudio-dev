@@ -15,15 +15,15 @@ is the reason that is possible at all.
 
 ---
 
-## 1. Four of nine features are built, and the ratio understates it
+## 1. Eight of nine features are built
 
 | Feature | State |
 | --- | --- |
-| E8-01 AI character creation | Not built — `ai.character` throws |
-| E8-02 Character pose library | Not built — `ai.pose` throws |
-| E8-03 Custom character prompt | Not built — `ai.prompt` throws |
-| E8-04 AI cover generation | Not built — `ai.cover` throws |
-| E8-05 Background removal | **Built** — `bg` worker, logos and catalog cutouts |
+| E8-01 AI character creation | **Built** 16 September — route, consent, worker, UI. Never run against a live image model — §3 |
+| E8-02 Character pose library | **Built** 16 September — worker and routes. **No UI yet** — §3a |
+| E8-03 Custom character prompt | **Built** 16 September, same job as E8-02. **No UI yet** — §3a |
+| E8-04 AI cover generation | **Built** 16 September — worker and route. **No UI yet** — §3a |
+| E8-05 Background removal | **Built**, and now complete — the manual action and its credit landed 16 September. §2b |
 | E8-06 AI metadata enrichment | Not built — `enrich` throws, and it blocks E5's Arabic |
 | E8-07 Magic block | **Built**, end to end, exercised live |
 | E8-08 Brand direction | **Built** 16 September, end to end. Never run against a live model — §2 |
@@ -157,9 +157,119 @@ one variable away from working — and both fail today exactly as magic block do
 
 ---
 
-## 3. The four image jobs are a decision, not a backlog item
+## 2b. E8-05's other half, and the bug it uncovered — 16 September
 
-They need a diffusion model and **which one has not been chosen**. `OPENAI_API_KEY` is
+**The manual action existed only in the spec.** E8-05 says background removal is "also
+available as manual action on any product image inside the editor (1 credit per image)".
+Cutouts ran at ingest and nowhere else, `background_removal` sat in `CREDIT_COSTS` at 1
+credit and **nothing had ever charged it**, and the editor's `fallback-image` flag told an
+owner their photo still had its background with nothing to do about it.
+
+`POST /api/v1/catalog/products/:id/cutout` is that action, offered in `OfferProperties`
+beside the flag that reports the problem. Three things worth not undoing:
+
+- **A universal catalog row is refused.** A null `organizationId` is the shared catalog
+  every tenant reads; re-cutting one changes what every other shop's cards draw, paid for
+  by whoever pressed the button. The refusal is the same `where` clause that scopes the
+  read, rather than a second check beside it.
+- **Ingest stays free**, and that is why `billOrganizationId` is a payload field rather
+  than a rule in the worker. Charging for ingest cutouts because they run the same job
+  would be a retroactive pricing change applied through a queue.
+- **`kept_original` is not charged.** Rembg being down leaves the product exactly as it
+  was, and the owner will press the button again.
+
+**The bug it uncovered, which is worse than the gap.** `lib/offer-book.ts` picked a
+product's image with `orderBy: { kind: 'asc' }` under a comment claiming the same
+precedence as `IMAGE_PICK` in `lib/catalog.ts`. `kind` is a Postgres enum and **Postgres
+sorts an enum column by its declaration order** — ORIGINAL, CUTOUT, THUMB — so ascending
+returned the ORIGINAL. Every product with a perfectly good cutout was drawn on the
+artboard with its background still on and flagged `fallback-image` in the panel. The
+catalog screen, which uses the explicit lateral join, showed the cutout correctly, so the
+two screens disagreed about the same product.
+
+**Nothing could see it.** `offer-book-compose.ts` is pure and draws the row it is handed,
+so its tests passed on a fixture that said `imageIsFallback: false`; the query that decided
+that field had no test at all, because testing it needs a database. The fix pulls the rule
+into `pickImage()` — picked in code rather than re-ordered, since `desc` would depend on
+the same declaration order and break the same way one reordered enum later — and
+`pick-image.test.ts` pins it.
+
+This is the third time in this epic that a defect has been invisible to a test over a
+schema and visible the moment somebody looked at a render. §4 makes the same point about
+`magic.test.ts`.
+
+---
+
+## 3. The four image jobs — built 16 September, and what is still owed
+
+§3 used to say the four image jobs were a decision rather than a backlog item, and that
+building any of them was guessing at an interface until a provider was chosen. **The
+decision was made on 16 September**: Gemini as the default, Qwen as the second, behind a new
+`IMAGE_PROVIDER` — and uniform photographs may be sent, with explicit consent.
+
+**`IMAGE_PROVIDER` is separate from `MAGIC_BLOCK_PROVIDER` on purpose.** One picks a model
+that *reads* a picture, the other one that *makes* one, and a deployment may reasonably want
+different vendors for the two. E8-01 uses both in one job: the vision provider reads the
+uniform, the image provider draws the character.
+
+**Unset means image generation is off, and that is a state rather than a default.** Every
+other provider variable in this repo defaults to a path known to work; there is no such path
+here, because no environment has a key for either yet. Defaulting to one would have made the
+worker refuse to boot the day this shipped. Unset, the four routes refuse with a sentence
+before queueing anything — which is better than the magic block failure mode §2 describes,
+where the job queues and fails three minutes later having explained nothing.
+
+**The photograph reaches one provider, once.** This is the shape the consent answer bought
+and it should not be loosened:
+
+- `uniformSchema` **cannot carry a description of a person**. It has fields for a garment,
+  its colours, its type and where a logo sits, and no field a face could go in. That is the
+  enforcement; the prompt saying so as well is belt to that braces.
+- What goes to the *image* model is `characterPrompt()`'s sentence about a polo shirt. The
+  photograph is never sent to a second vendor.
+- The photograph is not stored beyond its upload. What is kept is `uniformDescription` on
+  the `characters` row — which is also what lets a later pose run without it.
+- `consentedAt` rides the payload and lands on the job. The route requires `consent: true`
+  as a **literal**, so a client that skipped the screen is refused rather than defaulted.
+
+**The consent step is the first screen of the dialog, not a checkbox on the last.** After an
+owner has found the photo, the question is rhetorical. Four facts in the order they matter:
+what leaves, where it goes, what is kept, and whose permission is needed.
+
+**Both model ids are env-overridable and both defaults want confirming.** `GEMINI_IMAGE_MODEL`
+and `QWEN_IMAGE_MODEL` are written from what those families were called when this was built.
+`QWEN_VISION_MODEL` already carries that warning and has already been proved right once — a
+model id that has moved is a 404 that reads like a bad key.
+
+---
+
+## 3a. What is owed on E8-01 to E8-04
+
+1. **No UI for E8-02, E8-03 or E8-04.** Their routes, jobs and vocabularies are built and
+   typed; nothing calls them. The pose library wants a panel on the character card, and the
+   cover picker belongs in E6's create flow rather than in the brand kit — which is a
+   placement question, not a build one.
+2. **Nothing has been run against a live image model**, because no environment has a key.
+   Every failure path is written and none has been exercised.
+3. **The `characters` table has no `organizationId`.** It is shop-scoped, as the schema was
+   written, so every query scopes by `shopId` from the active shop and the usual
+   `organizationId` guard does not appear. Its absence is deliberate and is noted on
+   `/api/v1/characters`; anyone adding a query there should read it first.
+4. **Discarded variations stay in the bucket.** No row references them and nothing can reach
+   them, which is what E8-01 means by "not saved". A lifecycle rule on the prefix is the
+   cheap way to remove the objects; deleting them on the owner's click is not.
+5. **E9 still does not know about the generated cover.** E8-04 produces a background and the
+   composition of name, logo and character onto it is the export's. The seam is an R2 key,
+   as §7 already says.
+
+---
+
+## 3b. The old decision, kept for the record
+
+*Superseded by §3 on 16 September. Kept because the questions it raised are the ones the
+answer has to keep answering.*
+
+They needed a diffusion model and **which one had not been chosen**. `OPENAI_API_KEY` is
 declared in both env schemas, is `sk-` in both `.env` files, and is read by nothing.
 
 What the choice has to answer, none of which is code:

@@ -16,6 +16,7 @@ import {
  * whether an Arabic edition is publishable.
  */
 const RICE: ProductRow = {
+  id: 'p-rice',
   nameEn: 'Sella Basmati Rice',
   nameAr: 'أرز بسمتي سيلا',
   specEn: 'Aged 2 years',
@@ -30,6 +31,7 @@ const RICE: ProductRow = {
 }
 
 const CREPES: ProductRow = {
+  id: 'p-crepes',
   nameEn: 'Crepes',
   nameAr: null,
   specEn: null,

@@ -3,17 +3,21 @@ import { env } from '../lib/env'
 import { handleMagicBlock } from '../jobs/magic-block.job'
 import { handleBrandDirection } from '../jobs/brand-direction.job'
 import { handleLogoGen } from '../jobs/logo-gen.job'
+import { handleCharacterGen } from '../jobs/character.job'
+import { handlePoseGen } from '../jobs/pose.job'
+import { handleCoverGen } from '../jobs/cover.job'
 
 /**
  * The AI queue.
  *
- * **Routed by job name, not by a `type` field on the payload.** The four image
- * jobs — character, pose, cover, prompt — share `AiJobPayload` and are still
- * stubs; magic block, brand direction and logo generation each carry their own
- * payload and are implemented. Branching on the name keeps the payloads from
- * having to be one union, which is what let `MagicBlockPayload` drop the
- * `shopId` that a block does not have, and what lets `BrandDirectionPayload`
- * carry a `shopId` *or* an `orgLevel` flag rather than one required id.
+ * **Routed by job name, not by a `type` field on the payload.** Every job here
+ * now carries its own payload, and branching on the name is what lets them: a
+ * block has no `shopId`, a brand direction has a `shopId` *or* an `orgLevel`
+ * flag, and a pose has a `characterId` that means nothing to the others. One
+ * union of all of them would type none of them.
+ *
+ * `AiJobPayload` survives as the shape nothing uses any more. It is left rather
+ * than deleted because it is exported from `@souqstudio/db`'s barrel.
  *
  * Concurrency stays at two. Each job holds an image in memory and waits on an
  * external provider with its own rate limits, so more in flight only queues
@@ -36,8 +40,20 @@ export const aiWorker = new Worker(
       return handleLogoGen(job)
     }
 
-    // E8-01 through E8-04. Correctly wired, not yet implemented — they need a
-    // diffusion provider, which is a decision nobody has made. `E8-pending.md` §3.
+    if (job.name === 'ai.character') {
+      return handleCharacterGen(job)
+    }
+
+    // E8-02 and E8-03 are one handler: they differ by whether the pose was
+    // picked from a list or described, which is one sentence of prompt.
+    if (job.name === 'ai.pose' || job.name === 'ai.prompt') {
+      return handlePoseGen(job)
+    }
+
+    if (job.name === 'ai.cover') {
+      return handleCoverGen(job)
+    }
+
     throw new Error(`Not yet implemented: ${job.name}`)
   },
   {

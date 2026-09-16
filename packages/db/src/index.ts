@@ -50,6 +50,9 @@ export {
   enqueueMagicBlock,
   enqueueBrandDirection,
   enqueueLogoGen,
+  enqueueCharacterGen,
+  enqueuePoseGen,
+  enqueueCoverGen,
 } from './queue-client'
 export type {
   EmailJobPayload,
@@ -59,6 +62,9 @@ export type {
   MagicBlockPayload,
   BrandDirectionPayload,
   LogoGenPayload,
+  CharacterGenPayload,
+  PoseGenPayload,
+  CoverGenPayload,
 } from './queue-client'
 /**
  * Writing the block library into `blocks` — one implementation, two callers: the

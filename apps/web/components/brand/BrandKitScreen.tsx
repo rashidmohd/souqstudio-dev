@@ -16,7 +16,16 @@ import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
 import { BrandDirectionDialog } from '@/components/brand/BrandDirectionDialog'
 import { LogoMarkDialog } from '@/components/brand/LogoMarkDialog'
-import { Image as ImageIcon, Palette, Shapes, Sparkles, Type, type LucideIcon } from 'lucide-react'
+import { CharacterDialog } from '@/components/brand/CharacterDialog'
+import {
+  Image as ImageIcon,
+  Palette,
+  Shapes,
+  Smile,
+  Sparkles,
+  Type,
+  type LucideIcon,
+} from 'lucide-react'
 import { resolveTextStyles, typographyPatch } from '@/lib/brand-typography'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
 import { useBrandStore } from '@/stores/brand-store'
@@ -41,6 +50,8 @@ type Props = {
   }>
   /** Spendable credits, so matching a card can state its cost first. */
   credits: number
+  /** How many characters this shop has. E8-01 — the card's state line. */
+  characterCount: number
 }
 
 /** Which section a save or an error belongs to. */
@@ -86,6 +97,7 @@ export function BrandKitScreen({
   isOwner,
   blocks,
   credits,
+  characterCount,
 }: Props) {
   const router = useRouter()
   const { kit, hydrate } = useBrandStore()
@@ -94,6 +106,8 @@ export function BrandKitScreen({
   const [proposing, setProposing] = React.useState(false)
   /** E8-09. Open from the logo card, for the shop that has no logo file. */
   const [drawing, setDrawing] = React.useState(false)
+  /** E8-01. Its own card — a character is a member of the kit, not a logo. */
+  const [posing, setPosing] = React.useState(false)
 
   // What the server has. Saves advance it; the dirty gates compare against it.
   const [baseline, setBaseline] = React.useState<BrandKit>(brandKit)
@@ -426,6 +440,39 @@ export function BrandKitScreen({
               open={matching}
               onOpenChange={setMatching}
               kit={kit}
+              credits={credits}
+              onCreated={() => router.refresh()}
+            />
+          </BrandCard>
+
+          {/*
+           * **E8-01's own card rather than a control on the logo.** A character
+           * is a member of the brand kit in its own right — E4's kit diagram
+           * lists a Character Library beside the logo and the colours, and it
+           * has been the one line in that diagram with nothing behind it since
+           * E4 shipped.
+           */}
+          <BrandCard
+            icon={Smile}
+            title="Character"
+            description="A cartoon shop worker in your own uniform, for covers and banners. Made once, reused everywhere."
+            state={characterCount > 0 ? <><span data-figure>{characterCount}</span> saved</> : 'Not made yet'}
+            note={null}
+          >
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setPosing(true)}
+                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+              >
+                <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                {characterCount > 0 ? 'Make another character' : 'Make a character'}
+              </button>
+            ) : null}
+
+            <CharacterDialog
+              open={posing}
+              onOpenChange={setPosing}
               credits={credits}
               onCreated={() => router.refresh()}
             />

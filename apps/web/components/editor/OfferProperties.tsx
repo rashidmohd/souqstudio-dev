@@ -81,8 +81,18 @@ export function OfferProperties({ bookId, tiers, currency, direction }: Props) {
           <span className="font-ui text-label font-medium text-primary">Before publishing</span>
           <ul className="flex flex-col gap-1">
             {offer.flags.map((flag) => (
-              <li key={flag} className="font-ui text-body-sm text-caution-fg">
+              <li key={flag} className="flex flex-col gap-1 font-ui text-body-sm text-caution-fg">
                 {FLAG_TEXT[flag]}
+                {/*
+                 * **The fix beside the problem it fixes.** E8-05 specified a
+                 * manual background removal and nothing had it, so a flag that
+                 * says the cutout is not ready has, until now, been a statement
+                 * with nothing to do about it. This is the only screen that ever
+                 * tells an owner the photo still has its background.
+                 */}
+                {flag === 'fallback-image' && offer.fallbackImageProductId !== null ? (
+                  <RemoveBackground productId={offer.fallbackImageProductId} />
+                ) : null}
               </li>
             ))}
           </ul>
@@ -275,12 +285,77 @@ function Items({ bookId, offer }: { bookId: string; offer: ComposedOffer }) {
   )
 }
 
+/**
+ * Ask for the background to be removed from this product's photo. E8-05.
+ *
+ * **One credit, said before the press rather than after.** The cost is in the
+ * label because this is the one paid action in the editor, and an owner who
+ * clicks it is several screens away from the billing page.
+ *
+ * **It queues and says so; it does not wait.** Rembg takes seconds and may be
+ * down entirely, in which case the product keeps its original photo and nothing
+ * is charged — so there is no outcome worth holding the panel open for. The
+ * refresh is what brings the new cutout in, and a card that still shows its
+ * background after one is an owner pressing the button again rather than a
+ * spinner that never resolves.
+ */
+function RemoveBackground({ productId }: { productId: string }) {
+  const router = useRouter()
+  const [state, setState] = React.useState<'idle' | 'working' | 'queued' | 'error'>('idle')
+  const [error, setError] = React.useState<string | null>(null)
+
+  async function run() {
+    setState('working')
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/v1/catalog/products/${productId}/cutout`, {
+        method: 'POST',
+      })
+      const body = (await response.json().catch(() => null)) as {
+        error: { message: string } | null
+      } | null
+
+      if (body?.error) throw new Error(body.error.message)
+
+      setState('queued')
+      // The cutout lands as a new `image_assets` row, which the server component
+      // above re-reads. Nothing here holds the answer.
+      router.refresh()
+    } catch (problem) {
+      setState('error')
+      setError(problem instanceof Error ? problem.message : 'That did not start. Try again.')
+    }
+  }
+
+  if (state === 'queued') {
+    return (
+      <span className="font-ui text-body-sm text-secondary">
+        Removing the background. It appears here in a moment.
+      </span>
+    )
+  }
+
+  return (
+    <span className="flex flex-col gap-1">
+      <Button type="button" variant="ghost" loading={state === 'working'} onClick={() => void run()}>
+        Remove the background — <span data-figure>1</span> credit
+      </Button>
+      {error === null ? null : (
+        <span className="font-ui text-body-sm text-critical-fg" role="alert">
+          {error}
+        </span>
+      )}
+    </span>
+  )
+}
+
 /** What each flag means to a shop owner, rather than what it is called in code. */
 const FLAG_TEXT: Record<ComposedOffer['flags'][number], string> = {
   'no-price': 'This offer has no price yet.',
   'missing-name-ar': 'This product has no Arabic name, so it cannot publish in Arabic.',
   'no-image': 'This product has no photo.',
-  'fallback-image': 'This photo still has its background. The cutout is not ready.',
+  'fallback-image': 'This photo still has its background.',
   'fit-escalated':
     'The text on this card does not fit, even at its smallest. Shorten a name, or give it more room.',
 }

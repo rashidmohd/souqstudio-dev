@@ -169,9 +169,9 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   system permits an illustration only on `empty`. See
   `.claude/skills/souqstudio-design/references/illustration-manifest.md`.
 - **Worker handlers** — `email` and `bg` are implemented, `bg` now for both logos and
-  catalog cutouts. `ai` is implemented for **three** jobs: `ai.magicBlock` (E8-07),
-  `ai.brandDirection` (E8-08) and `ai.logoGen` (E8-09). Its other four names — character,
-  pose, cover, prompt — still throw, as do `pdf` and `enrich`. **`enrich` is the one that now bites**: the Open Food Facts export has no
+  catalog cutouts. **`ai` is implemented for every job name it has** — `ai.magicBlock`
+  (E8-07), `ai.brandDirection` (E8-08), `ai.logoGen` (E8-09), and `ai.character`,
+  `ai.pose`, `ai.prompt` and `ai.cover` (E8-01 to E8-04). `pdf` and `enrich` still throw. **`enrich` is the one that now bites**: the Open Food Facts export has no
   Arabic column, so every seeded universal product has a null `nameAr`, and E5 §2 makes
   that a publish-time blocker for Arabic editions. Until `enrich` lands the shared catalog
   is English-only.
@@ -188,6 +188,21 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   is not an inconsistency. **A generated logo is an SVG**, which nothing else in the product
   produces: the worker has no font files, so rasterising would silently substitute a
   typeface. Same gap as the brand-kit-fonts line below, and it is what E9's export meets.
+- **Image generation is built and switched off. `IMAGE_PROVIDER` is what turns it on.**
+  E8-01 to E8-04 — characters, poses, described poses, covers — are built end to end behind
+  Gemini (default) or Qwen. **Unset means off**, which is every environment today: the four
+  routes refuse with a sentence rather than queueing a job that fails later. Set it and the
+  provider's key is required at boot. It is deliberately *not* `MAGIC_BLOCK_PROVIDER`: that
+  one picks a model that reads a picture, this one picks a model that draws one, and E8-01
+  uses both in a single job. **Both model ids are env-overridable and both defaults want
+  confirming against current provider docs** before a live run.
+  **The uniform photograph reaches one provider, once, and only with consent.** The consent
+  step is the dialog's first screen, `consent: true` is a required literal on the route, and
+  `uniformSchema` has no field a description of a person could go in — that schema is the
+  enforcement, not the prompt. What travels onward to the image model is a sentence about a
+  polo shirt; the photograph is not stored. Do not loosen any of those four without
+  revisiting `E8-pending.md` §3.
+  **E8-02, E8-03 and E8-04 have no UI yet** — routes and workers only. §3a.
 - **Magic block works against Qwen and has never been run against Claude.** E8-07 is
   built end to end and was exercised live on 10 September: three seeded cards rendered,
   fed back, and two of three matched the structure they were built from at high

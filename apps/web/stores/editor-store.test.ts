@@ -18,6 +18,7 @@ const offer = (id: string, over: Partial<ComposedOffer> = {}): ComposedOffer => 
   id,
   position: 0,
   name: 'Basmati rice',
+  fallbackImageProductId: null,
   spec: null,
   brand: null,
   imageUrl: null,

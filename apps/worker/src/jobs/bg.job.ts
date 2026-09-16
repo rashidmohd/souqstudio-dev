@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq'
 import sharp from 'sharp'
-import { prisma, Prisma } from '@souqstudio/db'
+import { CREDIT_COSTS, Prisma, consumeCredits, prisma } from '@souqstudio/db'
 import type { BgRemovePayload } from '@souqstudio/db'
 import type { BrandKit } from '@souqstudio/types'
 import { getObjectBytes, putObject, keyFromPublicUrl, publicUrl } from '../lib/r2'
@@ -52,12 +52,36 @@ export async function handleBgRemove(job: Job<BgJobPayload>): Promise<{
     job.data
 
   if (catalogProductId && sourceAssetId) {
-    return handleCatalogCutout({
+    const result = await handleCatalogCutout({
       imageUrl,
       targetPath,
       catalogProductId,
       sourceAssetId,
     })
+
+    /**
+     * **Charged on success only, and only when a person asked for it.**
+     *
+     * `billOrganizationId` is set by E8-05's manual action and by nothing else,
+     * so an ingest cutout stays free — see the field's own note. `kept_original`
+     * is Rembg being unavailable, which is not a result anybody should pay for:
+     * the product still has its background and the owner will press the button
+     * again.
+     *
+     * Charged after the row is written, for the reason `background-jobs.md`
+     * gives and magic block follows — nothing is deducted early, so a failed job
+     * needs no refund path.
+     */
+    if (job.data.billOrganizationId !== undefined && result.status === 'removed') {
+      await consumeCredits({
+        organizationId: job.data.billOrganizationId,
+        ...(job.data.billShopId === undefined ? {} : { shopId: job.data.billShopId }),
+        action: 'background_removal',
+        cost: CREDIT_COSTS.background_removal,
+      })
+    }
+
+    return result
   }
 
   const target = shopId

@@ -110,6 +110,16 @@ export interface ComposedOffer {
    * card's is the derived one.
    */
   items: ComposedItem[]
+  /**
+   * The lead item's product, when its photo still has its background.
+   *
+   * **Only set alongside the `fallback-image` flag**, and null otherwise. The
+   * panel offers "remove the background" against it — E8-05's manual action —
+   * and a card with a good cutout has nothing to offer. Carrying the id
+   * unconditionally would invite the button to be rendered unconditionally,
+   * which is a paid action on a photo that does not need it.
+   */
+  fallbackImageProductId: string | null
 }
 
 export interface ComposedChip {
@@ -149,6 +159,8 @@ export interface ComposedItem {
 
 /** The subset of `catalog_products` an offer renders from. */
 export interface ProductRow {
+  /** The catalog row this came from — what E8-05's manual cutout acts on. */
+  id: string
   nameEn: string
   nameAr: string | null
   specEn: string | null
@@ -286,6 +298,8 @@ export function composeOffer(
     edition
   )
 
+  const flags = flagsFor(offer, items, edition)
+
   return {
     id: offer.id,
     position: offer.position,
@@ -315,7 +329,13 @@ export function composeOffer(
       text: pick(note.textAr, note.textEn, edition) ?? note.textEn,
       scope: note.scope,
     })),
-    flags: flagsFor(offer, items, edition),
+    flags,
+    // Set only when the flag is, so the panel cannot offer a paid action
+    // against a photo that does not need one. The lead item is the one whose
+    // photo a card draws — `flagsFor` reads the same item.
+    fallbackImageProductId: flags.includes('fallback-image')
+      ? (items[0]?.product.id ?? null)
+      : null,
     items: items.map((item) => ({
       id: item.id,
       name: nameFor(item, edition),

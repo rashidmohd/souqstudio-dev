@@ -45,7 +45,7 @@ export default async function BrandKitPage() {
 
   // Blocks are published rows identical for every shop, so they are read here
   // rather than through an API the client would have to wait on.
-  const [brand, blocks, credits] = await Promise.all([
+  const [brand, blocks, credits, characterCount] = await Promise.all([
     readEffectiveBrand({
       organizationId: shop.organizationId,
       shopId: shop.id,
@@ -57,6 +57,9 @@ export default async function BrandKitPage() {
       orderBy: { name: 'asc' },
     }),
     getCreditSnapshot(session.user.organizationId),
+    // E8-01. A count rather than the rows: the card shows how many there are and
+    // the dialog is what lists them.
+    prisma.character.count({ where: { shopId: shop.id } }),
   ])
 
   // **A brand is created in the wizard and managed here.** One creation path,
@@ -91,6 +94,7 @@ export default async function BrandKitPage() {
         canEdit={canEdit}
         isOwner={isOwner}
         credits={credits.total}
+        characterCount={characterCount}
         blocks={blocks.map((block) => ({
           id: block.id,
           name: block.name,

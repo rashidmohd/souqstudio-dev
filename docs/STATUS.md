@@ -795,7 +795,7 @@ wrong and is corrected. It is survivable on the logo path only because the compl
 reads the object back and re-parses it with sharp. Any future presigned path that stores
 what it is given does not inherit that.
 
-### The R2 bucket had no CORS policy — applied on dev, never on production
+### The R2 bucket had no CORS policy — applied for the dev origin only
 
 **Found 8 September, after the two faults above were fixed and the upload still did not
 work.** A preflight against the bucket answers:
@@ -830,6 +830,21 @@ break the feature; fixing two of them looked exactly like fixing none. **All thr
 closed on dev as of 15 September** — the checksum in code, the endpoint in the Railway
 variable, and CORS on the bucket. The feature working is the only evidence that could have
 told you so, which is the other half of the lesson.
+
+**Verified end to end on 16 September, and it found what was still missing.** The preflight
+from `https://dev.souqstudio.com` answers `204` with `PUT, GET, HEAD`, and all three objects
+of a real logo upload are publicly readable — the SVG at the staging key, and `logo.png` and
+`logo-original.png` beside it, which means the completion route read the object back,
+rasterised it through sharp and promoted it. That is the whole write path working for the
+first time.
+
+**`http://localhost:3000` is still refused**, with the same
+`403 Unauthorized: CORS not configured for this bucket`. The policy was applied with one
+origin, so **every upload fails on a developer's machine while working on dev** — the logo,
+a product photo, and artwork dropped on the designer canvas. It is the most confusing shape
+this class of bug can take: the feature demonstrably works, and does not work where it is
+being written. `pnpm --filter @souqstudio/web r2:cors` sets both origins from `APP_ORIGINS`
+and reads the result back; the dashboard is what applied one of them.
 
 ### A preview route with no auth check was committed — resolved, gone from the tree
 
@@ -1376,7 +1391,7 @@ than any control left on the list. It is design work, and `library.ts` is where 
 element ids, `fill` as a `ColorValue`. Reading the rows back through the real parser is what
 caught two more defects; `E7-pending.md` has them.
 
-### E8 — AI features — one built, and three things it left open
+### E8 — AI features — eight of nine built, and what that left open
 
 **`docs/E8-pending.md` is the working note, written 15 September.** It carries the list
 below plus the two defects the live run found, the deliberate compromises, and the fact
@@ -1399,6 +1414,24 @@ the same reason magic block has not: the default provider is Anthropic and that 
 placeholder. What building them corrected is `E8-pending.md` §2a — including one defect a
 test caught, where the "same colour twice" check was written as a contrast ratio and read a
 dark green and a dark red as the same colour.
+
+**E8-01 to E8-04 were built on 16 September, after the provider question was answered:**
+Gemini as the default and Qwen as the second, behind a new `IMAGE_PROVIDER`, with uniform
+photographs allowed to leave the platform under explicit consent. **Unset means off**, which
+is every environment today — the routes refuse rather than queueing something that fails
+later. Characters, poses, described poses and covers all ship route, queue and worker; only
+E8-01 has a UI, and its first screen is the consent. The photograph reaches one vision
+provider once and is not stored; what goes to the image model is a description of the
+clothing, which is enforced by a schema with no field a face could go in. `E8-pending.md`
+§3 and §3a.
+
+**E8-05 is now complete and finding it turned up a rendering bug.** The manual background
+removal the spec asked for — one credit, on the product whose cutout failed — existed
+nowhere; `background_removal` was priced and never charged. Building it surfaced the real
+problem: the editor picked a product's image with `orderBy: { kind: 'asc' }` on a Postgres
+enum, which sorts by declaration order, so **every product with a good cutout was drawn
+with its background on** and flagged in the panel. The catalog screen disagreed with the
+artboard about the same product. `E8-pending.md` §2b.
 
 `E8-07` ships (§1.3). What it leaves on the table, cheapest first:
 

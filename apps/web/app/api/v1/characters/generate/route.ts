@@ -1,0 +1,138 @@
+import type { NextRequest } from 'next/server'
+import { z } from 'zod'
+import { CREDIT_COSTS, enqueueCharacterGen, getCreditSnapshot, prisma } from '@souqstudio/db'
+import {
+  CHARACTER_GENDERS,
+  CHARACTER_LOOKS,
+  CHARACTER_STYLES,
+  type CharacterGender,
+  type CharacterLook,
+  type CharacterStyle,
+} from '@souqstudio/engine'
+import { fail, ok } from '@/lib/api'
+import { requireApiSession } from '@/lib/api-session'
+import { getActiveShop } from '@/lib/active-shop'
+import { env } from '@/lib/env'
+
+/**
+ * Generate a branded character, four variations. E8-01.
+ *
+ * **The consent is a required field, not a checkbox the client may forget.**
+ * The uniform photograph may show identifiable people, and it leaves this
+ * platform for a third-party model. `consent: true` is what the owner is
+ * agreeing to, the dialog says where the picture goes before it asks, and the
+ * timestamp is recorded on the job so there is a record of when it was given.
+ * A request without it is refused rather than defaulted — a default here would
+ * be consent nobody gave.
+ *
+ * **This route starts a job and returns.** Image generation is tens of seconds
+ * at best. `background-jobs.md`.
+ *
+ * **Nothing is charged here.** The balance is checked so an owner who cannot pay
+ * is refused before the work starts; the worker deducts on success.
+ */
+
+const schema = z.object({
+  /** The R2 key the presigned upload wrote. Never a client-supplied URL. */
+  sourceKey: z.string().min(1).max(200),
+  style: z.enum(CHARACTER_STYLES as unknown as [CharacterStyle, ...CharacterStyle[]]),
+  gender: z.enum(CHARACTER_GENDERS as unknown as [CharacterGender, ...CharacterGender[]]),
+  look: z
+    .enum(CHARACTER_LOOKS as unknown as [CharacterLook, ...CharacterLook[]])
+    .default('unspecified'),
+  /**
+   * The owner has been told the photograph goes to a third-party model and has
+   * agreed. Literal `true` — `z.boolean()` would accept `false` and leave the
+   * decision to a later `if` somebody can delete.
+   */
+  consent: z.literal(true),
+})
+
+export async function POST(request: NextRequest) {
+  const { session, response } = await requireApiSession({ requireVerifiedEmail: true })
+  if (!session) return response
+
+  /**
+   * **Refused before anything is queued, when no provider is configured.** The
+   * worker would fail the job in a way that charges nothing and explains little;
+   * this is a sentence an owner can act on, three minutes earlier.
+   */
+  if (env.IMAGE_PROVIDER === undefined) {
+    return fail(
+      'image_generation_off',
+      'Character generation is not switched on for this deployment yet.',
+      503
+    )
+  }
+
+  const parsed = schema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return fail(
+      'invalid_input',
+      'Add a photo of your uniform and agree to it being sent, then try again.',
+      422
+    )
+  }
+
+  const shop = await getActiveShop(session)
+  if (!shop) return fail('no_shop', 'This account has no shop yet.', 409)
+
+  if (shop.role !== 'owner' && shop.role !== 'manager') {
+    return fail('forbidden', 'You need to be a manager to make a character.', 403)
+  }
+
+  const { organizationId } = session.user
+
+  /**
+   * **The key must be this organization's.** The presign route mints keys under
+   * the organization's own prefix, so a caller who edits the prefix is asking
+   * the worker to read another tenant's object — and here that object is a
+   * photograph of somebody's staff.
+   */
+  const prefix = `${organizationId}/`
+  if (!parsed.data.sourceKey.startsWith(prefix) || parsed.data.sourceKey.includes('..')) {
+    return fail('invalid_input', 'That upload does not belong to this organization.', 422)
+  }
+
+  const cost = CREDIT_COSTS.character_gen
+  const snapshot = await getCreditSnapshot(organizationId)
+  if (snapshot.total < cost) {
+    return fail(
+      'insufficient_credits',
+      `Making a character costs ${cost} credits and you have ${snapshot.total}. Top up to carry on.`,
+      402
+    )
+  }
+
+  const job = await prisma.aiJob.create({
+    data: {
+      organizationId,
+      shopId: shop.id,
+      type: 'character_gen',
+      status: 'queued',
+      creditsCost: cost,
+    },
+    select: { id: true },
+  })
+
+  try {
+    await enqueueCharacterGen({
+      jobId: job.id,
+      organizationId,
+      shopId: shop.id,
+      sourceKey: parsed.data.sourceKey,
+      style: parsed.data.style,
+      gender: parsed.data.gender,
+      look: parsed.data.look,
+      consentedAt: new Date().toISOString(),
+    })
+  } catch {
+    await prisma.aiJob.update({
+      where: { id: job.id },
+      data: { status: 'failed', errorMessage: 'queue_unavailable', completedAt: new Date() },
+    })
+    return fail('queue_unavailable', 'We could not start that just now. Try again in a moment.', 503)
+  }
+
+  return ok({ jobId: job.id, creditsCost: cost }, 202)
+}

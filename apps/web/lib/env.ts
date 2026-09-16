@@ -78,6 +78,19 @@ const schema = z.object({
   OPENAI_API_KEY:                     z.string().startsWith('sk-'),
   ANTHROPIC_API_KEY:                  z.string().startsWith('sk-ant-'),
   REMBG_SERVICE_URL:                  z.string().url(),
+  /**
+   * Whether image generation is configured — E8-01 to E8-04.
+   *
+   * **Read here only to refuse early.** The worker is what draws and what
+   * validates the key; this app needs to know whether there is any point
+   * queueing, so an owner meets a sentence rather than a job that fails three
+   * minutes later having charged nothing and explained nothing. Unset is off,
+   * which is the state every environment is in today.
+   *
+   * No key here. The web app never calls an image provider, so it has no reason
+   * to hold a credential for one.
+   */
+  IMAGE_PROVIDER:                     z.enum(['gemini', 'qwen']).optional(),
 })
 
 /**

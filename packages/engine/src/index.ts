@@ -229,3 +229,31 @@ export {
   type LogoSymbol,
   type MarkSkin,
 } from './logo-mark'
+// Characters, poses and covers — the closed sets E8-01 to E8-04 may ask for.
+// On the barrel because the worker builds prompts from them and the web app
+// renders pickers from them.
+export {
+  CAMPAIGNS,
+  CAMPAIGN_COPY,
+  CHARACTER_GENDERS,
+  CHARACTER_LOOKS,
+  CHARACTER_LOOK_NOTE,
+  CHARACTER_STYLES,
+  CHARACTER_STYLE_NOTE,
+  CHARACTER_VARIATIONS,
+  COVER_SHAPES,
+  COVER_SHAPE_NOTE,
+  COVER_VARIATIONS,
+  POSES,
+  POSE_COPY,
+  POSE_VARIATIONS,
+  uniformJsonSchema,
+  uniformSchema,
+  type Campaign,
+  type CharacterGender,
+  type CharacterLook,
+  type CharacterStyle,
+  type CoverShape,
+  type Pose,
+  type Uniform,
+} from './character'
