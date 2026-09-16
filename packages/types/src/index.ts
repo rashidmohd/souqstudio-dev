@@ -439,6 +439,15 @@ export type QualityFlag =
 // ─── Catalog — E5 ─────────────────────────────────────────────────────────────
 
 export type PackUnit = 'G' | 'KG' | 'ML' | 'L' | 'PIECE'
+/**
+ * How a product is sold, as against how it is measured.
+ *
+ * `PACK` is a unit with a size printed on it. `LOOSE` is weighed or measured at
+ * the counter, where the price already *is* the unit price and `packSize` and
+ * `packCount` mean nothing — `packUnit` alone says what the price is per. See
+ * `pack.ts`, which is where the distinction actually changes an answer.
+ */
+export type SellBy = 'PACK' | 'LOOSE'
 export type PriceMode = 'FIXED' | 'FROM' | 'PER_UNIT'
 export type UnitPriceMode = 'AUTO' | 'MANUAL' | 'HIDDEN'
 export type Connector = 'OR' | 'AND'
@@ -472,7 +481,11 @@ export interface CatalogProductSummary {
   packSize: string | null
   packUnit: PackUnit | null
   packCount: number | null
+  sellBy: SellBy
   barcode: string | null
+  /** The shop's own item code. Always null on a universal row. */
+  sku: string | null
+  supplier: string | null
   /** The CUTOUT if one exists, else the ORIGINAL. `imageIsFallback` says which,
    *  because a fallback renders with a quality flag in the editor. */
   imageUrl: string | null

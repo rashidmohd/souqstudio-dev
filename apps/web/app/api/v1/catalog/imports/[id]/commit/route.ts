@@ -210,5 +210,8 @@ function toProduct(raw: unknown, byField: Map<CanonicalField, string>): NewProdu
     ...(packUnit ? { packUnit } : {}),
     ...(Number.isInteger(packCount) && packCount > 1 ? { packCount } : {}),
     ...(barcode && hasValidCheckDigit(barcode) ? { barcode } : {}),
+    // No check digit to test — an item code is whatever the shop's till calls
+    // it. Length is the only guard, and it matches the column the matcher reads.
+    ...(read('sku') ? { sku: read('sku').slice(0, 64) } : {}),
   }
 }

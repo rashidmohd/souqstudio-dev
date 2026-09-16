@@ -26,6 +26,7 @@ export const CANONICAL_FIELDS = [
   'specEn',
   'category',
   'barcode',
+  'sku',
   'packSize',
   'packUnit',
   'packCount',
@@ -44,6 +45,7 @@ export const FIELD_LABEL: Record<CanonicalField, string> = {
   specEn: 'Variant',
   category: 'Category',
   barcode: 'Barcode',
+  sku: 'Item code',
   packSize: 'Pack size',
   packUnit: 'Pack unit',
   packCount: 'Items per pack',
@@ -68,11 +70,19 @@ const HEADER_HINTS: Array<[CanonicalField, string[]]> = [
   ['packCount', ['packcount', 'itemsperpack', 'piecesperpack', 'qtyperpack', 'multipack']],
   ['packUnit', ['packunit', 'unit', 'uom', 'measure', 'الوحدة']],
   ['packSize', ['packsize', 'size', 'weight', 'volume', 'netweight', 'الحجم', 'الوزن']],
+  // **Before `nameEn`, for the same reason `nameAr` is**: "item code" contains
+  // "item", so the general case would claim the column and leave the SKU
+  // unmapped. And `barcode` below no longer answers to `sku` or `code` — it
+  // used to, so an owner's item-code column was read as a barcode, failed its
+  // check digit and fell through to a fuzzy name match. A bare "Code" is now
+  // claimed by neither and reaches the mapping screen unmapped, which is the
+  // honest answer to a header that does not say which it is.
+  ['sku', ['sku', 'itemcode', 'itemno', 'itemnumber', 'articlecode', 'articleno', 'productcode', 'stockcode', 'رمزالصنف', 'كودالصنف']],
   ['nameEn', ['name', 'productname', 'item', 'itemname', 'description', 'product', 'المنتج']],
   ['brandEn', ['brand', 'make', 'manufacturer', 'العلامة', 'الماركة']],
   ['specEn', ['variant', 'spec', 'flavour', 'flavor', 'type', 'variety']],
   ['category', ['category', 'department', 'section', 'group', 'الفئة']],
-  ['barcode', ['barcode', 'ean', 'upc', 'gtin', 'sku', 'code', 'الباركود']],
+  ['barcode', ['barcode', 'ean', 'upc', 'gtin', 'الباركود']],
   ['price', ['price', 'rate', 'offerprice', 'sellingprice', 'amount', 'cost', 'السعر']],
 ]
 
@@ -248,7 +258,17 @@ export type RowResolution = {
 }
 
 /**
- * Turn a barcode hit or a ranked candidate list into a row status.
+ * Turn an identity hit or a ranked candidate list into a row status.
+ *
+ * **An item code outranks a barcode, and both outrank any name score.**
+ *
+ * A barcode is the world's identity for a product and a SKU is this shop's, so
+ * within this shop's own collection the SKU is the more authoritative of the
+ * two: it is the key their sheet is actually written against, it can only ever
+ * match one of their own rows, and an own-brand line or a loose vegetable has
+ * one when it has no barcode at all. A sheet whose item code and barcode point
+ * at different products is a sheet where one column was pasted from elsewhere,
+ * and the owner's own code is the column to believe.
  *
  * **A barcode match is always MATCHED**, whatever the name says. It is an
  * identity, and a sheet whose barcode and name disagree is a sheet with a bad
@@ -264,13 +284,15 @@ export type RowResolution = {
  * on an UNMATCHED row there are none. **Nothing here auto-resolves.**
  */
 export function resolveRow(input: {
+  skuMatchId?: string | null
   barcodeMatchId?: string | null
   candidates?: MatchCandidate[]
 }): RowResolution {
-  if (input.barcodeMatchId) {
+  const identity = input.skuMatchId ?? input.barcodeMatchId
+  if (identity) {
     return {
       status: 'MATCHED',
-      catalogProductId: input.barcodeMatchId,
+      catalogProductId: identity,
       candidates: [],
     }
   }

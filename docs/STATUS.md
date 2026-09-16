@@ -3,7 +3,7 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 13 September 2026.
+Last updated 16 September 2026.
 
 **Home is a shelf of book covers.** The six most recent draw their own first page — the
 real `BookPage` at thumbnail size, not a stored image, so a cover cannot disagree with the
@@ -98,7 +98,7 @@ editor widens that gap**, and the last two were.
 | **E5** Product catalog | **Mostly built.** E5-01 search, E5-02 category browsing, E5-03 barcode lookup, E5-04 add-a-product and E5-06 CSV import ship at `/catalog`. Not written: XLSX, the camera scanner, E5-05's contribution queue, E5-07 phone capture, and the `bg` worker's catalog branch. The import commits into the catalog and stops short of creating offers, which needs E6. See `E5-pending.md`. |
 | **E6** Offer book editor | **Built, and the front of it rebuilt on 10–12 September.** Creating a book is four steps rather than one form — pick what you are making (booklet, post, status, poster), pick the offer card from the seeded twenty-five, add products by search *or* by dropping a price list in, then preview what you made and keep it or discard it. Nobody is asked for a name; the editor renames. Then: draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, **set the page margin, its header and footer bands, and a page background of a colour, a gradient or an image**, pin a panel, and duplicate the whole book. **Since 12–13 September a page is something an owner lays out**: select cells and merge them, give one page its own paper, and put any block in any single cell — a brand panel in a cell stops it taking a product and the products route around it rather than being dropped. All three belong to the page they were made on, not to the book. The start pane is a tool rail grouped by scope — Offers, Layout, Background, **Page**, Pins. Not written: dragging track edges, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-create-flow.md`, `E6-pending.md` §8 and §10, and §1.5. |
 | **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is sixty-five blocks** — twenty-five offer cards, seven headers and covers, nine panels, five footers, eight square social posts and eleven seasonal bands — and the screen changed shape with it: `/brand/blocks` is now the shop's own blocks alone, with "Add from library" opening a filtered, multi-select picker. Gradients shipped on shape fills. **The price mark now draws from the shape kit too** — a burst, a tag, a ribbon or nothing, fitted by `layoutPriceMark` rather than hand-placed behind it — and the library was pulled apart so twenty-five cards stop reading as one card in costumes. See §1.3. Not written: seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar). See `E7-pending.md` §8. |
-| **E8** AI features | **Eight of nine built.** E8-07 magic block (a picture of a card in, a draft block out), E8-08 brand direction (a palette and type mood from a storefront photo or a sentence), E8-09 logo mark (four marks matched from hand-drawn SVG structures and skinned from the shop's palette), E8-05 background removal — now including the manual action and the credit that had never been charged — and E8-01 to E8-04: characters, poses, described poses and covers, behind a new `IMAGE_PROVIDER` (Gemini default, Qwen second). **E8-06 `enrich` is the one that is not built**, and it is E5's Arabic blocker. Caveats that matter: `IMAGE_PROVIDER` unset means image generation is off, which is every environment until a key is added; **nothing has been run against a live image model**; and E8-02, E8-03 and E8-04 have routes and workers but **no UI**. The uniform photograph in E8-01 leaves the platform only under explicit consent, reaches one provider once, and is not stored. See `E8-pending.md` §3 and §3a. |
+| **E8** AI features | **Eight of nine built, and the image half is running against a live model.** E8-07 magic block, E8-08 brand direction, E8-09 logo mark, E8-05 background removal — now including the manual action and the credit that had never been charged — and E8-01 to E8-04: characters, poses, described poses and covers, behind `IMAGE_PROVIDER` (Gemini default, Qwen second). **E8-06 `enrich` is the one that is not built**, and it is E5's Arabic blocker. **E8-01 was rebuilt the day it shipped** — see §1.7. What is still owed: **E8-02, E8-03 and E8-04 have routes and workers but no UI**, and a generated cover has nowhere to live until E9 or E6 gives it one. See `E8-pending.md` §3, §3a and §3c. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
@@ -646,6 +646,62 @@ a browser** — and §1.0 is the standing evidence that this is the check that f
 others cannot. Three specific risks nothing here can see: whether the menu flips to the
 correct side in an Arabic interface, whether the toast anchors bottom-right there, and
 whether long-press opens the menu on an iPad without the selection callout fighting it.
+
+### 1.7 E8-01 was rebuilt the day it shipped, and it took four screens with it
+
+**Character creation ran live against Gemini.** Four generations completed, four variations
+each, ten credits charged each; two characters kept. The two most recent ran `photo-real`
+against a three-segment shop. This is the first AI feature in the product to produce images
+from a real provider, and the first time any of `IMAGE_PROVIDER` has been exercised.
+
+**It was a dialog and the owner rejected it, for a reason that generalises.** A modal
+implies one decision; this is five, two of which are prerequisites fixed on *other* screens.
+A dialog that says "your shop profile is incomplete" and must be dismissed to go and fix it
+is a dead end with a close button on it. It is now a gated flow at `/brand/character`.
+
+**The shop profile is new data and a new gate.** `shops.trades`, `shops.bio` and
+`shops.storePhotoKeys` (migrations `20260916120000`, `20260916130000`), edited in a new
+section of shop settings. Until this the product knew a shop's name and its logo and nothing
+else — a butcher's character is not an electronics shop's, and without it the only thing
+that could be generated was four generic people somebody had paid for. `trades` is a list
+capped at three: a grocery with a bakery counter is the common case here, and eight segments
+describe no shop a model can draw.
+
+**`photo-real` is a fifth style, and the likeness question is answered structurally.** The
+generated person is invented and *cannot* resemble anyone in the uploaded photographs —
+not because a prompt asks for that, but because those photographs are never in the drawing
+request. A vision model reduces them to a sentence about clothing and that sentence is what
+is drawn from. **Anyone changing `character.job.ts` should understand this is the property
+being preserved**; forwarding the photograph to the image model would end it with no test
+failing.
+
+**Work that finished while nobody was looking used to be lost.** Every generation flow held
+its `jobId` in React state and nothing else could reach a finished job, so closing the tab
+spent the credits, left the images in R2 and left no route back. `ai_jobs.claimedAt`
+(migration `20260916140000`), `GET /api/v1/ai/jobs` and a bell in the rail are the fix; the
+dev database had six unclaimed jobs when it landed. **It is not a notification hub** — E12
+is unstarted and this is one query over one table.
+
+**Four screens' worth of chrome changed with it:**
+
+- `/brand` is four tabs — logo, colours, type, character — rather than five cards.
+- **The block library moved to `/blocks` and into the main rail.** A brand kit is an
+  identity you set and leave; a library of sixty-five designs is a workspace.
+- **Every dashboard screen got wider.** `max-w-3xl` was hand-written in thirteen files,
+  which put the whole product at 768px on a 1900px display. `PageContainer` owns it now.
+- Six components: `Textarea`, `RadioCards`, `CheckCards`, `PageContainer`, `ImageViewer`,
+  and `Tabs` finally built. All but `ImageViewer` are in the inventory.
+
+**Two bugs worth not repeating**, both found by looking at the screen rather than by a test:
+
+- **`[hidden]` does not hide anything a `display` class is styling.** That rule is in the
+  *user agent* stylesheet and any author rule beats it, so `/brand` rendered all four tab
+  panels at once with one tab underlined.
+- **`check:classes` missed a class that generates no CSS.** `w-pane` is not a token — the
+  width scale is replaced, not extended — and the notification panel shipped with no width,
+  clipped inside the rail's `overflow-y-auto`. The check is not the whole story.
+
+---
 
 ## 2. Blocking, and what it blocks
 
@@ -1393,6 +1449,11 @@ element ids, `fill` as a `ColorValue`. Reading the rows back through the real pa
 caught two more defects; `E7-pending.md` has them.
 
 ### E8 — AI features — eight of nine built, and what that left open
+
+**Image generation is live; the *reading* provider is the one still on a placeholder.**
+E8-01 has run against Gemini four times — see §1.7. What has never run is the Claude path
+for the features that read a picture, because `ANTHROPIC_API_KEY` is still the placeholder
+described below.
 
 **`docs/E8-pending.md` is the working note, written 15 September.** It carries the list
 below plus the two defects the live run found, the deliberate compromises, and the fact

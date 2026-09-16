@@ -11,7 +11,7 @@ import {
   toCatalogLanguage,
 } from '@/lib/catalog-display'
 import { toTsQuery } from '@/lib/catalog'
-import { brandSlug, isUsableBrand } from '@souqstudio/types'
+import { brandSlug, deriveUnitPrice, isUsableBrand } from '@souqstudio/types'
 
 /**
  * The pure half of the catalog: `toTsQuery` from lib/catalog.ts and everything
@@ -137,6 +137,58 @@ describe('packLabel', () => {
 
   it('renders nothing without a pack size — no size is not a zero size', () => {
     expect(packLabel({ packSize: null, packUnit: 'G', packCount: 8 })).toBeNull()
+  })
+})
+
+describe('sold loose', () => {
+  /**
+   * The distinction `sellBy` exists for. Before it, loose tomatoes at 4.50 a
+   * kilo had to be entered as a *pack* of one kilo — which read plausibly and
+   * then made both functions below answer a question nobody asked.
+   */
+  it('prints no pack line, because a loose product has no pack', () => {
+    expect(packLabel({ packSize: null, packUnit: 'KG', packCount: null, sellBy: 'LOOSE' }))
+      .toBeNull()
+  })
+
+  it('ignores a pack size that should not have been entered at all', () => {
+    expect(packLabel({ packSize: '1', packUnit: 'KG', packCount: null, sellBy: 'LOOSE' }))
+      .toBeNull()
+  })
+
+  it('takes the price as the rate rather than dividing by a pack', () => {
+    expect(deriveUnitPrice('4.50', { packSize: null, packUnit: 'KG', packCount: null, sellBy: 'LOOSE' }))
+      .toEqual({ value: '4.500', unit: 'KG' })
+  })
+
+  it('normalises a rate quoted per gram up to the base unit', () => {
+    // 0.0045 per gram and 4.50 per kilo are the same price, and a card putting
+    // them side by side has to quote one of them.
+    expect(deriveUnitPrice('0.0045', { packSize: null, packUnit: 'G', packCount: null, sellBy: 'LOOSE' }))
+      .toEqual({ value: '4.500', unit: 'KG' })
+  })
+
+  it('answers nothing without a unit — a rate per unknown is not a rate', () => {
+    expect(deriveUnitPrice('4.50', { packSize: null, packUnit: null, packCount: null, sellBy: 'LOOSE' }))
+      .toBeNull()
+  })
+
+  it('treats a zero price as unset here too, not as free', () => {
+    expect(deriveUnitPrice('0', { packSize: null, packUnit: 'KG', packCount: null, sellBy: 'LOOSE' }))
+      .toBeNull()
+  })
+
+  it('leaves a packed product on the dividing path', () => {
+    // The regression that matters: adding the branch must not change the case
+    // that was already right. 8 × 25 g at 3.52 is 200 g, so 17.60 per kilo.
+    expect(deriveUnitPrice('3.52', { packSize: '25', packUnit: 'G', packCount: 8, sellBy: 'PACK' }))
+      .toEqual({ value: '17.600', unit: 'KG' })
+  })
+
+  it('reads an absent sellBy as PACK, which is what every older row is', () => {
+    expect(deriveUnitPrice('3.52', { packSize: '25', packUnit: 'G', packCount: 8 }))
+      .toEqual({ value: '17.600', unit: 'KG' })
+    expect(packLabel({ packSize: '500', packUnit: 'G', packCount: null })).toBe('500 g')
   })
 })
 

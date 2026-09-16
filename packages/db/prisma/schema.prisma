@@ -704,6 +704,24 @@ enum PackUnit {
   PIECE
 }
 
+/// How a product is sold, as distinct from how it is measured.
+///
+/// **`packUnit` says what the number means; this says what the number is.** A
+/// 500 g bag of rice and loose tomatoes at 4.50 a kilo both carry `KG`-family
+/// units, and until this existed the second could only be described as a pack
+/// of something — which made `deriveUnitPrice` divide a rate by a quantity that
+/// was never there, and `packLabel` print a pack line for a product that has no
+/// pack.
+///
+/// `PACK` is the default and the overwhelming case: a barcoded unit with a size
+/// printed on it. `LOOSE` is anything weighed or measured at the counter, where
+/// **the price already is the unit price** — so `packSize` and `packCount` are
+/// meaningless on those rows and `packUnit` alone says what the price is per.
+enum SellBy {
+  PACK
+  LOOSE
+}
+
 /// A product brand — Almarai, Tide, Anker. E5, "Catalog Sources".
 ///
 /// **A table rather than the free-text columns it replaces, because a string
@@ -804,6 +822,36 @@ model CatalogProduct {
   packUnit  PackUnit?
   packCount Int?
 
+  /// Whether the three columns above describe a pack or a counter price. See
+  /// `SellBy`. Defaulted rather than nullable: every row that existed before
+  /// this column is a pack, and a null would make every reader decide what
+  /// absence meant.
+  sellBy    SellBy    @default(PACK)
+
+  /// The shop's own item code, as their till and their price list spell it.
+  ///
+  /// **A barcode is the world's identity for a product; this is the shop's.**
+  /// They are not interchangeable and one cannot stand in for the other: an
+  /// own-brand line and a loose vegetable have an item code and no barcode at
+  /// all, and two shops may legitimately use the same code for different
+  /// things. Import matches on this *before* barcode — within one organization
+  /// it is the more authoritative of the two, because it is the key the owner's
+  /// own sheet is written against.
+  ///
+  /// Meaningless on a universal row, which belongs to no shop; the compound
+  /// unique below is what confines it to a collection, exactly as `barcode`
+  /// does. Nothing requires it — E5's rule that nothing blocks a shop adding a
+  /// product applies here as much as to `brandId`.
+  sku      String?
+  /// Who the shop buys it from. Free text, and deliberately not a table.
+  ///
+  /// `ProductBrand` earned a table because a string cannot carry a logo and a
+  /// brand lockup renders on the card. A supplier renders nowhere, has no
+  /// asset, and is not shared between organizations — so the three things that
+  /// justified the brand table are all absent, and a string that can later be
+  /// backfilled into a table is the cheaper order to do this in.
+  supplier String?
+
   /// Not globally unique any more. An organization may hold its own row for a
   /// barcode the universal catalog also has — that is the whole point of the
   /// private collection. Uniqueness is per collection: the compound index
@@ -841,6 +889,11 @@ model CatalogProduct {
   searchVector Unsupported("tsvector")? @map("search_vector")
 
   @@unique([organizationId, barcode])
+  /// Same shape and same reasoning as the barcode pair above: one item code per
+  /// collection, and NULLs are distinct in Postgres so every universal row and
+  /// every row an owner left blank coexists. It is also the index the import's
+  /// SKU lookup runs on.
+  @@unique([organizationId, sku])
   @@index([organizationId])
   @@index([organizationId, archivedAt])
   @@index([brandId])

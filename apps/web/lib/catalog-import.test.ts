@@ -70,6 +70,26 @@ describe('inferColumnMap', () => {
   it('survives an empty header cell', () => {
     expect(inferColumnMap(['Item', ''])).toEqual({ Item: 'nameEn', '': null })
   })
+
+  it('reads an item code as a SKU, not as a barcode', () => {
+    // The regression this column exists for. `sku` used to be a *barcode*
+    // spelling, so this sheet matched every row against a number that failed
+    // its check digit — a silent fall through to a fuzzy name match.
+    const map = inferColumnMap(['Item Code', 'Product', 'Barcode'])
+    expect(map).toEqual({ 'Item Code': 'sku', Product: 'nameEn', Barcode: 'barcode' })
+  })
+
+  it('claims both columns when a sheet carries a SKU and a barcode', () => {
+    const map = inferColumnMap(['SKU', 'EAN', 'Item'])
+    expect(map).toEqual({ SKU: 'sku', EAN: 'barcode', Item: 'nameEn' })
+  })
+
+  it('leaves a bare "Code" unmapped, because it does not say which it is', () => {
+    // `inferColumnMap` guesses and never decides. A header that is genuinely
+    // ambiguous belongs on the mapping screen, not claimed by whichever field
+    // happened to be listed first.
+    expect(inferColumnMap(['Code'])).toEqual({ Code: null })
+  })
 })
 
 describe('mappedFields', () => {
@@ -153,6 +173,26 @@ describe('parsePackUnit', () => {
 })
 
 describe('resolveRow', () => {
+  it('trusts an item code over a barcode — within one shop it is the better key', () => {
+    const result = resolveRow({
+      skuMatchId: 'prod_sku',
+      barcodeMatchId: 'prod_barcode',
+      candidates: [{ catalogProductId: 'prod_name', score: 0.9 }],
+    })
+    expect(result.status).toBe('MATCHED')
+    expect(result.catalogProductId).toBe('prod_sku')
+  })
+
+  it('falls through to the barcode when no item code matched', () => {
+    const result = resolveRow({
+      skuMatchId: null,
+      barcodeMatchId: 'prod_barcode',
+      candidates: [],
+    })
+    expect(result.status).toBe('MATCHED')
+    expect(result.catalogProductId).toBe('prod_barcode')
+  })
+
   it('trusts a barcode over everything, because it is an identity', () => {
     const result = resolveRow({
       barcodeMatchId: 'prod_1',

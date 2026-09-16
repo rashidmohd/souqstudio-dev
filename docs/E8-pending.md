@@ -249,8 +249,12 @@ model id that has moved is a 404 that reads like a bad key.
    typed; nothing calls them. The pose library wants a panel on the character card, and the
    cover picker belongs in E6's create flow rather than in the brand kit — which is a
    placement question, not a build one.
-2. **Nothing has been run against a live image model**, because no environment has a key.
-   Every failure path is written and none has been exercised.
+2. ~~**Nothing has been run against a live image model.**~~ **E8-01 has**, four times, on
+   16 September: four variations each, ten credits each, two characters kept, and the last
+   two runs on `photo-real` against a three-segment shop. So `IMAGE_PROVIDER=gemini`, the
+   uniform read, the prompt, the storage and the credit deduction are all exercised.
+   **E8-02, E8-03 and E8-04 still have not run** — they have no UI to run them from. Every
+   failure path in all four is written and none has been exercised.
 3. **The `characters` table has no `organizationId`.** It is shop-scoped, as the schema was
    written, so every query scopes by `shopId` from the active shop and the usual
    `organizationId` guard does not appear. Its absence is deliberate and is noted on

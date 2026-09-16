@@ -61,6 +61,8 @@ const matchSchema = z.object({
         name: z.string().trim().min(1).max(300),
         /** Optional and worth a lot when present: a barcode match is an identity. */
         barcode: z.string().trim().max(64).optional(),
+        /** The shop's own item code. Outranks a barcode — see `resolveRow`. */
+        sku: z.string().trim().max(64).optional(),
         /** Carried through untouched, as text. This route does not read it. */
         price: z.string().trim().max(32).nullable().default(null),
       })
@@ -97,10 +99,12 @@ export async function POST(request: NextRequest) {
     // outright — `resolveRow` trusts a barcode hit over any name score. Same
     // guard the E5-06 route applies before matching.
     const barcode = row.barcode === undefined ? null : normalizeBarcode(row.barcode)
+    const sku = row.sku?.trim()
     return {
       index,
       name: row.name,
       barcode: barcode !== null && hasValidCheckDigit(barcode) ? barcode : null,
+      sku: sku ? sku : null,
     }
   })
 
@@ -114,6 +118,7 @@ export async function POST(request: NextRequest) {
     row,
     index,
     resolution: resolveRow({
+      skuMatchId: matches.bySku.get(index) ?? null,
       barcodeMatchId: matches.byBarcode.get(index) ?? null,
       candidates: matches.byName.get(index) ?? [],
     }),

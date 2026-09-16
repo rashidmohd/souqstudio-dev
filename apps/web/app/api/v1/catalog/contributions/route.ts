@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { getActiveShop } from '@/lib/active-shop'
-import { createOrgProduct, lookupBarcode } from '@/lib/catalog'
+import { createOrgProduct, lookupBarcode, orgProductBySku } from '@/lib/catalog'
 import { hasValidCheckDigit, normalizeBarcode } from '@/lib/catalog-display'
 import { MIN_PRODUCT_IMAGE_EDGE, readProductImage } from '@/lib/catalog-image'
 import { cutoutKey, customProductKey, getObjectBytes, publicUrl } from '@/lib/r2'
@@ -44,7 +44,15 @@ const schema = z.object({
     .optional(),
   packUnit: z.enum(['G', 'KG', 'ML', 'L', 'PIECE']).optional(),
   packCount: z.number().int().positive().max(999).optional(),
+  // Absent is PACK, which is what the column defaults to and what all but a
+  // handful of products are. LOOSE is weighed at the counter, where `packUnit`
+  // alone says what the price is per and the two pack columns mean nothing.
+  sellBy: z.enum(['PACK', 'LOOSE']).optional(),
   barcode: z.string().trim().max(20).optional(),
+  // The shop's own item code. Unique within this organization, so a duplicate
+  // is refused below rather than at the database.
+  sku: z.string().trim().max(64).optional(),
+  supplier: z.string().trim().max(120).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -104,6 +112,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Same reasoning as the barcode check above: `@@unique([organizationId, sku])`
+  // would refuse the insert and surface as a 500, and an owner who reuses an
+  // item code has almost always found the product they already have rather than
+  // a new one.
+  if (input.sku && (await orgProductBySku(session, input.sku))) {
+    return fail('sku_exists', 'You already have a product with that item code.', 409)
+  }
+
   const bytes = await getObjectBytes(input.imageKey)
   if (!bytes) {
     return fail('upload_missing', 'That photo did not arrive. Try choosing it again.', 409)
@@ -135,7 +151,10 @@ export async function POST(req: NextRequest) {
       ...(input.packSize ? { packSize: input.packSize } : {}),
       ...(input.packUnit ? { packUnit: input.packUnit } : {}),
       ...(input.packCount ? { packCount: input.packCount } : {}),
+      ...(input.sellBy ? { sellBy: input.sellBy } : {}),
       ...(barcode ? { barcode } : {}),
+      ...(input.sku ? { sku: input.sku } : {}),
+      ...(input.supplier ? { supplier: input.supplier } : {}),
     },
     {
       r2Key: input.imageKey,

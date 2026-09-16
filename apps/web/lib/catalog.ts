@@ -10,6 +10,7 @@ import type {
   CatalogSearchHit,
   PackUnit,
   Page,
+  SellBy,
 } from '@souqstudio/types'
 import { brandSlug, isUsableBrand } from '@souqstudio/types'
 import { formatPackSize } from '@/lib/catalog-display'
@@ -103,7 +104,10 @@ type CatalogRow = {
   packSize: string | null
   packUnit: PackUnit | null
   packCount: number | null
+  sellBy: SellBy
   barcode: string | null
+  sku: string | null
+  supplier: string | null
   imageKey: string | null
   imageKind: 'ORIGINAL' | 'CUTOUT' | 'THUMB' | null
 }
@@ -126,7 +130,10 @@ function toSummary(row: CatalogRow): CatalogProductSummary {
     packSize: formatPackSize(row.packSize),
     packUnit: row.packUnit,
     packCount: row.packCount,
+    sellBy: row.sellBy,
     barcode: row.barcode,
+    sku: row.sku,
+    supplier: row.supplier,
     imageUrl: row.imageKey ? publicUrl(row.imageKey) : null,
     // A card asks for the CUTOUT and takes the ORIGINAL only under protest —
     // E5 §3. The flag is what lets the editor mark it rather than shipping a
@@ -238,6 +245,9 @@ export async function searchCatalog(
         p."packSize"::text AS "packSize",
         p."packUnit"::text AS "packUnit",
         p."packCount",
+        p."sellBy",
+        p."sku",
+        p."supplier",
         p.barcode,
         img."r2Key" AS "imageKey",
         img.kind::text AS "imageKind",
@@ -449,6 +459,9 @@ export async function browseCatalog(
         p."packSize"::text AS "packSize",
         p."packUnit"::text AS "packUnit",
         p."packCount",
+        p."sellBy",
+        p."sku",
+        p."supplier",
         p.barcode,
         img."r2Key" AS "imageKey",
         img.kind::text AS "imageKind"
@@ -554,6 +567,9 @@ export async function lookupBarcode(
         p."packSize"::text AS "packSize",
         p."packUnit"::text AS "packUnit",
         p."packCount",
+        p."sellBy",
+        p."sku",
+        p."supplier",
         p.barcode,
         img."r2Key" AS "imageKey",
         img.kind::text AS "imageKind"
@@ -571,6 +587,24 @@ export async function lookupBarcode(
   return row ? toSummary(row) : null
 }
 
+/**
+ * Does this organization already use that item code?
+ *
+ * Its own collection only — a universal row has no item code, and another
+ * organization's is none of this one's business. Returns the id rather than a
+ * boolean so a caller that wants to offer "open the one you have" can.
+ */
+export async function orgProductBySku(
+  session: VerifiedSession,
+  sku: string
+): Promise<string | null> {
+  const found = await prisma.catalogProduct.findFirst({
+    where: { organizationId: session.user.organizationId, sku, archivedAt: null },
+    select: { id: true },
+  })
+  return found?.id ?? null
+}
+
 // ─── Creating a product in the organization's collection — E5-04 ──────────────
 
 export type NewProduct = {
@@ -583,7 +617,10 @@ export type NewProduct = {
   packSize?: string | undefined
   packUnit?: PackUnit | undefined
   packCount?: number | undefined
+  sellBy?: SellBy | undefined
   barcode?: string | undefined
+  sku?: string | undefined
+  supplier?: string | undefined
 }
 
 export type NewProductImage = {
@@ -832,7 +869,10 @@ export async function createOrgProduct(
         packSize: product.packSize ?? null,
         packUnit: product.packUnit ?? null,
         packCount: product.packCount ?? null,
+        sellBy: product.sellBy ?? 'PACK',
         barcode: product.barcode ?? null,
+        sku: product.sku ?? null,
+        supplier: product.supplier ?? null,
         source: 'user_contribution',
       },
       select: { id: true },
@@ -877,9 +917,17 @@ export async function createOrgProduct(
  */
 const MAX_CANDIDATES = 3
 
-export type ImportNeedle = { index: number; name: string; barcode: string | null }
+export type ImportNeedle = {
+  index: number
+  name: string
+  barcode: string | null
+  /** The shop's own item code, when the sheet carried one. */
+  sku: string | null
+}
 
 export type ImportMatches = {
+  /** Row index → the product its item code identifies, within this org. */
+  bySku: Map<number, string>
   /** Row index → the product its barcode identifies, when it has one. */
   byBarcode: Map<number, string>
   /** Row index → ranked name candidates. */
@@ -908,14 +956,45 @@ export async function matchImportRows(
   needles: ImportNeedle[]
 ): Promise<ImportMatches> {
   const organizationId = session.user.organizationId
+  const bySku = new Map<number, string>()
   const byBarcode = new Map<number, string>()
   const byName = new Map<number, MatchCandidate[]>()
 
-  if (needles.length === 0) return { byBarcode, byName }
+  if (needles.length === 0) return { bySku, byBarcode, byName }
+
+  // ── Item codes ──────────────────────────────────────────────────────────
+  //
+  // **Organization rows only, and no universal fallback.** A SKU belongs to the
+  // shop that assigned it; a universal row has none, and two organizations may
+  // legitimately use the same code for different things. The unique index on
+  // `(organizationId, sku)` is what makes this a lookup rather than a search —
+  // at most one row can answer, so there is no precedence to resolve and no
+  // DISTINCT ON to write.
+  const withSkus = needles.filter(
+    (needle): needle is ImportNeedle & { sku: string } => needle.sku !== null
+  )
+
+  if (withSkus.length > 0) {
+    const rows = await prisma.catalogProduct.findMany({
+      where: {
+        organizationId,
+        archivedAt: null,
+        sku: { in: withSkus.map((n) => n.sku) },
+      },
+      select: { id: true, sku: true },
+    })
+
+    const found = new Map(rows.map((row) => [row.sku, row.id]))
+    for (const needle of withSkus) {
+      const id = found.get(needle.sku)
+      if (id) bySku.set(needle.index, id)
+    }
+  }
 
   // ── Barcodes ────────────────────────────────────────────────────────────
   const withBarcodes = needles.filter(
-    (needle): needle is ImportNeedle & { barcode: string } => needle.barcode !== null
+    (needle): needle is ImportNeedle & { barcode: string } =>
+      needle.barcode !== null && !bySku.has(needle.index)
   )
 
   if (withBarcodes.length > 0) {
@@ -941,7 +1020,8 @@ export async function matchImportRows(
 
   // ── Names ───────────────────────────────────────────────────────────────
   const unresolved = needles.filter(
-    (needle) => !byBarcode.has(needle.index) && needle.name.trim() !== ''
+    (needle) =>
+      !bySku.has(needle.index) && !byBarcode.has(needle.index) && needle.name.trim() !== ''
   )
 
   if (unresolved.length > 0) {
@@ -985,7 +1065,7 @@ export async function matchImportRows(
     }
   }
 
-  return { byBarcode, byName }
+  return { bySku, byBarcode, byName }
 }
 
 /**
@@ -999,15 +1079,69 @@ export async function matchImportRows(
  *
  * No image either. That is what E5-07's phone capture is for, and until then
  * the card falls back to no image rather than to a wrong one.
+ *
+ * **An item code this organization already holds is a row to point at, not a
+ * row to write** — the same rule, for the same reason, that
+ * `adoptRowsIntoCatalog` applies to a barcode. `@@unique([organizationId, sku])`
+ * would refuse the insert and take the whole commit down with it, and failing
+ * several hundred rows because one line was created from last week's sheet is
+ * the wrong answer: the owner wants that product against that row either way.
+ *
+ * It is not a rare shape. The matcher searches the organization's own
+ * collection, so a row that reached "create" carrying an item code is a row
+ * whose *name* did not match — which is exactly what a re-spelled line from a
+ * previous import looks like.
+ *
+ * Returned ids stay positional, so the caller can keep pairing them with the
+ * rows it sent.
  */
 export async function createImportedProducts(
   session: VerifiedSession,
   products: NewProduct[]
 ): Promise<string[]> {
   const organizationId = session.user.organizationId
+  if (products.length === 0) return []
+
+  const skus = [...new Set(products.flatMap((p) => (p.sku ? [p.sku] : [])))]
+  const existing =
+    skus.length === 0
+      ? []
+      : await prisma.catalogProduct.findMany({
+          where: { organizationId, sku: { in: skus } },
+          select: { id: true, sku: true },
+        })
+  const bySku = new Map(
+    existing.flatMap((product) => (product.sku === null ? [] : [[product.sku, product.id]]))
+  )
+
+  // Within the sheet as well as against the table: two committed rows carrying
+  // one item code is a duplicate the owner did not notice, and inserting both
+  // would break the same constraint.
+  const claimed = new Set<string>()
+  const resolved = new Map<number, string>()
+  const toCreate: Array<{ index: number; product: NewProduct }> = []
+
+  products.forEach((product, index) => {
+    const sku = product.sku ?? null
+    if (sku !== null) {
+      const already = bySku.get(sku)
+      if (already) {
+        resolved.set(index, already)
+        return
+      }
+      if (claimed.has(sku)) {
+        // The second line with this code creates nothing and gets no id, which
+        // leaves its import row where it was rather than pointing it at a
+        // product the owner did not ask for.
+        return
+      }
+      claimed.add(sku)
+    }
+    toCreate.push({ index, product })
+  })
 
   const created = await prisma.$transaction(
-    products.map((product) =>
+    toCreate.map(({ product }) =>
       prisma.catalogProduct.create({
         data: {
           organizationId,
@@ -1020,7 +1154,10 @@ export async function createImportedProducts(
           packSize: product.packSize ?? null,
           packUnit: product.packUnit ?? null,
           packCount: product.packCount ?? null,
+          sellBy: product.sellBy ?? 'PACK',
           barcode: product.barcode ?? null,
+          sku: product.sku ?? null,
+          supplier: product.supplier ?? null,
           source: 'import',
         },
         select: { id: true },
@@ -1028,7 +1165,12 @@ export async function createImportedProducts(
     )
   )
 
-  return created.map((row) => row.id)
+  toCreate.forEach(({ index }, position) => {
+    const row = created[position]
+    if (row) resolved.set(index, row.id)
+  })
+
+  return products.map((_, index) => resolved.get(index) ?? '')
 }
 
 /** The summaries the review screen needs for matched rows and candidates. */
@@ -1052,6 +1194,9 @@ export async function summariesByIds(
         p."packSize"::text AS "packSize",
         p."packUnit"::text AS "packUnit",
         p."packCount",
+        p."sellBy",
+        p."sku",
+        p."supplier",
         p.barcode,
         img."r2Key" AS "imageKey",
         img.kind::text AS "imageKind"

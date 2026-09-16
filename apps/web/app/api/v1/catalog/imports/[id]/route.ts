@@ -115,10 +115,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const needles: ImportNeedle[] = sheet.rows.map((row, index) => {
     const raw = value(row, 'barcode').trim()
     const barcode = raw ? normalizeBarcode(raw) : ''
+    // No check-digit equivalent for an item code — it is whatever the shop's
+    // till calls it, so anything non-empty is a candidate and the unique index
+    // decides whether it names a row.
+    const sku = value(row, 'sku').trim()
     return {
       index,
       name: value(row, 'nameEn').trim(),
       barcode: barcode && hasValidCheckDigit(barcode) ? barcode : null,
+      sku: sku || null,
     }
   })
 
@@ -134,6 +139,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const rows = sheet.rows.map((row, index) => {
     const resolution = resolveRow({
+      skuMatchId: matches.bySku.get(index) ?? null,
       barcodeMatchId: matches.byBarcode.get(index) ?? null,
       candidates: matches.byName.get(index) ?? [],
     })

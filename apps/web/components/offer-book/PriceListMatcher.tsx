@@ -52,15 +52,19 @@ import { parsePercent, readOfferType, resolvePrices } from '@/lib/offer-import'
  * their POS was matched on spelling alone. Nothing announced that; the matcher
  * simply did worse than it could.
  *
- * **A column named "SKU" is offered here and is usually not a barcode.** POS
- * exports label an internal item code that way, and `HEADER_HINTS` maps `sku`
- * and `code` onto this field because sometimes it is the GTIN. The guard is in
- * the route rather than here: a value that is not 8, 12, 13 or 14 digits, or
- * that fails the GS1 check digit, is dropped and the row falls back to matching
- * by name. So a mis-mapped column costs recall and never causes a wrong match —
- * which is the trade worth making, because the alternative is refusing the
- * column and losing every sheet that does put a real barcode under that header.
- * `barcodeStats` below is what tells the owner which of the two they have.
+ * **An item code is its own column now, and it outranks the barcode.** This
+ * used to say that `HEADER_HINTS` mapped `sku` and `code` onto the barcode
+ * field because sometimes an item code is a GTIN, and that a mis-mapped column
+ * cost recall and never caused a wrong match. Both halves stopped being the
+ * best available answer once `catalog_products.sku` existed: a POS item code
+ * now matches the column it actually is, exactly, against the shop's own rows —
+ * which is a better match than the GTIN gamble ever was, and `resolveRow`
+ * trusts it over the barcode for the same reason it trusts a barcode over a
+ * name.
+ *
+ * A sheet whose "SKU" column really does hold barcodes still works: map it to
+ * the barcode select instead. `barcodeStats` below is what tells the owner
+ * which of the two they have, and it is worth reading before moving the column.
  */
 /**
  * Everything about a half-done review that is worth keeping.
@@ -78,6 +82,14 @@ export type MatcherDraft = {
   columns: {
     name: string
     barcode: string
+    /**
+     * Optional, because a draft saved before the item-code column existed does
+     * not carry one. `offer_book_drafts.state` is opaque JSON that nothing
+     * validates on the way back in, so an older draft restores with this
+     * absent — and a required field here would be a type that lies about what
+     * is actually in the column.
+     */
+    sku?: string
     price: string
     was: string
     percent: string
@@ -113,6 +125,7 @@ function columnOptions(headers: string[], none: string) {
 type SentRow = {
   name: string
   barcode?: string
+  sku?: string
   price: string | null
   comparePrice: string | null
   chip?: { labelEn: string; labelAr: string | null }
@@ -138,6 +151,7 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
   const [sheet, setSheet] = React.useState<Sheet | null>(initial?.sheet ?? null)
   const [nameColumn, setNameColumn] = React.useState(initial?.columns.name ?? '')
   const [barcodeColumn, setBarcodeColumn] = React.useState(initial?.columns.barcode ?? '')
+  const [skuColumn, setSkuColumn] = React.useState(initial?.columns.sku ?? '')
   const [priceColumn, setPriceColumn] = React.useState(initial?.columns.price ?? '')
   const [wasColumn, setWasColumn] = React.useState(initial?.columns.was ?? '')
   const [percentColumn, setPercentColumn] = React.useState(initial?.columns.percent ?? '')
@@ -182,6 +196,7 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
       setSheet({ headers: parsed.headers, rows: parsed.rows })
       setNameColumn(columnFor('nameEn'))
       setBarcodeColumn(columnFor('barcode'))
+      setSkuColumn(columnFor('sku'))
 
       // The promotion columns get their own guess — see `guessOfferColumns`.
       const offer = guessOfferColumns(parsed.headers)
@@ -204,6 +219,7 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
     const at = (column: string) => (column === '' ? -1 : sheet.headers.indexOf(column))
     const nameAt = at(nameColumn)
     const barcodeAt = at(barcodeColumn)
+    const skuAt = at(skuColumn)
     const priceAt = at(priceColumn)
     const wasAt = at(wasColumn)
     const percentAt = at(percentColumn)
@@ -212,6 +228,10 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
     const rows: SentRow[] = sheet.rows
       .map((row) => {
         const barcode = barcodeAt === -1 ? '' : normalizeBarcode(row[barcodeAt] ?? '')
+        // No normalising and no check digit: an item code is whatever the
+        // shop's till calls it, so it travels as typed and the unique index
+        // decides whether it names a row.
+        const sku = skuAt === -1 ? '' : (row[skuAt] ?? '').trim()
 
         /*
          * **The inversion happens here, once.** A till calls the shelf price
@@ -238,6 +258,7 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
           // string, and `exactOptionalPropertyTypes` means `undefined` and
           // absent are the same thing here and an empty string is not.
           ...(barcode === '' ? {} : { barcode }),
+          ...(sku === '' ? {} : { sku }),
           price: prices.price,
           comparePrice: prices.comparePrice,
           mismatch: prices.mismatch,
@@ -377,6 +398,7 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
       columns: {
         name: nameColumn,
         barcode: barcodeColumn,
+        sku: skuColumn,
         price: priceColumn,
         was: wasColumn,
         percent: percentColumn,
@@ -388,6 +410,7 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
     sheet,
     nameColumn,
     barcodeColumn,
+    skuColumn,
     priceColumn,
     wasColumn,
     percentColumn,
@@ -464,6 +487,13 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
           value={barcodeColumn}
           onChange={(event) => setBarcodeColumn(event.target.value)}
           hint={barcodeHint(barcodeStats)}
+        />
+        <Select
+          label={FIELD_LABEL.sku}
+          options={columnOptions(sheet.headers, 'No item code column')}
+          value={skuColumn}
+          onChange={(event) => setSkuColumn(event.target.value)}
+          hint="Your own code for the product. Matched before the barcode."
         />
         {/* **Named for the flyer, never for the till.** A POS calls the shelf
             price "price" and the promotion "offer price"; an offer calls the

@@ -188,10 +188,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   is not an inconsistency. **A generated logo is an SVG**, which nothing else in the product
   produces: the worker has no font files, so rasterising would silently substitute a
   typeface. Same gap as the brand-kit-fonts line below, and it is what E9's export meets.
-- **Image generation is built and switched off. `IMAGE_PROVIDER` is what turns it on.**
+- **Image generation is live on dev. `IMAGE_PROVIDER` is what turns it on.**
   E8-01 to E8-04 — characters, poses, described poses, covers — are built end to end behind
-  Gemini (default) or Qwen. **Unset means off**, which is every environment today: the four
-  routes refuse with a sentence rather than queueing a job that fails later. Set it and the
+  Gemini (default) or Qwen. **E8-01 has run against Gemini and produced real characters**;
+  the other three have no UI yet and have never run. **Unset means off**, and the four routes
+  then refuse with a sentence rather than queueing a job that fails later. Set it and the
   provider's key is required at boot. It is deliberately *not* `MAGIC_BLOCK_PROVIDER`: that
   one picks a model that reads a picture, this one picks a model that draws one, and E8-01
   uses both in a single job. **Both model ids are env-overridable and both defaults want
@@ -203,6 +204,12 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   polo shirt; the photograph is not stored. Do not loosen any of those four without
   revisiting `E8-pending.md` §3.
   **E8-02, E8-03 and E8-04 have no UI yet** — routes and workers only. §3a.
+  **E8-01 is a gated flow at `/brand/character`, not a dialog**, and it is gated on a *shop
+  profile* — `shops.trades`, `shops.bio`, `shops.storePhotoKeys` — that did not exist before
+  16 September. A butcher's character is not an electronics shop's, and without that data the
+  only thing generatable was four generic people somebody had paid for. `E8-pending.md` §3c.
+  **Work that finishes while nobody is looking is no longer lost**: `ai_jobs.claimedAt`,
+  `GET /api/v1/ai/jobs` and a bell in the rail. Not a notification hub — E12 is unstarted.
 - **Magic block works against Qwen and has never been run against Claude.** E8-07 is
   built end to end and was exercised live on 10 September: three seeded cards rendered,
   fed back, and two of three matched the structure they were built from at high

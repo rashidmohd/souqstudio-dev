@@ -14,13 +14,23 @@
  * Everything here is pure. Nothing reads the database.
  */
 
-import type { PackUnit } from './index'
+import type { PackUnit, SellBy } from './index'
 
-/** Just the three pack columns — anything carrying them can be labelled. */
+/** Just the pack columns — anything carrying them can be labelled. */
 export interface PackFields {
   packSize: string | null
   packUnit: PackUnit | null
   packCount: number | null
+  /**
+   * Optional, and absent means `PACK`.
+   *
+   * The column is `NOT NULL DEFAULT 'PACK'`, so a row read from the database
+   * always carries it. It is optional *here* because the harness, the engine
+   * fixtures and every test that predates the column build `PackFields` by
+   * hand, and a required field would have made a packed product — the case that
+   * did not change — the one that needed editing everywhere.
+   */
+  sellBy?: SellBy | null
 }
 
 /**
@@ -56,8 +66,18 @@ const UNIT_LABEL: Record<PackUnit, string> = {
   PIECE: '',
 }
 
-/** "500 g", "8 × 25 g", "1 kg" — the pack line under a product name. */
+/**
+ * "500 g", "8 × 25 g", "1 kg" — the pack line under a product name.
+ *
+ * **Null for a loose product, which has no pack to label.** The temptation is
+ * to print "per kg" here, and it is wrong twice: this function returns a
+ * language-neutral figure that an Arabic card renders unchanged, and "per" is
+ * an English word. What a loose product wants to say belongs on the unit-price
+ * line, where `unitPriceLabel` already says it and the caller already localises
+ * it.
+ */
 export function packLabel(product: PackFields): string | null {
+  if (product.sellBy === 'LOOSE') return null
   if (!product.packSize) return null
 
   const unit = product.packUnit ? UNIT_LABEL[product.packUnit] : ''
@@ -112,6 +132,25 @@ export function deriveUnitPrice(
   price: string | number,
   pack: PackFields
 ): DerivedUnitPrice | null {
+  // ── Sold loose ─────────────────────────────────────────────────────────────
+  // **The price already is the rate**, so there is nothing to divide — which is
+  // exactly what this column was added to stop: before it, loose goods had to
+  // be described as a pack of something, and the maths below then divided a
+  // per-kilo price by a pack size that was never real.
+  //
+  // It still normalises, because `packUnit` says what the price is per and that
+  // need not be the base unit. A spice priced per gram and a sack priced per
+  // kilo are the same product at two scales, and a card comparing them has to
+  // quote one of them. Multiplying rather than dividing is the whole difference
+  // between the two branches: 0.0045 per gram is 4.500 per kilo.
+  if (pack.sellBy === 'LOOSE') {
+    if (pack.packUnit === null) return null
+    const rate = Number(price)
+    if (!Number.isFinite(rate) || rate <= 0) return null
+    const loose = BASE_OF[pack.packUnit]
+    return { value: (rate * loose.per).toFixed(3), unit: loose.unit }
+  }
+
   if (pack.packSize === null || pack.packUnit === null) return null
 
   const size = Number(pack.packSize)
