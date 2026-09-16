@@ -165,8 +165,10 @@ shell — it stops working around five and has nowhere to put a description — 
 hides every option until opened, which is right when labels speak for themselves and wrong
 when the choice is one a person makes once and has to read to make.
 
-Built for the shop's business segment: ten trades, each of which changes what the product
-generates for that shop.
+Built for a one-of choice where the options need explaining. **Its any-of counterpart is
+`CheckCards` below** — the shop's business segment moved there the day after this was
+written, because a grocery with a bakery counter is two segments and the market is full of
+them.
 
 **Real `<input type="radio">` under a styled label, not divs with roles.** Arrow-key
 movement within the group, one tab stop, form association and the accessibility tree all
@@ -175,9 +177,57 @@ a `fieldset` with a `legend`, so the hint is announced once for the group rather
 per option, and the focus ring goes on the label because the input itself is visually
 minimal.
 
-**Single-select only.** The any-of counterpart is `ToggleBar`, and the same reasoning that
-kept those two apart applies: a `multiple` flag here would change the value type and the
-callback shape, which is two components wearing one name.
+**Single-select only.** The any-of counterpart is `CheckCards`, and the same reasoning that
+keeps `Segmented` and `ToggleBar` apart applies: a `multiple` flag here would change the
+value type and the callback shape, which is two components wearing one name.
+
+### CheckCards
+
+| | |
+| --- | --- |
+| File | `components/ui/check-cards.tsx` |
+| Status | `built` — apps/web only, E8-01 |
+| Governs | SKILL.md → Components → Inputs; → Forms |
+
+```tsx
+type CheckCardOption<T extends string> = {
+  value: T
+  label: string
+  description?: string
+  disabled?: boolean
+}
+
+type CheckCardsProps<T extends string> = {
+  label: string                     // the group's legend, always rendered
+  value: T[]
+  options: CheckCardOption<T>[]
+  onChange: (value: T[]) => void
+  hint?: string
+  error?: string
+  required?: boolean
+  disabled?: boolean
+  max?: number                      // unselected options disable at the cap
+  columns?: 1 | 2
+  className?: string
+}
+```
+
+**The any-of counterpart to `RadioCards`**, and the pair to it in exactly the way
+`ToggleBar` is the pair to `Segmented`. Visually identical on purpose — only the input type
+and the cap differ — so a form carrying both does not read as two kinds of control.
+
+Built for the shop's business segment. It was `RadioCards` for a day and that was wrong: a
+grocery with a bakery counter is the common case in this market rather than an edge one, and
+forcing it to pick one produced a generated character holding the wrong thing.
+
+**`max` matters here in a way it would not on an ordinary checkbox group**, because these
+lists feed a generation prompt: a shop claiming eight segments has told a model nothing it
+can draw from. At the cap, unselected options go `disabled` and what is already chosen stays
+clickable so it can be unchosen — an option that does nothing when pressed reads as broken.
+
+**Selection order is preserved and is not incidental.** The first entry is what the shop
+leads with and it reaches the prompt in that order, so re-selecting appends rather than
+restoring an original position.
 
 ### OtpInput
 

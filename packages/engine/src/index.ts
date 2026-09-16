@@ -265,6 +265,7 @@ export {
 export {
   MAX_BIO,
   MAX_STORE_PHOTOS,
+  MAX_TRADES,
   MIN_BIO,
   SHOP_TRADES,
   TRADE_COPY,
@@ -272,6 +273,9 @@ export {
   isShopTrade,
   profileGaps,
   storePhotoKeysOf,
+  tradesOf,
+  tradesPhrase,
+  validTrades,
   type ShopProfile,
   type ShopTrade,
 } from './shop-profile'

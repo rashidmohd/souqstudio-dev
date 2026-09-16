@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   MAX_BIO,
   MAX_STORE_PHOTOS,
+  MAX_TRADES,
   MIN_BIO,
   SHOP_TRADES,
   TRADE_COPY,
@@ -13,7 +14,7 @@ import {
 } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { FileDropzone } from '@/components/ui/file-dropzone'
-import { RadioCards } from '@/components/ui/radio-cards'
+import { CheckCards } from '@/components/ui/check-cards'
 import { Textarea } from '@/components/ui/textarea'
 
 /**
@@ -40,7 +41,7 @@ const ACCEPT = 'image/png,image/jpeg,image/webp'
 
 type Props = {
   shopId: string
-  trade: string | null
+  trades: string[]
   bio: string | null
   storePhotoKeys: string[]
   /** Public URLs for the stored keys, resolved on the server. */
@@ -50,14 +51,14 @@ type Props = {
 
 export function ShopProfileField({
   shopId,
-  trade,
+  trades,
   bio,
   storePhotoKeys,
   storePhotoUrls,
   canEdit,
 }: Props) {
   const router = useRouter()
-  const [tradeValue, setTradeValue] = React.useState<string>(trade ?? '')
+  const [tradeValue, setTradeValue] = React.useState<ShopTrade[]>(trades as ShopTrade[])
   const [bioValue, setBioValue] = React.useState(bio ?? '')
   const [keys, setKeys] = React.useState(storePhotoKeys)
   const [urls, setUrls] = React.useState(storePhotoUrls)
@@ -67,12 +68,13 @@ export function ShopProfileField({
   const [saved, setSaved] = React.useState(false)
 
   const complete = isShopProfileComplete({
-    trade: tradeValue === '' ? null : tradeValue,
+    trades: tradeValue,
     bio: bioValue,
     storePhotoKeys: keys,
   })
 
-  const dirty = tradeValue !== (trade ?? '') || bioValue !== (bio ?? '')
+  const dirty =
+    tradeValue.join(',') !== trades.join(',') || bioValue !== (bio ?? '')
 
   async function save() {
     setSaving(true)
@@ -81,7 +83,7 @@ export function ShopProfileField({
 
     try {
       await patch(shopId, {
-        trade: tradeValue === '' ? null : (tradeValue as ShopTrade),
+        trades: tradeValue,
         bio: bioValue.trim() === '' ? null : bioValue.trim(),
       })
       setSaved(true)
@@ -136,23 +138,26 @@ export function ShopProfileField({
       </div>
 
       {/*
-       * `RadioCards` rather than a `Select`, because this is not a field an
-       * owner fills in on the way past — it is one choice, made once, that
-       * changes what the product draws for them. A dropdown hides the ten
-       * options until it is opened and gives none of them a sentence; a
-       * `Segmented` bar cannot hold ten. See the inventory note on the component.
+       * `CheckCards` rather than a `Select`, because this is not a field an
+       * owner fills in on the way past — it is a choice, made once, that changes
+       * what the product draws for them. A dropdown hides the ten options until
+       * it is opened and gives none of them a sentence; a `Segmented` bar cannot
+       * hold ten. **Several, because shops are several**: a grocery with a
+       * bakery counter is the common case here, and forcing it to pick one
+       * produced a character holding the wrong thing.
        */}
-      <RadioCards
+      <CheckCards
         label="Business segment"
         required
-        hint="What the shop mainly sells. It decides what a generated character and cover look like."
+        max={MAX_TRADES}
+        hint="What the shop mainly sells — a grocery with a bakery counter is both. It decides what a generated character and cover look like."
         disabled={!canEdit || saving}
-        value={tradeValue === '' ? null : (tradeValue as ShopTrade)}
+        value={tradeValue}
         options={SHOP_TRADES.map((value) => ({
           value,
           label: TRADE_COPY[value].label,
         }))}
-        onChange={(next) => setTradeValue(next)}
+        onChange={setTradeValue}
       />
 
       <Textarea

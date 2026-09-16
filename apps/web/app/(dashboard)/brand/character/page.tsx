@@ -40,7 +40,7 @@ export default async function CharacterPage() {
   const [row, brand, credits] = await Promise.all([
     prisma.shop.findUnique({
       where: { id: shop.id },
-      select: { trade: true, bio: true, storePhotoKeys: true },
+      select: { trades: true, bio: true, storePhotoKeys: true },
     }),
     readEffectiveBrand({
       organizationId: shop.organizationId,
@@ -52,7 +52,7 @@ export default async function CharacterPage() {
 
   const storePhotoKeys = storePhotoKeysOf(row?.storePhotoKeys)
   const profile = {
-    trade: row?.trade ?? null,
+    trades: row?.trades ?? [],
     bio: row?.bio ?? null,
     storePhotoKeys,
   }

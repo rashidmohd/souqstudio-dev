@@ -128,11 +128,11 @@ export async function POST(request: NextRequest) {
    */
   const shopRow = await db.shop.findUnique({
     where: { id: shop.id },
-    select: { trade: true, bio: true },
+    select: { trades: true, bio: true },
   })
 
   const profile = {
-    trade: shopRow?.trade ?? null,
+    trades: shopRow?.trades ?? [],
     bio: shopRow?.bio ?? null,
     storePhotoKeys: [],
   }

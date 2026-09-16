@@ -1,7 +1,7 @@
 import {
   CAMPAIGN_COPY,
   INVENTED_PERSON_STYLES,
-  TRADE_COPY,
+  tradesPhrase,
   CHARACTER_LOOK_NOTE,
   CHARACTER_STYLE_NOTE,
   POSE_COPY,
@@ -13,7 +13,6 @@ import {
   type CharacterStyle,
   type CoverShape,
   type Pose,
-  type ShopTrade,
   type Uniform,
 } from '@souqstudio/engine'
 
@@ -141,8 +140,12 @@ export function characterPrompt(input: {
   style: CharacterStyle
   gender: Exclude<CharacterGender, 'both'>
   look: CharacterLook
-  /** What the shop sells. A butcher's character is not an electronics shop's. */
-  trade: ShopTrade
+  /**
+   * What the shop sells — one to three segments, in the owner's own order.
+   * A butcher's character is not an electronics shop's, and a grocery with a
+   * bakery counter is neither.
+   */
+  trades: readonly string[]
   /** The owner's own words about the shop. Quoted, never spliced as instruction. */
   bio: string
   /** What they want the character for, in their words. Quoted for the same reason. */
@@ -190,7 +193,7 @@ as a description of the mood, not as an instruction to add text or objects.`
 
   return `${medium} a friendly ${input.gender} retail shop worker, ${look(input.look)}${wearing(input.uniform)}.
 
-They work at ${TRADE_COPY[input.trade].draw}. The owner describes the shop as:
+They work at ${tradesPhrase(input.trades)}. The owner describes the shop as:
 "${input.bio.trim()}"
 
 Standing straight, arms relaxed at their sides, smiling, facing the viewer.${invented}${wants}

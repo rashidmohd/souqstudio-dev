@@ -142,7 +142,7 @@ export default async function ShopSettingsPage({
            */}
           <ShopProfileField
             shopId={shop.id}
-            trade={shop.trade}
+            trades={shop.trades}
             bio={shop.bio}
             storePhotoKeys={storePhotoKeys}
             storePhotoUrls={storePhotoKeys.map(publicUrl)}

@@ -10,9 +10,8 @@ import {
   type CharacterGender,
   type CharacterLook,
   type CharacterStyle,
-  type ShopTrade,
   type Uniform,
-  isShopTrade,
+  validTrades,
 } from '@souqstudio/engine'
 import { getObjectBytes, putObject } from '../lib/r2'
 import { readUniform } from '../lib/uniform-vision'
@@ -75,11 +74,11 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
      */
     const shop = await prisma.shop.findUnique({
       where: { id: shopId },
-      select: { trade: true, bio: true },
+      select: { trades: true, bio: true },
     })
-    const trade = shop?.trade ?? null
+    const trades = validTrades(shop?.trades ?? [])
     const bio = shop?.bio?.trim() ?? ''
-    if (trade === null || !isShopTrade(trade) || bio === '') {
+    if (trades.length === 0 || bio === '') {
       throw new Error('character: the shop profile is not complete')
     }
 
@@ -112,7 +111,7 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
           style,
           gender: one,
           look,
-          trade: trade as ShopTrade,
+          trades,
           bio,
           inScene: scene.length > 0,
           ...(goal === undefined ? {} : { goal }),
@@ -146,7 +145,7 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
           gender,
           look,
           consentedAt,
-          trade,
+          trades,
           inScene: scene.length > 0,
           notes: uniform.notes,
           charged: spend.ok ? spend.charged : 0,

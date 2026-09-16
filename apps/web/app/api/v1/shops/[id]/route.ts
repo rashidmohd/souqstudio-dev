@@ -5,7 +5,13 @@ import { ok, fail } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole, requireShopAccess } from '@/lib/authz'
 import { syncShopQuantity } from '@/lib/billing'
-import { MAX_BIO, MAX_STORE_PHOTOS, SHOP_TRADES, type ShopTrade } from '@souqstudio/engine'
+import {
+  MAX_BIO,
+  MAX_STORE_PHOTOS,
+  MAX_TRADES,
+  SHOP_TRADES,
+  type ShopTrade,
+} from '@souqstudio/engine'
 import { BRAND_OVERRIDES } from '@/lib/brand-inheritance'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 
@@ -32,7 +38,9 @@ const patchSchema = z
      * against. The owner's own words go in `bio`, which the prompt quotes as
      * data rather than splicing in as instruction.
      */
-    trade: z.enum(SHOP_TRADES as unknown as [ShopTrade, ...ShopTrade[]]).nullable(),
+    trades: z
+      .array(z.enum(SHOP_TRADES as unknown as [ShopTrade, ...ShopTrade[]]))
+      .max(MAX_TRADES),
     bio: z.string().trim().max(MAX_BIO).nullable(),
     /**
      * R2 object keys of photographs of the shop. Each is checked against this
@@ -107,7 +115,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Built key by key rather than spread wholesale: `exactOptionalPropertyTypes`
   // makes an explicit `undefined` different from an absent key, and Prisma's
   // update input accepts the second but not the first.
-  const { name, location, phone, brandOverride, trade, bio, storePhotoKeys } = parsed.data
+  const { name, location, phone, brandOverride, trades, bio, storePhotoKeys } = parsed.data
 
   /**
    * **Every store photo key must be this organization's.** A key is a read
@@ -133,7 +141,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(location !== undefined ? { location } : {}),
       ...(phone !== undefined ? { phone } : {}),
       ...(brandOverride !== undefined ? { brandOverride } : {}),
-      ...(trade !== undefined ? { trade } : {}),
+      ...(trades !== undefined ? { trades } : {}),
       ...(bio !== undefined ? { bio } : {}),
       ...(storePhotoKeys !== undefined ? { storePhotoKeys } : {}),
     },
@@ -144,7 +152,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       phone: true,
       isActive: true,
       brandOverride: true,
-      trade: true,
+      trades: true,
       bio: true,
       storePhotoKeys: true,
     },

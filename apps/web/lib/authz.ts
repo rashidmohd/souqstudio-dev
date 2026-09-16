@@ -125,7 +125,7 @@ export type ShopAccess = {
     isActive: boolean
     archivedAt: Date | null
     /** E8-01's shop profile — the settings screen edits all three. */
-    trade: string | null
+    trades: string[]
     bio: string | null
     storePhotoKeys: Prisma.JsonValue
   }
@@ -155,7 +155,7 @@ const SHOP_SELECT = {
   // E8-01's shop profile. Here for the reason the note above gives: the settings
   // screen edits all three, so all three have to come back from the gate that
   // lets it in — otherwise the form seeds them empty and saves that back.
-  trade: true,
+  trades: true,
   bio: true,
   storePhotoKeys: true,
 } satisfies Prisma.ShopSelect

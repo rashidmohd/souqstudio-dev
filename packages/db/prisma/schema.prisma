@@ -109,7 +109,12 @@ model Shop {
 
   /// E8-01. What the shop sells, from `SHOP_TRADES` in @souqstudio/engine —
   /// grocery | electronics | pharmacy | butcher | bakery | restaurant |
-  /// fashion | hardware | beauty | other.
+  /// fashion | hardware | beauty | other. Up to `MAX_TRADES` of them, in the
+  /// owner's own order; the first is what the shop leads with.
+  ///
+  /// **A list, because shops are.** A grocery with a bakery counter is the
+  /// common case in this market rather than an edge one, and forcing it to pick
+  /// one produces a character holding the wrong thing.
   ///
   /// **Closed, and it steers a prompt.** A generated character for a butcher is
   /// not a character for an electronics shop, and this is what tells them apart.
@@ -117,7 +122,11 @@ model Shop {
   /// which is both an injection surface and a vocabulary nothing can be tested
   /// against. The shop's own words go in `bio`, which is quoted rather than
   /// interpolated as an instruction.
-  trade          String?
+  ///
+  /// A scalar list rather than JSONB: it is a set of short enum-shaped strings
+  /// with no structure to it, and `String[]` is queryable where a JSON array is
+  /// not. `storePhotoKeys` beside it stays JSONB because it may grow fields.
+  trades         String[]
   /// E8-01. A few sentences the owner writes about the shop. Optional detail on
   /// top of `trade`, never a substitute for it.
   bio            String?

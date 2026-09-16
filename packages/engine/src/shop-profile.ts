@@ -42,6 +42,18 @@ export const TRADE_COPY: Readonly<Record<ShopTrade, { label: string; draw: strin
   other: { label: 'Something else', draw: 'a retail shop' },
 }
 
+/**
+ * How many segments one shop may claim.
+ *
+ * **Three, and the cap is the point.** A shop that is a grocery and a bakery is
+ * ordinary and the product should say so; a shop claiming eight segments has
+ * told a model nothing it can draw from, and "a grocery, electronics shop,
+ * pharmacy, butcher, bakery, restaurant, clothing shop and hardware shop" is not
+ * a sentence that produces a character. The field asks what the shop *mainly*
+ * sells and this is what makes that more than a hint.
+ */
+export const MAX_TRADES = 3
+
 /** How many photographs of the shop itself may be kept. */
 export const MAX_STORE_PHOTOS = 4
 
@@ -49,7 +61,14 @@ export const MIN_BIO = 20
 export const MAX_BIO = 600
 
 export interface ShopProfile {
-  trade: string | null
+  /**
+   * What the shop sells — one to `MAX_TRADES` of them.
+   *
+   * **A list rather than one, because shops are.** A grocery with a bakery
+   * counter is the common case in this market, not an edge one, and forcing it
+   * to pick produces a character holding the wrong thing.
+   */
+  trades: string[]
   bio: string | null
   storePhotoKeys: string[]
 }
@@ -64,9 +83,37 @@ export interface ShopProfile {
  * would gate the feature on a shop being photogenic.
  */
 export function isShopProfileComplete(profile: ShopProfile): boolean {
-  if (profile.trade === null || !isShopTrade(profile.trade)) return false
+  if (validTrades(profile.trades).length === 0) return false
   const bio = profile.bio?.trim() ?? ''
   return bio.length >= MIN_BIO
+}
+
+/**
+ * The segments this build understands, deduplicated and capped.
+ *
+ * **Everything reads the list through here.** It arrives from a JSON column and
+ * from a client, so a stale name, a repeat or an eleventh entry are all things
+ * that happen — and a prompt built from any of them is worse than one built from
+ * fewer. Order is the owner's: the first is what the shop leads with.
+ */
+export function validTrades(trades: readonly string[]): ShopTrade[] {
+  const seen = new Set<string>()
+  const kept: ShopTrade[] = []
+
+  for (const trade of trades) {
+    if (!isShopTrade(trade) || seen.has(trade)) continue
+    seen.add(trade)
+    kept.push(trade)
+    if (kept.length === MAX_TRADES) break
+  }
+
+  return kept
+}
+
+/** The segments as a JSON column hands them back. */
+export function tradesOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((entry): entry is string => typeof entry === 'string')
 }
 
 export function isShopTrade(value: string): value is ShopTrade {
@@ -76,9 +123,23 @@ export function isShopTrade(value: string): value is ShopTrade {
 /** What is still missing, in the order a person would fix it. */
 export function profileGaps(profile: ShopProfile): string[] {
   const gaps: string[] = []
-  if (profile.trade === null || !isShopTrade(profile.trade)) gaps.push('what the shop sells')
+  if (validTrades(profile.trades).length === 0) gaps.push('what the shop sells')
   if ((profile.bio?.trim().length ?? 0) < MIN_BIO) gaps.push('a description of the shop')
   return gaps
+}
+
+/**
+ * The segments as one phrase, for a prompt. "a grocery shop and a bakery".
+ *
+ * Built here rather than in the worker so that the screen and the prompt cannot
+ * describe the same shop differently — the argument `magic-prompt.ts` makes
+ * about one question, one vocabulary.
+ */
+export function tradesPhrase(trades: readonly string[]): string {
+  const parts = validTrades(trades).map((trade) => TRADE_COPY[trade].draw)
+  if (parts.length === 0) return 'a retail shop'
+  if (parts.length === 1) return parts[0] as string
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1] as string}`
 }
 
 /** The R2 keys on a shop, read back defensively from a JSON column. */
