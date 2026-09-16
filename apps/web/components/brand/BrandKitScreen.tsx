@@ -16,6 +16,7 @@ import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
 import { BrandDirectionDialog } from '@/components/brand/BrandDirectionDialog'
 import { LogoMarkDialog } from '@/components/brand/LogoMarkDialog'
+import { CharacterGallery, type Character } from '@/components/brand/CharacterGallery'
 import {
   Image as ImageIcon,
   Palette,
@@ -49,8 +50,8 @@ type Props = {
   }>
   /** Spendable credits, so matching a card can state its cost first. */
   credits: number
-  /** How many characters this shop has. E8-01 — the card's state line. */
-  characterCount: number
+  /** The shop's characters and their poses. E8-01 — the card shows them. */
+  characters: Character[]
 }
 
 /** Which section a save or an error belongs to. */
@@ -96,7 +97,7 @@ export function BrandKitScreen({
   isOwner,
   blocks,
   credits,
-  characterCount,
+  characters,
 }: Props) {
   const router = useRouter()
   const { kit, hydrate } = useBrandStore()
@@ -453,7 +454,15 @@ export function BrandKitScreen({
             icon={Smile}
             title="Character"
             description="A cartoon shop worker in your own uniform, for covers and banners. Made once, reused everywhere."
-            state={characterCount > 0 ? <><span data-figure>{characterCount}</span> saved</> : 'Not made yet'}
+            state={
+              characters.length > 0 ? (
+                <>
+                  <span data-figure>{characters.length}</span> saved
+                </>
+              ) : (
+                'Not made yet'
+              )
+            }
             note={null}
           >
             {/*
@@ -469,9 +478,11 @@ export function BrandKitScreen({
                 className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
               >
                 <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                {characterCount > 0 ? 'Make another character' : 'Make a character'}
+                {characters.length > 0 ? 'Make another character' : 'Make a character'}
               </Link>
             ) : null}
+
+            <CharacterGallery characters={characters} />
           </BrandCard>
 
         </>

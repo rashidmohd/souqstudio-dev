@@ -45,7 +45,7 @@ export default async function BrandKitPage() {
 
   // Blocks are published rows identical for every shop, so they are read here
   // rather than through an API the client would have to wait on.
-  const [brand, blocks, credits, characterCount] = await Promise.all([
+  const [brand, blocks, credits, characters] = await Promise.all([
     readEffectiveBrand({
       organizationId: shop.organizationId,
       shopId: shop.id,
@@ -57,9 +57,25 @@ export default async function BrandKitPage() {
       orderBy: { name: 'asc' },
     }),
     getCreditSnapshot(session.user.organizationId),
-    // E8-01. A count rather than the rows: the card shows how many there are and
-    // the dialog is what lists them.
-    prisma.character.count({ where: { shopId: shop.id } }),
+    /**
+     * E8-01 and E8-02. The rows, not a count — the card shows the characters
+     * themselves. It *was* a count, and that was the bug: an owner spent ten
+     * credits, chose between four faces, and then could only be told "1 saved".
+     */
+    prisma.character.findMany({
+      where: { shopId: shop.id },
+      select: {
+        id: true,
+        baseImageUrl: true,
+        style: true,
+        gender: true,
+        poses: {
+          select: { id: true, poseType: true, imageUrl: true, customLabel: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
   ])
 
   // **A brand is created in the wizard and managed here.** One creation path,
@@ -94,7 +110,7 @@ export default async function BrandKitPage() {
         canEdit={canEdit}
         isOwner={isOwner}
         credits={credits.total}
-        characterCount={characterCount}
+        characters={characters}
         blocks={blocks.map((block) => ({
           id: block.id,
           name: block.name,
