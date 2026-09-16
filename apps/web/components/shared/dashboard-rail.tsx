@@ -246,7 +246,7 @@ export function DashboardRail({
        * rather than being hidden behind the collapse. E8; see the component.
        */}
       <div className={cn('flex', collapsed ? 'justify-center' : 'justify-end')}>
-        <UnfinishedWork />
+        <UnfinishedWork collapsed={collapsed} />
       </div>
 
       <div className="flex flex-col gap-1">

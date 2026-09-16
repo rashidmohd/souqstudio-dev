@@ -4,6 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Bell } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 /**
  * What finished while you were somewhere else. E8.
@@ -47,7 +48,7 @@ const CLAIM: Readonly<Record<string, { label: string; href: (id: string) => stri
   cover_gen: { label: 'Covers are ready to choose from', href: () => '/brand' },
 }
 
-export function UnfinishedWork() {
+export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
   const [jobs, setJobs] = React.useState<Job[]>([])
   const [open, setOpen] = React.useState(false)
   const pathname = usePathname()
@@ -102,7 +103,29 @@ export function UnfinishedWork() {
       </button>
 
       {open ? (
-        <div className="absolute end-0 z-10 mt-1 w-pane rounded-card border border-border-strong bg-surface p-3">
+        /**
+         * **`fixed`, not `absolute`, and `w-pane` was not a width at all.**
+         *
+         * Two bugs in one element, both visible the first time somebody had
+         * something to collect. The rail is `sticky h-dvh overflow-y-auto` —
+         * a scroll container — so an absolutely positioned panel is clipped to
+         * the rail's own width and the list came out one word per line. And
+         * `w-pane` compiles to nothing: the width scale here is replaced rather
+         * than extended, the tokens are `w-rail`, `w-pane-start`, `w-pane-end`,
+         * and there is no `w-pane`. `check:classes` did not catch it, which is
+         * worth knowing about that check.
+         *
+         * Escaping the rail means leaving its coordinate system, so this is
+         * positioned against the viewport and sized by `max-w`.
+         */
+        <div
+          className={cn(
+            'fixed top-0 z-20 m-2 w-full max-w-md rounded-card border border-border-strong bg-surface p-3',
+            // Beside the rail, not inside it. The offset follows whichever width
+            // the rail is actually at.
+            collapsed ? 'start-rail-collapsed' : 'start-rail-collapsed lg:start-rail'
+          )}
+        >
           <p className="font-ui text-label font-medium text-primary">Ready to collect</p>
           <p className="font-ui text-body-sm text-muted">
             You have paid for these. They are waiting for you to choose.

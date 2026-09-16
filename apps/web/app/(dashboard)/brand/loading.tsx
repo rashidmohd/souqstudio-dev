@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageContainer } from '@/components/shared/page-container'
 
 /**
  * The brand kit page fans out to four reads — the effective brand, which is two
@@ -12,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export default function BrandKitLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">Brand kit</h1>
         <p className="font-ui text-body text-secondary">
@@ -24,6 +25,6 @@ export default function BrandKitLoading() {
       {/* The summary card, then the logo, colours and layout sections. */}
       <Skeleton shape="card" />
       <Skeleton shape="row" count={3} />
-    </div>
+    </PageContainer>
   )
 }

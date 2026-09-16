@@ -5,6 +5,7 @@ import { requireCompliantSession } from '@/lib/session'
 import { assignableRoles, atLeast, toRole } from '@/lib/authz'
 import { listTeam } from '@/lib/team'
 import { TeamList } from '@/components/team/TeamList'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Team · SouqStudio' }
 
@@ -32,7 +33,7 @@ export default async function TeamSettingsPage() {
   ])
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">Team</h1>
         <p className="font-ui text-body text-secondary">
@@ -58,6 +59,6 @@ export default async function TeamSettingsPage() {
         currentUserId={session.user.id}
         isOwner={role === 'owner'}
       />
-    </div>
+    </PageContainer>
   )
 }

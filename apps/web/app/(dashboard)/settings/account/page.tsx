@@ -3,6 +3,7 @@ import { prisma } from '@souqstudio/db'
 import { requireVerifiedSession } from '@/lib/session'
 import { countUnusedBackupCodes } from '@/lib/two-factor'
 import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Account · SouqStudio' }
 
@@ -42,7 +43,7 @@ export default async function AccountSettingsPage() {
   ])
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">Account</h1>
         <p className="font-ui text-body text-secondary">
@@ -61,6 +62,6 @@ export default async function AccountSettingsPage() {
         orgRequiredSince={organization?.requireTwoFactorSince?.toISOString() ?? null}
         teammates={teammates}
       />
-    </div>
+    </PageContainer>
   )
 }

@@ -9,6 +9,7 @@ import { getCreditSnapshot } from '@souqstudio/db'
 import { listBlocks } from '@/lib/blocks'
 import { NoShopBrandKit } from '@/components/brand/NoShopBrandKit'
 import { BlockLibrary } from '@/components/blocks/BlockLibrary'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Blocks · SouqStudio' }
 
@@ -32,10 +33,10 @@ export default async function BlocksPage() {
 
   if (!shop) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+      <PageContainer size="wide">
         <Header />
         <NoShopBrandKit />
-      </div>
+      </PageContainer>
     )
   }
 
@@ -63,7 +64,7 @@ export default async function BlocksPage() {
   const canEdit = shop.role === 'owner' || shop.role === 'manager'
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer size="wide">
       <Header />
       <BlockLibrary
         blocks={blocks.map((block) => ({
@@ -87,7 +88,7 @@ export default async function BlocksPage() {
         country={organization?.country ?? 'AE'}
         credits={credits.total}
       />
-    </div>
+    </PageContainer>
   )
 }
 

@@ -7,6 +7,7 @@ import { getBillingSummary } from '@/lib/billing-summary'
 import { listInvoices } from '@/lib/subscription'
 import { BillingScreen } from '@/components/billing/BillingScreen'
 import { InvoicesTable } from '@/components/billing/InvoicesTable'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Billing · SouqStudio' }
 
@@ -36,7 +37,7 @@ export default async function BillingSettingsPage() {
   ])
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">Billing</h1>
         <p className="font-ui text-body text-secondary">
@@ -46,6 +47,6 @@ export default async function BillingSettingsPage() {
 
       <BillingScreen summary={summary} />
       <InvoicesTable invoices={invoices} />
-    </div>
+    </PageContainer>
   )
 }

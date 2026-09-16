@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageContainer } from '@/components/shared/page-container'
 
 /**
  * The first `loading.tsx` in the app.
@@ -11,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export default function ShopsLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">Shops</h1>
         <p className="font-ui text-body text-secondary">
@@ -20,6 +21,6 @@ export default function ShopsLoading() {
       </div>
 
       <Skeleton shape="row" count={3} />
-    </div>
+    </PageContainer>
   )
 }

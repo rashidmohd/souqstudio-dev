@@ -7,6 +7,7 @@ import { toRole } from '@/lib/authz'
 import { readEffectiveBrand, isBrandSetupComplete } from '@/lib/brand-kit'
 import { BrandKitScreen } from '@/components/brand/BrandKitScreen'
 import { NoShopBrandKit } from '@/components/brand/NoShopBrandKit'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Brand kit · SouqStudio' }
 
@@ -35,10 +36,10 @@ export default async function BrandKitPage() {
 
   if (!shop) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+      <PageContainer>
         <Header />
         <NoShopBrandKit />
-      </div>
+      </PageContainer>
     )
   }
 
@@ -92,7 +93,7 @@ export default async function BrandKitPage() {
   const isOwner = toRole(session.user.role) === 'owner'
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <Header />
 
       <BrandKitScreen
@@ -107,7 +108,7 @@ export default async function BrandKitPage() {
         credits={credits.total}
         characters={characters}
       />
-    </div>
+    </PageContainer>
   )
 }
 

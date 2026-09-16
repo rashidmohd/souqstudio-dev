@@ -100,6 +100,11 @@ section of the product.
 
 `/settings/account` is a plain member of family 1 and needs no layout of its own.
 
+**Family 1 screens use `PageContainer`, not a hand-written column.** The width was
+`max-w-3xl` copied into thirteen files, which put every screen at 768px on a 1900px
+display and left two thirds of a laptop empty. It is now `max-w-5xl` by default and
+`max-w-7xl` for grids, decided in one component — see the inventory entry.
+
 **The rail is a client component (`components/shared/dashboard-rail.tsx`), not
 markup in the layout.** `NavItem` takes `icon: LucideIcon`, and a function cannot
 be serialized across the server/client boundary — a server layout passing icons

@@ -13,6 +13,7 @@ import { BrandOverrideField } from '@/components/shop/BrandOverrideField'
 import { ShopAccessField } from '@/components/shop/ShopAccessField'
 import { ShopProfileField } from '@/components/shop/ShopProfileField'
 import type { ShopMemberCandidate } from '@/components/shop/ShopAccessField'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Shop settings · SouqStudio' }
 
@@ -86,7 +87,7 @@ export default async function ShopSettingsPage({
   })
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <Link
           href="/settings/shops"
@@ -208,6 +209,6 @@ export default async function ShopSettingsPage({
           </section>
         </>
       )}
-    </div>
+    </PageContainer>
   )
 }

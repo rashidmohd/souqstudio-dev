@@ -135,11 +135,18 @@ export function Tabs({ items, value, onValueChange, label, className }: TabsProp
 }
 
 /**
- * One panel. **Hidden with `hidden`, never unmounted.**
+ * One panel. **Hidden, never unmounted.**
  *
- * The `hidden` attribute rather than a conditional render, so the panel's own
- * state — a half-typed palette name, an upload in progress — survives a tab
- * press. `[hidden]` is already `display: none !important` in the reset.
+ * Not rendered conditionally, so the panel's own state — a half-typed palette
+ * name, an upload in progress — survives a tab press.
+ *
+ * **The `hidden` attribute alone does not hide it, and assuming it did shipped
+ * a broken screen.** `[hidden] { display: none }` lives in the *user agent*
+ * stylesheet, and any author `display` rule beats it whatever its specificity —
+ * so a panel carrying `flex` stayed visible and `/brand` rendered all four
+ * sections at once with one tab underlined. The display class is therefore
+ * applied only when the panel is showing, and the attribute is kept for the
+ * accessibility tree rather than for layout.
  */
 export function TabPanel({
   value,
@@ -161,7 +168,10 @@ export function TabPanel({
       // A panel is focusable so that Tab from the row lands in its content
       // rather than skipping past it.
       tabIndex={selected ? 0 : -1}
-      className="flex flex-col gap-4 focus-visible:outline-none"
+      className={cn(
+        selected ? 'flex flex-col gap-4' : 'hidden',
+        'focus-visible:outline-none'
+      )}
     >
       {children}
     </div>

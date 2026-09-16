@@ -175,6 +175,20 @@ const config: Config = {
         control: 'var(--sq-h-control)',
         'control-lg': 'var(--sq-h-control-lg)',
       },
+      /**
+       * The rail's width as an offset, so something fixed to the viewport can
+       * sit *beside* the rail rather than under it.
+       *
+       * `inset` derives from `spacing`, and `spacing` here is replaced rather
+       * than extended — so `start-rail` compiled to nothing until this existed,
+       * which is how the notification panel ended up clipped inside a
+       * `overflow-y-auto` rail, one word per line. Named rather than a number
+       * for the reason the widths beside it are.
+       */
+      inset: {
+        rail: 'var(--sq-rail)',
+        'rail-collapsed': 'var(--sq-rail-collapsed)',
+      },
       width: {
         chip: 'var(--sq-size-chip)',
         rail: 'var(--sq-rail)',

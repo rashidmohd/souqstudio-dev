@@ -535,6 +535,33 @@ counts as a colour.
 through by the time the upload resolves. `ColorFields` and `ChoiceGrid` write
 only to the store; persisting is the caller's.
 
+### PageContainer
+
+| | |
+| --- | --- |
+| File | `components/shared/page-container.tsx` |
+| Status | `built` — apps/web only, 16 September |
+| Governs | `references/layout-map.md` → family 1 |
+
+```tsx
+type PageContainerProps = {
+  size?: 'default' | 'wide'         // max-w-5xl / max-w-7xl
+  className?: string
+} & React.HTMLAttributes<HTMLDivElement>
+```
+
+**The column a dashboard screen lives in, decided once.** It replaced
+`mx-auto flex w-full max-w-3xl flex-col gap-6 p-6` written out by hand in thirteen files
+— which is why every screen in the product was 768px wide on a 1900px display, and why
+changing that meant finding all of them. A width repeated is a width nobody owns.
+
+`default` is the reading width for forms, settings and stacks of cards. `wide` is for
+grids: the block library is a gallery of previews and every extra column is a block
+nobody has to scroll to.
+
+`size` uses the same word as `Button` and `Input`, because components carrying `size`
+must not disagree about what it means.
+
 ### Card
 
 | | |
@@ -652,6 +679,7 @@ still comes from a token.
 | --- | --- |
 | File | `components/ui/tabs.tsx` |
 | Status | `built` — apps/web only, rebuilt 16 September for `/brand` |
+| Exports | `Tabs`, `TabPanel` |
 | Governs | SKILL.md → Components → Tabs |
 
 ```tsx
@@ -698,6 +726,12 @@ about.
   Home and End jump to the ends.
 - **Hide panels, do not unmount them.** A panel that unmounts loses whatever was
   half-done in it, and switching tabs is not an action that should discard work.
+  **The `hidden` attribute alone will not do it**, and assuming it would shipped a broken
+  screen: `[hidden] { display: none }` is in the *user agent* stylesheet, and any author
+  `display` rule beats it whatever its specificity — so a panel carrying `flex` stayed
+  visible and `/brand` rendered all four sections at once with one tab underlined. `TabPanel`
+  applies the display class only when showing and keeps the attribute for the accessibility
+  tree. Use it rather than writing the panel by hand.
 
 ### Segmented · ToggleBar
 

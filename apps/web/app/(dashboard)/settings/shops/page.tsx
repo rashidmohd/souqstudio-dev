@@ -4,6 +4,7 @@ import { getActiveShop } from '@/lib/active-shop'
 import { assertShopLimit } from '@/lib/billing'
 import { listShops } from '@/lib/shops'
 import { ShopList } from '@/components/shop/ShopList'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Shops · SouqStudio' }
 
@@ -30,7 +31,7 @@ export default async function ShopsSettingsPage() {
   const isOwner = session.user.role === 'owner'
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">Shops</h1>
         <p className="font-ui text-body text-secondary">
@@ -56,6 +57,6 @@ export default async function ShopsSettingsPage() {
         canManage={isOwner}
         activeShopId={active?.id ?? null}
       />
-    </div>
+    </PageContainer>
   )
 }

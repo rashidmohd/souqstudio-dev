@@ -6,6 +6,7 @@ import { toRole } from '@/lib/authz'
 import { shopCounts } from '@/lib/shops'
 import { ORG_DELETE_BUILT } from '@/lib/features'
 import { OrganizationForm } from '@/components/organization/OrganizationForm'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Organization · SouqStudio' }
 
@@ -42,7 +43,7 @@ export default async function OrganizationSettingsPage() {
   const isOwner = toRole(session.user.role) === 'owner'
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-title text-primary">Organization</h1>
         <p className="font-ui text-body text-secondary">
@@ -92,6 +93,6 @@ export default async function OrganizationSettingsPage() {
           </p>
         </div>
       ) : null}
-    </div>
+    </PageContainer>
   )
 }

@@ -8,6 +8,7 @@ import { isBrandSetupComplete, readEffectiveBrand } from '@/lib/brand-kit'
 import { publicUrl } from '@/lib/r2'
 import { CharacterFlow } from '@/components/brand/CharacterFlow'
 import { NoShopBrandKit } from '@/components/brand/NoShopBrandKit'
+import { PageContainer } from '@/components/shared/page-container'
 
 export const metadata: Metadata = { title: 'Make a character · SouqStudio' }
 
@@ -39,10 +40,10 @@ export default async function CharacterPage({
 
   if (!shop) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+      <PageContainer>
         <Header />
         <NoShopBrandKit />
-      </div>
+      </PageContainer>
     )
   }
 
@@ -67,7 +68,7 @@ export default async function CharacterPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <PageContainer>
       <Header />
 
       <CharacterFlow
@@ -81,7 +82,7 @@ export default async function CharacterPage({
         storePhotoUrls={storePhotoKeys.map(publicUrl)}
         {...(searchParams.job === undefined ? {} : { resumeJobId: searchParams.job })}
       />
-    </div>
+    </PageContainer>
   )
 }
 
