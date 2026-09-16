@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Image as ImageIcon, Trash2 } from 'lucide-react'
+import { Image as ImageIcon, Sparkles, Trash2 } from 'lucide-react'
 import type { BrandColor, ColorValue, PageBackground, TokenRef } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { uploadArtwork } from '@/lib/upload-artwork'
+import { CoverDialog } from '@/components/editor/CoverDialog'
 
 /**
  * The paper behind every card in the book. E6 —
@@ -26,6 +27,13 @@ import { uploadArtwork } from '@/lib/upload-artwork'
  * control inside. Splitting them here would be four modes for three decisions,
  * and would also mean a second gradient editor.
  *
+ * **A generated ground arrives by the same door as an uploaded one.** E8-04
+ * draws a background and stores it at `{org}/{shop}/covers/…`; this control
+ * already turns an R2 key into `{ from: 'asset' }`, and that key satisfies the
+ * background route's org-prefix tenancy check unchanged. So "Generate" sits
+ * beside "Upload" and everything downstream — the fit control, the strength
+ * slider, `assetResolver`, the painter — cannot tell the two apart.
+ *
  * **`ColorControl` is reused from the card designer rather than rebuilt.** It
  * carries the palette rows, the mechanics row, the hex box, the eight gradient
  * directions and the stop editor; a second colour picker in this product is how
@@ -38,6 +46,13 @@ type Props = {
   palette: readonly BrandColor[]
   token: (ref: TokenRef) => string
   disabled: boolean
+  /**
+   * The page's aspect — width ÷ height — which decides the shape a generated
+   * ground is drawn at. Omitted hides the generate button entirely, so a caller
+   * that does not know its page shape offers upload alone rather than drawing a
+   * story-shaped ground onto an A4 page.
+   */
+  aspect?: number | undefined
 }
 
 type Mode = 'none' | 'color' | 'image'
@@ -48,8 +63,16 @@ function modeOf(value: PageBackground | null): Mode {
   return value.from === 'asset' ? 'image' : 'color'
 }
 
-export function PageBackgroundControl({ value, onChange, palette, token, disabled }: Props) {
+export function PageBackgroundControl({
+  value,
+  onChange,
+  palette,
+  token,
+  disabled,
+  aspect,
+}: Props) {
   const mode = modeOf(value)
+  const [generating, setGenerating] = React.useState(false)
   const [uploading, setUploading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const file = React.useRef<HTMLInputElement>(null)
@@ -107,6 +130,38 @@ export function PageBackgroundControl({ value, onChange, palette, token, disable
           file.current?.click()
         }}
       />
+
+      {/*
+        **Outside the mode blocks, and available in every mode.** Switching the
+        segmented control to Image opens the file picker for the reason stated
+        above — there is nothing to show until a file exists. That leaves an
+        owner who wants a *generated* ground with no way in, so the button is
+        here rather than inside the image mode they cannot reach yet. It keeps
+        the same contract the picker does: the background changes only once
+        there is a key, and closing the dialog changes nothing.
+      */}
+      {aspect !== undefined ? (
+        <div>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => setGenerating(true)}
+          >
+            <Sparkles className="size-4" aria-hidden="true" strokeWidth={1.75} />
+            Generate a ground
+          </Button>
+        </div>
+      ) : null}
+
+      {aspect !== undefined ? (
+        <CoverDialog
+          open={generating}
+          onOpenChange={setGenerating}
+          aspect={aspect}
+          onChosen={(assetId) => onChange({ from: 'asset', assetId, fit: 'cover', opacity: 1 })}
+        />
+      ) : null}
 
       {mode === 'color' && value !== null && value.from !== 'asset' ? (
         <ColorControl

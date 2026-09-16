@@ -245,10 +245,23 @@ model id that has moved is a 404 that reads like a bad key.
 
 ## 3a. What is owed on E8-01 to E8-04
 
-1. **No UI for E8-02, E8-03 or E8-04.** Their routes, jobs and vocabularies are built and
-   typed; nothing calls them. The pose library wants a panel on the character card, and the
-   cover picker belongs in E6's create flow rather than in the brand kit — which is a
-   placement question, not a build one.
+1. **No UI for E8-02 or E8-03.** Their routes, jobs and vocabularies are built and typed;
+   nothing calls them. The pose library wants a panel on the character card — `CharacterGallery`
+   already *renders* poses and has no way to make one, so it is a trigger rather than a screen.
+
+   ~~E8-04~~ **shipped on 16 September, and the placement question answered itself.** It was
+   going to go in E6's create flow, on the reasoning that a cover is chosen while deciding
+   what you are making. It is in the editor's page-background control instead, beside
+   "Upload", because that control *already* turns an R2 key into
+   `{ from: 'asset', fit, opacity }` and a generated cover is stored at `{org}/{shop}/covers/…`
+   — which satisfies the background route's org-prefix tenancy check with no change at all.
+   The create flow would have had to carry the key in `offer_book_drafts` until the book
+   existed; a brand-kit library would have needed a table. This needed neither, and it works
+   on a book an owner already has rather than only on the next one they start.
+
+   **The shape is derived from the page, never asked.** `shapeFor` in `CoverDialog.tsx`, and
+   the reason is in its test: a story-shaped ground under `fit: 'cover'` on an A4 page is
+   cropped to a sliver, and that reads as a bad drawing rather than as a mismatch.
 2. ~~**Nothing has been run against a live image model.**~~ **E8-01 has**, four times, on
    16 September: four variations each, ten credits each, two characters kept, and the last
    two runs on `photo-real` against a three-segment shop. So `IMAGE_PROVIDER=gemini`, the
@@ -262,9 +275,15 @@ model id that has moved is a 404 that reads like a bad key.
 4. **Discarded variations stay in the bucket.** No row references them and nothing can reach
    them, which is what E8-01 means by "not saved". A lifecycle rule on the prefix is the
    cheap way to remove the objects; deleting them on the owner's click is not.
-5. **E9 still does not know about the generated cover.** E8-04 produces a background and the
-   composition of name, logo and character onto it is the export's. The seam is an R2 key,
-   as §7 already says.
+5. **A generated cover is a page ground today; the *composite* is still E9's.** This used to
+   say the cover had nowhere to live. Half of that is closed: the drawn background reaches a
+   page through `PageBackground`, renders through the same `assetResolver` as uploaded
+   artwork, and prints wherever a page background prints. What is still owed is what the job
+   doc has always said — the shop's name, its logo and its character go *on top*, and nothing
+   composes them yet. An owner who wants a name on their cover types it into the editor.
+
+   So the dialog says "generate a page ground" rather than "generate a cover". An owner told
+   the second and handed a background with no name on it would read that as a failure.
 
 ---
 

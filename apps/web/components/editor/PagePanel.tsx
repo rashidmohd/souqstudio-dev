@@ -40,6 +40,8 @@ type Props = {
   onMatchBook: () => void
   palette: readonly BrandColor[]
   token: (ref: TokenRef) => string
+  /** Width ÷ height of the page, for the shape a generated ground is drawn at. */
+  aspect: number
 
   selection: {
     /** Cells covered. Zero when nothing is selected. */
@@ -84,6 +86,7 @@ export function PagePanel({
   onMatchBook,
   palette,
   token,
+  aspect,
   selection,
   onMerge,
   onUnmerge,
@@ -129,6 +132,7 @@ export function PagePanel({
           onChange={onBackground}
           palette={palette}
           token={token}
+          aspect={aspect}
           /*
             **Never disabled while a write is in flight.** A colour control emits
             continuously and the write is debounced, so there is nothing to

@@ -693,6 +693,12 @@ export function EditorShell({
                 palette={palette}
                 token={(ref) => resolveToken(palette, ref)}
                 /*
+                  Every page in the book is this shape — the master grid is what
+                  `page` describes — so a ground generated here is drawn at the
+                  aspect it will actually be cropped to.
+                */
+                aspect={page.width / page.height}
+                /*
                   **Never disabled while a write is in flight.** `grid.busy` was
                   wired here, so the control went dead mid-drag the moment a
                   request started and the gesture was lost. A debounced write has
@@ -727,6 +733,7 @@ export function EditorShell({
                 }}
                 palette={palette}
                 token={(ref) => resolveToken(palette, ref)}
+                aspect={page.width / page.height}
                 selection={selection}
                 addToSelection={addToSelection}
                 onToggleAddToSelection={() => setAddToSelection((on) => !on)}
