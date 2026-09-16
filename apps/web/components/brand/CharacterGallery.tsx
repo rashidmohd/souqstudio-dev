@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { MachineOutput } from '@/components/ui/machine-output'
+import { ImageViewer, type ViewerImage } from '@/components/brand/ImageViewer'
 
 /**
  * The characters this shop has, and their poses. E8-01 and E8-02.
@@ -54,6 +55,28 @@ const POSE_LABEL: Readonly<Record<string, string>> = {
 }
 
 export function CharacterGallery({ characters }: { characters: Character[] }) {
+  /**
+   * Every image in the card, flattened, so the viewer steps through the lot.
+   *
+   * **One list rather than one per character**, because what an owner is doing
+   * here is looking through what they have — a base character and its poses are
+   * the same kind of thing to them, and stopping the arrow keys at the end of
+   * each character would be the product enforcing a distinction nobody is
+   * thinking about.
+   */
+  const images: ViewerImage[] = characters.flatMap((character) => [
+    { url: character.baseImageUrl, label: label(character) },
+    ...character.poses.map((pose) => ({
+      url: pose.imageUrl,
+      label: poseLabel(pose),
+    })),
+  ])
+
+  const [viewing, setViewing] = React.useState<number | null>(null)
+
+  /** Where a given image sits in the flattened list. */
+  const positionOf = (url: string) => images.findIndex((image) => image.url === url)
+
   if (characters.length === 0) return null
 
   return (
@@ -70,12 +93,19 @@ export function CharacterGallery({ characters }: { characters: Character[] }) {
              */}
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
               <figure className="flex flex-col gap-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={character.baseImageUrl}
-                  alt={`The shop's ${STYLE_LABEL[character.style] ?? character.style} character`}
-                  className="aspect-square w-full rounded-block border border-border-subtle object-contain"
-                />
+                <button
+                  type="button"
+                  onClick={() => setViewing(positionOf(character.baseImageUrl))}
+                  aria-label={`See ${label(character)} larger`}
+                  className="rounded-block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={character.baseImageUrl}
+                    alt={label(character)}
+                    className="aspect-square w-full rounded-block border border-border-subtle object-contain transition-transform duration-fast ease-sq hover:scale-105"
+                  />
+                </button>
                 <figcaption className="font-ui text-body-sm text-secondary">
                   {STYLE_LABEL[character.style] ?? character.style}
                 </figcaption>
@@ -85,12 +115,19 @@ export function CharacterGallery({ characters }: { characters: Character[] }) {
                 <>
                   {character.poses.map((pose) => (
                     <figure key={pose.id} className="flex flex-col gap-1">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={pose.imageUrl}
-                        alt={pose.customLabel ?? POSE_LABEL[pose.poseType] ?? pose.poseType}
-                        className="aspect-square w-full rounded-chip border border-border-subtle object-contain"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setViewing(positionOf(pose.imageUrl))}
+                        aria-label={`See ${poseLabel(pose)} larger`}
+                        className="rounded-chip focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={pose.imageUrl}
+                          alt={poseLabel(pose)}
+                          className="aspect-square w-full rounded-chip border border-border-subtle object-contain transition-transform duration-fast ease-sq hover:scale-105"
+                        />
+                      </button>
                       <figcaption className="font-ui text-body-sm text-muted">
                         {pose.customLabel ?? POSE_LABEL[pose.poseType] ?? pose.poseType}
                       </figcaption>
@@ -107,6 +144,14 @@ export function CharacterGallery({ characters }: { characters: Character[] }) {
           </li>
         ))}
       </ul>
+
+      <ImageViewer images={images} index={viewing} onIndexChange={setViewing} />
     </MachineOutput>
   )
 }
+
+const label = (character: Character) =>
+  `${STYLE_LABEL[character.style] ?? character.style} character`
+
+const poseLabel = (pose: CharacterPose) =>
+  pose.customLabel ?? POSE_LABEL[pose.poseType] ?? pose.poseType

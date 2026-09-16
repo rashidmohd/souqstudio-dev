@@ -20,6 +20,7 @@ import { FileDropzone } from '@/components/ui/file-dropzone'
 import { Input } from '@/components/ui/input'
 import { MachineOutput } from '@/components/ui/machine-output'
 import { Segmented } from '@/components/ui/segmented'
+import { ImageViewer } from '@/components/brand/ImageViewer'
 import { Select } from '@/components/ui/select'
 
 /**
@@ -126,6 +127,8 @@ export function CharacterFlow({
   /** Whose logo goes on the uniform: none, the brand kit's, or an upload. */
   const [logoSource, setLogoSource] = React.useState<'none' | 'brand' | 'upload'>('none')
   const [logoFile, setLogoFile] = React.useState<File | null>(null)
+  /** Which variation is open large, if any. Viewing is not choosing. */
+  const [viewing, setViewing] = React.useState<number | null>(null)
   const [style, setStyle] = React.useState<CharacterStyle>('cartoon')
   const [gender, setGender] = React.useState<CharacterGender>('both')
   const [look, setLook] = React.useState<CharacterLook>('unspecified')
@@ -267,29 +270,64 @@ export function CharacterFlow({
         <div className="flex flex-col gap-4">
           <Notes notes={phase.notes} />
 
+          {/*
+           * **The picture opens it; the button keeps it.** These were one
+           * control and that was the bug: the only way to see a character
+           * properly was to commit to it, and four faces at thumbnail size is
+           * not a choice anybody can make.
+           */}
           <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {phase.variations.map((variation, index) => (
-              <li key={variation.key}>
+              <li key={variation.key} className="flex flex-col gap-2 rounded-block border border-border-strong p-2">
                 <button
                   type="button"
-                  disabled={phase.at === 'saving'}
-                  onClick={() => void keep([index])}
-                  aria-label={`Keep character ${index + 1}`}
-                  className="flex w-full flex-col gap-2 rounded-block border border-border-strong p-2 hover:bg-stone-100 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+                  onClick={() => setViewing(index)}
+                  aria-label={`See character ${index + 1} larger`}
+                  className="rounded-chip focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={variation.url}
                     alt={`Character ${index + 1}`}
-                    className="aspect-square w-full rounded-chip object-contain"
+                    className="aspect-square w-full rounded-chip object-contain transition-transform duration-fast ease-sq hover:scale-105"
                   />
-                  <span className="font-ui text-label text-primary">
-                    {phase.at === 'saving' && phase.index === index ? 'Saving…' : 'Keep this'}
-                  </span>
                 </button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={phase.at === 'saving'}
+                  onClick={() => void keep([index])}
+                >
+                  {phase.at === 'saving' && phase.index === index ? 'Saving…' : 'Keep this'}
+                </Button>
               </li>
             ))}
           </ul>
+
+          <ImageViewer
+            images={phase.variations.map((variation, index) => ({
+              url: variation.url,
+              label: `Character ${index + 1} of ${phase.variations.length}`,
+            }))}
+            index={viewing}
+            onIndexChange={setViewing}
+            // Keeping from inside the viewer, so somebody who opened one to look
+            // properly does not have to close it, find the tile again and press
+            // a second button.
+            action={(index) => (
+              <Button
+                type="button"
+                variant="primary"
+                disabled={phase.at === 'saving'}
+                onClick={() => {
+                  setViewing(null)
+                  void keep([index])
+                }}
+              >
+                Keep this one
+              </Button>
+            )}
+          />
 
           {phase.at === 'picking' && phase.error !== undefined ? (
             <p className="font-ui text-body-sm text-critical-fg">{phase.error}</p>
