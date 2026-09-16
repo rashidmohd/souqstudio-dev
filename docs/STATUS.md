@@ -7,7 +7,8 @@ Last updated 13 September 2026.
 
 **Home is a shelf of book covers.** The six most recent draw their own first page — the
 real `BookPage` at thumbnail size, not a stored image, so a cover cannot disagree with the
-book it stands for. Earlier ones are a list in a dialog. `docs/E6-create-flow.md` §22.
+book it stands for. Earlier ones are the same shelf inside a dialog, drawn twelve at a time
+by `POST /api/v1/offer-books/covers` when it is opened. `docs/E6-create-flow.md` §22–§23.
 
 **A price list now survives being walked away from.** `offer_book_drafts` (migration
 `20260915120000`) keeps the sheet, the column mapping and every choice an owner has made,

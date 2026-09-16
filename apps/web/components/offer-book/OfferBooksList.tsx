@@ -4,16 +4,16 @@ import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Archive, CopyPlus, FileText, Plus } from 'lucide-react'
-import type { Block, BrandKit, PageBackground } from '@souqstudio/types'
-import type { FlowPage } from '@souqstudio/engine'
+import type { BrandKit } from '@souqstudio/types'
 import { Card } from '@/components/ui/card'
 import { Figure } from '@/components/ui/figure'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/shared/empty-state'
 import { BookPage } from '@/components/editor/BookPage'
 import { assetResolver } from '@/lib/block-assets'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { BookCover } from '@/lib/offer-book-compose'
 import { BOOK_CREATION_BUILT, EDITOR_BUILT } from '@/lib/features'
 
 /**
@@ -37,24 +37,15 @@ type OfferBookSummary = {
   updatedAt: string
 }
 
-/**
- * A book's first page, composed on the server, ready to draw.
- *
- * **The real page at a small size, not a picture of it.** The artboard is inline
- * SVG produced from engine geometry, so a thumbnail is the same component the
- * editor and the preview use — which means it cannot disagree with the page it
- * stands for. A stored image would, the first time somebody changed a price.
- */
-export type BookCover = {
-  page: FlowPage
-  size: { width: number; height: number }
-  offers: Record<string, ComposedOffer>
-  blocks: Record<string, Block>
-  direction: 'ltr' | 'rtl'
-  background: PageBackground | null
-}
-
 const NOT_YET = 'Creating an offer book is not built yet.'
+
+/**
+ * How many covers the dialog draws per request.
+ *
+ * Matches the bound on `POST /api/v1/offer-books/covers`, which is where the
+ * reason lives: each one runs the engine.
+ */
+const COVER_PAGE = 12
 
 export function OfferBooksList({
   books,
@@ -85,6 +76,54 @@ export function OfferBooksList({
    */
   const recent = books.slice(0, 6)
   const past = books.slice(6)
+
+  /**
+   * Covers for the dialog, fetched when it is opened and a page at a time.
+   *
+   * **Not on mount.** Most visits never open it, and composing forty books to
+   * serve the ones that do is the cost the home screen was bounded at six to
+   * avoid. Opening it is the request.
+   */
+  const [pastCovers, setPastCovers] = React.useState<Record<string, BookCover>>({})
+  const [drawn, setDrawn] = React.useState(0)
+  const [loadingCovers, setLoadingCovers] = React.useState(false)
+  const [coverError, setCoverError] = React.useState<string | null>(null)
+
+  const drawMore = React.useCallback(async () => {
+    const next = past.slice(drawn, drawn + COVER_PAGE).map((book) => book.id)
+    if (next.length === 0) return
+
+    setLoadingCovers(true)
+    setCoverError(null)
+    try {
+      const res = await fetch('/api/v1/offer-books/covers', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: next }),
+      })
+      const body = await res.json()
+      if (!res.ok || body.error) {
+        // **Caution, not critical, and the tiles stay.** A cover is decoration
+        // on a list that works without it; refusing to show the books because
+        // their pictures did not arrive would be the wrong trade.
+        setCoverError('Those covers could not be drawn. The books still open.')
+        return
+      }
+      setPastCovers((current) => ({ ...current, ...body.data.covers }))
+    } catch {
+      setCoverError('Those covers could not be drawn. The books still open.')
+    } finally {
+      // Advanced whether or not it worked, so a failure does not put the owner
+      // in a loop pressing a button that asks for the same twelve again.
+      setDrawn((count) => count + next.length)
+      setLoadingCovers(false)
+    }
+  }, [past, drawn])
+
+  const openPast = React.useCallback(() => {
+    setShowingPast(true)
+    if (drawn === 0) void drawMore()
+  }, [drawMore, drawn])
   const [duplicating, setDuplicating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -166,9 +205,14 @@ export function OfferBooksList({
 
       {/* **A grid of what they look like, not a list of what they are called.**
           A shop's books are "last week's", "the Eid one" and "the one with the
-          rice on the front" — recognised by sight long before the title is
-          read. Three across on a desktop, two on a tablet, one on a phone. */}
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          rice on the front" — recognised by sight long before the title is read.
+
+          **Four across rather than three.** The first version gave each cover a
+          third of a wide screen, which is a poster rather than a thumbnail: a
+          page at that size invites reading, and nothing on it is legible enough
+          to reward the attempt. Smaller is also more of them at once, which is
+          what a shelf is for. */}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {recent.map((book) => (
           <li key={book.id} className="flex">
             <BookTile
@@ -184,17 +228,17 @@ export function OfferBooksList({
 
       {past.length > 0 ? (
         <div className="flex">
-          <Button type="button" variant="secondary" onClick={() => setShowingPast(true)}>
+          <Button type="button" variant="secondary" onClick={openPast}>
             <Archive className="size-4" aria-hidden="true" strokeWidth={1.75} />
             Earlier books <Figure value={past.length} size="data-sm" />
           </Button>
         </div>
       ) : null}
 
-      {/* **A list, not a grid, and composing nothing.** By the time an owner is
-          looking this far back they are searching for a name rather than
-          recognising a picture — and a cover is a full composition per book,
-          which is a cost worth paying six times and not forty. */}
+      {/* **The same shelf, drawn when it is asked for.** It used to be a list of
+          rows because a cover is a full composition and forty before the home
+          screen paints is not a cost worth paying. Opening the dialog *is* the
+          asking, so the covers load here, twelve at a time. */}
       <Dialog
         open={showingPast}
         onOpenChange={setShowingPast}
@@ -202,13 +246,44 @@ export function OfferBooksList({
         description="Everything older than the six on your home screen."
         size="lg"
       >
-        <ul className="flex flex-col gap-2">
-          {past.map((book) => (
-            <li key={book.id}>
-              <Row book={book} />
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-3">
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {past.map((book) => (
+              <li key={book.id} className="flex">
+                <BookTile
+                  book={book}
+                  cover={pastCovers[book.id]}
+                  /* A tile with no cover yet and one that will never have one
+                     look different: the first is a skeleton and the second a
+                     glyph. Telling an owner "there is no picture" while one is
+                     on its way is a small lie they will notice. */
+                  pending={loadingCovers && pastCovers[book.id] === undefined}
+                  kit={kit}
+                  shopName={shopName}
+                  asset={asset}
+                />
+              </li>
+            ))}
+          </ul>
+
+          {drawn < past.length ? (
+            <Button
+              type="button"
+              variant="secondary"
+              loading={loadingCovers}
+              onClick={() => void drawMore()}
+            >
+              Draw <Figure value={Math.min(COVER_PAGE, past.length - drawn)} size="data-sm" />{' '}
+              more
+            </Button>
+          ) : null}
+
+          {coverError !== null ? (
+            <p className="font-ui text-body-sm text-caution-fg" role="status">
+              {coverError}
+            </p>
+          ) : null}
+        </div>
       </Dialog>
     </div>
   )
@@ -231,12 +306,15 @@ export function OfferBooksList({
 function BookTile({
   book,
   cover,
+  pending = false,
   kit,
   shopName,
   asset,
 }: {
   book: OfferBookSummary
   cover: BookCover | undefined
+  /** Its cover is on its way. A skeleton rather than the no-picture glyph. */
+  pending?: boolean
   kit: BrandKit
   shopName: string
   asset: (assetId: string) => string | null
@@ -245,10 +323,23 @@ function BookTile({
     <Card padding="compact" className="flex w-full flex-col gap-2">
       <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-100">
         {cover === undefined ? (
-          // Not an error and not a spinner: a book whose first page could not be
-          // composed still opens, and the tile says what it is rather than
-          // pretending something is loading.
-          <FileText className="size-icon-lg text-secondary" aria-hidden="true" strokeWidth={1.5} />
+          pending ? (
+            // Its picture is coming. `Skeleton` rather than the glyph, because
+            // the glyph means "there is no picture" and that is not yet known.
+            // `card` is the shape, overridden to fill the frame: the frame
+            // already has the aspect ratio, and `h-skeleton-card` inside it
+            // would be a short bar floating in a tall box.
+            <Skeleton shape="card" className="size-full rounded-control" />
+          ) : (
+            // Not an error and not a spinner: a book whose first page could not
+            // be composed still opens, and the tile says what it is rather than
+            // pretending something is loading.
+            <FileText
+              className="size-icon-lg text-secondary"
+              aria-hidden="true"
+              strokeWidth={1.5}
+            />
+          )
         ) : (
           <BookPage
             page={cover.page}

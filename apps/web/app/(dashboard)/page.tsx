@@ -7,9 +7,9 @@ import { readEffectiveBrand } from '@/lib/brand-kit'
 import { readChecklist } from '@/lib/checklist'
 import { GettingStartedChecklist } from '@/components/shared/GettingStartedChecklist'
 import { OfferBooksList } from '@/components/offer-book/OfferBooksList'
-import { loadBook } from '@/lib/offer-book'
+import { composeCover } from '@/lib/offer-book'
 import { env } from '@/lib/env'
-import type { BookCover } from '@/components/offer-book/OfferBooksList'
+import type { BookCover } from '@/lib/offer-book-compose'
 
 export const metadata: Metadata = { title: 'Offer books · SouqStudio' }
 
@@ -85,32 +85,8 @@ export default async function HomePage() {
    */
   const covers = await Promise.all(
     offerBooks.slice(0, COVERS).map(async (book): Promise<[string, BookCover] | null> => {
-      const composed = await loadBook(book.id, session.user.organizationId)
-      const page = composed?.pages[0]
-      if (composed === undefined || composed === null || page === undefined) return null
-
-      // Only the offers this page draws. The others are on pages nobody is
-      // looking at, and a home screen carrying nine pages of composed offers
-      // per book is a payload measured in megabytes.
-      const drawn = new Set(
-        page.placements.flatMap((placement) =>
-          placement.offerId === null ? [] : [placement.offerId]
-        )
-      )
-
-      return [
-        book.id,
-        {
-          page,
-          size: composed.page,
-          offers: Object.fromEntries(
-            composed.offers.filter((offer) => drawn.has(offer.id)).map((offer) => [offer.id, offer])
-          ),
-          blocks: composed.blocks,
-          direction: composed.edition === 'ar' ? 'rtl' : 'ltr',
-          background: composed.pageBackgrounds[0] ?? composed.layout.background,
-        },
-      ]
+      const cover = await composeCover(book.id, session.user.organizationId)
+      return cover === null ? null : [book.id, cover]
     })
   )
 

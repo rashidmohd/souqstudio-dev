@@ -1704,3 +1704,65 @@ of composed offers per book is a payload measured in megabytes.
   of these" belongs in the grid more than the sixth finished book does.
 - **Not opened in a browser**, and this one is entirely visual — six live artboards at
   thumbnail size, in a grid, in two directions.
+
+---
+
+## 23. Covers in the dialog, and smaller ones everywhere, 16 September
+
+§22.3 left two things and both were the same complaint: the covers were too big, and the
+dialog had none.
+
+### 23.1 Four across, not three
+
+The first version gave each cover a third of a wide screen, **which is a poster rather than
+a thumbnail**. A page at that size invites reading and nothing on it is legible enough to
+reward the attempt — so it reads as a broken page rather than as a picture of one. Four
+across on a desktop, three on a tablet, two on a phone: smaller, and more of them at once,
+which is what a shelf is for.
+
+### 23.2 The dialog is the same shelf, drawn when asked for
+
+It was a list of rows, and §22.2 gave the reason: a cover is a full composition and forty
+before the home screen paints is not a cost worth paying.
+
+**Opening the dialog is the asking.** `POST /api/v1/offer-books/covers` draws twelve at a
+time, on demand, and "Draw 12 more" gets the next page. Most visits never open it and
+compose nothing extra; the visit that does pays only for what it looks at.
+
+A read that takes a body, hence `POST` — same shape and same reason as `/offer-books/match`:
+a list of ids does not belong in a query string and nothing here is a write. Twelve is the
+bound on the route as well as the page size in the dialog, and the reason lives at the
+route: each one runs the engine.
+
+### 23.3 Three failure states, deliberately different
+
+- **No cover yet, one is coming** — a `Skeleton`. Shaped `card` and overridden to fill the
+  frame, because the frame already carries the aspect ratio and `h-skeleton-card` inside it
+  is a short bar floating in a tall box.
+- **No cover and there never will be** — the document glyph. A book that will not compose
+  still opens.
+- **The request failed** — a `caution` line, and *the tiles stay*. A cover is decoration on
+  a list that works without it; refusing to show the books because their pictures did not
+  arrive is the wrong trade. `drawn` advances even on failure, so the owner is not left
+  pressing a button that asks for the same twelve again.
+
+### 23.4 One shape, one composer
+
+`BookCover` was declared in the list component and `composeCover` did not exist — the home
+screen had the "only page one's offers" logic inline. With a second producer arriving that
+is a shape copied and a rule copied, so both moved: the type to
+`lib/offer-book-compose.ts`, which the client already imports from, and the composition to
+`composeCover` in `lib/offer-book.ts`. The home screen and the route now compose covers the
+same way because there is only one way.
+
+### 23.5 Still owed
+
+- **Nothing lazy-loads on the home screen.** Its six compose before the page paints, so a
+  slow database delays the whole screen rather than the pictures on it. `Suspense` would let
+  the list and its buttons arrive first. The dialog is now the example of how that reads.
+- **The dialog draws twelve and then stops until asked.** An owner with sixty books presses
+  four times. Drawing the next page as they scroll is the obvious improvement and wants an
+  intersection observer, which is a thing this codebase does not have yet.
+- **Drafts are still not on the shelf** — unchanged from §22.3, and still the tile that
+  belongs in that grid more than the sixth finished book does.
+- **Not opened in a browser.**
