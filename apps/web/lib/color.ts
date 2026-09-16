@@ -6,37 +6,27 @@
  * quantizer and the contrast rule can be tested without an image.
  */
 
-export type Rgb = { r: number; g: number; b: number }
+// Conversion and the WCAG rule moved to `@souqstudio/engine/src/contrast.ts`
+// when E8-08 needed the same bar inside the worker — a proposal refused on one
+// side of the queue and merely warned about on the other reads as the product
+// disagreeing with itself. Re-exported here so this module's surface, and
+// everything importing it, is unchanged.
+import { toHex, type Rgb } from '@souqstudio/engine'
 
-// ─── Conversion ───────────────────────────────────────────────────────────────
-
-export function toHex({ r, g, b }: Rgb): string {
-  const pair = (value: number) =>
-    Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0')
-  return `#${pair(r)}${pair(g)}${pair(b)}`
-}
-
-export function fromHex(hex: string): Rgb | null {
-  const cleaned = hex.trim().replace(/^#/, '')
-  // Three-digit shorthand doubles each nibble: #f0a → #ff00aa.
-  const full =
-    cleaned.length === 3
-      ? cleaned
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : cleaned
-  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null
-  return {
-    r: parseInt(full.slice(0, 2), 16),
-    g: parseInt(full.slice(2, 4), 16),
-    b: parseInt(full.slice(4, 6), 16),
-  }
-}
-
-export function isValidHex(hex: string): boolean {
-  return fromHex(hex) !== null
-}
+export {
+  contrastHex,
+  contrastRatio,
+  fromHex,
+  isDarkBackground,
+  isValidHex,
+  readableInkOn,
+  relativeLuminance,
+  toHex,
+  whiteTextPasses,
+  WCAG_AA_LARGE,
+  WCAG_AA_NORMAL,
+  type Rgb,
+} from '@souqstudio/engine'
 
 /**
  * The hex shown to a shop owner as an example of the format.
@@ -86,64 +76,6 @@ export const ARTBOARD_PLACEHOLDER = {
   imageInner: '#DEDBD2',
   onTint: '#FFFFFF33',
 } as const
-
-// ─── Contrast — E4-02 requires a WCAG AA check ────────────────────────────────
-
-/** WCAG relative luminance. The 0.03928 kink is the sRGB transfer curve. */
-export function relativeLuminance({ r, g, b }: Rgb): number {
-  const channel = (value: number) => {
-    const scaled = value / 255
-    return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4
-  }
-  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
-}
-
-/** WCAG contrast ratio, 1 to 21. Order of arguments does not matter. */
-export function contrastRatio(a: Rgb, b: Rgb): number {
-  const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x) as [
-    number,
-    number,
-  ]
-  return (lighter + 0.05) / (darker + 0.05)
-}
-
-export const WCAG_AA_NORMAL = 4.5
-export const WCAG_AA_LARGE = 3
-
-/**
- * Whether white text clears AA on this background.
- *
- * E4-02 asks for this specifically because prices are set in white on the brand
- * colour, and a price nobody can read is the one failure that costs a sale. It
- * is a warning, not a block: it is the shop's brand, and we do not get to
- * overrule it.
- */
-export function whiteTextPasses(background: Rgb, large = false): boolean {
-  return (
-    contrastRatio(background, { r: 255, g: 255, b: 255 }) >=
-    (large ? WCAG_AA_LARGE : WCAG_AA_NORMAL)
-  )
-}
-
-/**
- * Whether a background wants light ink on it.
- *
- * Exists so callers can branch on "is this dark" without comparing against the
- * string `readableInkOn` happens to return — a comparison that reads as a
- * styling decision, breaks if the return values ever change case, and trips the
- * no-raw-hex rule for a value that is not styling anything.
- */
-export function isDarkBackground(background: Rgb): boolean {
-  return readableInkOn(background) !== '#000000'
-}
-
-/** Whichever of black or white reads better on this background. */
-export function readableInkOn(background: Rgb): '#ffffff' | '#000000' {
-  return contrastRatio(background, { r: 255, g: 255, b: 255 }) >=
-    contrastRatio(background, { r: 0, g: 0, b: 0 })
-    ? '#ffffff'
-    : '#000000'
-}
 
 // ─── Quantization ─────────────────────────────────────────────────────────────
 

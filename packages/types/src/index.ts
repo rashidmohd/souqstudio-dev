@@ -36,6 +36,10 @@ export type AiJobType =
   | 'cover_gen'
   | 'background_removal'
   | 'prompt_gen'
+  /** E8-08. Proposes a palette and a type mood; writes nothing until accepted. */
+  | 'brand_direction'
+  /** E8-09. Four logo marks, assembled from a structure the model picked. */
+  | 'logo_gen'
 
 export type EmailTemplate =
   | 'email-verification'

@@ -174,3 +174,58 @@ export {
   type ComposeGridOptions,
   type SeedBlock,
 } from './library'
+
+// Colour maths. Pure, and shared with the worker — `contrast.ts` says why it is
+// here rather than in `apps/web/lib/color.ts`, which re-exports all of it.
+export {
+  contrastHex,
+  contrastRatio,
+  fromHex,
+  isDarkBackground,
+  isValidHex,
+  readableInkOn,
+  relativeLuminance,
+  toHex,
+  whiteTextPasses,
+  WCAG_AA_LARGE,
+  WCAG_AA_NORMAL,
+  type Rgb,
+} from './contrast'
+// Brand direction — the palette and type mood a model proposes. E8-08. On the
+// barrel because both the worker and the web app hold a reply to this schema.
+export {
+  MAX_PROPOSED,
+  MIN_PROPOSED,
+  TYPE_MOODS,
+  TYPE_MOOD_NOTE,
+  brandDirectionJsonSchema,
+  brandDirectionSchema,
+  directionProblems,
+  isOfferable,
+  type BrandDirection,
+  type DirectionProblem,
+  type ProposedColor,
+  type TypeMood,
+} from './brand-direction'
+// Logo marks — a closed set of structures skinned from the shop's palette.
+// E8-09. Both the worker (which assembles) and the web app (which previews and
+// re-colours) hold the same vocabulary.
+export {
+  LOGO_STRUCTURES,
+  LOGO_STRUCTURE_NOTE,
+  LOGO_SYMBOLS,
+  LOGO_SYMBOL_NOTE,
+  MARKS_PER_RUN,
+  MARK_SIZE,
+  drawMark,
+  logoChoiceSchema,
+  logoSetJsonSchema,
+  logoSetSchema,
+  namesTheShop,
+  skinFrom,
+  type LogoChoice,
+  type LogoSet,
+  type LogoStructure,
+  type LogoSymbol,
+  type MarkSkin,
+} from './logo-mark'

@@ -37,6 +37,9 @@ Brand Kit
 - User can re-upload if result is unsatisfactory
 - Transparent PNG stored in Cloudflare R2
 - Logo used in: offer book header, footer, cover page, brand kit thumbnail
+- **Both of these assume the shop already has a logo, and most first-week signups do not.**
+  `E8-09` specifies generating the mark instead, so this step has an answer other than
+  asking an owner to go and find a file.
 
 ### E4-02 Auto Color Extraction & Brand Colors
 
@@ -46,6 +49,10 @@ Brand Kit
 - Manual override via color picker (hex input + visual picker)
 - Contrast check — warn if primary + white text fails WCAG AA (important for price readability)
 - Colors stored as hex values in brand kit
+- **Extraction needs a logo to extract from.** `E8-08` specifies proposing a palette and a
+  type pairing from a storefront photo or a sentence about the shop, for the shop that has
+  no logo to quantize — with the same WCAG AA check applied before the proposal is shown
+  rather than as a warning after it.
 
 ### E4-03 Grid Style Selection
 

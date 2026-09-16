@@ -40,8 +40,26 @@ export {
   startBillingPeriod,
 } from './credits'
 export type { CreditAction, CreditSnapshot, SpendResult } from './credits'
-export { queues, enqueueEmail, enqueuePdf, enqueueAiJob, enqueueBgRemove, enqueueEnrich, enqueueMagicBlock } from './queue-client'
-export type { EmailJobPayload, PdfJobPayload, AiJobPayload, BgRemovePayload, MagicBlockPayload } from './queue-client'
+export {
+  queues,
+  enqueueEmail,
+  enqueuePdf,
+  enqueueAiJob,
+  enqueueBgRemove,
+  enqueueEnrich,
+  enqueueMagicBlock,
+  enqueueBrandDirection,
+  enqueueLogoGen,
+} from './queue-client'
+export type {
+  EmailJobPayload,
+  PdfJobPayload,
+  AiJobPayload,
+  BgRemovePayload,
+  MagicBlockPayload,
+  BrandDirectionPayload,
+  LogoGenPayload,
+} from './queue-client'
 /**
  * Writing the block library into `blocks` — one implementation, two callers: the
  * seed on every deploy, and `POST /api/v1/library/sync` when somebody publishes

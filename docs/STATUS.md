@@ -1387,6 +1387,19 @@ DashScope key was moved into `apps/worker/.env` the same day, so `MAGIC_BLOCK_PR
 is a one-line fix — but which provider receives shop owners' uploaded images is a decision
 the epic says to make deliberately, so it is left unset rather than flipped.
 
+**Two more features were specified and built on 16 September.** `E8-08` proposes a brand
+palette and a type mood for a shop with no logo to quantize, from a storefront photo or a
+sentence; `E8-09` generates the logo mark E4-01 assumes an owner already owns, by matching
+one of four hand-drawn SVG structures and skinning it from the shop's palette. Both are
+shaped as magic block is — a closed vocabulary, a structured answer, a result a person
+accepts — so **neither needs the diffusion provider that blocks E8-01 to E8-04**, and E8-09
+sends no image in either direction. Both ship route, queue, worker, poll and UI, with 34 new
+engine tests over the two vocabularies. **Neither has been run against a live model**, for
+the same reason magic block has not: the default provider is Anthropic and that key is a
+placeholder. What building them corrected is `E8-pending.md` §2a — including one defect a
+test caught, where the "same colour twice" check was written as a contrast ratio and read a
+dark green and a dark red as the same colour.
+
 `E8-07` ships (§1.3). What it leaves on the table, cheapest first:
 
 1. **Finish looking at the renders.** The inset change touched 97 boxes across all four

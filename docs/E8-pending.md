@@ -15,7 +15,7 @@ is the reason that is possible at all.
 
 ---
 
-## 1. One of five features is built, and the ratio understates it
+## 1. Four of nine features are built, and the ratio understates it
 
 | Feature | State |
 | --- | --- |
@@ -26,10 +26,13 @@ is the reason that is possible at all.
 | E8-05 Background removal | **Built** — `bg` worker, logos and catalog cutouts |
 | E8-06 AI metadata enrichment | Not built — `enrich` throws, and it blocks E5's Arabic |
 | E8-07 Magic block | **Built**, end to end, exercised live |
+| E8-08 Brand direction | **Built** 16 September, end to end. Never run against a live model — §2 |
+| E8-09 Logo mark | **Built** 16 September, matched-not-drawn. Never run against a live model — §2 |
 
-`apps/worker/src/workers/ai.worker.ts` is one branch and a throw: `ai.magicBlock` is
-handled, and every other job name reaches
-`throw new Error(\`Not yet implemented: ${job.name}\`)`.
+`apps/worker/src/workers/ai.worker.ts` is three branches and a throw: `ai.magicBlock`,
+`ai.brandDirection` and `ai.logoGen` are handled, and the four image job names reach
+`throw new Error(\`Not yet implemented: ${job.name}\`)`. Those four are the ones that need a
+diffusion model — §3.
 
 **The four are wired at both ends and connected at neither.** `enqueueAiJob` in
 `packages/db/src/queue-client.ts` names them `ai.${payload.type}`, it is exported from
@@ -107,6 +110,50 @@ variable is not.
 from the wrong provider, which is a real mistake. It cannot catch a placeholder of the
 right shape, and a placeholder of the right shape is what has been in the tree since the
 variable was added. Whether a boot-time ping is worth it is §8.
+
+---
+
+## 2a. What building E8-08 and E8-09 corrected — 16 September
+
+Four things changed against `docs/E8-ai-features.md`, which stays the record of what was
+asked for. Each is a place where the honest option was chosen over the specified one.
+
+**The model names a type *mood*, not four typefaces.** The spec said "the model names faces
+from an enum". `apps/web/lib/brand-fonts.ts` is a per-slot catalog — Changa is narrow
+enough for a price, Lalezar is wrong for body copy — so a model naming four families is a
+model redoing that filtering from a photograph, badly, and one wrong answer is a kit
+rendering in a fallback nobody chose. It names one of four moods; `MOOD_FONTS` in
+`apps/web/lib/brand-direction.ts` resolves the mood into real families at acceptance, and
+**throws at import** if it ever names a family the catalog does not offer. This is the
+first live run's lesson in a third register: do not ask a model anything the code knows.
+
+**The "same colour twice" check is a distance, not a contrast ratio, and a test caught it.**
+It was written as contrast first, on the reasoning that two colours which fail to contrast
+are two colours nobody can tell apart. They are not: a dark green and a dark red have
+nearly the same relative luminance, so WCAG correctly says you cannot read one on the other
+and a person correctly says they are green and red. `brand-direction.test.ts` → "keeps two
+hues of the same lightness apart" is that regression. Contrast is still what
+`price_unreadable` uses, which is the question it actually answers.
+
+**A generated logo is stored as SVG and never rasterised.** The spec said a generated mark
+goes through `processLogo` like an upload. It cannot: the mark is set in the shop's headline
+face and **the worker has no font files** — the known gap in the root `CLAUDE.md`, where the
+brand faces load from Google's CDN in a browser and are not mirrored into R2. Rasterising in
+that process substitutes whatever the container happens to have, which is a logo in the
+wrong typeface and no error anywhere. A named family in a vector renders correctly on every
+surface that has already loaded it, which is all of them. **When the fonts are mirrored, this
+can additionally write a PNG.** Until then `shops.logoUrl` points at an SVG for a generated
+mark, which is a shape nothing else in the product produces — see §7.
+
+**E8-09 charges on completion; E8-08 charges on acceptance.** They look inconsistent and are
+not. A direction is a suggestion that leaves nothing behind when declined, and it is *meant*
+to be re-rolled during setup — charging per roll prices a shop out of the step every other
+feature depends on. A logo run writes four objects into the bucket whether or not one is
+adopted, so it is priced like `character_gen`, which is the same shape.
+
+**Neither has been run against a live model**, for the reason in §2: the default provider is
+Anthropic and that key is a placeholder. Both go through `MAGIC_BLOCK_PROVIDER`, so both are
+one variable away from working — and both fail today exactly as magic block does.
 
 ---
 
@@ -223,6 +270,12 @@ Each is a place where the honest option was chosen over the specified one.
   variants in any of its 211 columns, so every seeded universal product has a null `nameAr`
   and E5 §2 makes that a publish-time blocker for Arabic editions. It is filed under AI
   features and it is holding up the catalog.
+- **A generated logo is an SVG where everything else is a PNG.** `processLogo` normalises
+  every upload to PNG at 1024 and `shops.logoUrl` has only ever held one. E8-09 writes
+  `image/svg+xml` — §2a says why it must. Every surface that draws a logo today is a browser
+  and handles it; **E9's export is the one that will not be**, because Playwright rendering a
+  vector whose font is named rather than embedded is the same problem one layer down. The
+  fix for both is the same mirroring job.
 - **E9 will want the generated cover.** E8-04 produces a cover image and the export renders
   `BookPage`; neither knows about the other yet, and the seam is `R2_PUBLIC_URL` plus an
   object key, exactly as `lib/block-assets.ts` already does for uploaded artwork.
@@ -241,3 +294,5 @@ Each is a place where the honest option was chosen over the specified one.
 | **Claude or Qwen for magic block** | **E8-07 working at all on dev** | Deferred on 15 September. While it is deferred the feature fails every attempt, because the default is Anthropic and that key is a placeholder — §2. `MAGIC_BLOCK_PROVIDER=qwen` is the one-line answer if Qwen is acceptable for owners' uploaded images; the comparison by hit rate still wants a real Anthropic key and one `magic:check` per provider |
 | **Whether a placeholder API key should fail at boot** | Nothing | §2. A `startsWith` check passes `sk-ant-` exactly. A boot-time ping costs a request per deploy and turns a 401-at-first-use into a refusal to start — which is the trade `withEndpointCheck` already made for R2, and that one was worth it |
 | **A re-seed is required for `social-post`** | The category being reachable | It is a new category and two shipped blocks moved into it; the column is only ever written by `pnpm db:seed` |
+| **Matched or diffused for the logo mark** | E8-09 | Specified 16 September with a recommendation: a closed set of hand-drawn SVG structures skinned from the shop's palette, exactly as magic block matches rather than draws. It clears the §3 blocker entirely — no diffusion provider, no photograph of anyone, and a vector that prints. Diffusing it instead re-opens every question in §3 |
+| **Whether a re-rolled palette should be free** | E8-08 | Specified as free to generate and 3 credits on acceptance, which is the one place E8-07's charge-on-completion ordering is deliberately not copied. A palette is meant to be re-rolled during setup; charging per roll prices a shop out of the step every other feature depends on |

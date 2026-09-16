@@ -36,6 +36,8 @@ export type CreditAction =
   | 'prompt_gen'
   | 'variation'
   | 'block_gen'
+  | 'brand_direction'
+  | 'logo_gen'
 
 export const CREDIT_COSTS: Readonly<Record<CreditAction, number>> = {
   /** Generate base character — four variations. */
@@ -58,6 +60,26 @@ export const CREDIT_COSTS: Readonly<Record<CreditAction, number>> = {
    * this one produces a block that outlives the book it was made for.
    */
   block_gen: 5,
+  /**
+   * Brand direction — a palette and a type mood proposed for a shop. E8-08.
+   *
+   * **Charged on acceptance, not on completion**, which is the one place E8-07's
+   * ordering is deliberately not copied. Generating costs a call and keeping
+   * costs three credits, because a palette is *meant* to be re-rolled during
+   * setup and charging per roll prices a shop out of the step every other
+   * feature depends on. `consumeCredits` is called from the accept route rather
+   * than from the worker; see `docs/E8-ai-features.md` → E8-08.
+   *
+   * Cheaper than `block_gen` for the same call because the output is a
+   * suggestion rather than an artefact: a declined proposal leaves nothing
+   * behind, and a block outlives the book it was made for.
+   */
+  brand_direction: 3,
+  /**
+   * Logo mark — four variations. E8-09. Priced with `character_gen`, which is
+   * the other "four variations, pick one, it joins the brand kit" job.
+   */
+  logo_gen: 10,
 }
 
 /** One top-up pack: 100 credits for $8, per docs/project.md. */

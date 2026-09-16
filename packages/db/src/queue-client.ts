@@ -70,6 +70,78 @@ export interface MagicBlockPayload {
   category: string
 }
 
+/**
+ * Brand direction — a palette and a type mood for a shop that has neither. E8-08.
+ *
+ * **Its own payload for the same reason `MagicBlockPayload` has one**, and the
+ * opposite conclusion: this job *does* belong to a level, and which level is the
+ * whole question. A chain sets colours once at the organization and every shop
+ * inherits them; a franchise shop overrides them. `levelFor` has already decided
+ * before this is queued, so exactly one of the two ids is set — the same shape
+ * `BgRemovePayload` settled on when a logo turned out to belong to either.
+ *
+ * **Nothing here is written to a brand kit.** The worker produces a proposal and
+ * stops. The accept route is what patches the kit and what charges for it.
+ */
+export interface BrandDirectionPayload {
+  /** `ai_jobs` row id — what the client polls and the worker updates. */
+  jobId: string
+  organizationId: string
+  /** Set when the owner is editing one shop's kit. Exclusive with `orgLevel`. */
+  shopId?: string
+  /** Set when they are editing the organization's defaults. E2-05. */
+  orgLevel?: boolean
+  /**
+   * R2 object key of a storefront photo, a signage photo, or the logo already
+   * in the kit. Absent when the owner described the shop in words instead —
+   * which is the cheapest of the three inputs and the one a shop with no logo
+   * and no good photograph can always reach.
+   */
+  sourceKey?: string
+  /** What the owner typed about their shop. Absent when they uploaded instead. */
+  described?: string
+}
+
+/**
+ * Logo mark — four marks assembled from a structure the model chose. E8-09.
+ *
+ * **No diffusion model, and that is the design rather than a limitation.** The
+ * model picks one of a hand-drawn set of structures and describes how to skin it
+ * from the shop's own palette; the worker assembles the SVG. So it cannot emit
+ * an illegal mark, it needs none of the provider decision that blocks E8-01 to
+ * E8-04, and what comes out is a vector that prints. `docs/E8-ai-features.md` →
+ * E8-09 has the argument in full.
+ */
+export interface LogoGenPayload {
+  jobId: string
+  organizationId: string
+  shopId?: string
+  orgLevel?: boolean
+  /** The name to set in the mark. Arabic, Latin or both — the structures differ. */
+  shopName: string
+  /** What the shop sells, in the owner's words. Steers the structure choice. */
+  trade?: string
+  /**
+   * The palette to skin the mark from, as hex.
+   *
+   * Passed rather than read in the worker because the owner may be looking at an
+   * E8-08 proposal they have not accepted yet — "generate a logo from *these*
+   * colours" is the obvious next click, and it must not require saving first.
+   */
+  palette: string[]
+  /**
+   * The shop's headline face, written into the stored SVG.
+   *
+   * **Named, not embedded.** This process has no font files — `CLAUDE.md`'s
+   * known gap: the brand faces load from Google's CDN in a browser and are not
+   * mirrored into R2 yet. A named family renders correctly on every surface that
+   * has already loaded it, which is all of them, and degrades to a real fallback
+   * stack anywhere else. Embedding would need the binary; rasterising would
+   * silently substitute whatever the container has.
+   */
+  family: string
+}
+
 export interface BgRemovePayload {
   imageUrl: string
   targetPath: string
@@ -141,6 +213,24 @@ export async function enqueueMagicBlock(payload: MagicBlockPayload) {
     // Two attempts, like every other job on this queue: each one is a paid call
     // to a model provider, and a prompt the model cannot answer will not become
     // answerable on the third try.
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
+  })
+}
+
+export async function enqueueBrandDirection(payload: BrandDirectionPayload) {
+  return queues.ai.add('ai.brandDirection', payload, {
+    // Two attempts, as everything else on this queue: each is a paid call, and a
+    // picture a model cannot read a brand off will not become readable on a
+    // third try. A proposal the gate refuses is regenerated inside the job, not
+    // by a retry — see `brand-direction.job.ts`.
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
+  })
+}
+
+export async function enqueueLogoGen(payload: LogoGenPayload) {
+  return queues.ai.add('ai.logoGen', payload, {
     attempts: 2,
     backoff: { type: 'exponential', delay: 10000 },
   })

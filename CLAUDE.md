@@ -169,12 +169,25 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   system permits an illustration only on `empty`. See
   `.claude/skills/souqstudio-design/references/illustration-manifest.md`.
 - **Worker handlers** — `email` and `bg` are implemented, `bg` now for both logos and
-  catalog cutouts. `ai` is implemented for **one** job: `ai.magicBlock`, E8-07's magic
-  block. Its other four names — character, pose, cover, prompt — still throw, as do `pdf`
-  and `enrich`. **`enrich` is the one that now bites**: the Open Food Facts export has no
+  catalog cutouts. `ai` is implemented for **three** jobs: `ai.magicBlock` (E8-07),
+  `ai.brandDirection` (E8-08) and `ai.logoGen` (E8-09). Its other four names — character,
+  pose, cover, prompt — still throw, as do `pdf` and `enrich`. **`enrich` is the one that now bites**: the Open Food Facts export has no
   Arabic column, so every seeded universal product has a null `nameAr`, and E5 §2 makes
   that a publish-time blocker for Arabic editions. Until `enrich` lands the shared catalog
   is English-only.
+- **A shop with no logo can now get colours and a logo.** E8-08 proposes a palette and a
+  type mood from a storefront photo or a sentence; E8-09 draws four logo marks by matching
+  one of four hand-drawn SVG structures and skinning it from the shop's palette. Both go
+  through the **same `MAGIC_BLOCK_PROVIDER`** as magic block, so all three features answer
+  to one variable — and all three fail today for the same reason it does. **Neither has
+  been run against a live model.** Two rules they establish that the next AI feature must
+  keep: *do not ask a model anything the code can compute* — a price colour's legibility is
+  arithmetic, and `directionProblems` refuses a palette that fails it rather than warning
+  about it — and *a model names positions in the shop's palette, never a colour*. E8-08
+  charges on **acceptance** and E8-09 on **completion**; `E8-pending.md` §2a says why that
+  is not an inconsistency. **A generated logo is an SVG**, which nothing else in the product
+  produces: the worker has no font files, so rasterising would silently substitute a
+  typeface. Same gap as the brand-kit-fonts line below, and it is what E9's export meets.
 - **Magic block works against Qwen and has never been run against Claude.** E8-07 is
   built end to end and was exercised live on 10 September: three seeded cards rendered,
   fed back, and two of three matched the structure they were built from at high

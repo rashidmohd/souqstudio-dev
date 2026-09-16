@@ -14,6 +14,8 @@ import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
+import { BrandDirectionDialog } from '@/components/brand/BrandDirectionDialog'
+import { LogoMarkDialog } from '@/components/brand/LogoMarkDialog'
 import { Image as ImageIcon, Palette, Shapes, Sparkles, Type, type LucideIcon } from 'lucide-react'
 import { resolveTextStyles, typographyPatch } from '@/lib/brand-typography'
 import { ResetBrandDialog } from '@/components/brand/ResetBrandDialog'
@@ -88,6 +90,10 @@ export function BrandKitScreen({
   const router = useRouter()
   const { kit, hydrate } = useBrandStore()
   const [matching, setMatching] = React.useState(false)
+  /** E8-08. Open from the colours card, because colours are what it proposes. */
+  const [proposing, setProposing] = React.useState(false)
+  /** E8-09. Open from the logo card, for the shop that has no logo file. */
+  const [drawing, setDrawing] = React.useState(false)
 
   // What the server has. Saves advance it; the dirty gates compare against it.
   const [baseline, setBaseline] = React.useState<BrandKit>(brandKit)
@@ -224,6 +230,30 @@ export function BrandKitScreen({
             note={brandOverride === 'inherit' ? null : sourceNote(source.logo)}
           >
             <LogoField variant="secondary" />
+
+            {/*
+             * **E8-09, under the upload rather than beside it.** An owner who
+             * has a logo file uploads it; this is for the one who does not, and
+             * putting it second is what says so without a sentence.
+             */}
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setDrawing(true)}
+                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+              >
+                <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                {logoUrl ? 'Make a different logo' : 'I do not have a logo'}
+              </button>
+            ) : null}
+
+            <LogoMarkDialog
+              open={drawing}
+              onOpenChange={setDrawing}
+              kit={kit}
+              credits={credits}
+              onAdopted={() => router.refresh()}
+            />
           </BrandCard>
 
           <BrandCard
@@ -235,6 +265,30 @@ export function BrandKitScreen({
             feedback={feedback?.section === 'colors' ? feedback : null}
           >
             <ColorFields />
+
+            {/*
+             * **E8-08, offered beside the pickers rather than instead of them.**
+             * An owner who knows their colours types them; the one who does not
+             * has been choosing from a wheel until now. Looking costs nothing —
+             * which is why this is a quiet control here and not a banner.
+             */}
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setProposing(true)}
+                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+              >
+                <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                Find colours from a photo
+              </button>
+            ) : null}
+
+            <BrandDirectionDialog
+              open={proposing}
+              onOpenChange={setProposing}
+              credits={credits}
+              onAccepted={() => router.refresh()}
+            />
 
             {colorsDirty ? (
               <div className="flex gap-2">
