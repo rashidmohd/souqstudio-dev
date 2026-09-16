@@ -262,6 +262,27 @@ model id that has moved is a 404 that reads like a bad key.
    **The shape is derived from the page, never asked.** `shapeFor` in `CoverDialog.tsx`, and
    the reason is in its test: a story-shaped ground under `fit: 'cover'` on an A4 page is
    cropped to a sliver, and that reads as a bad drawing rather than as a mismatch.
+
+   **It was wrong once first, and the correction is the useful part.** The first build drew
+   what the spec described — an abstract background, "no people", the middle left calm for a
+   character to be composited onto later. Rejected on sight, and rightly: *nothing composites
+   anything*, so what an owner actually received was a generic graphic with their own mascot
+   nowhere in it. The spec's reasoning — compositing keeps one mascot pixel-identical across
+   covers — was sound when written and was buying a property nobody could collect.
+
+   **So the character and the shop are references now.** `draw()` has taken `references` since
+   E8-02 and its own comment already said "the character for a cover"; the cover job simply
+   sent none. Reference-conditioning is the same mechanism that keeps a pose library the same
+   character, so the consistency the spec wanted is bought without waiting for E9.
+   `coverPrompt` grew two branches — a prompt that forbids people while a picture of one is
+   attached is a contradiction the model resolves however it likes, and `cover-prompt.test.ts`
+   is there to keep the two halves honest.
+
+   **The tenancy rules did not move.** Photographs of *places* go to the drawer; photographs
+   of *people* go to the vision reader and stop there. `storePhotoKeys` was already on the
+   permitted side — E8-01 sends it as `sceneKeys` — and nothing here can reach the uniform
+   photographs. The route takes two booleans and a character id, never keys: it reads the
+   keys itself, the character scoped to the shop, and the worker re-reads it scoped again.
 2. ~~**Nothing has been run against a live image model.**~~ **E8-01 has**, four times, on
    16 September: four variations each, ten credits each, two characters kept, and the last
    two runs on `photo-real` against a three-segment shop. So `IMAGE_PROVIDER=gemini`, the

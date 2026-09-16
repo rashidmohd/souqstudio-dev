@@ -27,8 +27,9 @@ import { CoverDialog } from '@/components/editor/CoverDialog'
  * control inside. Splitting them here would be four modes for three decisions,
  * and would also mean a second gradient editor.
  *
- * **A generated ground arrives by the same door as an uploaded one.** E8-04
- * draws a background and stores it at `{org}/{shop}/covers/…`; this control
+ * **A generated cover arrives by the same door as an uploaded one.** E8-04
+ * draws from the shop's character and its own photographs and stores the result
+ * at `{org}/{shop}/covers/…`; this control
  * already turns an R2 key into `{ from: 'asset' }`, and that key satisfies the
  * background route's org-prefix tenancy check unchanged. So "Generate" sits
  * beside "Upload" and everything downstream — the fit control, the strength
@@ -149,7 +150,7 @@ export function PageBackgroundControl({
             onClick={() => setGenerating(true)}
           >
             <Sparkles className="size-4" aria-hidden="true" strokeWidth={1.75} />
-            Generate a ground
+            Generate a cover
           </Button>
         </div>
       ) : null}

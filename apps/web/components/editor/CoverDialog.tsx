@@ -12,17 +12,29 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { RadioCards } from '@/components/ui/radio-cards'
 import { Textarea } from '@/components/ui/textarea'
+import { MachineOutput } from '@/components/ui/machine-output'
 
 /**
- * Generate a page ground. E8-04.
+ * Generate a cover from the shop's own character and its own shop. E8-04.
  *
- * **What comes back is a background, and this dialog is careful to say so.**
- * The worker draws paper — a Ramadan ground, a clearance ground — and the shop's
- * name, logo and character are composited on top afterwards. A model asked to
- * render a shop's name produces misspelled text in a typeface nobody chose, so
- * `coverPrompt` says twice that it must not try. An owner told "generate a
- * cover" and handed a background with no name on it would read that as a
- * failure, which is why the words here are about the page behind the cards.
+ * **It draws from what the shop already has.** The first build asked only for a
+ * campaign and drew an abstract graphic, because the spec had the character
+ * composited on afterwards by E9 — and since nothing composites anything yet,
+ * what an owner got was a generic background with their mascot nowhere in it.
+ * The character and the store photographs are references now, so the cover is
+ * of *their* shop the first time they see it.
+ *
+ * **Both sources are optional and neither is offered blind.** `covers/sources`
+ * says what exists; a shop with no character is not asked whether to use one,
+ * because an option that fails on click is worse than an absent one.
+ *
+ * **The campaign list is the pre-written half.** An owner picks an occasion
+ * rather than writing a prompt, and "describe it yourself" is there for the one
+ * they did not think of — the same shape `CharacterFlow` uses for its styles.
+ *
+ * **Still no text in the picture, and that has not changed.** A model asked to
+ * render a shop's name produces misspelled words in a typeface nobody chose, so
+ * the name and the logo are typed in the editor on top of this.
  *
  * **It lives beside "Upload" rather than in the brand kit or the create flow.**
  * `PageBackgroundControl` already turns an R2 key into `{ from: 'asset' }`, and
@@ -49,11 +61,14 @@ type Props = {
 }
 
 type Option = { url: string; key: string }
+type Character = { id: string; baseImageUrl: string; style: string }
+type StorePhoto = { key: string; url: string }
+type Sources = { characters: Character[]; storePhotos: StorePhoto[] }
 
 type Phase =
   | { at: 'asking'; error?: string }
   | { at: 'drawing' }
-  | { at: 'picking'; options: Option[] }
+  | { at: 'picking'; options: Option[]; withCharacter: boolean }
 
 /**
  * Which shape to draw, from the page's own proportions.
@@ -73,7 +88,36 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
   const [campaign, setCampaign] = React.useState<Campaign>('weekend')
   const [described, setDescribed] = React.useState('')
   const [phase, setPhase] = React.useState<Phase>({ at: 'asking' })
+  const [sources, setSources] = React.useState<Sources | null>(null)
+  const [characterId, setCharacterId] = React.useState<string | null>(null)
+  const [useScene, setUseScene] = React.useState(true)
   const shape = shapeFor(aspect)
+
+  /**
+   * What this shop has to draw from, read when the dialog opens.
+   *
+   * **Not on mount.** The editor renders this component for every page whether
+   * or not anybody opens it, and a request per page load to answer a question
+   * nobody asked is a request that should not happen.
+   */
+  React.useEffect(() => {
+    if (!open || sources !== null) return
+    let live = true
+    void read<Sources>('/api/v1/covers/sources')
+      .then((found) => {
+        if (!live) return
+        setSources(found)
+        // The newest character, pre-selected. A shop that made one wants it in
+        // the cover — that is the whole reason they made it.
+        setCharacterId(found.characters[0]?.id ?? null)
+      })
+      // A sources read that fails leaves both options simply unoffered, which
+      // still generates a cover. It is not worth an error message.
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [open, sources])
 
   /**
    * Reset on open, not on close.
@@ -90,33 +134,46 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
   async function generate() {
     setPhase({ at: 'drawing' })
     try {
+      const withCharacter = characterId !== null
       const queued = await post<{ jobId: string }>('/api/v1/covers/generate', {
         campaign,
         shape,
+        useScene: useScene && hasPhotos,
+        ...(withCharacter ? { characterId } : {}),
         ...(campaign === 'custom' ? { described: described.trim() } : {}),
       })
       const options = await poll(queued.jobId)
-      setPhase({ at: 'picking', options })
+      setPhase({ at: 'picking', options, withCharacter })
     } catch (error) {
       setPhase({ at: 'asking', error: message(error) })
     }
   }
 
   const ready = campaign !== 'custom' || described.trim().length >= 3
+  const characters = sources?.characters ?? []
+  const storePhotos = sources?.storePhotos ?? []
+  const hasPhotos = storePhotos.length > 0
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Generate a page ground"
-      description="A background drawn in your colours. Your name and logo go on top in the editor, not in the picture."
+      title="Generate a cover"
+      description="Drawn from your character, your shop and your colours. Your name and logo go on top in the editor, not in the picture."
       size="lg"
     >
       {phase.at === 'picking' ? (
+        <MachineOutput
+          label={
+            phase.withCharacter
+              ? 'Drawn from your character and your shop'
+              : 'Drawn from your brand colours'
+          }
+        >
         <div className="flex flex-col gap-3">
           <p className="font-ui text-body-sm text-secondary">
-            Three grounds, {COVER_SHAPE_NOTE[shape].toLowerCase()}. Choose one to put behind this
-            page.
+            Three covers, {COVER_SHAPE_NOTE[shape].toLowerCase()}. Choose one to put behind this
+            page. Your name and logo go on top in the editor.
           </p>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -150,8 +207,70 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
             </Button>
           </div>
         </div>
+        </MachineOutput>
       ) : (
         <div className="flex flex-col gap-4">
+          {characters.length > 0 ? (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="font-ui text-label text-primary">Who is in it?</legend>
+              {/* A grid with `aspect-square w-full`, as `CharacterGallery`
+                  sizes its thumbnails. The size scale is replaced rather than
+                  extended here, so a fixed `size-*` that is not a token is a
+                  valid class name that styles nothing — `check:classes` caught
+                  exactly that on the first draft of this. */}
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                {characters.map((character) => {
+                  const chosen = character.id === characterId
+                  return (
+                    <button
+                      key={character.id}
+                      type="button"
+                      aria-pressed={chosen}
+                      disabled={phase.at === 'drawing'}
+                      className={`overflow-hidden rounded-card border bg-surface p-1 ${
+                        chosen ? 'border-action-primary-bg' : 'border-default'
+                      }`}
+                      onClick={() => setCharacterId(chosen ? null : character.id)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={character.baseImageUrl}
+                        alt={`${character.style} character`}
+                        className="block aspect-square w-full object-contain"
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="font-ui text-body-sm text-secondary">
+                {characterId === null
+                  ? 'Nobody — just a graphic. Tap a character to put them in it.'
+                  : 'Drawn into the cover, kept the same as the one you made.'}
+              </p>
+            </fieldset>
+          ) : null}
+
+          {hasPhotos ? (
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={useScene}
+                disabled={phase.at === 'drawing'}
+                onChange={(event) => setUseScene(event.target.checked)}
+                className="mt-1"
+              />
+              <span className="font-ui text-body-sm text-primary">
+                Set it in my shop
+                <span className="block text-secondary">
+                  Uses the{' '}
+                  <span data-figure>{storePhotos.length}</span>
+                  {storePhotos.length === 1 ? ' photo' : ' photos'} from your shop settings, so the
+                  shelves and the counter are yours rather than invented.
+                </span>
+              </span>
+            </label>
+          ) : null}
+
           <RadioCards
             label="What is this for?"
             value={campaign}

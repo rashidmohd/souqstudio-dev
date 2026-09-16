@@ -227,6 +227,29 @@ export interface CoverGenPayload {
   shape: string
   /** The shop's palette, so the cover is drawn in its colours. */
   palette: string[]
+  /**
+   * The shop's character, to be drawn *into* the cover rather than composited
+   * onto it afterwards.
+   *
+   * **An id, not an image, and the worker re-reads it scoped to `shopId`** —
+   * the same discipline `PoseGenPayload` follows, and for the same reason: a
+   * caller naming another shop's character would otherwise get a cover of
+   * somebody else's mascot.
+   *
+   * Reference-conditioned generation is what keeps it the same character across
+   * covers. That is the mechanism the pose library already depends on, so a
+   * cover drawn this way is as consistent as a pose is — which is what makes it
+   * safe to draw the character in rather than waiting for E9 to composite it.
+   */
+  characterId?: string
+  /**
+   * Photographs of the shop itself, as a setting for the cover.
+   *
+   * **The same list, with the same rule, as `CharacterGenPayload.sceneKeys`.**
+   * They are photographs of a *place*; the uniform photographs that show people
+   * never travel this way, and nothing here should start sending them.
+   */
+  sceneKeys?: string[]
 }
 
 export interface BgRemovePayload {

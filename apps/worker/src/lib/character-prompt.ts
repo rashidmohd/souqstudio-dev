@@ -290,6 +290,10 @@ export function coverPrompt(input: {
   described?: string
   shape: CoverShape
   palette: readonly string[]
+  /** A reference image of the shop's character is being sent with this. */
+  withCharacter?: boolean
+  /** Reference photographs of the shop itself are being sent with this. */
+  withScene?: boolean
 }): string {
   const subject =
     input.campaign === 'custom'
@@ -306,13 +310,46 @@ export function coverPrompt(input: {
   const colors =
     input.palette.length === 0 ? '' : `\nUse these colours: ${input.palette.join(', ')}.`
 
-  return `A background graphic for a retail offer book cover: ${subject}.
-${shape}${colors}
+  /**
+   * **Two prompts, because a cover with the shop's character in it is a
+   * different picture from a background.**
+   *
+   * The original said "no people" and "leave the middle calm", because the spec
+   * had the character composited on top by the export. Drawing it in instead is
+   * what makes a cover finished today rather than when E9 lands — and it is the
+   * owner's own mascot in their own shop, which is the thing they asked for.
+   * Reference-conditioned generation keeps it the same character, exactly as the
+   * pose library relies on.
+   *
+   * **The no-text rule survives both.** A model asked to render a shop's name
+   * produces misspelled words in a typeface nobody chose, and that is true
+   * whether or not a character is in the frame.
+   */
+  const people = input.withCharacter
+    ? `Draw the character from the reference image as the subject. **Keep them the
+same person** — the same face, the same build, the same uniform and the same
+colours as the reference. Place them naturally in the scene rather than pasted
+onto it, and leave clear space beside or above them.`
+    : `Decorative, graphic and flat rather than photographic. No people.`
+
+  const place = input.withScene
+    ? `
+The reference photographs show the actual shop this is for. Take the setting
+from them — the shelves, the counter, the kind of place it is — rather than
+inventing a generic store.`
+    : ''
+
+  const room = input.withCharacter
+    ? `Leave room for the shop's name and logo, which are placed on top afterwards.`
+    : `The shop's name, its logo and its own characters are placed on top of this
+afterwards, so leave the middle of the image calm and uncluttered for them to sit
+on.`
+
+  return `A cover image for a retail offer book: ${subject}.
+${shape}${colors}${place}
 
 **No text of any kind.** No words, no letters, no numbers, in any language or
-script. No logo and no brand mark. The shop's name, its logo and its own
-characters are placed on top of this afterwards, so leave the middle of the image
-calm and uncluttered for them to sit on.
+script. No logo and no brand mark. ${room}
 
-Decorative, graphic and flat rather than photographic. No people.`
+${people}`
 }
