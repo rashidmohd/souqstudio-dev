@@ -65,6 +65,7 @@ business name, and truncating one to three letters says nothing.
   Offer books        ← shop scope
   Catalog
   Brand kit
+  Blocks
   Analytics
 ──────────────       ← hard divider
 [org name]
@@ -75,6 +76,14 @@ business name, and truncating one to three letters says nothing.
 ──────────────       ← pinned to the foot
   Account            ← user scope, an Avatar rather than a glyph
 ```
+
+**`Blocks` was moved up on 16 September**, from `/brand/blocks` to `/blocks`. It lived
+under the brand kit because E7 grew out of E4, and that stopped being true: the library is
+sixty-five shipped designs plus everything the shop has drawn, it is the way into the
+designer, and it is where an owner spends real time. A brand kit is an identity you set
+and leave; a block library is a workspace. It also unloaded `/brand`, which is now four
+tabs — logo, colours, type, character — rather than five cards with a library at the
+bottom of them.
 
 **`Organization` was added by E2-01** and leads the org zone. The three entries below
 it are each one *part* of the business — its branches, its people, its invoices — and

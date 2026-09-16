@@ -12,15 +12,13 @@ import { palettePatch, resolvePalette } from '@/lib/brand-palette'
 import { TypographyFields } from '@/components/brand/TypographyFields'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
-import { BlockPreview } from '@/components/blocks/BlockPreview'
-import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
 import { BrandDirectionDialog } from '@/components/brand/BrandDirectionDialog'
 import { LogoMarkDialog } from '@/components/brand/LogoMarkDialog'
 import { CharacterGallery, type Character } from '@/components/brand/CharacterGallery'
+import { TabPanel, Tabs } from '@/components/ui/tabs'
 import {
   Image as ImageIcon,
   Palette,
-  Shapes,
   Smile,
   Sparkles,
   Type,
@@ -41,13 +39,6 @@ type Props = {
   canEdit: boolean
   isOwner: boolean
   /** The seeded library. Published rows, identical for every shop. */
-  blocks: Array<{
-    id: string
-    name: string
-    description: string | null
-    repeats: boolean
-    arrangements: Arrangement[]
-  }>
   /** Spendable credits, so matching a card can state its cost first. */
   credits: number
   /** The shop's characters and their poses. E8-01 — the card shows them. */
@@ -71,7 +62,7 @@ type SaveSection = 'colors' | 'typography'
  * they could. (`progress`, the fourth facet, is the wizard's own state and
  * belongs to nobody's settings screen.)
  *
- * **One card per thing an owner sets** — logo, colours, typography, blocks.
+ * **One tab per facet of a brand kit** — logo, colours, type, character.
  * Each carries its own icon, its explanation, what is currently chosen, and its
  * control. It replaced a stack of plain sections and a separate summary card at
  * the top: the summary was restating what each section already knew, and a
@@ -95,13 +86,22 @@ export function BrandKitScreen({
   source,
   canEdit,
   isOwner,
-  blocks,
   credits,
   characters,
 }: Props) {
   const router = useRouter()
   const { kit, hydrate } = useBrandStore()
-  const [matching, setMatching] = React.useState(false)
+  /**
+   * Which section is showing.
+   *
+   * **Local state, and the panels hide rather than unmount.** Backing this with
+   * the URL would make it linkable and would also re-render the server tree on
+   * every tab press — which, on the one screen in this product that holds
+   * unsaved edits in a store, is how somebody loses a half-renamed palette. The
+   * inventory's note on `Tabs` says the same thing in one line: switching tabs
+   * is not an action that should discard work.
+   */
+  const [tab, setTab] = React.useState('logo')
   /** E8-08. Open from the colours card, because colours are what it proposes. */
   const [proposing, setProposing] = React.useState(false)
   /** E8-09. Open from the logo card, for the shop that has no logo file. */
@@ -234,257 +234,186 @@ export function BrandKitScreen({
         </p>
       ) : (
         <>
-          <BrandCard
-            icon={ImageIcon}
-            title="Logo"
-            description="Used on the header, the footer and the cover of every offer book."
-            state={logoUrl ? 'Uploaded' : 'Not set yet'}
-            note={brandOverride === 'inherit' ? null : sourceNote(source.logo)}
-          >
-            <LogoField variant="secondary" />
+          <Tabs
+            label="Brand kit sections"
+            value={tab}
+            onValueChange={setTab}
+            items={[
+              { value: 'logo', label: 'Logo' },
+              { value: 'colors', label: 'Colours' },
+              { value: 'type', label: 'Type' },
+              { value: 'character', label: 'Character' },
+            ]}
+          />
 
-            {/*
-             * **E8-09, under the upload rather than beside it.** An owner who
-             * has a logo file uploads it; this is for the one who does not, and
-             * putting it second is what says so without a sentence.
-             */}
-            {canEdit ? (
-              <button
-                type="button"
-                onClick={() => setDrawing(true)}
-                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
-              >
-                <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                {logoUrl ? 'Make a different logo' : 'I do not have a logo'}
-              </button>
-            ) : null}
+          <TabPanel value="logo" active={tab}>
+            <BrandCard
+              icon={ImageIcon}
+              title="Logo"
+              description="Used on the header, the footer and the cover of every offer book."
+              state={logoUrl ? 'Uploaded' : 'Not set yet'}
+              note={brandOverride === 'inherit' ? null : sourceNote(source.logo)}
+            >
+              <LogoField variant="secondary" />
 
-            <LogoMarkDialog
-              open={drawing}
-              onOpenChange={setDrawing}
-              kit={kit}
-              credits={credits}
-              onAdopted={() => router.refresh()}
-            />
-          </BrandCard>
-
-          <BrandCard
-            icon={Palette}
-            title="Colours"
-            description="Your colours, under your own names. Where each one goes is decided by the blocks that use it."
-            state={<><span data-figure>{palette.length}</span> colours</>}
-            note={brandOverride === 'inherit' ? null : sourceNote(source.colors)}
-            feedback={feedback?.section === 'colors' ? feedback : null}
-          >
-            <ColorFields />
-
-            {/*
-             * **E8-08, offered beside the pickers rather than instead of them.**
-             * An owner who knows their colours types them; the one who does not
-             * has been choosing from a wheel until now. Looking costs nothing —
-             * which is why this is a quiet control here and not a banner.
-             */}
-            {canEdit ? (
-              <button
-                type="button"
-                onClick={() => setProposing(true)}
-                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
-              >
-                <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                Find colours from a photo
-              </button>
-            ) : null}
-
-            <BrandDirectionDialog
-              open={proposing}
-              onOpenChange={setProposing}
-              credits={credits}
-              onAccepted={() => router.refresh()}
-            />
-
-            {colorsDirty ? (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="primary"
-                  loading={saving === 'colors'}
-                  onClick={saveColors}
-                >
-                  Save colours
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    useBrandStore.getState().setPalette(baselinePalette)
-                    setFeedback(null)
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : null}
-          </BrandCard>
-
-          <BrandCard
-            icon={Type}
-            title="Typography"
-            description="Your text styles, under your own names. Each carries its own typeface, size, weight and colour."
-            state={<><span data-figure>{styles.length}</span> styles</>}
-            note={brandOverride === 'inherit' ? null : sourceNote(source.typography)}
-            feedback={feedback?.section === 'typography' ? feedback : null}
-          >
-            <TypographyFields />
-
-            {typographyDirty ? (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="primary"
-                  loading={saving === 'typography'}
-                  onClick={() => void save('typography', typographyPatch(styles))}
-                >
-                  Save typography
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    useBrandStore.getState().setTextStyles(baselineStyles)
-                    setFeedback(null)
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : null}
-          </BrandCard>
-
-          {/* The fourth facet of a kit is what it builds with. A kit holds no
-              layout — a book picks its own grid — but the blocks it draws with
-              are the shop's, and this is where they will live. Disabled with
-              the reason visible rather than omitted, the same rule the left
-              rail follows for an unbuilt destination. */}
-          <BrandCard
-            icon={Shapes}
-            title="Blocks"
-            description="The building blocks your offer books are made of: an offer card, a header, a footer."
-            state={<><span data-figure>{blocks.length}</span> blocks</>}
-            note={null}
-          >
-            {/* Drawn in this shop's palette and typefaces, against the longest
-                name and a three-decimal price in the catalog. A preview built
-                from friendly data tells an owner their card works and lets the
-                real catalog prove otherwise. */}
-            <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
-              {blocks.map((block) => (
-                <li key={block.id} className="flex flex-col gap-2">
-                  <div className="overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0">
-                    {/* Natural aspect per block, not one forced on all four: a
-                        hero band letterboxed into a card's shape is not what
-                        the owner will get. The offer card shows tall, the bands
-                        show wide, and the engine picks the arrangement to
-                        match — which is the behaviour worth previewing. */}
-                    <BlockPreview
-                      arrangements={block.arrangements}
-                      kit={kit}
-                      width={420}
-                      height={block.repeats ? 540 : 170}
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-ui text-label font-medium text-primary">{block.name}</span>
-                    {block.description ? (
-                      <span className="font-ui text-body-sm text-muted">{block.description}</span>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            {/* The card shows what a shop composes with; changing it is one
-                route further in, where the canvas can have the width. E7. */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/brand/blocks"
-                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
-              >
-                Manage blocks
-              </Link>
-
-              {/* The same action as the library's, because this is the other
-                  place an owner is already looking at their blocks — and the
-                  one they reach first. It opens the same dialog rather than
-                  linking on to it: sending someone to another screen to start
-                  is a step that teaches them the feature lives somewhere else. */}
+              {/*
+               * **E8-09, under the upload rather than beside it.** An owner who
+               * has a logo file uploads it; this is for the one who does not, and
+               * putting it second is what says so without a sentence.
+               */}
               {canEdit ? (
                 <button
                   type="button"
-                  onClick={() => setMatching(true)}
+                  onClick={() => setDrawing(true)}
                   className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
                 >
                   <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  Match from a picture
+                  {logoUrl ? 'Make a different logo' : 'I do not have a logo'}
                 </button>
               ) : null}
-            </div>
 
-            <p className="font-ui text-body-sm text-muted">
-              These come with every account. Duplicate one to design a version
-              of your own, or match one from a picture.
-            </p>
+              <LogoMarkDialog
+                open={drawing}
+                onOpenChange={setDrawing}
+                kit={kit}
+                credits={credits}
+                onAdopted={() => router.refresh()}
+              />
+            </BrandCard>
+          </TabPanel>
 
-            <MagicBlockDialog
-              open={matching}
-              onOpenChange={setMatching}
-              kit={kit}
-              credits={credits}
-              onCreated={() => router.refresh()}
-            />
-          </BrandCard>
+          <TabPanel value="colors" active={tab}>
+            <BrandCard
+              icon={Palette}
+              title="Colours"
+              description="Your colours, under your own names. Where each one goes is decided by the blocks that use it."
+              state={<><span data-figure>{palette.length}</span> colours</>}
+              note={brandOverride === 'inherit' ? null : sourceNote(source.colors)}
+              feedback={feedback?.section === 'colors' ? feedback : null}
+            >
+              <ColorFields />
 
-          {/*
-           * **E8-01's own card rather than a control on the logo.** A character
-           * is a member of the brand kit in its own right — E4's kit diagram
-           * lists a Character Library beside the logo and the colours, and it
-           * has been the one line in that diagram with nothing behind it since
-           * E4 shipped.
-           */}
-          <BrandCard
-            icon={Smile}
-            title="Character"
-            description="A cartoon shop worker in your own uniform, for covers and banners. Made once, reused everywhere."
-            state={
-              characters.length > 0 ? (
-                <>
-                  <span data-figure>{characters.length}</span> saved
-                </>
-              ) : (
-                'Not made yet'
-              )
-            }
-            note={null}
-          >
-            {/*
-             * A Link rather than a dialog: making a character is a flow with
-             * prerequisites the owner may have to leave and satisfy, which is
-             * not something a modal can hold. Middle-click and open-in-new-tab
-             * are worth keeping too — the same reasoning the library's Open
-             * control uses.
-             */}
-            {canEdit ? (
-              <Link
-                href="/brand/character"
-                className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
-              >
-                <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                {characters.length > 0 ? 'Make another character' : 'Make a character'}
-              </Link>
-            ) : null}
+              {/*
+               * **E8-08, offered beside the pickers rather than instead of them.**
+               * An owner who knows their colours types them; the one who does not
+               * has been choosing from a wheel until now. Looking costs nothing —
+               * which is why this is a quiet control here and not a banner.
+               */}
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => setProposing(true)}
+                  className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+                >
+                  <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                  Find colours from a photo
+                </button>
+              ) : null}
 
-            <CharacterGallery characters={characters} />
-          </BrandCard>
+              <BrandDirectionDialog
+                open={proposing}
+                onOpenChange={setProposing}
+                credits={credits}
+                onAccepted={() => router.refresh()}
+              />
 
+              {colorsDirty ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    loading={saving === 'colors'}
+                    onClick={saveColors}
+                  >
+                    Save colours
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      useBrandStore.getState().setPalette(baselinePalette)
+                      setFeedback(null)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : null}
+            </BrandCard>
+          </TabPanel>
+
+          <TabPanel value="type" active={tab}>
+            <BrandCard
+              icon={Type}
+              title="Typography"
+              description="Your text styles, under your own names. Each carries its own typeface, size, weight and colour."
+              state={<><span data-figure>{styles.length}</span> styles</>}
+              note={brandOverride === 'inherit' ? null : sourceNote(source.typography)}
+              feedback={feedback?.section === 'typography' ? feedback : null}
+            >
+              <TypographyFields />
+
+              {typographyDirty ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    loading={saving === 'typography'}
+                    onClick={() => void save('typography', typographyPatch(styles))}
+                  >
+                    Save typography
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      useBrandStore.getState().setTextStyles(baselineStyles)
+                      setFeedback(null)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : null}
+            </BrandCard>
+          </TabPanel>
+
+          <TabPanel value="character" active={tab}>
+            <BrandCard
+              icon={Smile}
+              title="Character"
+              description="A cartoon shop worker in your own uniform, for covers and banners. Made once, reused everywhere."
+              state={
+                characters.length > 0 ? (
+                  <>
+                    <span data-figure>{characters.length}</span> saved
+                  </>
+                ) : (
+                  'Not made yet'
+                )
+              }
+              note={null}
+            >
+              {/*
+               * A Link rather than a dialog: making a character is a flow with
+               * prerequisites the owner may have to leave and satisfy, which is
+               * not something a modal can hold. Middle-click and open-in-new-tab
+               * are worth keeping too — the same reasoning the library's Open
+               * control uses.
+               */}
+              {canEdit ? (
+                <Link
+                  href="/brand/character"
+                  className="inline-flex h-control w-fit items-center gap-2 rounded-pill border border-border-strong px-3 font-ui text-label text-primary hover:bg-stone-100"
+                >
+                  <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                  {characters.length > 0 ? 'Make another character' : 'Make a character'}
+                </Link>
+              ) : null}
+
+              <CharacterGallery characters={characters} />
+            </BrandCard>
+          </TabPanel>
         </>
       )}
 

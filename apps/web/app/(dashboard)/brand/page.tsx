@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getCreditSnapshot, prisma } from '@souqstudio/db'
-import type { Arrangement } from '@souqstudio/types'
 import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { toRole } from '@/lib/authz'
@@ -43,18 +42,14 @@ export default async function BrandKitPage() {
     )
   }
 
-  // Blocks are published rows identical for every shop, so they are read here
-  // rather than through an API the client would have to wait on.
-  const [brand, blocks, credits, characters] = await Promise.all([
+  // The block library moved to `/blocks` on 16 September and is no longer read
+  // here — a library of sixty-five designs is a workspace rather than a facet of
+  // an identity, and the brand kit is four tabs without it.
+  const [brand, credits, characters] = await Promise.all([
     readEffectiveBrand({
       organizationId: shop.organizationId,
       shopId: shop.id,
       brandOverride: shop.brandOverride,
-    }),
-    prisma.block.findMany({
-      where: { organizationId: null, status: 'published' },
-      select: { id: true, name: true, description: true, repeats: true, arrangements: true },
-      orderBy: { name: 'asc' },
     }),
     getCreditSnapshot(session.user.organizationId),
     /**
@@ -111,15 +106,6 @@ export default async function BrandKitPage() {
         isOwner={isOwner}
         credits={credits.total}
         characters={characters}
-        blocks={blocks.map((block) => ({
-          id: block.id,
-          name: block.name,
-          description: block.description,
-          repeats: block.repeats,
-          // JSONB round-trips as Prisma.JsonValue; the shape is `Arrangement[]`
-          // and the seed is its only writer.
-          arrangements: block.arrangements as unknown as Arrangement[],
-        }))}
       />
     </div>
   )

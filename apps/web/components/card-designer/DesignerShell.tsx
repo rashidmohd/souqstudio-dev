@@ -291,7 +291,7 @@ export function DesignerShell({
     <div className="flex h-screen flex-col overflow-hidden bg-canvas-surround">
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
         <Link
-          href="/brand/blocks"
+          href="/blocks"
           className="flex items-center gap-2 rounded-pill px-2 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100"
         >
           <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" strokeWidth={1.75} />

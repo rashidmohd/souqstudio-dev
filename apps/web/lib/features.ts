@@ -42,8 +42,10 @@ export const EDITOR_BUILT = true
 export const BOOK_CREATION_BUILT = true
 
 /**
- * E7 — the block library at /brand/blocks and the designer at
- * /card-designer/[blockId]. Built: duplicate a seeded block, move and resize
+ * E7 — the block library at /blocks and the designer at
+ * /card-designer/[blockId]. **It moved out of /brand on 16 September**: a
+ * library of sixty-five designs plus the shop's own is a workspace, not a facet
+ * of an identity, and it is now its own item in the rail. Built: duplicate a seeded block, move and resize
  * elements, bind them, set an overflow policy, undo, autosave, version history.
  *
  * Not built: dragging a *new* element from the palette onto the canvas (it is

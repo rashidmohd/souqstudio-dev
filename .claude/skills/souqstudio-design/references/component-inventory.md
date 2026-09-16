@@ -651,7 +651,7 @@ still comes from a token.
 | | |
 | --- | --- |
 | File | `components/ui/tabs.tsx` |
-| Status | `spec` |
+| Status | `built` — apps/web only, rebuilt 16 September for `/brand` |
 | Governs | SKILL.md → Components → Tabs |
 
 ```tsx
@@ -679,6 +679,16 @@ it was replaced immediately by a vertical icon rail (`components/editor/BookTool
 That is not an argument against tabs generally. It is an argument against tabs for a
 **set that grows**, which is worth checking before reaching for this: a settings screen
 with three fixed sections is a good fit, a tool palette is not.
+
+**Rebuilt on 16 September for the brand kit**, which is that good case: four facets of an
+identity — logo, colours, type, character — a list that changed once in six months and got
+*shorter* when the block library moved to the main rail. If it starts growing again this is
+the wrong control and `BookToolRail` is the precedent for what replaces it.
+
+Exported alongside it is **`TabPanel`** (`value`, `active`, `children`), which is how the
+hide-don't-unmount rule below is actually kept — it sets the `hidden` attribute rather than
+rendering conditionally. A caller that writes its own conditional gets the bug the rule is
+about.
 
 **Two things a builder will otherwise get wrong**, learned in that build:
 

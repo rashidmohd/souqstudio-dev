@@ -9,6 +9,7 @@ import {
   PanelLeftOpen,
   LayoutGrid,
   Palette,
+  Shapes,
   BarChart3,
   Building2,
   Store,
@@ -25,6 +26,7 @@ import { railCookie, type RailState } from '@/lib/rail-preference'
 import type { ShopOption } from '@/lib/shops'
 import {
   ANALYTICS_BUILT,
+  BLOCK_DESIGNER_BUILT,
   BRAND_KIT_BUILT,
   CATALOG_BUILT,
   TEAM_BUILT,
@@ -72,6 +74,19 @@ const SHOP_SCOPE = [
   { icon: BookOpen, label: 'Offer books', href: '/', built: true },
   { icon: LayoutGrid, label: 'Catalog', href: '/catalog', built: CATALOG_BUILT },
   { icon: Palette, label: 'Brand kit', href: '/brand', built: BRAND_KIT_BUILT },
+  /**
+   * **Blocks is its own destination, not a page inside the brand kit.**
+   *
+   * It lived at `/brand/blocks` because E7 grew out of E4. That stopped being
+   * true: the library is sixty-five designs plus everything the shop has drawn,
+   * it is where an owner spends real time, and it is the start of the designer —
+   * which is a different kind of work from setting a logo and four colours. A
+   * brand kit is an identity you set and leave; this is a workspace.
+   *
+   * It also unloaded the brand kit, which is now four tabs rather than five
+   * cards with a library at the bottom of them.
+   */
+  { icon: Shapes, label: 'Blocks', href: '/blocks', built: BLOCK_DESIGNER_BUILT },
   { icon: BarChart3, label: 'Analytics', href: '/analytics', built: ANALYTICS_BUILT },
 ].filter((item) => item.built)
 
