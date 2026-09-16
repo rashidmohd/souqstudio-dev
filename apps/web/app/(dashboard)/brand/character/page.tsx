@@ -76,6 +76,7 @@ export default async function CharacterPage({
         profileGaps={profileGaps(profile)}
         brandComplete={isBrandSetupComplete(brand.brandKit)}
         shopId={shop.id}
+        brandLogoUrl={brand.logoUrl}
         storePhotoKeys={storePhotoKeys}
         storePhotoUrls={storePhotoKeys.map(publicUrl)}
         {...(searchParams.job === undefined ? {} : { resumeJobId: searchParams.job })}

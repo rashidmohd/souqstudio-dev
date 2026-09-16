@@ -200,6 +200,21 @@ export function publicUrl(key: string): string {
 }
 
 /**
+ * The key behind one of our own public URLs, or null for anything else.
+ *
+ * The inverse of `publicUrl`, and the same function the worker's own R2 module
+ * carries. It is how a stored URL — `shops.logoUrl`, say — becomes something a
+ * background job can read from the bucket: a key survives the bucket moving
+ * behind a different origin, and a URL outside our origin is not something to
+ * hand a worker at all.
+ */
+export function keyFromPublicUrl(url: string): string | null {
+  const origin = env.R2_PUBLIC_URL.replace(/\/$/, '')
+  if (!url.startsWith(`${origin}/`)) return null
+  return url.slice(origin.length + 1)
+}
+
+/**
  * A URL the browser can PUT to.
  *
  * `ContentLength` is part of the signature, so a client sending a larger body

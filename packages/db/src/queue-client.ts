@@ -186,6 +186,19 @@ export interface CharacterGenPayload {
   sceneKeys?: string[]
   /** What the owner wants the character for, in their words. Quoted as data. */
   goal?: string
+  /**
+   * The shop's logo, to be worn on the uniform.
+   *
+   * **Reaches the image model, like `sceneKeys` and unlike the uniform photos.**
+   * It has to: the model is being asked to put it on a garment. It is the shop's
+   * own mark rather than a picture of anybody, so it raises none of the
+   * questions the staff photographs do — but it is still an owner-supplied image
+   * being sent onward, and the consent step names it when it is set.
+   *
+   * Where it lands comes from `Uniform.logoPlacement` — where a logo sits on the
+   * uniform they actually photographed — rather than from a preference.
+   */
+  logoKey?: string
 }
 
 /** One pose of an existing character, two variations. E8-02 and E8-03. */

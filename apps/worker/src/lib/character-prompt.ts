@@ -112,10 +112,37 @@ export function interpretUniform(candidates: readonly unknown[]): Uniform {
  */
 const CHARACTER_RULES = `Full body, head to feet, standing on nothing.
 Plain flat white background, no scene, no floor, no shadow cast onto a surface.
-No text anywhere in the image, in any language. No logo, no brand mark, no
-writing on the uniform — the shop adds their own afterwards.
+No text anywhere in the image, in any language.
 One character only.
 Centred, with a small even margin, facing the viewer.`
+
+/** Said when no logo was supplied. Otherwise `logoRule` replaces it. */
+const NO_LOGO = `No logo, no brand mark and no writing on the uniform — the shop
+adds their own afterwards.`
+
+/**
+ * Where the shop's own logo goes, when they supplied one.
+ *
+ * **The placement comes from the uniform they photographed, not from a
+ * preference.** The vision step already read where a logo sits on the real
+ * garment, so a generated character wears it where their staff wear it. When the
+ * real uniform has none, the left chest is the convention and is stated rather
+ * than left to the model.
+ *
+ * **It says "as closely as you can" on purpose.** A model redrawing a logo is
+ * approximating it, and one containing text will come back with the letters
+ * wrong — that is a property of the tools, not of this prompt, and the interface
+ * says so before an owner uploads.
+ */
+function logoRule(placement: Uniform['logoPlacement']): string {
+  const where =
+    placement === 'none' ? 'left chest' : placement.replace('-', ' ')
+
+  return `The attached logo image is the shop's own logo. Place it on the ${where} of
+the uniform, small, as closely as you can to the image supplied — do not redraw
+it, restyle it, or add words to it. It should sit flat on the fabric and follow
+its folds. Nothing else in the picture carries any text or mark.`
+}
 
 function look(value: CharacterLook): string {
   return value === 'unspecified' ? '' : `${CHARACTER_LOOK_NOTE[value]} features. `
@@ -152,6 +179,8 @@ export function characterPrompt(input: {
   goal?: string
   /** Whether a photograph of the shop is attached as a scene reference. */
   inScene: boolean
+  /** Whether the shop's logo is attached, to be worn on the uniform. */
+  withLogo: boolean
 }): string {
   const medium =
     input.style === 'photo-real'
@@ -185,6 +214,13 @@ Full body, facing the viewer.
 No text anywhere in the image, in any language. One person only.`
     : CHARACTER_RULES
 
+  /**
+   * **The logo rule replaces the no-logo rule; they are never both present.**
+   * A prompt carrying "no logo anywhere" and "put this logo on the chest" is one
+   * a model resolves by guessing, and the guess is usually the first one.
+   */
+  const branding = input.withLogo ? logoRule(input.uniform.logoPlacement) : NO_LOGO
+
   const wants =
     input.goal === undefined || input.goal.trim() === ''
       ? ''
@@ -198,7 +234,9 @@ They work at ${tradesPhrase(input.trades)}. The owner describes the shop as:
 
 Standing straight, arms relaxed at their sides, smiling, facing the viewer.${invented}${wants}
 
-${setting}`
+${setting}
+
+${branding}`
 }
 
 /**

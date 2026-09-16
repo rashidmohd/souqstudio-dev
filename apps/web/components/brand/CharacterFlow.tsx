@@ -58,6 +58,8 @@ type Props = {
   /** The shop's own photographs, from its profile. Offered as a scene. */
   storePhotoUrls: string[]
   storePhotoKeys: string[]
+  /** The brand kit's logo, offered as the one to wear. Null when there is none. */
+  brandLogoUrl: string | null
   /**
    * A finished generation to reopen rather than start a new one.
    *
@@ -109,6 +111,7 @@ export function CharacterFlow({
   shopId,
   storePhotoUrls,
   storePhotoKeys,
+  brandLogoUrl,
   resumeJobId,
 }: Props) {
   const router = useRouter()
@@ -120,6 +123,9 @@ export function CharacterFlow({
   const [angleFiles, setAngleFiles] = React.useState<File[]>([])
   const [useScene, setUseScene] = React.useState(false)
   const [goal, setGoal] = React.useState('')
+  /** Whose logo goes on the uniform: none, the brand kit's, or an upload. */
+  const [logoSource, setLogoSource] = React.useState<'none' | 'brand' | 'upload'>('none')
+  const [logoFile, setLogoFile] = React.useState<File | null>(null)
   const [style, setStyle] = React.useState<CharacterStyle>('cartoon')
   const [gender, setGender] = React.useState<CharacterGender>('both')
   const [look, setLook] = React.useState<CharacterLook>('unspecified')
@@ -177,6 +183,9 @@ export function CharacterFlow({
       const sourceKey = await upload(mainFile)
       const angleKeys = await Promise.all(angleFiles.map(upload))
 
+      const logoKey =
+        logoSource === 'upload' && logoFile !== null ? await upload(logoFile) : undefined
+
       const queued = await json<{ jobId: string }>('/api/v1/characters/generate', {
         sourceKey,
         angleKeys,
@@ -186,6 +195,8 @@ export function CharacterFlow({
         consent: true,
         ...(useScene && storePhotoKeys.length > 0 ? { sceneKeys: storePhotoKeys } : {}),
         ...(goal.trim() === '' ? {} : { goal: goal.trim() }),
+        ...(logoKey === undefined ? {} : { logoKey }),
+        ...(logoSource === 'brand' ? { useBrandLogo: true } : {}),
       })
 
       const outcome = await poll(queued.jobId)
@@ -204,13 +215,15 @@ export function CharacterFlow({
     }
   }
 
-  async function keep(index: number) {
+  async function keep(indexes: number[]) {
     if (phase.at !== 'picking') return
     const { jobId, variations, notes } = phase
-    setPhase({ at: 'saving', jobId, variations, notes, index })
+    // `index` on the phase is only what the button says "Saving…" under; a
+    // keep-all has no single one, and -1 is never a variation position.
+    setPhase({ at: 'saving', jobId, variations, notes, index: indexes.length === 1 ? (indexes[0] as number) : -1 })
 
     try {
-      await json('/api/v1/characters', { jobId, index })
+      await json('/api/v1/characters', { jobId, indexes })
       router.push('/brand')
       router.refresh()
     } catch (error) {
@@ -260,7 +273,7 @@ export function CharacterFlow({
                 <button
                   type="button"
                   disabled={phase.at === 'saving'}
-                  onClick={() => void keep(index)}
+                  onClick={() => void keep([index])}
                   aria-label={`Keep character ${index + 1}`}
                   className="flex w-full flex-col gap-2 rounded-block border border-border-strong p-2 hover:bg-stone-100 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
                 >
@@ -282,9 +295,28 @@ export function CharacterFlow({
             <p className="font-ui text-body-sm text-critical-fg">{phase.error}</p>
           ) : null}
 
-          <p className="font-ui text-body-sm text-muted">
-            Keep one and it joins your brand kit. The others are discarded.
-          </p>
+          {/*
+           * **Keeping all of them costs nothing extra**, and saying so matters:
+           * the set is already paid for, and an owner who assumes otherwise
+           * throws three away and pays again next month for one of them. A shop
+           * that wants a man and a woman on the shelf wanted both all along.
+           */}
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={phase.at === 'saving'}
+              onClick={() => void keep(phase.variations.map((_, index) => index))}
+            >
+              {phase.at === 'saving' && phase.index === -1
+                ? 'Saving…'
+                : `Keep all ${phase.variations.length}`}
+            </Button>
+            <p className="font-ui text-body-sm text-muted">
+              Keeping all of them costs no extra credits — you have already paid for the
+              set. Anything you do not keep is discarded.
+            </p>
+          </div>
         </div>
       </MachineOutput>
     )
@@ -407,6 +439,55 @@ export function CharacterFlow({
               </p>
             )}
 
+            <div className="flex flex-col gap-2 border-t border-border-subtle pt-4">
+              <span className="font-ui text-label font-medium text-primary">
+                A logo on the uniform?
+              </span>
+              <p className="font-ui text-body-sm text-muted">
+                We put it where a logo sits on the uniform you photographed.{' '}
+                <strong className="font-medium text-secondary">
+                  Expect it to be approximate
+                </strong>{' '}
+                — a drawing service redraws a logo rather than pasting it, and one with
+                words in it usually comes back with the letters wrong.
+              </p>
+
+              <Segmented
+                label="Which logo goes on the uniform"
+                value={logoSource}
+                options={[
+                  { value: 'none' as const, label: 'No logo' },
+                  ...(brandLogoUrl === null
+                    ? []
+                    : [{ value: 'brand' as const, label: 'My brand logo' }]),
+                  { value: 'upload' as const, label: 'Upload one' },
+                ]}
+                onChange={setLogoSource}
+              />
+
+              {logoSource === 'brand' && brandLogoUrl !== null ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={brandLogoUrl}
+                  alt="Your brand logo"
+                  className="aspect-square w-chip rounded-chip border border-border-subtle object-contain"
+                />
+              ) : null}
+
+              {logoSource === 'upload' ? (
+                <FileDropzone
+                  label="The logo to put on the uniform"
+                  accept={ACCEPT}
+                  onFile={setLogoFile}
+                  hint="PNG with a transparent background works best."
+                >
+                  {logoFile === null ? null : (
+                    <p className="font-ui text-body-sm text-secondary">{logoFile.name}</p>
+                  )}
+                </FileDropzone>
+              ) : null}
+            </div>
+
             <Input
               label="What do you want it for?"
               hint="Optional. “Weekend offers on WhatsApp”, “our Ramadan flyer”. It sets the mood, nothing more."
@@ -416,7 +497,15 @@ export function CharacterFlow({
             />
 
             <div className="flex gap-2">
-              <Button type="button" variant="primary" onClick={() => go('style')}>
+              <Button
+                type="button"
+                variant="primary"
+                // Choosing "upload" and then continuing without one is the only
+                // way to reach the end of this flow expecting a logo and get
+                // none, so it is stopped here rather than explained later.
+                disabled={logoSource === 'upload' && logoFile === null}
+                onClick={() => go('style')}
+              >
                 Continue
               </Button>
               <Button type="button" variant="ghost" onClick={() => go('uniform')}>
@@ -500,6 +589,12 @@ export function CharacterFlow({
                 Your photos are never sent to the part that draws, so the result cannot look
                 like anyone in them.
               </li>
+              {logoSource === 'none' ? null : (
+                <li className="font-ui text-body-sm text-secondary">
+                  Your logo <em>is</em> sent to the drawing service, so it can be put on the
+                  uniform. It comes back redrawn rather than exact.
+                </li>
+              )}
               {useScene ? (
                 <li className="font-ui text-body-sm text-secondary">
                   Your shop photos <em>are</em> sent to the drawing service, as the

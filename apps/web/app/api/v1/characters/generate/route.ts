@@ -21,6 +21,7 @@ import { getActiveShop } from '@/lib/active-shop'
 import { isBrandSetupComplete, readEffectiveBrand } from '@/lib/brand-kit'
 import { prisma as db } from '@souqstudio/db'
 import { env } from '@/lib/env'
+import { keyFromPublicUrl } from '@/lib/r2'
 
 /**
  * Generate a branded character, four variations. E8-01.
@@ -63,6 +64,17 @@ const schema = z.object({
   sceneKeys: z.array(z.string().min(1).max(200)).max(MAX_STORE_PHOTOS).optional(),
   /** What the owner wants it for. Quoted into the prompt as data. */
   goal: z.string().trim().max(MAX_GOAL).optional(),
+  /** A logo the owner uploaded for this, to be worn on the uniform. */
+  logoKey: z.string().min(1).max(200).optional(),
+  /**
+   * Use the logo already in the brand kit instead of uploading one.
+   *
+   * **Resolved on the server from the kit, never sent as a URL.** The kit's
+   * logo is a public URL on the row and a client passing one back would be
+   * choosing which image gets sent to a model — this looks it up instead.
+   * Exclusive with `logoKey`.
+   */
+  useBrandLogo: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -113,6 +125,9 @@ export async function POST(request: NextRequest) {
     parsed.data.sourceKey,
     ...(parsed.data.angleKeys ?? []),
     ...(parsed.data.sceneKeys ?? []),
+    // A key the client supplied. The one resolved from the brand kit is this
+    // organization's by construction and is added after this check.
+    ...(parsed.data.logoKey === undefined ? [] : [parsed.data.logoKey]),
   ]
   if (!everyKey.every(ownsKey)) {
     return fail('invalid_input', 'That upload does not belong to this organization.', 422)
@@ -159,6 +174,27 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  /**
+   * Which logo, if any, goes on the uniform.
+   *
+   * The brand kit's logo is stored as a public URL, and what the worker needs is
+   * an R2 key — `keyFromPublicUrl` is the seam that already exists for exactly
+   * this, and a logo hosted anywhere else is simply not offered rather than
+   * fetched over HTTP by a background job.
+   */
+  let logoKey = parsed.data.logoKey
+  if (logoKey === undefined && parsed.data.useBrandLogo === true) {
+    const resolved = brand.logoUrl === null ? null : keyFromPublicUrl(brand.logoUrl)
+    if (resolved === null) {
+      return fail(
+        'no_brand_logo',
+        'There is no logo in your brand kit to put on the uniform. Upload one instead.',
+        409
+      )
+    }
+    logoKey = resolved
+  }
+
   const cost = CREDIT_COSTS.character_gen
   const snapshot = await getCreditSnapshot(organizationId)
   if (snapshot.total < cost) {
@@ -193,6 +229,7 @@ export async function POST(request: NextRequest) {
       ...(parsed.data.angleKeys === undefined ? {} : { angleKeys: parsed.data.angleKeys }),
       ...(parsed.data.sceneKeys === undefined ? {} : { sceneKeys: parsed.data.sceneKeys }),
       ...(parsed.data.goal === undefined ? {} : { goal: parsed.data.goal }),
+      ...(logoKey === undefined ? {} : { logoKey }),
     })
   } catch {
     await prisma.aiJob.update({

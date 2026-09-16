@@ -55,7 +55,7 @@ const MEDIA: Readonly<Record<string, 'image/png' | 'image/jpeg' | 'image/webp'>>
 const MAX_EDGE = 1568
 
 export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
-  const { jobId, organizationId, shopId, sourceKey, consentedAt, goal } = job.data
+  const { jobId, organizationId, shopId, sourceKey, consentedAt, goal, logoKey } = job.data
 
   await prisma.aiJob.update({ where: { id: jobId }, data: { status: 'processing' } })
 
@@ -91,6 +91,17 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
     )
     const scene = await Promise.all((job.data.sceneKeys ?? []).map(prepare))
 
+    /**
+     * The shop's logo, when they asked for it on the uniform.
+     *
+     * **Last in the reference list, and that ordering is deliberate.** The scene
+     * establishes where the character is and the logo is a detail applied to
+     * them; providers weight earlier references more heavily, and a logo leading
+     * the list produces a picture of a logo with a person behind it.
+     */
+    const logo = logoKey === undefined ? undefined : await prepare(logoKey)
+    const references = [...scene, ...(logo === undefined ? [] : [logo])]
+
     const uniform = await readUniform(photos)
 
     /**
@@ -114,10 +125,11 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
           trades,
           bio,
           inScene: scene.length > 0,
+          withLogo: logo !== undefined,
           ...(goal === undefined ? {} : { goal }),
         }),
         count: each,
-        ...(scene.length === 0 ? {} : { references: scene }),
+        ...(references.length === 0 ? {} : { references }),
       })
       drawn.push(...images)
     }
@@ -147,6 +159,7 @@ export async function handleCharacterGen(job: Job<CharacterGenPayload>) {
           consentedAt,
           trades,
           inScene: scene.length > 0,
+          withLogo: logo !== undefined,
           notes: uniform.notes,
           charged: spend.ok ? spend.charged : 0,
         } as unknown as Prisma.InputJsonValue,
