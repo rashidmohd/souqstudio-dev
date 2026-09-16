@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shapeFor } from '@/components/editor/CoverDialog'
+import { shapeFor } from '@/lib/cover-shape'
 
 /**
  * The shape a generated ground is drawn at, from the page's own proportions.

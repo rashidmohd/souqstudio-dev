@@ -9,7 +9,7 @@ import { Select } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { uploadArtwork } from '@/lib/upload-artwork'
-import { CoverDialog } from '@/components/editor/CoverDialog'
+import { CoverPicker } from '@/components/editor/CoverPicker'
 
 /**
  * The paper behind every card in the book. E6 —
@@ -150,17 +150,19 @@ export function PageBackgroundControl({
             onClick={() => setGenerating(true)}
           >
             <Sparkles className="size-4" aria-hidden="true" strokeWidth={1.75} />
-            Generate a cover
+            Your covers
           </Button>
         </div>
       ) : null}
 
       {aspect !== undefined ? (
-        <CoverDialog
+        <CoverPicker
           open={generating}
           onOpenChange={setGenerating}
           aspect={aspect}
-          onChosen={(assetId) => onChange({ from: 'asset', assetId, fit: 'cover', opacity: 1 })}
+          onChosen={(assetId: string) =>
+            onChange({ from: 'asset', assetId, fit: 'cover', opacity: 1 })
+          }
         />
       ) : null}
 

@@ -15,6 +15,7 @@ import { IconChip } from '@/components/ui/icon-chip'
 import { BrandDirectionDialog } from '@/components/brand/BrandDirectionDialog'
 import { LogoMarkDialog } from '@/components/brand/LogoMarkDialog'
 import { CharacterGallery, type Character } from '@/components/brand/CharacterGallery'
+import { CoverGallery } from '@/components/brand/CoverGallery'
 import { TabPanel, Tabs } from '@/components/ui/tabs'
 import {
   Image as ImageIcon,
@@ -243,6 +244,7 @@ export function BrandKitScreen({
               { value: 'colors', label: 'Colours' },
               { value: 'type', label: 'Type' },
               { value: 'character', label: 'Character' },
+              { value: 'covers', label: 'Covers' },
             ]}
           />
 
@@ -412,6 +414,25 @@ export function BrandKitScreen({
               ) : null}
 
               <CharacterGallery characters={characters} />
+            </BrandCard>
+          </TabPanel>
+
+          <TabPanel value="covers" active={tab}>
+            <BrandCard
+              icon={ImageIcon}
+              title="Covers"
+              description="The front of an offer book, drawn from your character, your shop and your colours. Made once here and used by any book."
+              state={null}
+              note={null}
+            >
+              {/*
+               * **Generation lives here and not in the editor.** A cover is a
+               * brand asset: making it inside one book meant it could never be
+               * reused, so the same shop paid five credits again the next week
+               * for the same Ramadan cover. The editor's page background picks
+               * from what is kept here.
+               */}
+              {canEdit ? <CoverGallery /> : null}
             </BrandCard>
           </TabPanel>
         </>

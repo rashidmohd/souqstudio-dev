@@ -32,7 +32,7 @@ describe('coverPrompt', () => {
   it('asks for the character when one is sent, and stops forbidding people', () => {
     const prompt = said({ ...base, withCharacter: true })
     expect(prompt).toContain('reference image')
-    expect(prompt).toContain('Keep them the same person')
+    expect(prompt).toContain('The same person: same face, same build, same uniform')
     // The contradiction this test exists for.
     expect(prompt).not.toContain('No people')
   })
@@ -66,7 +66,7 @@ describe('coverPrompt', () => {
   })
 
   it('draws the chosen style rather than one hard-coded look', () => {
-    expect(said({ ...base, style: 'photographic' })).toContain('commercial food advertisement')
+    expect(said({ ...base, style: 'photographic' })).toContain('commercial product advertisement')
     expect(said({ ...base, style: 'burst' })).toContain('radial sunburst')
     expect(said({ ...base, style: 'paper-craft' })).toContain('cut-paper')
     expect(said({ ...base, style: 'minimal' })).toContain('one dominant colour field')
@@ -76,12 +76,56 @@ describe('coverPrompt', () => {
     expect(said(base)).toContain('flat vector illustration')
   })
 
+  /**
+   * The two failures an owner actually hit on the first live run, and the reason
+   * both happened: the occasion was stated as the image's *subject* and the
+   * character was stated as the *subject*, so the model merged them.
+   */
+  describe('the character presents the occasion and is never dressed as it', () => {
+    it('does not let back-to-school put a school bag on the shop assistant', () => {
+      const prompt = said({ ...base, campaign: 'back-to-school', withCharacter: true })
+      expect(prompt).toContain('Do not dress them for the occasion')
+      expect(prompt).toContain('No costume, no themed outfit, no themed hat, no school bag')
+      // And the occasion copy itself no longer offers a wearable noun to reach
+      // for. A prohibition arguing with the copy is a fight it can lose.
+      expect(prompt).not.toContain('a backpack')
+    })
+
+    it('does not let summer have the assistant drinking the stock', () => {
+      const prompt = said({ ...base, campaign: 'summer', withCharacter: true })
+      expect(prompt).toContain('Do not have them eat, drink or use the products')
+      expect(prompt).toContain('selling the goods, not consuming them')
+      expect(prompt).not.toContain('condensation on glass')
+      expect(prompt).toContain('tub of ice')
+    })
+
+    it('gives the person and the occasion separate declared roles', () => {
+      const prompt = said({ ...base, campaign: 'eid', withCharacter: true })
+      expect(prompt).toContain('THE PERSON')
+      expect(prompt).toContain('THE OCCASION')
+      expect(prompt).toContain('never the person themselves')
+    })
+
+    it('says "focal point" rather than "subject", which is the word that collided', () => {
+      const prompt = said({ ...base, withCharacter: true })
+      expect(prompt).toContain('one dominant focal point')
+      expect(prompt).not.toContain('as the subject')
+    })
+
+    it('leaves the no-character branch free to make the occasion the subject', () => {
+      // Nothing to confuse it with, so the occasion may lead.
+      const prompt = said({ ...base, campaign: 'back-to-school' })
+      expect(prompt).toContain('A cover image for a retail offer book: back to school')
+      expect(prompt).toContain('No people')
+    })
+  })
+
   it('names drawable subject matter for an occasion, not an adjective', () => {
     // A diffusion model handed "energetic and simple" returns the average of
     // everything ever labelled that. It needs objects.
     expect(said({ ...base, campaign: 'ramadan' })).toContain('dates')
     expect(said({ ...base, campaign: 'fresh' })).toContain('crates of vegetables')
-    expect(said({ ...base, campaign: 'summer' })).toContain('condensation on glass')
+    expect(said({ ...base, campaign: 'summer' })).toContain('bottles of cold drinks')
   })
 
   it('carries the palette and the shape into every variant', () => {

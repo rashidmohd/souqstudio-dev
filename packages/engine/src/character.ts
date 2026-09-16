@@ -222,51 +222,59 @@ export type Campaign = (typeof CAMPAIGNS)[number]
  *
  * So each one names things that can be drawn. None of them names a *style* —
  * that is `COVER_STYLES`, and keeping them apart is what makes the two multiply.
+ *
+ * **Every noun here is goods on a display, never something a person wears or
+ * drinks.** The first draft said "a backpack" and "condensation on glass", and
+ * on a cover carrying the shop's character the model put the backpack on the
+ * assistant and had them drinking the juice — because those are the obvious
+ * things to do with a backpack and a glass. `coverPrompt` forbids it as well,
+ * but a prohibition arguing with the copy is a fight it can lose. Describe a
+ * display and there is nothing to dress anybody in.
  */
 export const CAMPAIGN_COPY: Readonly<Record<Campaign, { label: string; draw: string }>> = {
   weekend: {
     label: 'Weekend sale',
-    draw: 'a weekend grocery sale — a generous spill of everyday food, bread, fruit and packaged staples, in bright late-morning light, cheerful and abundant',
+    draw: 'a weekend grocery sale — a generous display of everyday food, bread, fruit and packaged staples stacked and arranged for sale, in bright late-morning light, cheerful and abundant',
   },
   fresh: {
     label: 'Fresh produce',
-    draw: 'fresh produce — crates of vegetables and fruit, herbs, leaves still wet, greens and reds against a clean ground, a market-morning feeling',
+    draw: 'fresh produce — crates of vegetables and fruit stacked on a market display, herbs, leaves still wet, greens and reds against a clean ground, a market-morning feeling',
   },
   ramadan: {
     label: 'Ramadan',
-    draw: 'Ramadan — dates, lanterns, a crescent and stars, deep indigo and gold, an iftar table laid at dusk; calm, generous and reverent rather than loud',
+    draw: 'Ramadan — bowls of dates and nuts set out on a table, hanging lanterns, a crescent and stars, deep indigo and gold, the light of dusk; calm, generous and reverent rather than loud',
   },
   eid: {
     label: 'Eid',
-    draw: 'Eid — celebration, sweets and gifts, geometric ornament, gold on a rich colour, warm and festive',
+    draw: 'Eid — trays of sweets and wrapped gifts arranged for sale, geometric ornament, hanging decoration, gold on a rich colour, warm and festive',
   },
   clearance: {
     label: 'Clearance',
-    draw: 'a clearance sale — urgent and loud, strong diagonal energy, hot reds and yellows, the visual language of a last-chance price',
+    draw: 'a clearance sale — shelves and pallets of stacked stock, strong diagonal energy, hot reds and yellows, the visual language of a last-chance price',
   },
   'back-to-school': {
     label: 'Back to school',
-    draw: 'back to school — notebooks, pencils, a backpack, lunch boxes, bright primary colours on a clean ground',
+    draw: 'back to school — stacks of notebooks, pots of pencils, lunch boxes and school supplies arranged on a display table, bright primary colours on a clean ground',
   },
   'national-day': {
     label: 'National day',
-    draw: 'a national day celebration — flags, bunting and ribbon, fireworks in the distance, patriotic colour, proud and warm',
+    draw: 'a national day celebration — bunting and ribbon strung above a display, flags on stands, patriotic colour, proud and warm',
   },
   summer: {
     label: 'Summer',
-    draw: 'high summer — cold drinks, ice, watermelon and citrus, condensation on glass, bright sun and a pool-blue ground',
+    draw: 'high summer — bottles of cold drinks in a tub of ice, watermelon and citrus stacked on a chilled display, bright sun and a pool-blue ground',
   },
   winter: {
     label: 'Winter',
-    draw: 'winter — warm spices, tea, soup and blankets, low amber light against a cool blue evening, cosy and still',
+    draw: 'winter — jars of warm spices, packets of tea and folded blankets set out on a display, low amber light against a cool blue evening, cosy and still',
   },
   'new-year': {
     label: 'New year',
-    draw: 'a new year — confetti, streamers and sparkle, midnight blue and metallic gold, optimistic and celebratory',
+    draw: 'a new year — confetti and streamers falling over a display of goods, midnight blue and metallic gold, optimistic and celebratory',
   },
   opening: {
     label: 'Grand opening',
-    draw: 'a grand opening — ribbon and balloons, confetti in the air, a sense of doors opening for the first time, proud and welcoming',
+    draw: 'a grand opening — a ribbon strung across new shelves, balloons tied at the ends, confetti in the air, proud and welcoming',
   },
   custom: { label: 'Something else', draw: '' },
 }
@@ -300,7 +308,7 @@ export const COVER_STYLE_COPY: Readonly<
   photographic: {
     label: 'Photographic',
     note: 'A real scene, shot like an advert',
-    draw: 'A photograph, shot like a commercial food advertisement: a real scene with real depth, soft directional light, shallow depth of field falling off behind the subject, rich natural colour.',
+    draw: 'A photograph, shot like a commercial product advertisement: a real scene with real depth, soft directional light, shallow depth of field falling off behind the focal point, rich natural colour.',
   },
   'flat-graphic': {
     label: 'Flat graphic',

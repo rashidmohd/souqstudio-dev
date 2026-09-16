@@ -278,6 +278,34 @@ model id that has moved is a 404 that reads like a bad key.
    attached is a contradiction the model resolves however it likes, and `cover-prompt.test.ts`
    is there to keep the two halves honest.
 
+   **Then two live runs found what a test could not, and both were prompt faults.**
+   Asked for a back-to-school cover, the model put a school bag *on the shop assistant*;
+   asked for summer, it had them drinking the juice. The cause was one word used twice —
+   the prompt opened "a cover image for a retail offer book: back to school — notebooks,
+   pencils, a backpack", asked for "one dominant **subject**", and ended "draw the character
+   from the reference image **as the subject**". Two things were the subject, so the model
+   merged them.
+
+   **The fix is two-layered, because one layer is not enough.** `coverPrompt` now gives every
+   element a declared role — THE PERSON, who wears their own uniform and is never dressed for
+   the occasion or shown consuming the stock, and THE OCCASION, which is explicitly "the
+   display and the setting around the person, never the person themselves". And
+   `CAMPAIGN_COPY` was rewritten so every noun is goods on a display: "a backpack" became
+   "stacks of notebooks, pots of pencils, lunch boxes arranged on a display table", and
+   "condensation on glass" became "bottles of cold drinks in a tub of ice". A prohibition
+   arguing with the copy is a fight it can lose; describe a display and there is nothing to
+   dress anybody in. `cover-prompt.test.ts` pins both reported failures by name.
+
+   **Covers then moved out of the editor into the brand kit**, reversing the placement above.
+   The reasoning that put it in the editor was sound and incomplete: the page-background
+   control really did already accept an R2 key, but a cover made *inside one book* could never
+   be reused, so the same shop paid five credits again the next week for the same Ramadan
+   cover. A cover is a brand asset. `covers` (migration `20260916160000`) is shop-scoped with
+   no `organizationId`, exactly as `characters` is; `/brand` has a fifth tab; the editor's
+   page background picks from what is kept rather than generating. The shape is *asked* there
+   and *derived* here — `shapeFor` moved to `lib/cover-shape.ts` for the two of them — and a
+   kept cover whose shape does not suit the page is marked rather than hidden.
+
    **The tenancy rules did not move.** Photographs of *places* go to the drawer; photographs
    of *people* go to the vision reader and stop there. `storePhotoKeys` was already on the
    permitted side — E8-01 sends it as `sceneKeys` — and nothing here can reach the uniform

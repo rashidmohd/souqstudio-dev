@@ -315,19 +315,24 @@ export function coverPrompt(input: {
     input.palette.length === 0 ? '' : `\nUse these colours: ${input.palette.join(', ')}.`
 
   /**
-   * **Two prompts, because a cover with the shop's character in it is a
-   * different picture from a background.**
+   * **Every element gets a declared role, because the first version gave two of
+   * them the same one.**
    *
-   * The original said "no people" and "leave the middle calm", because the spec
-   * had the character composited on top by the export. Drawing it in instead is
-   * what makes a cover finished today rather than when E9 lands — and it is the
-   * owner's own mascot in their own shop, which is the thing they asked for.
-   * Reference-conditioned generation keeps it the same character, exactly as the
-   * pose library relies on.
+   * It opened "A cover image for a retail offer book: back to school —
+   * notebooks, pencils, a backpack", called for "one dominant subject", and then
+   * ended "draw the character from the reference image as the subject". Two
+   * things were the subject, so the model did the reasonable thing and merged
+   * them: it put the backpack *on the shop assistant*. Summer, whose occasion
+   * copy mentions cold drinks, produced the assistant drinking a juice.
    *
-   * **The no-text rule survives both.** A model asked to render a shop's name
-   * produces misspelled words in a typeface nobody chose, and that is true
-   * whether or not a character is in the frame.
+   * **The character is the presenter and the occasion is the display.** A shop
+   * worker on a flyer wears their uniform and shows you the goods; they do not
+   * dress up as the season and they do not consume the stock. Saying so once is
+   * not enough — the occasion copy is full of wearable, drinkable nouns, so the
+   * prohibition has to name the failure.
+   *
+   * **The no-text rule survives every branch.** A model asked to render a shop's
+   * name produces misspelled words in a typeface nobody chose.
    */
   const style = COVER_STYLE_COPY[input.style ?? 'flat-graphic'].draw
 
@@ -335,23 +340,18 @@ export function coverPrompt(input: {
    * **Where the empty space goes, said as a place rather than as a principle.**
    *
    * Every account of how a promotional cover works lands on the same two things:
-   * one dominant subject, and real emptiness around the headline. A model told
-   * "leave space" centres everything and leaves none; told *which third* of the
-   * frame to keep clear, it composes to it. The shop's name and logo are typed
-   * over that third in the editor.
+   * one dominant focal point, and real emptiness around the headline. A model
+   * told "leave space" centres everything and leaves none; told *which third* of
+   * the frame to keep clear, it composes to it.
+   *
+   * It says "focal point" rather than "subject" deliberately — "subject" is the
+   * word that collided above.
    */
-  const composition = `Composition: one dominant subject, placed off-centre and low. **Keep the upper
-third of the image clear** — quiet ground, no detail, nothing that competes —
-because the shop's name and logo are placed over it afterwards. Generous empty
-space around the subject. Clean and confident rather than busy; a crowded cover
-reads as cheap.`
-
-  const people = input.withCharacter
-    ? `Draw the character from the reference image as the subject. **Keep them the
-same person** — the same face, the same build, the same uniform and the same
-colours as the reference. Place them naturally in the scene rather than pasted
-onto it, and leave clear space beside or above them.`
-    : `Decorative, graphic and flat rather than photographic. No people.`
+  const composition = `Composition: one dominant focal point, placed off-centre and low. **Keep the
+upper third of the image clear** — quiet ground, no detail, nothing that
+competes — because the shop's name and logo are placed over it afterwards.
+Generous empty space. Clean and confident rather than busy; a crowded cover reads
+as cheap.`
 
   const place = input.withScene
     ? `
@@ -360,11 +360,34 @@ from them — the shelves, the counter, the kind of place it is — rather than
 inventing a generic store.`
     : ''
 
-  const room = input.withCharacter
-    ? `Leave room for the shop's name and logo, which are placed on top afterwards.`
-    : `The shop's name, its logo and its own characters are placed on top of this
-afterwards, so leave the middle of the image calm and uncluttered for them to sit
-on.`
+  if (input.withCharacter) {
+    return `A cover image for a retail offer book. It shows the shop's own staff member
+presenting this week's offers.
+
+**THE PERSON — from the reference image.** The same person: same face, same
+build, same uniform, same colours. They are a shop worker doing their job. They
+stand with, gesture towards or present the goods.
+
+**Do not dress them for the occasion.** They wear their own uniform from the
+reference and nothing else. No costume, no themed outfit, no themed hat, no
+school bag, no props worn on the body, nothing from the theme added to their
+clothing.
+
+**Do not have them eat, drink or use the products.** They are selling the goods,
+not consuming them.
+
+**THE OCCASION — this is the display and the setting around the person, never
+the person themselves:** ${subject}.
+
+${style}
+${shape}${colors}${place}
+
+${composition} The person is the focal point.
+
+**No text of any kind.** No words, no letters, no numbers, in any language or
+script. No logo and no brand mark. Leave room for the shop's name and logo, which
+are placed on top afterwards.`
+  }
 
   return `A cover image for a retail offer book: ${subject}.
 
@@ -374,7 +397,9 @@ ${shape}${colors}${place}
 ${composition}
 
 **No text of any kind.** No words, no letters, no numbers, in any language or
-script. No logo and no brand mark. ${room}
+script. No logo and no brand mark. The shop's name, its logo and its own
+characters are placed on top of this afterwards, so leave the middle of the image
+calm and uncluttered for them to sit on.
 
-${people}`
+No people.`
 }

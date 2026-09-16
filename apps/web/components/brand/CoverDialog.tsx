@@ -4,6 +4,7 @@ import * as React from 'react'
 import {
   CAMPAIGNS,
   CAMPAIGN_COPY,
+  COVER_SHAPES,
   COVER_SHAPE_NOTE,
   COVER_STYLES,
   COVER_STYLE_COPY,
@@ -48,19 +49,25 @@ import { MachineOutput } from '@/components/ui/machine-output'
  * and a brand-kit library would need a table. This needed neither, and it works
  * on a book an owner already has rather than only on the next one they start.
  *
- * **The shape is derived, never asked.** The page knows its own aspect and the
- * owner has already answered this question by choosing what they are making;
- * asking again is a second chance to get it wrong, and a story-shaped ground on
- * an A4 page is cropped to nothing by `fit: 'cover'`.
+ * **A cover is kept, not applied.** This screen makes brand assets: a cover is
+ * generated once, kept, and picked from the editor whenever a book wants it.
+ * The first build applied it straight to the page an owner happened to be on,
+ * which meant the same shop paid five credits again the next week for the same
+ * Ramadan cover.
  */
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** The page's own aspect — width ÷ height. Decides the shape generated. */
-  aspect: number
-  /** Handed the R2 key of the option the owner kept. */
-  onChosen: (assetId: string) => void
+  /** Called once a kept cover has been written, so the library can reload. */
+  onKept: () => void
+}
+
+/** What each shape is, as a CSS aspect ratio, so a thumbnail matches the file. */
+const ASPECT_OF: Readonly<Record<CoverShape, string>> = {
+  square: '1 / 1',
+  portrait: '3 / 4',
+  story: '9 / 16',
 }
 
 type Option = { url: string; key: string }
@@ -71,31 +78,24 @@ type Sources = { characters: Character[]; storePhotos: StorePhoto[] }
 type Phase =
   | { at: 'asking'; error?: string }
   | { at: 'drawing' }
-  | { at: 'picking'; options: Option[]; withCharacter: boolean }
+  | { at: 'picking'; jobId: string; options: Option[]; withCharacter: boolean; error?: string }
 
-/**
- * Which shape to draw, from the page's own proportions.
- *
- * The midpoints between the three: square sits at 1, portrait at ~0.71 (A4) and
- * story at ~0.56 (9:16). Anything wider than a square is still drawn square —
- * there is no landscape ground, and a square one cropped to a wide page loses
- * its top and bottom rather than its subject.
- */
-export function shapeFor(aspect: number): CoverShape {
-  if (aspect >= 0.86) return 'square'
-  if (aspect >= 0.63) return 'portrait'
-  return 'story'
-}
-
-export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
+export function CoverDialog({ open, onOpenChange, onKept }: Props) {
   const [campaign, setCampaign] = React.useState<Campaign>('weekend')
   const [style, setStyle] = React.useState<CoverStyle>('photographic')
+  /**
+   * **Asked here, where it was derived in the editor.** There is no page in
+   * front of an owner on this screen, so nothing can infer it — and a cover kept
+   * at the wrong shape is cropped to a sliver the week they use it. The picker
+   * in the editor is what warns when a kept cover does not suit the page.
+   */
+  const [shape, setShape] = React.useState<CoverShape>('portrait')
+  const [keeping, setKeeping] = React.useState(false)
   const [described, setDescribed] = React.useState('')
   const [phase, setPhase] = React.useState<Phase>({ at: 'asking' })
   const [sources, setSources] = React.useState<Sources | null>(null)
   const [characterId, setCharacterId] = React.useState<string | null>(null)
   const [useScene, setUseScene] = React.useState(true)
-  const shape = shapeFor(aspect)
 
   /**
    * What this shop has to draw from, read when the dialog opens.
@@ -135,6 +135,20 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
     if (open) setPhase({ at: 'asking' })
   }, [open])
 
+  async function keep(index: number) {
+    if (phase.at !== 'picking') return
+    setKeeping(true)
+    try {
+      await post('/api/v1/covers', { jobId: phase.jobId, indexes: [index] })
+      onKept()
+      onOpenChange(false)
+    } catch (error) {
+      setPhase({ ...phase, error: message(error) })
+    } finally {
+      setKeeping(false)
+    }
+  }
+
   async function generate() {
     setPhase({ at: 'drawing' })
     try {
@@ -148,7 +162,7 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
         ...(campaign === 'custom' ? { described: described.trim() } : {}),
       })
       const options = await poll(queued.jobId)
-      setPhase({ at: 'picking', options, withCharacter })
+      setPhase({ at: 'picking', jobId: queued.jobId, options, withCharacter })
     } catch (error) {
       setPhase({ at: 'asking', error: message(error) })
     }
@@ -177,34 +191,38 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
         >
         <div className="flex flex-col gap-3">
           <p className="font-ui text-body-sm text-secondary">
-            Three covers, {COVER_SHAPE_NOTE[shape].toLowerCase()}. Choose one to put behind this
-            page. Your name and logo go on top in the editor.
+            Three covers, {COVER_SHAPE_NOTE[shape].toLowerCase()}. Keep the one you want — it
+            joins your covers and any book can use it. Your name and logo go on top in the editor.
           </p>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {phase.options.map((option) => (
+            {phase.options.map((option, index) => (
               <button
                 key={option.key}
                 type="button"
                 className="group overflow-hidden rounded-card border border-default bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                onClick={() => {
-                  onChosen(option.key)
-                  onOpenChange(false)
-                }}
+                disabled={keeping}
+                onClick={() => void keep(index)}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={option.url}
                   alt=""
                   className="block w-full transition-transform group-hover:scale-[1.02]"
-                  style={{ aspectRatio: String(aspect) }}
+                  style={{ aspectRatio: ASPECT_OF[shape] }}
                 />
                 <span className="block p-2 font-ui text-body-sm text-secondary group-hover:text-primary">
-                  Use this one
+                  {keeping ? 'Keeping…' : 'Keep this one'}
                 </span>
               </button>
             ))}
           </div>
+
+          {phase.error ? (
+            <p className="font-ui text-body-sm text-critical-fg" role="alert">
+              {phase.error}
+            </p>
+          ) : null}
 
           <div>
             <Button type="button" variant="ghost" onClick={() => setPhase({ at: 'asking' })}>
@@ -319,8 +337,21 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
             onChange={setStyle}
           />
 
+          <RadioCards
+            label="What shape?"
+            value={shape}
+            columns={1}
+            name="cover-shape"
+            disabled={phase.at === 'drawing'}
+            options={COVER_SHAPES.map((option) => ({
+              value: option,
+              label: COVER_SHAPE_NOTE[option],
+            }))}
+            onChange={setShape}
+          />
+
           <p className="font-ui text-body-sm text-secondary">
-            {COVER_SHAPE_NOTE[shape]}, in your brand colours. Three options, 5 credits.
+            Drawn in your brand colours. Three options, 5 credits.
           </p>
 
           {phase.at === 'asking' && phase.error ? (

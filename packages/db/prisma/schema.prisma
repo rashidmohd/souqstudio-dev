@@ -135,6 +135,7 @@ model Shop {
   /// inside their own shop. Keys rather than URLs, so this survives the bucket
   /// moving behind a different public origin.
   storePhotoKeys Json?
+  covers         Cover[]
 
   /// E2-02. Null while active. A deactivated shop keeps all of its data and
   /// stops generating content. Paired with isActive rather than replacing it:
@@ -1653,6 +1654,45 @@ model Character {
   createdAt          DateTime        @default(now())
 
   @@map("characters")
+}
+
+/// A cover an owner generated and kept. E8-04.
+///
+/// **A brand asset, not a property of one book.** It was a page background in
+/// the editor first, which made a cover something you made inside one book and
+/// could never reuse — so the same shop paid five credits again the next week
+/// for the same Ramadan cover. It is made once on `/brand` and picked from
+/// there, like a character.
+///
+/// **Shop-scoped, with no `organizationId`** — the same shape `characters` has,
+/// and the same consequence: every query goes by `shopId` from the active shop
+/// and the usual organization guard does not appear. `E8-pending.md` §3a item 3
+/// carries that note and it applies here unchanged.
+model Cover {
+  id     String @id @default(cuid())
+  shopId String
+
+  /// The R2 object key, never a URL — the same rule `image_assets` and
+  /// `product_brands.logoKey` follow, so this survives the bucket moving behind
+  /// a different public origin.
+  r2Key  String
+
+  /// What it was generated from, kept so the library can label itself and an
+  /// owner can tell two Ramadan covers apart. Strings rather than enums: they
+  /// are `CAMPAIGNS` and `COVER_STYLES` in the engine, which move with product
+  /// judgement, and a stored row naming a campaign we no longer offer should
+  /// still render rather than fail to read.
+  campaign String
+  style    String
+  /// One of `COVER_SHAPES`. Which page proportions it was drawn for — a story
+  /// cover on an A4 page is cropped to a sliver, so the picker warns.
+  shape    String
+
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([shopId, createdAt])
+  @@map("covers")
 }
 
 model CharacterPose {
