@@ -58,6 +58,15 @@ type Props = {
   /** The shop's own photographs, from its profile. Offered as a scene. */
   storePhotoUrls: string[]
   storePhotoKeys: string[]
+  /**
+   * A finished generation to reopen rather than start a new one.
+   *
+   * The bell in the rail links here with it. Everything before the picker is
+   * skipped: the work is done and paid for, and asking somebody to answer five
+   * screens again to reach images that already exist would be the same bug
+   * wearing a different face.
+   */
+  resumeJobId?: string
 }
 
 type Step = 'uniform' | 'scene' | 'style' | 'consent'
@@ -100,9 +109,12 @@ export function CharacterFlow({
   shopId,
   storePhotoUrls,
   storePhotoKeys,
+  resumeJobId,
 }: Props) {
   const router = useRouter()
-  const [phase, setPhase] = React.useState<Phase>({ at: 'form', step: 'uniform' })
+  const [phase, setPhase] = React.useState<Phase>(
+    resumeJobId === undefined ? { at: 'form', step: 'uniform' } : { at: 'working' }
+  )
 
   const [mainFile, setMainFile] = React.useState<File | null>(null)
   const [angleFiles, setAngleFiles] = React.useState<File[]>([])
@@ -114,6 +126,42 @@ export function CharacterFlow({
 
   const ready = profileComplete && brandComplete
   const affordable = credits >= COST
+
+  /**
+   * Reopening a finished generation.
+   *
+   * **It polls rather than reading once**, because the bell is not the only way
+   * in: a link shared or a tab reopened while the job is still running should
+   * wait for it rather than reporting that nothing is there. `poll` already
+   * returns immediately for a job that is complete.
+   */
+  React.useEffect(() => {
+    if (resumeJobId === undefined) return
+    let live = true
+
+    void (async () => {
+      try {
+        const outcome = await poll(resumeJobId)
+        if (!live) return
+        setPhase(
+          outcome.kind === 'declined'
+            ? { at: 'declined', notes: outcome.notes }
+            : {
+                at: 'picking',
+                jobId: resumeJobId,
+                variations: outcome.variations,
+                notes: outcome.notes,
+              }
+        )
+      } catch (error) {
+        if (live) setPhase({ at: 'form', step: 'uniform', error: message(error) })
+      }
+    })()
+
+    return () => {
+      live = false
+    }
+  }, [resumeJobId])
 
   if (!ready) return <NotReady gaps={profileGaps} brandComplete={brandComplete} shopId={shopId} />
 

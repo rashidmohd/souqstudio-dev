@@ -100,6 +100,11 @@ export async function POST(request: NextRequest) {
     mark.url
   )
 
+  await prisma.aiJob.update({
+    where: { id: parsed.data.jobId },
+    data: { claimedAt: new Date() },
+  })
+
   return ok({
     logoUrl: brand.logoUrl,
     brandKit: brand.brandKit,

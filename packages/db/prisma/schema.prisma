@@ -1624,9 +1624,26 @@ model AiJob {
   result         Json?
   errorMessage   String?
   creditsCost    Int
+  /// When the owner took what this produced — chose a character, kept a logo
+  /// mark, accepted a palette. E8.
+  ///
+  /// **A job can be `complete` and still owe somebody something.** Character and
+  /// logo generation both return several options and charge for the set; the
+  /// artefact only exists once a person has picked one. Until this was here the
+  /// only thing that could reach a finished job was the browser tab that started
+  /// it — close it mid-generation and the credits were spent, the images were in
+  /// R2, and nothing in the product could find them again.
+  ///
+  /// Null on a job that produces its artefact directly, like magic block, which
+  /// writes a draft block and has nothing left to claim. Those are excluded by
+  /// type rather than by leaving this set.
+  claimedAt      DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime     @default(now())
   completedAt    DateTime?
+
+  /// The unfinished-work query: this organization's jobs, newest first.
+  @@index([organizationId, status, createdAt])
 
   @@map("ai_jobs")
 }

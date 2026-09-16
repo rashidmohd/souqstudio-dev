@@ -20,6 +20,7 @@ import {
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ShopSwitcher } from '@/components/shop/ShopSwitcher'
+import { UnfinishedWork } from '@/components/shared/UnfinishedWork'
 import { NavItem } from '@/components/shared/nav-item'
 import { cn } from '@/lib/utils'
 import { railCookie, type RailState } from '@/lib/rail-preference'
@@ -237,6 +238,16 @@ export function DashboardRail({
           destinations and nothing says that `Brand kit` belongs to a branch
           while `Shops` belongs to the business. */}
       <ShopSwitcher shops={shops} activeShopId={activeShopId} collapsed={collapsed} />
+
+      {/*
+       * **Generations that finished while the owner was elsewhere.** It renders
+       * nothing when there is nothing waiting, so the rail is unchanged for the
+       * overwhelming majority of sessions — which is why it can sit at the top
+       * rather than being hidden behind the collapse. E8; see the component.
+       */}
+      <div className={cn('flex', collapsed ? 'justify-center' : 'justify-end')}>
+        <UnfinishedWork />
+      </div>
 
       <div className="flex flex-col gap-1">
         {SHOP_SCOPE.map((item) => (

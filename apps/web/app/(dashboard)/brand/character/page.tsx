@@ -20,11 +20,20 @@ export const metadata: Metadata = { title: 'Make a character · SouqStudio' }
  * that says "your shop profile is incomplete" and then has to be dismissed to go
  * and fix it is a dead end with a close button on it.
  *
+ * **`?job=` resumes a finished generation.** The bell in the rail links here with
+ * one, because a character generation that completed while the owner was
+ * somewhere else has four images in R2, ten credits already spent, and — before
+ * this — no route back to the picker.
+ *
  * **Both prerequisites are computed here and enforced again in the route.** The
  * screen's job is to say what is missing and link to it; the route's job is to
  * be true whatever the client does.
  */
-export default async function CharacterPage() {
+export default async function CharacterPage({
+  searchParams,
+}: {
+  searchParams: { job?: string }
+}) {
   const session = await requireCompliantSession()
   const shop = await getActiveShop(session)
 
@@ -69,6 +78,7 @@ export default async function CharacterPage() {
         shopId={shop.id}
         storePhotoKeys={storePhotoKeys}
         storePhotoUrls={storePhotoKeys.map(publicUrl)}
+        {...(searchParams.job === undefined ? {} : { resumeJobId: searchParams.job })}
       />
     </div>
   )

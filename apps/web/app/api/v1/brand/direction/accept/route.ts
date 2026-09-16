@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 
   await prisma.aiJob.update({
     where: { id: job.id },
-    data: { creditsCost: spend.charged },
+    data: { creditsCost: spend.charged, claimedAt: new Date() },
   })
 
   return ok({

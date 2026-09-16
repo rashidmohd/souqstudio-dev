@@ -85,5 +85,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     select: { id: true, poseType: true, imageUrl: true, customLabel: true },
   })
 
+  await prisma.aiJob.update({
+    where: { id: parsed.data.jobId },
+    data: { claimedAt: new Date() },
+  })
+
   return ok({ pose }, 201)
 }

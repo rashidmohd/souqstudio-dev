@@ -133,6 +133,14 @@ export async function POST(request: NextRequest) {
     select: { id: true, baseImageUrl: true },
   })
 
+  // The job has now been collected, so it stops being unfinished work. Written
+  // after the row exists: a job marked claimed with no character behind it is a
+  // generation an owner paid for and can no longer reach.
+  await prisma.aiJob.update({
+    where: { id: parsed.data.jobId },
+    data: { claimedAt: new Date() },
+  })
+
   return ok({ character }, 201)
 }
 
