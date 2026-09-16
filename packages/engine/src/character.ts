@@ -185,32 +185,148 @@ export const POSE_VARIATIONS = 2
 
 // ─── Covers ───────────────────────────────────────────────────────────────────
 
+/**
+ * The occasions a cover can be for.
+ *
+ * **An occasion, not a prompt.** A shop owner picks the week they are having;
+ * the art direction for it lives in `CAMPAIGN_COPY` and the look lives in
+ * `COVER_STYLES`, so the two multiply rather than each needing its own entry.
+ * Six occasions and six styles is thirty-six covers to ask for, written once.
+ *
+ * Ordered by how often a grocery in this market actually runs one.
+ */
 export const CAMPAIGNS = [
   'weekend',
+  'fresh',
   'ramadan',
   'eid',
-  'back-to-school',
   'clearance',
+  'back-to-school',
+  'national-day',
+  'summer',
+  'winter',
+  'new-year',
+  'opening',
   'custom',
 ] as const
 export type Campaign = (typeof CAMPAIGNS)[number]
 
+/**
+ * What each occasion is *of*, in enough words to be drawable.
+ *
+ * **The first version of this was one thin clause each** — "a bright weekend
+ * sale, energetic and simple" — and it produced exactly what that describes:
+ * generic wallpaper. A diffusion model given an adjective returns the average of
+ * everything that adjective has ever labelled. What it needs is subject matter:
+ * objects, a season, a light, a mood with something in it.
+ *
+ * So each one names things that can be drawn. None of them names a *style* —
+ * that is `COVER_STYLES`, and keeping them apart is what makes the two multiply.
+ */
 export const CAMPAIGN_COPY: Readonly<Record<Campaign, { label: string; draw: string }>> = {
-  weekend: { label: 'Weekend sale', draw: 'a bright weekend sale, energetic and simple' },
+  weekend: {
+    label: 'Weekend sale',
+    draw: 'a weekend grocery sale — a generous spill of everyday food, bread, fruit and packaged staples, in bright late-morning light, cheerful and abundant',
+  },
+  fresh: {
+    label: 'Fresh produce',
+    draw: 'fresh produce — crates of vegetables and fruit, herbs, leaves still wet, greens and reds against a clean ground, a market-morning feeling',
+  },
   ramadan: {
-    label: 'Ramadan special',
-    draw: 'Ramadan — lanterns, crescent and star motifs, deep blues and golds, calm and generous rather than loud',
+    label: 'Ramadan',
+    draw: 'Ramadan — dates, lanterns, a crescent and stars, deep indigo and gold, an iftar table laid at dusk; calm, generous and reverent rather than loud',
   },
   eid: {
-    label: 'Eid offers',
-    draw: 'Eid — celebratory, warm, generous, with festive geometric ornament',
+    label: 'Eid',
+    draw: 'Eid — celebration, sweets and gifts, geometric ornament, gold on a rich colour, warm and festive',
+  },
+  clearance: {
+    label: 'Clearance',
+    draw: 'a clearance sale — urgent and loud, strong diagonal energy, hot reds and yellows, the visual language of a last-chance price',
   },
   'back-to-school': {
     label: 'Back to school',
-    draw: 'back to school — books, pencils, bags, bright primary colours',
+    draw: 'back to school — notebooks, pencils, a backpack, lunch boxes, bright primary colours on a clean ground',
   },
-  clearance: { label: 'Clearance', draw: 'a clearance sale, urgent and bold' },
+  'national-day': {
+    label: 'National day',
+    draw: 'a national day celebration — flags, bunting and ribbon, fireworks in the distance, patriotic colour, proud and warm',
+  },
+  summer: {
+    label: 'Summer',
+    draw: 'high summer — cold drinks, ice, watermelon and citrus, condensation on glass, bright sun and a pool-blue ground',
+  },
+  winter: {
+    label: 'Winter',
+    draw: 'winter — warm spices, tea, soup and blankets, low amber light against a cool blue evening, cosy and still',
+  },
+  'new-year': {
+    label: 'New year',
+    draw: 'a new year — confetti, streamers and sparkle, midnight blue and metallic gold, optimistic and celebratory',
+  },
+  opening: {
+    label: 'Grand opening',
+    draw: 'a grand opening — ribbon and balloons, confetti in the air, a sense of doors opening for the first time, proud and welcoming',
+  },
   custom: { label: 'Something else', draw: '' },
+}
+
+/**
+ * How it is drawn, as against what it is of.
+ *
+ * **The axis the first build did not have**, and the reason its covers looked
+ * basic: the prompt hard-coded "decorative, graphic and flat", which is one
+ * house style and the blandest of the six. A retail cover is as likely to be a
+ * photograph, a paper cut-out or a sunburst as it is to be flat vector.
+ *
+ * The six are the archetypes a promotional cover actually uses. `photographic`
+ * is first because it is what a shop owner means by "a nice cover", and because
+ * it is the one that makes their generated character look like it belongs
+ * somewhere rather than floating on a pattern.
+ */
+export const COVER_STYLES = [
+  'photographic',
+  'flat-graphic',
+  'burst',
+  'paper-craft',
+  'painterly',
+  'minimal',
+] as const
+export type CoverStyle = (typeof COVER_STYLES)[number]
+
+export const COVER_STYLE_COPY: Readonly<
+  Record<CoverStyle, { label: string; note: string; draw: string }>
+> = {
+  photographic: {
+    label: 'Photographic',
+    note: 'A real scene, shot like an advert',
+    draw: 'A photograph, shot like a commercial food advertisement: a real scene with real depth, soft directional light, shallow depth of field falling off behind the subject, rich natural colour.',
+  },
+  'flat-graphic': {
+    label: 'Flat graphic',
+    note: 'Bold vector shapes, no shading',
+    draw: 'A flat vector illustration: bold simple shapes, no gradients and no shading, confident blocks of colour with clean edges, in the manner of a modern poster.',
+  },
+  burst: {
+    label: 'Sunburst',
+    note: 'Radiating rays, the classic sale look',
+    draw: 'A radial sunburst ground: rays of alternating colour radiating from behind the subject, a halftone dot texture over them, the classic loud language of a sale poster.',
+  },
+  'paper-craft': {
+    label: 'Paper cut',
+    note: 'Layered cut paper with soft shadow',
+    draw: 'Layered cut-paper craft: shapes cut from coloured paper stacked in shallow layers, each casting a soft short shadow on the one beneath, matte and tactile.',
+  },
+  painterly: {
+    label: 'Painted',
+    note: 'Gouache brushwork, warm and handmade',
+    draw: 'A gouache painting: visible brushwork, slightly uneven edges, warm handmade texture, the look of an illustrated market poster.',
+  },
+  minimal: {
+    label: 'Minimal',
+    note: 'One colour, mostly empty',
+    draw: 'Minimal and restrained: one dominant colour field, a single small subject, a great deal of empty space, nothing decorative at all.',
+  },
 }
 
 /** How many cover options one generation returns. E8-04: three. */

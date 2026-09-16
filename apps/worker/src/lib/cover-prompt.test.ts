@@ -57,6 +57,33 @@ describe('coverPrompt', () => {
     }
   })
 
+  it('keeps the upper third clear, which is where the name goes', () => {
+    // The composition rule every account of a promotional cover converges on,
+    // and the reason it names a *region* rather than asking for "space": a model
+    // told to leave space centres the subject and leaves none.
+    const prompt = said({ ...base, withCharacter: true })
+    expect(prompt).toContain('Keep the upper third of the image clear')
+  })
+
+  it('draws the chosen style rather than one hard-coded look', () => {
+    expect(said({ ...base, style: 'photographic' })).toContain('commercial food advertisement')
+    expect(said({ ...base, style: 'burst' })).toContain('radial sunburst')
+    expect(said({ ...base, style: 'paper-craft' })).toContain('cut-paper')
+    expect(said({ ...base, style: 'minimal' })).toContain('one dominant colour field')
+  })
+
+  it('falls back to the flat look every cover had before styles existed', () => {
+    expect(said(base)).toContain('flat vector illustration')
+  })
+
+  it('names drawable subject matter for an occasion, not an adjective', () => {
+    // A diffusion model handed "energetic and simple" returns the average of
+    // everything ever labelled that. It needs objects.
+    expect(said({ ...base, campaign: 'ramadan' })).toContain('dates')
+    expect(said({ ...base, campaign: 'fresh' })).toContain('crates of vegetables')
+    expect(said({ ...base, campaign: 'summer' })).toContain('condensation on glass')
+  })
+
   it('carries the palette and the shape into every variant', () => {
     const prompt = said({ ...base, withCharacter: true, withScene: true })
     expect(prompt).toContain('#123456')

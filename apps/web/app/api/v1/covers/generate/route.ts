@@ -4,9 +4,11 @@ import { CREDIT_COSTS, enqueueCoverGen, getCreditSnapshot, prisma } from '@souqs
 import {
   CAMPAIGNS,
   COVER_SHAPES,
+  COVER_STYLES,
   storePhotoKeysOf,
   type Campaign,
   type CoverShape,
+  type CoverStyle,
 } from '@souqstudio/engine'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
@@ -45,6 +47,10 @@ const schema = z
     shape: z
       .enum(COVER_SHAPES as unknown as [CoverShape, ...CoverShape[]])
       .default('portrait'),
+    /** How it is drawn. Absent is what every cover looked like before styles. */
+    style: z
+      .enum(COVER_STYLES as unknown as [CoverStyle, ...CoverStyle[]])
+      .default('flat-graphic'),
     /** Required when the campaign is `custom`, ignored otherwise. */
     described: z.string().trim().min(3).max(200).optional(),
     /**
@@ -150,6 +156,7 @@ export async function POST(request: NextRequest) {
       shopId: shop.id,
       campaign: parsed.data.campaign,
       shape: parsed.data.shape,
+      style: parsed.data.style,
       palette,
       ...(character === null ? {} : { characterId: character.id }),
       ...(sceneKeys.length === 0 ? {} : { sceneKeys }),

@@ -246,6 +246,8 @@ export {
   MAX_UNIFORM_ANGLES,
   COVER_SHAPES,
   COVER_SHAPE_NOTE,
+  COVER_STYLES,
+  COVER_STYLE_COPY,
   COVER_VARIATIONS,
   POSES,
   POSE_COPY,
@@ -257,6 +259,7 @@ export {
   type CharacterLook,
   type CharacterStyle,
   type CoverShape,
+  type CoverStyle,
   type Pose,
   type Uniform,
 } from './character'

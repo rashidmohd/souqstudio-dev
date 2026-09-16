@@ -5,9 +5,11 @@ import type { CoverGenPayload } from '@souqstudio/db'
 import {
   CAMPAIGNS,
   COVER_SHAPES,
+  COVER_STYLES,
   COVER_VARIATIONS,
   type Campaign,
   type CoverShape,
+  type CoverStyle,
 } from '@souqstudio/engine'
 import { getObjectBytes, keyFromPublicUrl, putObject } from '../lib/r2'
 import { coverPrompt } from '../lib/character-prompt'
@@ -46,6 +48,7 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
   try {
     const campaign = asCampaign(job.data.campaign)
     const shape = asShape(job.data.shape)
+    const style = asStyle(job.data.style)
 
     if (campaign === 'custom' && (described === undefined || described.trim() === '')) {
       throw new Error('cover: a custom campaign needs a description')
@@ -86,6 +89,7 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
       prompt: coverPrompt({
         campaign,
         shape,
+        style,
         palette,
         withCharacter: characterRef !== null,
         withScene: sceneRefs.length > 0,
@@ -115,6 +119,7 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
           options,
           campaign,
           shape,
+          style,
           /** What it was drawn from, so a job claimed later explains itself. */
           withCharacter: characterRef !== null,
           withScene: sceneRefs.length > 0,
@@ -190,6 +195,18 @@ async function store(
 function asCampaign(value: string): Campaign {
   const found = CAMPAIGNS.find((campaign) => campaign === value)
   if (found === undefined) throw new Error(`cover: "${value}" is not a campaign we draw`)
+  return found
+}
+
+/**
+ * Absent is `flat-graphic` rather than an error: every cover drawn before the
+ * style axis existed was one, so an old job replayed from the queue should come
+ * back looking like itself.
+ */
+function asStyle(value: string | undefined): CoverStyle {
+  if (value === undefined) return 'flat-graphic'
+  const found = COVER_STYLES.find((style) => style === value)
+  if (found === undefined) throw new Error(`cover: "${value}" is not a style we draw`)
   return found
 }
 

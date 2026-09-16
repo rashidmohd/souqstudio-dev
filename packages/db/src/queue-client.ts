@@ -225,6 +225,13 @@ export interface CoverGenPayload {
   described?: string
   /** One of `COVER_SHAPES`. */
   shape: string
+  /**
+   * One of `COVER_STYLES` — how it is drawn, as against what it is of.
+   *
+   * Absent is `flat-graphic`, which is what every cover drawn before this
+   * existed was, whether or not anybody chose it.
+   */
+  style?: string
   /** The shop's palette, so the cover is drawn in its colours. */
   palette: string[]
   /**

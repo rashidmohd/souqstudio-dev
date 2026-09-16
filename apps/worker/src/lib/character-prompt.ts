@@ -1,5 +1,6 @@
 import {
   CAMPAIGN_COPY,
+  COVER_STYLE_COPY,
   INVENTED_PERSON_STYLES,
   tradesPhrase,
   CHARACTER_LOOK_NOTE,
@@ -12,6 +13,7 @@ import {
   type CharacterLook,
   type CharacterStyle,
   type CoverShape,
+  type CoverStyle,
   type Pose,
   type Uniform,
 } from '@souqstudio/engine'
@@ -290,6 +292,8 @@ export function coverPrompt(input: {
   described?: string
   shape: CoverShape
   palette: readonly string[]
+  /** How it is drawn. Absent is `flat-graphic`, which is what this used to be. */
+  style?: CoverStyle
   /** A reference image of the shop's character is being sent with this. */
   withCharacter?: boolean
   /** Reference photographs of the shop itself are being sent with this. */
@@ -325,6 +329,23 @@ export function coverPrompt(input: {
    * produces misspelled words in a typeface nobody chose, and that is true
    * whether or not a character is in the frame.
    */
+  const style = COVER_STYLE_COPY[input.style ?? 'flat-graphic'].draw
+
+  /**
+   * **Where the empty space goes, said as a place rather than as a principle.**
+   *
+   * Every account of how a promotional cover works lands on the same two things:
+   * one dominant subject, and real emptiness around the headline. A model told
+   * "leave space" centres everything and leaves none; told *which third* of the
+   * frame to keep clear, it composes to it. The shop's name and logo are typed
+   * over that third in the editor.
+   */
+  const composition = `Composition: one dominant subject, placed off-centre and low. **Keep the upper
+third of the image clear** — quiet ground, no detail, nothing that competes —
+because the shop's name and logo are placed over it afterwards. Generous empty
+space around the subject. Clean and confident rather than busy; a crowded cover
+reads as cheap.`
+
   const people = input.withCharacter
     ? `Draw the character from the reference image as the subject. **Keep them the
 same person** — the same face, the same build, the same uniform and the same
@@ -346,7 +367,11 @@ afterwards, so leave the middle of the image calm and uncluttered for them to si
 on.`
 
   return `A cover image for a retail offer book: ${subject}.
+
+${style}
 ${shape}${colors}${place}
+
+${composition}
 
 **No text of any kind.** No words, no letters, no numbers, in any language or
 script. No logo and no brand mark. ${room}

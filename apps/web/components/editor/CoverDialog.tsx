@@ -5,8 +5,11 @@ import {
   CAMPAIGNS,
   CAMPAIGN_COPY,
   COVER_SHAPE_NOTE,
+  COVER_STYLES,
+  COVER_STYLE_COPY,
   type Campaign,
   type CoverShape,
+  type CoverStyle,
 } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -86,6 +89,7 @@ export function shapeFor(aspect: number): CoverShape {
 
 export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
   const [campaign, setCampaign] = React.useState<Campaign>('weekend')
+  const [style, setStyle] = React.useState<CoverStyle>('photographic')
   const [described, setDescribed] = React.useState('')
   const [phase, setPhase] = React.useState<Phase>({ at: 'asking' })
   const [sources, setSources] = React.useState<Sources | null>(null)
@@ -138,6 +142,7 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
       const queued = await post<{ jobId: string }>('/api/v1/covers/generate', {
         campaign,
         shape,
+        style,
         useScene: useScene && hasPhotos,
         ...(withCharacter ? { characterId } : {}),
         ...(campaign === 'custom' ? { described: described.trim() } : {}),
@@ -275,6 +280,7 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
             label="What is this for?"
             value={campaign}
             columns={2}
+            name="cover-campaign"
             disabled={phase.at === 'drawing'}
             options={CAMPAIGNS.map((option) => ({
               value: option,
@@ -298,6 +304,20 @@ export function CoverDialog({ open, onOpenChange, aspect, onChosen }: Props) {
               {CAMPAIGN_COPY[campaign].draw}
             </p>
           )}
+
+          <RadioCards
+            label="How should it look?"
+            value={style}
+            columns={2}
+            name="cover-style"
+            disabled={phase.at === 'drawing'}
+            options={COVER_STYLES.map((option) => ({
+              value: option,
+              label: COVER_STYLE_COPY[option].label,
+              description: COVER_STYLE_COPY[option].note,
+            }))}
+            onChange={setStyle}
+          />
 
           <p className="font-ui text-body-sm text-secondary">
             {COVER_SHAPE_NOTE[shape]}, in your brand colours. Three options, 5 credits.
