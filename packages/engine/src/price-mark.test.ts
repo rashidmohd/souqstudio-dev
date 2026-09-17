@@ -407,8 +407,35 @@ describe('the invariants hold for every preset', () => {
     expect(l.minor!.baseline).toBe(l.major.baseline)
   })
 
-  it('drops the fils entirely when the recipe says whole numbers', () => {
-    expect(layoutPriceMark(mark(), BOX, { recipe: PRICE_MARK_RECIPES['whole-number'] }).minor).toBeNull()
+  describe('whole numbers', () => {
+    const whole = PRICE_MARK_RECIPES['whole-number']
+
+    it('drops the fils when there are none to drop', () => {
+      expect(layoutPriceMark(mark({ minor: '00' }), BOX, { recipe: whole }).minor).toBeNull()
+      expect(
+        layoutPriceMark(mark({ minor: '000', currency: 'KWD' }), BOX, { recipe: whole }).minor
+      ).toBeNull()
+    })
+
+    it('never hides fils a customer would be charged', () => {
+      /**
+       * **The one thing a style field may not do is restate what an offer
+       * costs.** "AED 12" for a price of 12.75 is not a quieter price, it is a
+       * lower one, printed on a flyer somebody takes to a till. A non-zero
+       * minor falls back to the raised treatment.
+       */
+      for (const [minor, currency] of [
+        ['50', 'AED'],
+        ['99', 'SAR'],
+        ['750', 'KWD'],
+        ['005', 'BHD'],
+      ] as const) {
+        const l = layoutPriceMark(mark({ minor, currency }), BOX, { recipe: whole })
+        expect({ minor, shown: l.minor?.text ?? null }).toEqual({ minor, shown: minor })
+        // …and it falls back to raised rather than sitting on the baseline.
+        expect(l.minor!.baseline).toBeLessThan(l.major.baseline)
+      }
+    })
   })
 
   it('never lets the tab separate from the mark, wherever it is placed', () => {

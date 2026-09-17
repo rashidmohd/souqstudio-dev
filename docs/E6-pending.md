@@ -1310,6 +1310,42 @@ asserts that the code has not changed since the snapshot. Nothing already design
   and a satellite in a narrow side band shrinks to its column instead of running across the
   digits.
 
+### The library uses the range — 17 September
+
+Shipping the vocabulary and leaving all sixty-five seeded blocks on one arrangement would
+have been the capability arriving dark, and nothing would have said so: every test in
+`library.test.ts` passes on a library of one card in costumes. Thirteen cards now name a
+preset, and only where the block's own name or description already named the idiom —
+`blk_ticket` is a shelf ticket, `blk_price_bomb` is a price bomb, `blk_spec_led` is the
+electronics page. **`blk_offer_card` deliberately does not move**: it is the default every
+shop starts from, and `classic-tag` is the arrangement that renders identically to what the
+mark drew before. A test asserts both.
+
+**Three builders could not be given one until they were fixed.** `priceBand`, `burst` and
+`priceBomb` built their mark style from a constant or from `markOn` and never merged
+`skin.price` — so the three cards whose entire subject *is* the price were the three the
+skin could say nothing about. They merge it now.
+
+**`priceBand` is where the per-element rule shows.** Its upright arrangements put the mark
+in a box four times wider than it is tall, which is what `wide-band` is for; its wide and
+banner arrangements stand the band on end and give the same mark a tall narrow strip, where
+that preset would be the wrong answer to a different shape. A `Skin` is per block and cannot
+say that. The call site can, and does.
+
+### A correctness defect the library work surfaced
+
+**`whole-number` hid the fils unconditionally**, so a price of 12.75 KWD would have printed
+"KWD 12". That is not a quieter price, it is a lower one, on a flyer somebody takes to a
+till — and it would have shipped into the seeded library on `blk_spec_led` before anybody
+looked at a rendered page. A style field may not restate what an offer costs: `hidden` now
+applies only when the fils are all zero, and a non-zero minor falls back to `raised`. A shop
+that wants every price rounded is asking for a pricing change, and that belongs on the
+offer.
+
+It is worth naming the general shape, because the recipe vocabulary will grow: **a layout
+field that can change the meaning of a figure is a pricing bug wearing a design field's
+clothes.** Anything added to `PriceMarkRecipe` gets that question asked of it.
+
 ### Still open on this
 
 - **The editor has no price-style control, and the shape of the one it should get is

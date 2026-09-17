@@ -549,8 +549,16 @@ export type MarkCurrencyPlace =
  * not a design choice, it is a defect, and no recipe can ask for one.
  *
  * `baseline` sets the fils on the major's baseline with a decimal separator —
- * what an electronics price does. `hidden` drops them, for whole-currency
- * pricing where "AED 25" is the design and "AED 25.00" is noise.
+ * what an electronics price does.
+ *
+ * **`hidden` drops the fils only when there are none to drop.** "AED 25" on a
+ * card whose every price ends in a double zero is a design, and ".00" there is
+ * noise with a decimal point in it. What it must never mean is "AED 12" for a
+ * price of 12.75 — that is not a quieter price, it is a lower one, printed on a
+ * flyer a customer takes to a till. So the recipe says what to do with zero
+ * fils and the *price* decides whether it applies; a non-zero minor falls back
+ * to `raised`. A shop that wants every price rounded is asking for a pricing
+ * change, and that belongs on the offer rather than in a layout.
  */
 export type MarkMinorTreatment = 'raised' | 'baseline' | 'hidden'
 

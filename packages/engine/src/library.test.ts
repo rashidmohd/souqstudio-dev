@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockElement } from '@souqstudio/types'
+import { PRICE_MARK_PRESETS } from '@souqstudio/types'
 import { SEED_BLOCKS, bookletGrid, composeGrid, postGrid } from './library'
 import { usesOnlyRoles } from './roles'
 import { validateBlock } from './block-edit'
@@ -321,3 +322,45 @@ describe('postGrid', () => {
   })
 })
 
+
+describe('the library uses the range it ships', () => {
+  const marks = SEED_BLOCKS.flatMap((block) =>
+    block.arrangements
+      .flatMap((a) => a.elements)
+      .filter((e): e is Extract<BlockElement, { kind: 'priceMark' }> => e.kind === 'priceMark')
+  )
+
+  it('draws more than one price arrangement', () => {
+    /**
+     * **The check this library needed and did not have.** Every seeded block
+     * styled the mark's *skin* — ninety-two calls to `markOn`, `markAs`,
+     * `noTab` and `PLAIN_PRICE` — and not one of them said anything about its
+     * arrangement, because until recipes existed none of them could. Shipping
+     * the recipe vocabulary and leaving the library on one preset would have
+     * been the capability arriving dark, and nothing would have said so: every
+     * other test here passes on a library of one card in costumes.
+     */
+    const presets = new Set(marks.map((m) => m.style?.preset ?? 'classic-tag'))
+    expect(presets.size).toBeGreaterThanOrEqual(5)
+  })
+
+  it('leaves the card every shop starts from exactly as it was', () => {
+    // `blk_offer_card` is the default. A preset on it would move every book
+    // already built, and `classic-tag` is the one that renders identically to
+    // what the mark drew before recipes existed.
+    const offerCard = SEED_BLOCKS.find((b) => b.id === 'blk_offer_card')!
+    for (const element of offerCard.arrangements.flatMap((a) => a.elements)) {
+      if (element.kind !== 'priceMark') continue
+      expect(element.style?.preset ?? 'classic-tag').toBe('classic-tag')
+    }
+  })
+
+  it('names a preset only from the published vocabulary', () => {
+    // A typo here is a block the document schema refuses on the way back in,
+    // which `library-source.ts` turns into a refused sync for every shop.
+    for (const m of marks) {
+      if (m.style?.preset === undefined) continue
+      expect(PRICE_MARK_PRESETS).toContain(m.style.preset)
+    }
+  })
+})

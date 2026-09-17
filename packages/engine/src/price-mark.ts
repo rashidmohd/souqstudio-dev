@@ -622,10 +622,29 @@ export function layoutPriceMark(
   // ── Solve the amount ────────────────────────────────────────────────────────
   const currencyText = price.currency
   const rawMinor = price.minor ?? ''
+
+  /**
+   * **`hidden` drops the fils only when there are none to drop.**
+   *
+   * A whole-currency treatment is a real design — "AED 25" on a card whose every
+   * price ends in a double zero, where ".00" is noise with a decimal point in
+   * it. What it cannot be allowed to mean is "AED 12" for a price of 12.75:
+   * that is not a quieter price, it is a **different and lower one**, printed on
+   * a flyer a customer takes to a till. No style field may restate what an offer
+   * costs.
+   *
+   * So the recipe says what to do with zero fils and the price decides whether
+   * it applies. A shop that wants every price rounded is asking for a pricing
+   * change, and that belongs on the offer, not in a layout.
+   */
+  const emptyMinor = /^0*$/.test(rawMinor)
+  const effectiveMinor: MarkMinorTreatment =
+    recipe.minor === 'hidden' ? (emptyMinor ? 'hidden' : 'raised') : recipe.minor
+
   const minorText =
-    recipe.minor === 'hidden' || rawMinor === ''
+    effectiveMinor === 'hidden' || rawMinor === ''
       ? ''
-      : recipe.minor === 'baseline'
+      : effectiveMinor === 'baseline'
         ? `.${rawMinor}`
         : rawMinor
 
@@ -731,7 +750,7 @@ export function layoutPriceMark(
       : {
           text: minorText,
           x: digitsStart + majorWidth,
-          baseline: recipe.minor === 'raised' ? capTop + minorSize * capRatio : baseline,
+          baseline: effectiveMinor === 'raised' ? capTop + minorSize * capRatio : baseline,
           fontSize: minorSize,
           width: minorWidth,
         }

@@ -244,6 +244,24 @@ export const photoLed = (skin: Skin): Arrangement[] => [
  */
 export const priceBand = (skin: Skin): Arrangement[] => {
   const band = skin.accent ?? 'primary'
+  /**
+   * The reversed mark, with the block's own skin over it.
+   *
+   * `REVERSED_PRICE` is a constant, so before this the skin could say nothing
+   * about the mark on the one card whose whole subject is the price.
+   */
+  const mark: PriceMarkStyle = { ...REVERSED_PRICE, ...(skin.price ?? {}) }
+  /**
+   * **A preset is per element, not per block, and this card is why.**
+   *
+   * In the two upright arrangements the band runs along the foot and the mark
+   * gets a box about four times wider than it is tall — which is exactly what
+   * `wide-band` is for, and what a stacked treatment wastes. In the wide and
+   * banner arrangements the band stands on end and the same mark gets a tall
+   * narrow strip, where `wide-band` would be the wrong answer to a different
+   * shape. The `Skin` cannot express that; the call site can.
+   */
+  const bandMark: PriceMarkStyle = { ...mark, preset: 'wide-band' }
   return [
     at(TALL, [
       base(skin),
@@ -252,7 +270,7 @@ export const priceBand = (skin: Skin): Arrangement[] => {
       bound('name', box(gut(skin), 0.46, measure(skin), 0.19), 'h3', ink(skin)),
       bound('spec', box(gut(skin), 0.66, measure(skin), 0.06), 'caption', muted(skin)),
       panel('band', box(0, 0.73, 1, 0.27), band),
-      price(box(0.06, 0.76, 0.88, 0.21), REVERSED_PRICE),
+      price(box(0.06, 0.76, 0.88, 0.21), bandMark),
     ]),
     at(SQUARISH, [
       base(skin),
@@ -261,7 +279,7 @@ export const priceBand = (skin: Skin): Arrangement[] => {
       bound('name', box(gut(skin), 0.44, measure(skin), 0.18), 'h3', ink(skin)),
       bound('spec', box(gut(skin), 0.63, measure(skin), 0.06), 'caption', muted(skin)),
       panel('band', box(0, 0.71, 1, 0.29), band),
-      price(box(0.06, 0.74, 0.88, 0.23), REVERSED_PRICE),
+      price(box(0.06, 0.74, 0.88, 0.23), bandMark),
     ]),
     at(WIDE, [
       base(skin),
@@ -270,7 +288,7 @@ export const priceBand = (skin: Skin): Arrangement[] => {
       bound('name', box(0.36, 0.18, 0.3, 0.28), 'h3', ink(skin)),
       bound('spec', box(0.36, 0.48, 0.3, 0.14), 'caption', muted(skin)),
       panel('band', box(0.68, 0, 0.32, 1), band),
-      price(box(0.7, 0.2, 0.28, 0.6), REVERSED_PRICE),
+      price(box(0.7, 0.2, 0.28, 0.6), mark),
     ]),
     at(BANNER, [
       base(skin),
@@ -278,7 +296,7 @@ export const priceBand = (skin: Skin): Arrangement[] => {
       bound('name', box(0.17, 0.22, 0.42, 0.32), 'h3', ink(skin)),
       bound('spec', box(0.17, 0.56, 0.42, 0.2), 'caption', muted(skin)),
       panel('band', box(0.62, 0, 0.38, 1), band),
-      price(box(0.65, 0.18, 0.32, 0.64), REVERSED_PRICE),
+      price(box(0.65, 0.18, 0.32, 0.64), mark),
     ]),
   ]
 }
@@ -348,12 +366,15 @@ export const overlay = (scrim: TokenRef, textInk: TokenRef): Arrangement[] => {
  */
 export const burst = (skin: Skin): Arrangement[] => {
   const dot = skin.accent ?? 'accent'
+  // Same gap as `priceBand` above: `markOn` built the skin from scratch, so the
+  // block could not say anything about the mark it is named after.
+  const mark: PriceMarkStyle = { ...markOn('burst', dot), ...(skin.price ?? {}) }
   return [
     at(TALL, [
       base(skin),
       photo(box(0.06, 0.06, 0.88, 0.44)),
       badge(skin, box(0.03, 0.02, 0.32, 0.09)),
-      price(box(0.56, 0.28, 0.4, 0.3), markOn('burst', dot)),
+      price(box(0.56, 0.28, 0.4, 0.3), mark),
       bound('name', box(gut(skin), 0.62, measure(skin), 0.2), 'h3', ink(skin)),
       bound('spec', box(gut(skin), 0.83, measure(skin), 0.08), 'caption', muted(skin)),
     ]),
@@ -361,7 +382,7 @@ export const burst = (skin: Skin): Arrangement[] => {
       base(skin),
       photo(box(0.06, 0.06, 0.88, 0.42)),
       badge(skin, box(0.03, 0.02, 0.32, 0.1)),
-      price(box(0.56, 0.26, 0.4, 0.32), markOn('burst', dot)),
+      price(box(0.56, 0.26, 0.4, 0.32), mark),
       bound('name', box(gut(skin), 0.62, measure(skin), 0.2), 'h3', ink(skin)),
       bound('spec', box(gut(skin), 0.83, measure(skin), 0.08), 'caption', muted(skin)),
     ]),
@@ -371,14 +392,14 @@ export const burst = (skin: Skin): Arrangement[] => {
       badge(skin, box(0.02, 0.04, 0.16, 0.15)),
       bound('name', box(0.4, 0.2, 0.26, 0.3), 'h3', ink(skin)),
       bound('spec', box(0.4, 0.52, 0.26, 0.16), 'caption', muted(skin)),
-      price(box(0.68, 0.14, 0.3, 0.72), markOn('burst', dot)),
+      price(box(0.68, 0.14, 0.3, 0.72), mark),
     ]),
     at(BANNER, [
       base(skin),
       photo(box(0.02, 0.1, 0.14, 0.8)),
       bound('name', box(0.18, 0.24, 0.44, 0.3), 'h3', ink(skin)),
       bound('spec', box(0.18, 0.56, 0.44, 0.18), 'caption', muted(skin)),
-      price(box(0.7, 0.06, 0.28, 0.88), markOn('burst', dot)),
+      price(box(0.7, 0.06, 0.28, 0.88), mark),
     ]),
   ]
 }
@@ -1145,12 +1166,16 @@ export const cornerFlag = (skin: Skin): Arrangement[] => {
  */
 export const priceBomb = (skin: Skin): Arrangement[] => {
   const dot = skin.accent ?? 'accent'
+  // Same gap as `burst` and `priceBand`: `markOn` built the skin from scratch,
+  // so the card the whole library points at for a loud price could not say
+  // anything about how that price is put together.
+  const mark: PriceMarkStyle = { ...markOn('burst', dot), ...(skin.price ?? {}) }
   return [
     at(TALL, [
       base(skin),
       photo(box(0.24, 0.02, 0.52, 0.22)),
       badge(skin, box(0.03, 0.02, 0.3, 0.07)),
-      price(box(0.02, 0.26, 0.96, 0.46), markOn('burst', dot)),
+      price(box(0.02, 0.26, 0.96, 0.46), mark),
       bound('name', box(gut(skin), 0.76, measure(skin), 0.15), 'h4', ink(skin)),
       bound('spec', box(gut(skin), 0.92, measure(skin), 0.06), 'caption', muted(skin)),
     ]),
@@ -1158,7 +1183,7 @@ export const priceBomb = (skin: Skin): Arrangement[] => {
       base(skin),
       photo(box(0.26, 0.02, 0.48, 0.2)),
       badge(skin, box(0.03, 0.02, 0.28, 0.08)),
-      price(box(0.02, 0.24, 0.96, 0.48), markOn('burst', dot)),
+      price(box(0.02, 0.24, 0.96, 0.48), mark),
       bound('name', box(gut(skin), 0.75, measure(skin), 0.16), 'h4', ink(skin)),
       bound('spec', box(gut(skin), 0.92, measure(skin), 0.06), 'caption', muted(skin)),
     ]),
@@ -1167,14 +1192,14 @@ export const priceBomb = (skin: Skin): Arrangement[] => {
       photo(box(0.03, 0.12, 0.24, 0.66)),
       badge(skin, box(0.02, 0.02, 0.16, 0.12)),
       bound('name', box(0.03, 0.82, 0.28, 0.14), 'h4', ink(skin)),
-      price(box(0.33, 0.04, 0.65, 0.92), markOn('burst', dot)),
+      price(box(0.33, 0.04, 0.65, 0.92), mark),
     ]),
     at(BANNER, [
       base(skin),
       photo(box(0.02, 0.12, 0.14, 0.76)),
       bound('name', box(0.18, 0.3, 0.28, 0.26), 'h4', ink(skin)),
       bound('spec', box(0.18, 0.58, 0.28, 0.16), 'caption', muted(skin)),
-      price(box(0.5, 0.03, 0.48, 0.94), markOn('burst', dot)),
+      price(box(0.5, 0.03, 0.48, 0.94), mark),
     ]),
   ]
 }
@@ -1477,13 +1502,13 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_feature',
     name: 'Feature card',
     description: 'Brand line, big name, big price. Designed for a merged two-by-two: your lead deal.',
-    arrangements: feature({ ground: 'surface', inset: 0.06 }),
+    arrangements: feature({ ground: 'surface', inset: 0.06, price: { preset: 'was-now-stack' } }),
   },
   {
     id: 'blk_burst',
     name: 'Price burst card',
     description: 'The price in a disc over the packshot. Loud on purpose, so one to a page.',
-    arrangements: burst({ ground: 'surface', accent: 'accent' }),
+    arrangements: burst({ ground: 'surface', accent: 'accent', price: { preset: 'price-bomb' } }),
   },
   {
     id: 'blk_overlay',
@@ -1495,7 +1520,7 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_ticket',
     name: 'Ticket card',
     description: 'A dark tab across the head carrying the badge. Reads at the smallest sizes.',
-    arrangements: ticket({ ground: 'surface', accent: 'ink' }),
+    arrangements: ticket({ ground: 'surface', accent: 'ink', price: { preset: 'shelf-ticket' } }),
   },
   {
     id: 'blk_framed',
@@ -1507,13 +1532,13 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_price_first',
     name: 'Price-first card',
     description: 'The price on the first line of every card, above the packshot. Fast to scan.',
-    arrangements: priceFirst({ ground: 'surface', inset: 0.06 }),
+    arrangements: priceFirst({ ground: 'surface', inset: 0.06, price: { preset: 'stacked-currency' } }),
   },
   {
     id: 'blk_list_row',
     name: 'List row',
     description: 'A line item: thumbnail, name, price at the end. For a wide region or a full row.',
-    arrangements: listRow({ ground: 'surface', inset: 0.04 }, true),
+    arrangements: listRow({ ground: 'surface', inset: 0.04, price: { preset: 'super-riyal' } }, true),
   },
   {
     id: 'blk_side_rail',
@@ -1537,19 +1562,19 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_brand_led',
     name: 'Brand-led card',
     description: 'The brand above the product under a rule. For supplier-funded placements.',
-    arrangements: brandLed({ ground: 'surface', accent: 'primary', inset: 0.1 }),
+    arrangements: brandLed({ ground: 'surface', accent: 'primary', inset: 0.1, price: { preset: 'super-riyal' } }),
   },
   {
     id: 'blk_spec_led',
     name: 'Spec card',
     description: 'Brand, model, then three lines of specification. The electronics and appliance page.',
-    arrangements: specLed({ ground: 'surface', inset: 0.1 }),
+    arrangements: specLed({ ground: 'surface', inset: 0.1, price: { preset: 'whole-number' } }),
   },
   {
     id: 'blk_full_bleed',
     name: 'Full-bleed card',
     description: 'The photograph reaches three edges and the price is digits, not a tag.',
-    arrangements: fullBleed({ ground: 'surface' }),
+    arrangements: fullBleed({ ground: 'surface', price: { preset: 'stacked-currency' } }),
   },
   {
     id: 'blk_split_vertical',
@@ -1567,7 +1592,7 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_price_bomb',
     name: 'Price bomb card',
     description: 'The mark at a third of the card on a disc. The lead deal, and one to a page.',
-    arrangements: priceBomb({ ground: 'surface', accent: 'accent' }),
+    arrangements: priceBomb({ ground: 'surface', accent: 'accent', price: { preset: 'price-bomb' } }),
   },
   {
     id: 'blk_corner_flag',
@@ -1585,18 +1610,18 @@ export const CARD_BLOCKS: CardBlock[] = [
     id: 'blk_editorial',
     name: 'Editorial card',
     description: 'Type as the graphic: a big name, a small packshot and a quiet price.',
-    arrangements: editorial({ ground: 'surface', inset: 0.14 }),
+    arrangements: editorial({ ground: 'surface', inset: 0.14, price: { preset: 'super-riyal' } }),
   },
   {
     id: 'blk_inline_price',
     name: 'Inline price card',
     description: 'Name at the start of a row, price at the end. The quietest card here.',
-    arrangements: inlinePrice({ ground: 'surface' }),
+    arrangements: inlinePrice({ ground: 'surface', price: { preset: 'super-riyal' } }),
   },
   {
     id: 'blk_words_only',
     name: 'Card without a photograph',
     description: 'Name and price at full size, no image. For the two thirds of a catalog with no packshot.',
-    arrangements: wordsOnly({ ground: 'surface', inset: 0.12 }),
+    arrangements: wordsOnly({ ground: 'surface', inset: 0.12, price: { preset: 'was-now-stack' } }),
   },
 ]
