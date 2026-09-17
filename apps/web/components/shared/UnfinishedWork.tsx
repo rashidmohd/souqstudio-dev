@@ -4,6 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Bell } from 'lucide-react'
+import { NAV_ROW_LABEL, NAV_ROW_LEADING, navRowClass } from '@/components/shared/nav-item'
 import { cn } from '@/lib/utils'
 
 /**
@@ -21,6 +22,21 @@ import { cn } from '@/lib/utils'
  * nothing to say that is not a generation. When E12 lands, this becomes one of
  * its sources rather than its shape.
  *
+ * **A rail row, not a bell floating beside one.** It reads as one of the rail's
+ * destinations — same height, same 28px glyph column, same label — and is built
+ * from `nav-item`'s exported shape so it cannot drift from the rows above it.
+ * What it is *not* is a `<Link>`: there is no screen to send anyone to, so it is
+ * a disclosure button that opens the panel, and the rail's rule against linking
+ * to a route that does not exist is kept.
+ *
+ * Its label is `Ready to collect`, which is what the row is and what the panel
+ * already called itself. Not `Notifications` — that word belongs to E12, and
+ * putting it in the rail now would promise a hub that does not exist.
+ *
+ * **The row is absent when nothing is waiting**, which is why it can sit inside
+ * the shop zone: for the overwhelming majority of sessions the rail is exactly
+ * as it was.
+ *
  * **Polled, and slowly.** Thirty seconds: a generation takes tens of seconds and
  * the owner watching one is already being polled at 2.5s by the flow itself.
  * This is for the person who left, so it only has to be right by the time they
@@ -28,6 +44,9 @@ import { cn } from '@/lib/utils'
  */
 
 const POLL_MS = 30_000
+
+/** The panel's minimum clearance from the top and bottom of the viewport, in px. */
+const GUTTER = 8
 
 type Job = {
   id: string
@@ -48,10 +67,25 @@ const CLAIM: Readonly<Record<string, { label: string; href: (id: string) => stri
   cover_gen: { label: 'Covers are ready to choose from', href: () => '/brand' },
 }
 
+/** What the row is called. The panel's own heading, so the two agree. */
+const LABEL = 'Ready to collect'
+
 export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
   const [jobs, setJobs] = React.useState<Job[]>([])
   const [open, setOpen] = React.useState(false)
   const pathname = usePathname()
+
+  const rowRef = React.useRef<HTMLButtonElement>(null)
+  const panelRef = React.useRef<HTMLDivElement>(null)
+
+  /**
+   * Where the panel sits, in viewport coordinates, because the panel is
+   * `fixed` — see the note on it. It used to be `top-0`, which was right only
+   * while the bell was the first thing in the rail; the row is now down in the
+   * shop zone, so the panel has to follow it or it opens detached from the
+   * thing that opened it.
+   */
+  const [top, setTop] = React.useState(0)
 
   React.useEffect(() => {
     let live = true
@@ -63,11 +97,14 @@ export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
         if (live && body.data) setJobs(body.data.jobs)
       } catch {
         // A rail that cannot reach the API is not a rail that should say so.
-        // The bell simply does not appear.
+        // The row simply does not appear.
       }
     }
 
     void read()
+    // Navigating is how collecting something happens, so the panel closes with
+    // the same move that re-reads the list.
+    setOpen(false)
     const timer = setInterval(() => void read(), POLL_MS)
     return () => {
       live = false
@@ -77,29 +114,123 @@ export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
     // disappear without waiting for the next poll.
   }, [pathname])
 
+  /**
+   * **Escape and a click outside.** A disclosure that can only be closed by
+   * hitting the same row again is a trap on a tablet, where the panel covers
+   * most of the screen and the row is behind it.
+   *
+   * `pointerdown` rather than `click`: a press that starts outside and drifts
+   * onto the panel should still dismiss, and `click` fires on neither.
+   */
+  React.useEffect(() => {
+    if (!open) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      // Focus goes back to what opened it, or it lands on <body> and the next
+      // Tab starts from the top of the document.
+      rowRef.current?.focus()
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (rowRef.current?.contains(target) === true) return
+      if (panelRef.current?.contains(target) === true) return
+      setOpen(false)
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [open])
+
+  /**
+   * Aligned with the row, then lifted if a long list would run off the bottom.
+   * `Math.max` keeps it on screen when the list is taller than the viewport,
+   * where the panel's own `overflow-y-auto` takes over.
+   */
+  const place = React.useCallback(() => {
+    const row = rowRef.current
+    if (row === null) return
+
+    const rowTop = row.getBoundingClientRect().top
+    const height = panelRef.current?.offsetHeight ?? 0
+    const highest = Math.max(GUTTER, window.innerHeight - height - GUTTER)
+    setTop(Math.min(rowTop, highest))
+  }, [])
+
+  /**
+   * **Recomputed on the rail's scroll, not just the window's.** The rail is its
+   * own scroll container (`sticky h-dvh overflow-y-auto`), so on a short
+   * viewport the row moves while the window never scrolls at all — hence the
+   * capture-phase listener, which is the only one that hears it.
+   *
+   * This runs *after* paint, and deliberately: a `useLayoutEffect` would run
+   * before it, but this component is rendered on the server too and React warns
+   * about that hook whenever it is. The first paint is already in the right
+   * place because the click handler measures the row before the panel mounts —
+   * all this pass adds is the clamp, which needs a height the panel does not
+   * have until it exists.
+   */
+  React.useEffect(() => {
+    if (!open) return
+
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, jobs.length, place])
+
   if (jobs.length === 0) return null
 
   return (
-    <div className="relative">
+    <>
+      {/*
+       * A row, not a link — `navRowClass` says why. `w-full` because a button
+       * does not fill its column the way an anchor does, and without it the
+       * hover tint stops short of where every row above it ends.
+       */}
       <button
+        ref={rowRef}
         type="button"
-        onClick={() => setOpen((was) => !was)}
+        onClick={(event) => {
+          // Measured here rather than in an effect, so the panel's first paint
+          // is already beside the row instead of at the top of the viewport.
+          // The effect above refines it once the panel has a height.
+          setTop(event.currentTarget.getBoundingClientRect().top)
+          setOpen((was) => !was)
+        }}
         aria-expanded={open}
-        aria-label={`${jobs.length} generations ready to collect`}
-        className="relative inline-flex size-control items-center justify-center rounded-pill text-secondary hover:bg-stone-100 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+        aria-label={`${LABEL}, ${jobs.length} waiting`}
+        title={LABEL}
+        className={cn(navRowClass({ active: open, collapsed }), 'w-full')}
       >
-        <Bell className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        {/*
-         * The count, not a dot. Every one of these is something the shop has
-         * already paid for, so how many there are is the useful fact.
-         */}
-        <span
-          aria-hidden="true"
-          className="absolute -end-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-pill bg-action-primary px-1 font-ui text-eyebrow text-action-primary-fg"
-          data-figure
-        >
-          {jobs.length}
+        <span className={cn(NAV_ROW_LEADING, 'relative')}>
+          <Bell className="size-icon-lg" strokeWidth={1.75} aria-hidden="true" />
+          {/*
+           * The count, not a dot. Every one of these is something the shop has
+           * already paid for, so how many there are is the useful fact. It
+           * rides the glyph rather than trailing the label, because the label
+           * is not rendered at all below 1024px and a count that vanishes with
+           * it would take the only reason to look with it.
+           */}
+          <span
+            aria-hidden="true"
+            className="absolute -end-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-pill bg-action-primary px-1 font-ui text-eyebrow text-action-primary-fg"
+            data-figure
+          >
+            {jobs.length}
+          </span>
         </span>
+        {collapsed ? null : <span className={NAV_ROW_LABEL}>{LABEL}</span>}
       </button>
 
       {open ? (
@@ -116,17 +247,22 @@ export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
          * worth knowing about that check.
          *
          * Escaping the rail means leaving its coordinate system, so this is
-         * positioned against the viewport and sized by `max-w`.
+         * positioned against the viewport and sized by `max-w`. The vertical
+         * offset is measured rather than written, because the row it belongs to
+         * moves — see `place()`.
          */
         <div
+          ref={panelRef}
+          style={{ top }}
           className={cn(
-            'fixed top-0 z-20 m-2 w-full max-w-md rounded-card border border-border-strong bg-surface p-3',
+            'fixed z-20 m-2 max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto',
+            'rounded-card border border-border-strong bg-surface p-3',
             // Beside the rail, not inside it. The offset follows whichever width
             // the rail is actually at.
             collapsed ? 'start-rail-collapsed' : 'start-rail-collapsed lg:start-rail'
           )}
         >
-          <p className="font-ui text-label font-medium text-primary">Ready to collect</p>
+          <p className="font-ui text-label font-medium text-primary">{LABEL}</p>
           <p className="font-ui text-body-sm text-muted">
             You have paid for these. They are waiting for you to choose.
           </p>
@@ -154,7 +290,7 @@ export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
           </ul>
         </div>
       ) : null}
-    </div>
+    </>
   )
 }
 

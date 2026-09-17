@@ -243,18 +243,18 @@ export function DashboardRail({
         {SHOP_SCOPE.map((item) => (
           <NavItem key={item.href} {...item} active={isActive(item.href)} collapsed={collapsed} />
         ))}
-      </div>
 
-      {/*
-       * **Generations that finished while the owner was elsewhere.** It renders
-       * nothing when there is nothing waiting, so the rail is unchanged for the
-       * overwhelming majority of sessions. It closes the shop zone rather than
-       * heading the rail: what is waiting to be collected was made by the rows
-       * directly above it. `justify-center` when collapsed lines the bell up
-       * with the icons; expanded, `ps-2` sits it under their glyphs rather than
-       * floating it out at the far edge. E8; see the component.
-       */}
-      <div className={cn('flex', collapsed ? 'justify-center' : 'ps-2')}>
+        {/*
+         * **Generations that finished while the owner was elsewhere.** A row
+         * inside this list rather than a bell floating beside it, so it is
+         * measured, spaced and labelled like the destinations above it — see
+         * `navRowClass`. It closes the shop zone because what is waiting to be
+         * collected was made by those rows.
+         *
+         * It renders nothing at all when nothing is waiting, which is what lets
+         * a row sit inside a fixed list: for the overwhelming majority of
+         * sessions the rail is exactly as it was. E8; see the component.
+         */}
         <UnfinishedWork collapsed={collapsed} />
       </div>
 

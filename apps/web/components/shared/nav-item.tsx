@@ -39,6 +39,45 @@ type NavItemProps = {
   leading?: React.ReactNode
 }
 
+/**
+ * **The row's shape, exported, because one row in the rail is not a link.**
+ *
+ * `UnfinishedWork` opens a panel rather than going anywhere — E12 has not built
+ * a notifications screen, and the rail's own rule bars linking to one that does
+ * not exist — but it is still one of the rail's items and has to be built from
+ * the same measurements, not from a copy of them that drifts. It renders a
+ * `<button>` with these classes; everything else here renders a `<Link>`.
+ *
+ * `active` is the pale-tint selected state, which that button borrows to show
+ * its panel is open.
+ */
+export function navRowClass(options: { active?: boolean; collapsed?: boolean } = {}): string {
+  const { active = false, collapsed = false } = options
+
+  return cn(
+    'flex min-h-control items-center gap-3 rounded-control',
+    'font-ui text-body transition-colors duration-fast ease-sq',
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus',
+    active ? 'bg-selected-bg text-selected-fg' : 'text-secondary hover:bg-stone-100',
+    collapsed ? 'justify-center px-0' : 'justify-center px-0 lg:justify-start lg:px-3'
+  )
+}
+
+/**
+ * **The leading box, exported for the same reason.** Every row's glyph sits in
+ * the same 28px column. A 20px glyph, a 28px avatar and the switcher's 28px
+ * chip otherwise start their labels in two different columns 8px apart, and
+ * centre on two different axes once the rail collapses. The box is the column;
+ * what sits in it is not.
+ */
+export const NAV_ROW_LEADING = 'flex h-chip w-chip shrink-0 items-center justify-center'
+
+/**
+ * **The label, exported for the same reason.** Hidden below 1024px by CSS
+ * rather than by the `collapsed` boolean — see that prop.
+ */
+export const NAV_ROW_LABEL = 'hidden truncate lg:inline'
+
 export function NavItem({
   icon: Icon,
   label,
@@ -57,23 +96,12 @@ export function NavItem({
       // tablet.
       aria-label={label}
       title={label}
-      className={cn(
-        'flex min-h-control items-center gap-3 rounded-control',
-        'font-ui text-body transition-colors duration-fast ease-sq',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus',
-        active ? 'bg-selected-bg text-selected-fg' : 'text-secondary hover:bg-stone-100',
-        collapsed ? 'justify-center px-0' : 'justify-center px-0 lg:justify-start lg:px-3'
-      )}
+      className={navRowClass({ active, collapsed })}
     >
-      {/* Every row's leading element occupies the same 28px box, whatever it
-          holds. A 20px glyph, a 28px avatar and the switcher's 28px chip
-          otherwise start their labels in two different columns 8px apart, and
-          centre on two different axes once the rail collapses. The box is the
-          column; what sits in it is not. */}
-      <span className="flex h-chip w-chip shrink-0 items-center justify-center">
+      <span className={NAV_ROW_LEADING}>
         {leading ?? <Icon className="size-icon-lg" aria-hidden="true" />}
       </span>
-      {collapsed ? null : <span className="hidden truncate lg:inline">{label}</span>}
+      {collapsed ? null : <span className={NAV_ROW_LABEL}>{label}</span>}
     </Link>
   )
 }

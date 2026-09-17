@@ -67,6 +67,7 @@ business name, and truncating one to three letters says nothing.
   Brand kit
   Blocks
   Analytics
+  Ready to collect   ← only when something is waiting; opens a panel, not a route
 ──────────────       ← hard divider
 [org name]
   Organization       ← org scope
@@ -84,6 +85,24 @@ designer, and it is where an owner spends real time. A brand kit is an identity 
 and leave; a block library is a workspace. It also unloaded `/brand`, which is now four
 tabs — logo, colours, type, character — rather than five cards with a library at the
 bottom of them.
+
+**`Ready to collect` is a row, and it is the one row that is not a link.** E8 left
+generations that finish while nobody is looking — paid for, sitting in R2, with nothing in
+the product able to find them. This is the route back: it polls `GET /api/v1/ai/jobs`
+and opens a panel listing what is waiting.
+
+It is built from `nav-item`'s exported `navRowClass`, not from a copy of those
+measurements, so it cannot drift from the rows above it. It renders a `<button>` because
+there is no screen to send anyone to — E12, the notifications epic, is unstarted — and the
+rule against linking to a route that does not exist applies to it like anything else.
+
+Its label is deliberately not `Notifications`. That word belongs to E12, and putting it in
+the rail now would promise a hub with read state and delivery that does not exist. This is
+one query over `ai_jobs`, and `Ready to collect` is what it can honestly claim.
+
+**It closes the shop zone and is absent when nothing is waiting**, which is what lets a
+conditional row sit inside a fixed list: for the overwhelming majority of sessions the rail
+is exactly the diagram above without it.
 
 **`Organization` was added by E2-01** and leads the org zone. The three entries below
 it are each one *part* of the business — its branches, its people, its invoices — and
