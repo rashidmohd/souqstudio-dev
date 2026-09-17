@@ -17,6 +17,7 @@ import {
   fitText,
   layoutPriceMark,
   markGround,
+  markRecipe,
   needsEvenOdd,
   PATH_SHAPES,
   placeText,
@@ -625,6 +626,10 @@ function PriceMark({
     // reads the old `frame` spelling too, so a document written before this
     // draws exactly as it did.
     ground: markGround(style),
+    // The interior arrangement. `markRecipe` merges the preset with the
+    // owner's overrides and applies every bound, so the painter never sees a
+    // half-specified recipe and there is one place the defaults live.
+    recipe: markRecipe(style),
   })
 
   return (
@@ -729,6 +734,29 @@ function PriceMark({
           direction="ltr"
         >
           {l.compare.text}
+        </text>
+      ) : null}
+      {/*
+        * FROM / EACH / PER KG.
+        *
+        * **The engine has always laid this out and this painter never drew
+        * it**, so an offer priced per kilo said so in the render harness and
+        * said nothing in the app — on all four surfaces, since all four share
+        * this painter. It is not a recipe feature; it is the gap the recipe
+        * work found, and a unit-priced offer that does not name its unit is a
+        * price that means nothing.
+        */}
+      {l.prefix ? (
+        <text
+          x={l.prefix.x}
+          y={l.prefix.baseline}
+          fontSize={l.prefix.fontSize}
+          fontWeight={700}
+          fontFamily={family}
+          fill={ctx.token('inkMuted')}
+          direction="ltr"
+        >
+          {l.prefix.text}
         </text>
       ) : null}
     </>

@@ -138,10 +138,35 @@ Rules baked in, not left to the user:
   `THREE_DECIMAL_CURRENCIES` is exported from `@souqstudio/types`.
 - The mark is always LTR with Western numerals, **including in AR editions** (§6).
 
-**Expose exactly one authoring control: tier.** Everything else derives from the offer and
-the template. This replaces E6-03's discount-magnitude badge table and E6-04's font-size and
-badge-text controls — magnitude does not choose a badge any more, the promo tier does, and
-the tier is a row the organization configures once.
+**Expose exactly one authoring control over what the price *says*: tier.** Everything else
+it says derives from the offer and the template. This replaces E6-03's discount-magnitude
+badge table and E6-04's font-size and badge-text controls — magnitude does not choose a
+badge any more, the promo tier does, and the tier is a row the organization configures once.
+
+### 3a. What it looks like is a separate question **AMENDS §3**
+
+The paragraph above said "expose exactly one authoring control" and was read, for a long
+time, as covering the mark's appearance too. It does not, and treating it as though it did
+gave the product exactly one price design — see `docs/composition-model.md` §3.5 for the
+evidence that the lock was too tight, including the forty shipped arrangements that worked
+around it.
+
+The rules listed above this line are **anatomy** and are not negotiable. What sits beside
+them now is **arrangement**: `PriceMarkStyle.preset` picks one of eight marks we drew, and
+`PriceMarkStyle.recipe` refines it out of a closed vocabulary — a currency placement, a fils
+treatment, a nine-point compass for the was-price, the FROM line and the tier tab, and an
+alignment. `layoutPriceMark` enforces the anatomy whatever the recipe asks for, and
+`price-mark.test.ts` asserts it across every preset rather than only the default.
+
+Two consequences worth stating because they are easy to get wrong later:
+
+- **`classic-tag` is byte-identical to the mark drawn before recipes existed**, pinned in
+  the tests against hand-computed numbers rather than a snapshot. Nothing already designed
+  moved.
+- **The recipe belongs to the block, not to the offer.** A per-card recipe control in the
+  editor is the failure this section originally warned about — sixty cards in a book with
+  sixty price layouts. The card designer decides what a price looks like; the editor
+  decides what a price says.
 
 ---
 

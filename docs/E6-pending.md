@@ -1244,3 +1244,93 @@ nine pages is a hundred state machines for a surface that can only ever show one
 - **`ProductClick` rows are not snapshotted and do not come back.** Analytics on a draft
   book is close to hypothetical, and reinstating click history from a browser payload is a
   worse idea than losing it.
+
+---
+
+## 11. The price mark's arrangement opens — 17 September
+
+E6 §3 said the price mark is a component and not an arrangement of text boxes, and gave one
+reason: *"If owners assemble a price from text layers, you get hundreds of inconsistent
+variants inside a month."* That reason is right and nothing here weakens it. What went wrong
+is that the sentence was read as covering two different things, and only justified one of
+them.
+
+**The justified half — anatomy.** A price cut into free elements loses cap alignment, loses
+the three-decimal KWD/OMR/BHD branch, loses LTR-in-Arabic, and stops shrinking as one thing
+when the string is long, which leaves the fit ladder with nothing to shrink. It also stops
+being one participant in `compact.ts`'s vertical flow. The mark stays one element, one box,
+one drag handle. Permanently.
+
+**The unjustified half — arrangement.** Where the currency sits, where the was-price sits,
+where the tab attaches, how the cluster aligns in its box. That is design, and it was locked
+by the same sentence, and the consequence was a product that could make exactly one price
+design. Ten magic ratios in `layoutPriceMark` *were* the expressive range of the product.
+
+**What said the lock was too tight, all of it already in the repository:**
+
+- forty of the hundred shipped arrangements switched the mark's ground off and hand-placed a
+  disc behind the digits, which is a library working around its own component;
+- `currencyPlacement: 'PREFIX' | 'SUFFIX' | 'SUPERSCRIPT'` has sat on `PriceMark` since this
+  epic wrote it, written by every producer and read by nothing — someone knew placement was
+  a design variable and the layout function outvoted the type;
+- six of the eight grounds the engine drew had no control in the designer at all;
+- `TextSource` gave the tier badge an escape hatch — `{ from: 'offer', field: 'tier' }`,
+  added precisely so a badge could be anything — and gave the price none, so an owner who
+  wanted a different treatment had nowhere to go.
+
+**The rule that replaces it:** *consistency comes from bounded ratios and enforced relations,
+never from a single frozen arrangement.* `PriceMarkStyle.preset` names one of eight marks we
+drew and `.recipe` refines it — seven named parts, a nine-point compass, two clamped scales.
+`layoutPriceMark` then enforces the anatomy whatever the recipe asked for, and
+`price-mark.test.ts` asserts it across every preset rather than only the default. The full
+argument and the invariant table are `docs/composition-model.md` §3.5; the epic itself is
+amended at §3a.
+
+**`classic-tag` is byte-identical to the mark drawn before**, pinned against numbers computed
+by hand from the old formulas rather than snapshotted from the new code — a snapshot only
+asserts that the code has not changed since the snapshot. Nothing already designed moved.
+
+### Three defects found on the way, none of them about recipes
+
+- **`prefix` was laid out and never drawn in the app.** The engine has always placed
+  FROM / EACH / PER KG; `harness/svg.ts` drew it and `components/blocks/draw.tsx` did not —
+  so it was invisible on all four surfaces, since all four share that painter. A per-kilo
+  offer that does not name its unit is a price that means nothing.
+- **`duplicate-tier` would have false-fired.** It read `element.style?.tab !== 'none'`, and
+  two of the presets hide the tab through the recipe instead. `library-source.ts` refuses a
+  shipped block that draws *any* warning, so a false positive there is a failed deploy —
+  which is what this exact warning cost on 10 September. It reads `markRecipe` now.
+- **Two satellites sharing a band collided.** The old code avoided it only by hard-coding
+  the was-price to the end of the top band and the FROM line to the start; any recipe that
+  put both at the same end printed one on top of the other. Bands are laid out as bands now,
+  and a satellite in a narrow side band shrinks to its column instead of running across the
+  digits.
+
+### Still open on this
+
+- **The editor has no price-style control, and the shape of the one it should get is
+  decided.** It is **not** a per-card recipe: sixty cards in a book with sixty price layouts
+  is the failure §3 warned about, and it is the same warning that is right here and was
+  wrong about the block designer. The split that resolves it: **the card designer decides
+  what a price looks like; the editor decides what a price says.** So the editor keeps
+  price, was-price, tier and prefix — content, correctly, and `OfferProperties` already
+  offers exactly that — and what it should gain is *one book-wide* price style that swaps
+  the recipe for every mark at once. That gives an owner the control they are asking for
+  without the drift, and it is one decision rather than sixty.
+- **That control needs a column and nobody has decided where.** `OfferBook` is the obvious
+  home and the brand kit is the arguable one: a chain that prices the same way in every book
+  wants it on the kit, a shop that runs a different treatment for Ramadan wants it on the
+  book. It needs a migration, a route, store wiring and a control — deliberately not done
+  alongside a rendering change.
+- **The escape hatch is still missing.** `TextSource` should grow
+  `{ from: 'offer', field: 'price' | 'comparePrice' | 'currency' | 'unit' }`, mirroring what
+  the tier already has. The presets are the good path and should stay the default; this is
+  for the one shop with one card that wants something we did not draw. Without it the price
+  is the only element in the vocabulary that can only say no.
+- **Nothing has been opened in a browser.** Typecheck, lint, build, `check:classes`, 1,199
+  tests and the 65-block gallery all pass, and every one of the last several defects in
+  `STATUS.md` §1.0 was found by a person opening a screen. The specific risks here: whether
+  the eight preset thumbnails are legible at the width the properties pane actually has,
+  whether the 4-column ground picker fits a 288px pane the way the 3×3 shape picker does,
+  and whether a `super-after` currency reads correctly against a real Arabic price face
+  rather than the estimated advance widths this module uses.

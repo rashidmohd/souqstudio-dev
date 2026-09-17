@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import { TYPE_LEVELS, type Arrangement, type TypeLevel } from '@souqstudio/types'
+import {
+  MARK_MINOR_SCALE,
+  MARK_SATELLITE_SCALE,
+  PRICE_MARK_PRESETS,
+  TYPE_LEVELS,
+  type Arrangement,
+  type TypeLevel,
+} from '@souqstudio/types'
 
 /**
  * The block document, validated wherever it enters. E7.
@@ -180,6 +187,29 @@ const baseSchema = {
  * disappearing on save is worse than a save that says no. It is also the check
  * that catches a client running ahead of the deploy it is talking to.
  */
+/**
+ * One orbiting part of the mark. The compass is closed and the scale is bounded
+ * — which together are what keep an opened-up mark a price rather than a
+ * collage. `MARK_SATELLITE_SCALE`'s ceiling is the rule that stops a was-price
+ * growing to the size of the price.
+ */
+const satelliteSchema = z.strictObject({
+  place: z
+    .enum([
+      'above-start',
+      'above',
+      'above-end',
+      'start',
+      'end',
+      'below-start',
+      'below',
+      'below-end',
+      'hidden',
+    ])
+    .optional(),
+  scale: z.number().min(MARK_SATELLITE_SCALE.min).max(MARK_SATELLITE_SCALE.max).optional(),
+})
+
 const priceMarkStyleSchema = z.strictObject({
   tint: flatColorSchema.optional(),
   ink: flatColorSchema.optional(),
@@ -197,6 +227,35 @@ const priceMarkStyleSchema = z.strictObject({
     .optional(),
   frame: z.enum(['tag', 'plain']).optional(),
   tab: z.enum(['attached', 'none']).optional(),
+  /**
+   * The interior arrangement — see `PriceMarkStyle` in `@souqstudio/types`.
+   *
+   * **The bounds are here as well as in `markRecipe`, and that is not
+   * belt-and-braces.** A document arriving from R2 is written into every shop by
+   * the next sync with no diff and no compiler between it and them; the solver
+   * clamping a scale at render time keeps the card readable, and this keeps the
+   * out-of-range value from being stored in the first place. The one that has to
+   * refuse is the one at the boundary.
+   */
+  preset: z.enum(PRICE_MARK_PRESETS).optional(),
+  recipe: z
+    .strictObject({
+      currency: z
+        .enum(['before', 'after', 'super-before', 'super-after', 'above', 'below'])
+        .optional(),
+      minor: z.enum(['raised', 'baseline', 'hidden']).optional(),
+      minorScale: z.number().min(MARK_MINOR_SCALE.min).max(MARK_MINOR_SCALE.max).optional(),
+      compare: satelliteSchema.optional(),
+      prefix: satelliteSchema.optional(),
+      tier: satelliteSchema.optional(),
+      align: z
+        .object({
+          inline: alignSchema,
+          block: z.enum(['top', 'middle', 'bottom']),
+        })
+        .optional(),
+    })
+    .optional(),
 })
 
 const elementSchema = z.discriminatedUnion('kind', [

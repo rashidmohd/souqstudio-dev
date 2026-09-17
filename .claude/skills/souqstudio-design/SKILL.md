@@ -213,7 +213,7 @@ Below 1024px, side panels **overlay** the canvas rather than compressing it. A s
 Three consequences for anything built here:
 
 - **The start pane is an offer tray, not a placement palette.** Search the catalog, add a product, and it becomes an offer — or a second item on an existing one, joined by *or*. Drag reorders; it does not position.
-- **Price is not an owner-styled element.** One control, the promo tier. No font-size dropdown, no badge-text field. `PriceMark` owns the rest.
+- **Price is not an owner-styled element *in the editor*.** One control there, the promo tier. No font-size dropdown, no badge-text field — a per-card price layout is sixty cards with sixty price layouts. Where the price mark *is* styled is the card designer, once per block: `PriceMarkStyle.preset` and `.recipe` open its arrangement out of a closed vocabulary, while `layoutPriceMark` keeps the anatomy — cap-aligned fils, the three-decimal branch, LTR-in-Arabic, the attached tab, the ratio ceilings. The card designer decides what a price looks like; the editor decides what a price says. `docs/composition-model.md` §3.5.
 - **Density, language and shop variant are toolbar switches that re-run the engine live.** The language toggle renders the sibling edition inline — never make an owner publish to find out that the Arabic layout broke.
 
 ### 3. Onboarding and brand setup

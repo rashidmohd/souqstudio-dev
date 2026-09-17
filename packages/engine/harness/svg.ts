@@ -17,6 +17,7 @@ import {
   fitText,
   layoutPriceMark,
   markGround,
+  markRecipe,
   needsEvenOdd,
   PATH_SHAPES,
   placeText,
@@ -343,7 +344,11 @@ function priceMark(
       ...(product.comparePrice === undefined ? {} : { comparePrice: product.comparePrice }),
     },
     rect,
-    { tierLabel: product.tier.labelEn.toUpperCase(), ground: markGround(style) }
+    {
+      tierLabel: product.tier.labelEn.toUpperCase(),
+      ground: markGround(style),
+      recipe: markRecipe(style),
+    }
   )
 
   // Every piece is LTR with Western numerals, in an AR edition too.

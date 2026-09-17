@@ -1,18 +1,52 @@
 /**
- * The price mark — formatting and geometry. E6 §3.
+ * The price mark — formatting and geometry. E6 §3, as amended.
  *
  * **The single element that decides whether output reads as a real offer book.**
- * It is a component, never assembled from text layers: owners given text boxes
- * produce hundreds of inconsistent price treatments inside a month, and a price
- * is the one thing on a flyer a customer actually reads.
+ * It is a component, never assembled from text layers: a price built from free
+ * boxes loses cap alignment, loses the three-decimal branch, loses LTR-in-Arabic
+ * and cannot shrink as one thing when the string is long.
  *
- * Exactly one authoring control is exposed — the tier. Everything below derives
- * from the offer and the block. This module decides *where every piece goes*;
- * something else draws them, which is the same split as the rest of the engine.
+ * **What that argument never defended was the arrangement.** Until recipes
+ * existed this module could draw exactly one price design — currency hard before
+ * the digits, was-price hard to the end of a top band, tab welded to the top-left
+ * corner, cluster always centred — and the ten ratios below were the whole
+ * expressive range of the product. Forty of the hundred shipped arrangements
+ * worked around it; `currencyPlacement` sat on `PriceMark` unread since E6; a
+ * shop that wanted a shelf-ticket price had nowhere to go.
+ *
+ * So the interior opened, into a **fixed vocabulary**: seven named parts, a
+ * compass of nine positions, a bounded scale. The invariants that make output
+ * read as a real offer book are enforced *here*, by this function, rather than
+ * by the absence of a control:
+ *
+ *   - a `raised` minor's cap top always meets the major's — computed, never set
+ *   - three-decimal KWD/OMR/BHD, and tabular figures
+ *   - the cluster is laid out LTR in reading order *of the mark*, which does not
+ *     mirror in an Arabic edition
+ *   - the tab overlaps the mark wherever it is placed
+ *   - every part is bounded below the major, so the hierarchy cannot invert
+ *   - the mark fits on both axes; the price never truncates
+ *
+ * This module decides *where every piece goes*; something else draws them, which
+ * is the same split as the rest of the engine.
  */
 
-import type { Currency, PriceMark, PriceMarkStyle } from '@souqstudio/types'
-import { THREE_DECIMAL_CURRENCIES } from '@souqstudio/types'
+import type {
+  Currency,
+  LogicalAlign,
+  MarkCurrencyPlace,
+  MarkMinorTreatment,
+  MarkPlace,
+  MarkSatellite,
+  PriceMark,
+  PriceMarkPreset,
+  PriceMarkStyle,
+} from '@souqstudio/types'
+import {
+  MARK_MINOR_SCALE,
+  MARK_SATELLITE_SCALE,
+  THREE_DECIMAL_CURRENCIES,
+} from '@souqstudio/types'
 import type { Rect } from './geometry'
 import { MARK_FIT, type PathShape } from './shapes'
 
@@ -38,6 +72,51 @@ const DIGIT_WIDTH = 0.6
  */
 const LETTER_WIDTH = 0.74
 
+// ─── Anatomy ──────────────────────────────────────────────────────────────────
+//
+// These are craft constants, not design choices, which is why they are module
+// scope and not recipe fields. A recipe says *which bands exist and what goes in
+// them*; these say how a mark is proportioned once that is settled, and they are
+// the same for every preset. That split is what stops eight presets becoming
+// eight unrelated price treatments.
+
+/** A reserved band, as a fraction of the digit box's height. */
+const BAND = 0.2
+/** A side band, as a fraction of the digit box's width. */
+const SIDE_BAND = 0.26
+/** What the amount may take of the rect left to it, on each axis. */
+const AMOUNT_FILL_HEIGHT = 0.725
+const AMOUNT_FILL_WIDTH = 0.86
+/** Where the major's baseline sits in that rect, centred. */
+const AMOUNT_BASELINE = 0.675
+/** Baseline for a satellite in the top band, and the round-ground exception. */
+const TOP_LINE_AT = 0.26
+const TOP_LINE_AT_SQUARE = 0.18
+/** Baseline for a satellite in the bottom band. */
+const BOTTOM_LINE_AT = 0.96
+/** How far a start- or end-aligned satellite sits off the digit box's edge. */
+const SATELLITE_INSET = 0.02
+/** The strip the currency takes when it is given its own line. */
+const CURRENCY_LINE = 0.26
+
+const CURRENCY_RATIO = 0.3
+const DEFAULT_MINOR_RATIO = 0.44
+/** Air between the currency code and the first digit, as a fraction of the
+ *  major size. Without it they touch at every size, not just small ones. */
+const GAP_RATIO = 0.18
+/** The satellite scale that reproduces the pre-recipe top line exactly:
+ *  the old `currencySize * 0.95`, which is `majorSize * 0.3 * 0.95`. */
+const DEFAULT_SATELLITE_SCALE = 0.285
+
+/** The tab's band, as a fraction of the container. */
+const TAB_BAND = 0.26
+const TAB_WIDTH = 0.56
+/** What the label may take of the container's width, in a horizontal tab. */
+const TAB_TEXT_WIDTH = 0.48
+const TAB_SIDE_HEIGHT = 0.46
+/** How far the tab sinks into the mark. Never a gap, at any size — E6 §3. */
+const TAB_OVERLAP = 0.14
+
 export interface PriceMarkOptions {
   /** Override the cap-height ratio when real font metrics are available. */
   capRatio?: number | undefined
@@ -45,6 +124,16 @@ export interface PriceMarkOptions {
   tierLabel?: string | undefined
   /** The shape behind the digits. Defaults to the rounded box. */
   ground?: MarkGround | undefined
+  /**
+   * The interior arrangement, already resolved — call `markRecipe(style)` for
+   * it, the same way `ground` comes from `markGround(style)`. Omitted is
+   * `classic-tag`, which is what every mark drew before recipes existed.
+   *
+   * Resolved rather than partial on purpose: merging a preset with its overrides
+   * is one decision, and a solver that did it inline would be a second place for
+   * the defaults to live.
+   */
+  recipe?: ResolvedRecipe | undefined
 }
 
 export type MarkGround = 'none' | 'box' | PathShape
@@ -74,7 +163,7 @@ export interface MarkPiece {
 }
 
 export interface PriceMarkLayout {
-  /** The attached tier tab. Null when no tier label was given. */
+  /** The attached tier tab. Null when no tier label was given, or it is hidden. */
   tab: { rect: Rect; fontSize: number; text: string } | null
   /** The mark body — the shape the digits sit in. Draw it as `groundShape`. */
   mark: Rect
@@ -84,20 +173,30 @@ export interface PriceMarkLayout {
    */
   groundShape: MarkGround
   /**
-   * The interior the digits were fitted into — `mark` inset by `MARK_FIT`.
+   * The interior the mark's contents were fitted into — `mark` inset by
+   * `MARK_FIT`.
    *
    * Reported rather than kept private because it is the number that explains a
    * layout: a burst's usable area is a fraction of its box, and a price that
    * looks small inside one is fitting correctly rather than misbehaving.
    */
   digits: Rect
+  /**
+   * The rect the amount cluster itself was fitted into — `digits` less every
+   * band the recipe reserved.
+   *
+   * **Reported because it is what makes a recipe debuggable.** A price that
+   * looks small in a mark with four satellites is not misbehaving; it has less
+   * room, and this is the number that says so.
+   */
+  amount: Rect
   currency: MarkPiece
   major: MarkPiece
-  /** Null on a whole-currency price. */
+  /** Null on a whole-currency price, or when the recipe hides the fils. */
   minor: MarkPiece | null
-  /** The struck-through was-price, above the digits. Null when there is none. */
+  /** The struck-through was-price. Null when there is none, or it is hidden. */
   compare: MarkPiece | null
-  /** FROM / EACH / PER_KG, above the digits. Null when there is none. */
+  /** FROM / EACH / PER_KG. Null when there is none, or it is hidden. */
   prefix: MarkPiece | null
   /** Degrees, template-set. Applied about the centre of `mark`. */
   rotation: number
@@ -150,6 +249,188 @@ export function toPriceMark(
   }
 }
 
+// ─── Recipes ──────────────────────────────────────────────────────────────────
+
+/** Every field settled, so the solver never branches on `undefined`. */
+export interface ResolvedRecipe {
+  currency: MarkCurrencyPlace
+  minor: MarkMinorTreatment
+  minorScale: number
+  compare: { place: MarkPlace; scale: number }
+  prefix: { place: MarkPlace; scale: number }
+  tier: { place: MarkPlace; scale: number }
+  align: { inline: LogicalAlign; block: 'top' | 'middle' | 'bottom' }
+}
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value))
+
+/**
+ * The eight marks we drew, which is what an owner actually picks between.
+ *
+ * **The gallery is the front door and the knobs are the back one**, the same
+ * argument `docs/composition-model.md` §3.6 makes for seeding sixty-five blocks:
+ * a blank artboard produces something worse than our default and the owner
+ * blames the product. Each of these is a real retail idiom rather than a
+ * permutation — a shelf-edge ticket, a hypermarket was/now stack, a Gulf
+ * superscript riyal, a wide footer band that has to read on one line.
+ *
+ * **`classic-tag` is byte-identical to every mark drawn before recipes
+ * existed**, and that is asserted rather than intended: `price-mark.test.ts`
+ * pins the numbers this module produced beforehand.
+ */
+export const PRICE_MARK_RECIPES: Record<PriceMarkPreset, ResolvedRecipe> = {
+  /** What the mark always drew. The default, and the compatibility anchor. */
+  'classic-tag': {
+    currency: 'before',
+    minor: 'raised',
+    minorScale: DEFAULT_MINOR_RATIO,
+    compare: { place: 'above-end', scale: DEFAULT_SATELLITE_SCALE },
+    prefix: { place: 'above-start', scale: DEFAULT_SATELLITE_SCALE },
+    tier: { place: 'above-start', scale: TAB_BAND },
+    align: { inline: 'center', block: 'middle' },
+  },
+  /**
+   * A shelf-edge ticket: price flush to the reading start, was-price beneath
+   * it, tier out of the way at the far corner. The one design a supermarket
+   * prints more of than any other, and the one the old mark could not make —
+   * the cluster was always centred.
+   */
+  'shelf-ticket': {
+    currency: 'super-before',
+    minor: 'raised',
+    minorScale: 0.4,
+    compare: { place: 'below-start', scale: 0.26 },
+    prefix: { place: 'above-start', scale: 0.24 },
+    tier: { place: 'above-end', scale: TAB_BAND },
+    align: { inline: 'start', block: 'middle' },
+  },
+  /**
+   * For a burst or a star. Everything reads off one vertical axis, because a
+   * round ground has no corners to align to — the rule the gallery found when a
+   * was-price printed across a spike.
+   */
+  'price-bomb': {
+    currency: 'above',
+    minor: 'raised',
+    minorScale: 0.46,
+    compare: { place: 'below', scale: 0.28 },
+    prefix: { place: 'hidden', scale: DEFAULT_SATELLITE_SCALE },
+    tier: { place: 'hidden', scale: TAB_BAND },
+    align: { inline: 'center', block: 'middle' },
+  },
+  /**
+   * The hypermarket was/now: the old price above, large enough to be read and
+   * struck, the new one under it. The compare line is deliberately near the
+   * ceiling of the satellite range — being *seen* is the whole mechanic.
+   */
+  'was-now-stack': {
+    currency: 'before',
+    minor: 'raised',
+    minorScale: DEFAULT_MINOR_RATIO,
+    compare: { place: 'above', scale: 0.38 },
+    prefix: { place: 'below', scale: 0.24 },
+    tier: { place: 'above-start', scale: TAB_BAND },
+    align: { inline: 'center', block: 'middle' },
+  },
+  /** The Gulf convention: a small code riding the digits' cap line, trailing. */
+  'super-riyal': {
+    currency: 'super-after',
+    minor: 'raised',
+    minorScale: DEFAULT_MINOR_RATIO,
+    compare: { place: 'above-end', scale: DEFAULT_SATELLITE_SCALE },
+    prefix: { place: 'above-start', scale: DEFAULT_SATELLITE_SCALE },
+    tier: { place: 'above-start', scale: TAB_BAND },
+    align: { inline: 'center', block: 'middle' },
+  },
+  /**
+   * A footer band or a wide merged region, where the mark is three times as
+   * wide as it is tall and a stacked treatment wastes all of it. Everything on
+   * one line, the fils on the baseline with a separator.
+   */
+  'wide-band': {
+    currency: 'before',
+    minor: 'baseline',
+    minorScale: 0.62,
+    compare: { place: 'end', scale: 0.3 },
+    prefix: { place: 'start', scale: 0.26 },
+    tier: { place: 'hidden', scale: TAB_BAND },
+    align: { inline: 'center', block: 'middle' },
+  },
+  /** The code over the digits, centred. Reads as a unit rather than a sentence. */
+  'stacked-currency': {
+    currency: 'above',
+    minor: 'raised',
+    minorScale: DEFAULT_MINOR_RATIO,
+    compare: { place: 'below-end', scale: DEFAULT_SATELLITE_SCALE },
+    prefix: { place: 'above-start', scale: DEFAULT_SATELLITE_SCALE },
+    tier: { place: 'above-start', scale: TAB_BAND },
+    align: { inline: 'center', block: 'middle' },
+  },
+  /**
+   * Whole-currency pricing. "AED 25" is a design; "AED 25.00" on a card whose
+   * every price ends in a double zero is noise with a decimal point in it.
+   */
+  'whole-number': {
+    currency: 'before',
+    minor: 'hidden',
+    minorScale: DEFAULT_MINOR_RATIO,
+    compare: { place: 'above-end', scale: DEFAULT_SATELLITE_SCALE },
+    prefix: { place: 'above-start', scale: DEFAULT_SATELLITE_SCALE },
+    tier: { place: 'above-start', scale: TAB_BAND },
+    align: { inline: 'center', block: 'middle' },
+  },
+}
+
+const satellite = (
+  base: { place: MarkPlace; scale: number },
+  over: MarkSatellite | undefined
+): { place: MarkPlace; scale: number } => ({
+  place: over?.place ?? base.place,
+  scale:
+    over?.scale === undefined
+      ? base.scale
+      : clamp(over.scale, MARK_SATELLITE_SCALE.min, MARK_SATELLITE_SCALE.max),
+})
+
+/**
+ * The recipe a style asks for, preset and overrides merged, every bound applied.
+ *
+ * **Overrides are a partial and the preset keeps applying**, field by field. An
+ * owner who moved the was-price has not thereby chosen a currency placement, and
+ * a preset that stopped applying the moment one knob was touched would make
+ * every small adjustment a full re-authoring. Same rule the text element already
+ * follows for `size`, `weight` and `family`.
+ *
+ * `tab: 'none'` is still read, and means the tier is hidden. Organization blocks
+ * already carry that spelling and the document schema is strict — dropping it
+ * would refuse a shop's saved work.
+ */
+export function markRecipe(style: PriceMarkStyle | undefined): ResolvedRecipe {
+  const base = PRICE_MARK_RECIPES[style?.preset ?? 'classic-tag']
+  const over = style?.recipe
+
+  const tier = satellite(base.tier, over?.tier)
+
+  return {
+    currency: over?.currency ?? base.currency,
+    minor: over?.minor ?? base.minor,
+    minorScale:
+      over?.minorScale === undefined
+        ? base.minorScale
+        : clamp(over.minorScale, MARK_MINOR_SCALE.min, MARK_MINOR_SCALE.max),
+    compare: satellite(base.compare, over?.compare),
+    prefix: satellite(base.prefix, over?.prefix),
+    // The older spelling wins only when the recipe did not speak.
+    tier: style?.tab === 'none' && over?.tier?.place === undefined
+      ? { ...tier, place: 'hidden' }
+      : tier,
+    align: over?.align ?? base.align,
+  }
+}
+
+// ─── Geometry ─────────────────────────────────────────────────────────────────
+
 /**
  * The rect the ground is drawn in.
  *
@@ -172,7 +453,7 @@ function groundRect(outer: Rect, shape: MarkGround): Rect {
 }
 
 /**
- * The box the digits get inside that ground.
+ * The box the contents get inside that ground.
  *
  * `MARK_FIT` says how much of the shape the price may use — a burst's usable
  * interior is a fraction of its bounding box, and digits run to the spikes
@@ -192,22 +473,81 @@ function digitRect(ground: Rect, shape: MarkGround): Rect {
   }
 }
 
+type Band = 'top' | 'bottom' | 'start' | 'end' | null
+
+function bandOf(place: MarkPlace): Band {
+  switch (place) {
+    case 'above-start':
+    case 'above':
+    case 'above-end':
+      return 'top'
+    case 'below-start':
+    case 'below':
+    case 'below-end':
+      return 'bottom'
+    case 'start':
+      return 'start'
+    case 'end':
+      return 'end'
+    case 'hidden':
+      return null
+  }
+}
+
+/** Which end of its band a satellite hugs. */
+type Hug = 'start' | 'center' | 'end'
+
+function hugOf(place: MarkPlace): Hug {
+  switch (place) {
+    case 'above-start':
+    case 'below-start':
+    case 'start':
+      return 'start'
+    case 'above-end':
+    case 'below-end':
+    case 'end':
+      return 'end'
+    default:
+      return 'center'
+  }
+}
+
 /**
  * Lay the mark out inside the rectangle its block element gave it.
  *
- * Three rules are load-bearing and every one of them is asserted in the tests:
+ * **Bands are reserved by the recipe, never by the content**, and that is the
+ * rule a page depends on. A row of cards where some offers carry a was-price and
+ * some do not must set every price at the same size; reserving the band only
+ * when something fills it makes the price jump between neighbouring cards, which
+ * is precisely the inconsistency this component exists to prevent. So the amount
+ * is fitted into `digits` less every band the recipe declares, filled or not.
  *
- * **Minor digits raise to the major's cap height, never baseline-aligned.** A
- * baseline-aligned minor reads as a second number rather than as cents.
+ * Six rules are load-bearing and every one of them is asserted in the tests,
+ * across every preset rather than only the default:
  *
- * **The tab and the mark never separate.** The tier label is attached, so the
- * tab's bottom edge overlaps the mark's top edge — never a gap, at any size.
+ * **A raised minor rises to the major's cap height, never the baseline.** A
+ * baseline-aligned minor reads as a second number rather than as cents — so it
+ * is a *treatment the owner chooses*, `minor: 'baseline'`, which brings a
+ * decimal separator with it. What no recipe can produce is a raised minor that
+ * misses the cap line.
+ *
+ * **The tab and the mark never separate.** Wherever the tier is placed, the
+ * tab's rect overlaps the mark's edge — never a gap, at any size.
  *
  * **The whole mark is LTR with Western numerals, including in AR editions.**
  * Pieces are laid out inline-start to inline-end in reading order *of the mark*,
  * which does not mirror. This matches every GCC retailer's actual print.
  *
- * Type is sized to fit **both axes**. Height alone was the first version and it
+ * **No part may approach the major.** Satellite and minor scales are clamped in
+ * `markRecipe`, so the hierarchy major > minor > currency > satellite holds
+ * however a recipe is assembled.
+ *
+ * **In a round ground everything reads off one vertical axis.** A burst's usable
+ * area is a circle, so the corner of any box inscribed in it points straight at
+ * a spike — the gallery showed "32.00" printing across one. Start- and
+ * end-hugging collapse to a centred row there, whatever the recipe asked for.
+ *
+ * **Type is sized to fit both axes.** Height alone was the first version and it
  * broke the moment a merged region changed the box's aspect — digits spilled out
  * of the tag, which is the one failure the artefact cannot absorb.
  */
@@ -218,155 +558,344 @@ export function layoutPriceMark(
 ): PriceMarkLayout {
   const capRatio = options.capRatio ?? CAP_RATIO
   const label = options.tierLabel
-  const minorText = price.minor ?? ''
+  const recipe = options.recipe ?? PRICE_MARK_RECIPES['classic-tag']
 
-  // The tab occupies the top band; the mark takes the rest and slides up under
-  // it so the two overlap rather than meet.
-  const tabHeight = label ? container.height * 0.26 : 0
-  const overlap = tabHeight * 0.14
-  const markTop = container.y + tabHeight - overlap
+  const groundShape = options.ground ?? 'box'
+  const square = MARK_FIT[groundShape].square
+
+  // ── The tab, and the room it takes from the mark ────────────────────────────
+  //
+  // The tier band is reserved before anything else, because the mark body is
+  // what is left over. The tab then slides back into the mark by `TAB_OVERLAP`
+  // so the two overlap rather than meet — at any size, in any position.
+  const tierBand = recipe.tier.place === 'hidden' || label === undefined ? null : bandOf(recipe.tier.place)
+  const tabExtent =
+    tierBand === null
+      ? 0
+      : tierBand === 'top' || tierBand === 'bottom'
+        ? container.height * recipe.tier.scale
+        : container.width * recipe.tier.scale
+  const overlap = tabExtent * TAB_OVERLAP
+  const inset = tabExtent - overlap
+
   const outer: Rect = {
-    x: container.x,
-    y: markTop,
-    width: container.width,
-    height: container.height - (tabHeight - overlap),
+    x: container.x + (tierBand === 'start' ? inset : 0),
+    y: container.y + (tierBand === 'top' ? inset : 0),
+    width: container.width - (tierBand === 'start' || tierBand === 'end' ? inset : 0),
+    height: container.height - (tierBand === 'top' || tierBand === 'bottom' ? inset : 0),
   }
 
-  /**
-   * The ground, and then the box the digits actually get.
-   *
-   * **Computed here rather than placed by hand, which is the whole change.** The
-   * shipped library drew its own disc behind the price and switched this off,
-   * so the shape and the digits were two boxes tuned by eye — and a longer
-   * price, a three-decimal currency or a compare line moved one and not the
-   * other. Deriving both from the same rect is what makes a burst track what is
-   * inside it.
-   */
-  const groundShape = options.ground ?? 'box'
-  // `mark` keeps its meaning — the body a renderer draws — so nothing reading
-  // it has to change. What is new is the shape it is drawn as, and the smaller
-  // box the digits were fitted into.
+  // `mark` keeps its meaning — the body a renderer draws — so nothing reading it
+  // has to change. `digits` is the smaller box its contents were fitted into.
   const mark = groundRect(outer, groundShape)
   const digits = digitRect(mark, groundShape)
 
+  // ── Bands the recipe reserves, filled or not ────────────────────────────────
+  const bands = new Set<Exclude<Band, null>>()
+  for (const place of [recipe.compare.place, recipe.prefix.place]) {
+    const band = bandOf(place)
+    if (band !== null) bands.add(band)
+  }
+
+  const topInset = bands.has('top') ? digits.height * BAND : 0
+  const bottomInset = bands.has('bottom') ? digits.height * BAND : 0
+  const startInset = bands.has('start') ? digits.width * SIDE_BAND : 0
+  const endInset = bands.has('end') ? digits.width * SIDE_BAND : 0
+
+  const amount: Rect = {
+    x: digits.x + startInset,
+    y: digits.y + topInset,
+    width: Math.max(0, digits.width - startInset - endInset),
+    height: Math.max(0, digits.height - topInset - bottomInset),
+  }
+
+  // The currency takes a line of its own only when the recipe stacks it.
+  const stackedCurrency = recipe.currency === 'above' || recipe.currency === 'below'
+  const currencyStrip = stackedCurrency ? amount.height * CURRENCY_LINE : 0
+  const cluster: Rect = {
+    x: amount.x,
+    y: amount.y + (recipe.currency === 'above' ? currencyStrip : 0),
+    width: amount.width,
+    height: Math.max(0, amount.height - currencyStrip),
+  }
+
+  // ── Solve the amount ────────────────────────────────────────────────────────
   const currencyText = price.currency
-  const CURRENCY_RATIO = 0.3
-  const MINOR_RATIO = 0.44
-  /** Air between the currency code and the first digit, as a fraction of the
-   *  major size. Without it they touch at every size, not just small ones. */
-  const GAP_RATIO = 0.18
+  const rawMinor = price.minor ?? ''
+  const minorText =
+    recipe.minor === 'hidden' || rawMinor === ''
+      ? ''
+      : recipe.minor === 'baseline'
+        ? `.${rawMinor}`
+        : rawMinor
+
+  const inlineCurrency = !stackedCurrency
+  const currencyUnits = inlineCurrency
+    ? currencyText.length * CURRENCY_RATIO * LETTER_WIDTH + GAP_RATIO
+    : 0
+  const majorUnits = price.major.length * DIGIT_WIDTH
+  const minorUnits = minorText.length * recipe.minorScale * DIGIT_WIDTH
 
   // Solve for the largest major size that fits the width, then take the smaller
   // of that and what the height allows.
-  const demand =
-    currencyText.length * CURRENCY_RATIO * LETTER_WIDTH +
-    GAP_RATIO +
-    price.major.length * DIGIT_WIDTH +
-    minorText.length * MINOR_RATIO * DIGIT_WIDTH
-  const majorSize = Math.min(digits.height * 0.58, (digits.width * 0.86) / demand)
-  const minorSize = majorSize * MINOR_RATIO
+  const demand = currencyUnits + majorUnits + minorUnits
+  const majorSize = Math.min(
+    cluster.height * AMOUNT_FILL_HEIGHT,
+    (cluster.width * AMOUNT_FILL_WIDTH) / Math.max(demand, 0.0001)
+  )
+  const minorSize = majorSize * recipe.minorScale
   const currencySize = majorSize * CURRENCY_RATIO
 
-  const baseline = digits.y + digits.height * 0.74
+  const baseline =
+    recipe.align.block === 'top'
+      ? cluster.y + majorSize * capRatio + cluster.height * 0.04
+      : recipe.align.block === 'bottom'
+        ? cluster.y + cluster.height * 0.94
+        : cluster.y + cluster.height * AMOUNT_BASELINE
   const capTop = baseline - majorSize * capRatio
 
-  const currencyWidth = currencyText.length * currencySize * LETTER_WIDTH + majorSize * GAP_RATIO
+  const currencyAdvance = inlineCurrency
+    ? currencyText.length * currencySize * LETTER_WIDTH + majorSize * GAP_RATIO
+    : 0
   const majorWidth = price.major.length * majorSize * DIGIT_WIDTH
   const minorWidth = minorText.length * minorSize * DIGIT_WIDTH
+  const total = currencyAdvance + majorWidth + minorWidth
 
-  // Centred as a group, laid out start-to-end. This ordering is fixed: the mark
-  // does not mirror.
-  const groupStart = digits.x + (digits.width - (currencyWidth + majorWidth + minorWidth)) / 2
+  // Laid out start-to-end. This ordering is fixed: the mark does not mirror.
+  const leading = recipe.currency === 'before' || recipe.currency === 'super-before'
+  const groupStart =
+    recipe.align.inline === 'start'
+      ? cluster.x
+      : recipe.align.inline === 'end'
+        ? cluster.x + cluster.width - total
+        : cluster.x + (cluster.width - total) / 2
+
+  const digitsStart = groupStart + (leading ? currencyAdvance : 0)
+
+  /**
+   * The code's own baseline.
+   *
+   * A superscript code rides the major's cap line, which is the same
+   * construction the raised minor uses and for the same reason: it reads as part
+   * of the number rather than as a word next to one.
+   */
+  const currencyBaseline = stackedCurrency
+    ? recipe.currency === 'above'
+      ? amount.y + currencyStrip * 0.86
+      : amount.y + amount.height - currencyStrip * 0.14
+    : recipe.currency === 'super-before' || recipe.currency === 'super-after'
+      ? capTop + currencySize * capRatio
+      : baseline
+
+  const currencyGlyphWidth = currencyText.length * currencySize * LETTER_WIDTH
+  const currencyX = stackedCurrency
+    ? recipe.align.inline === 'start'
+      ? amount.x
+      : recipe.align.inline === 'end'
+        ? amount.x + amount.width - currencyGlyphWidth
+        : amount.x + (amount.width - currencyGlyphWidth) / 2
+    : leading
+      ? groupStart
+      : // Trailing: the gap goes before the code, not after it.
+        digitsStart + majorWidth + minorWidth + majorSize * GAP_RATIO
 
   const currency: MarkPiece = {
     text: currencyText,
-    x: groupStart,
-    baseline,
+    x: currencyX,
+    baseline: currencyBaseline,
+    // The advance carries the gap for a leading code, so the pieces after it
+    // start clear of the D in "KWD". A trailing code has already been offset.
+    width: leading ? currencyAdvance : currencyGlyphWidth,
     fontSize: currencySize,
-    width: currencyWidth,
   }
 
   const major: MarkPiece = {
     text: price.major,
-    x: groupStart + currencyWidth,
+    x: digitsStart,
     baseline,
     fontSize: majorSize,
     width: majorWidth,
   }
 
-  // Raised so its cap top meets the major's. Not the baseline — that is the
-  // difference between cents and a second price.
+  /**
+   * The fils.
+   *
+   * `raised` puts the cap top on the major's — not the baseline, which is the
+   * difference between cents and a second price, and which no recipe may
+   * override. `baseline` is the owner asking for a single number, and it carries
+   * its own separator so "2450" cannot happen.
+   */
   const minor: MarkPiece | null =
     minorText === ''
       ? null
       : {
           text: minorText,
-          x: groupStart + currencyWidth + majorWidth,
-          baseline: capTop + minorSize * capRatio,
+          x: digitsStart + majorWidth,
+          baseline: recipe.minor === 'raised' ? capTop + minorSize * capRatio : baseline,
           fontSize: minorSize,
           width: minorWidth,
         }
 
-  /**
-   * The was-price and the FROM/EACH line, above the digits.
-   *
-   * **Measured against the digit box, not the ground.** On a rounded box the two
-   * are the same rect and this changes nothing; on a burst the ground's edge is
-   * spikes, and a compare price placed there prints across them. The gallery
-   * showed exactly that the first time a burst drew its own ground.
-   */
-  const topLineSize = Math.min(currencySize * 0.95, digits.height * 0.2)
-  const topLineBaseline = digits.y + digits.height * (MARK_FIT[groundShape].square ? 0.18 : 0.26)
+  // ── The satellites ──────────────────────────────────────────────────────────
+  //
+  // **Laid out per band rather than per satellite**, which is the difference
+  // between a rule and a coincidence. Two pieces sharing a band and asking for
+  // the same end of it is an ordinary thing for a recipe to say, and placing
+  // each one independently prints them on top of each other. The old code never
+  // hit that only because it hard-coded the was-price to the end and the FROM
+  // line to the start.
 
-  const compare: MarkPiece | null =
-    price.comparePrice === undefined
-      ? null
-      : {
-          text: price.comparePrice,
-          /**
-           * Hard to the end on a rectangle, centred inside a round ground.
-           *
-           * **A right-aligned was-price is a rectangle idiom.** A burst's usable
-           * area is a circle, so the top-right corner of any box inscribed in it
-           * points straight at a spike — the gallery showed "32.00" printing
-           * across one. Centring is also what a burst wants typographically:
-           * everything in it reads off a single vertical axis.
-           */
-          x: MARK_FIT[groundShape].square
-            ? digits.x +
-              (digits.width - price.comparePrice.length * topLineSize * DIGIT_WIDTH) / 2
-            : digits.x +
-              digits.width * 0.98 -
-              price.comparePrice.length * topLineSize * DIGIT_WIDTH,
-          baseline: topLineBaseline,
-          fontSize: topLineSize,
-          width: price.comparePrice.length * topLineSize * DIGIT_WIDTH,
-        }
-
+  const compareText = price.comparePrice ?? ''
   const prefixText = price.prefixLabel === undefined ? '' : PREFIX_TEXT[price.prefixLabel]
-  const prefix: MarkPiece | null =
-    prefixText === ''
+
+  /** Reading order of the mark: the prefix leads, the compare follows. */
+  const wanted = [
+    { role: 'prefix' as const, text: prefixText, spec: recipe.prefix },
+    { role: 'compare' as const, text: compareText, spec: recipe.compare },
+  ].filter((s) => s.text !== '' && bandOf(s.spec.place) !== null)
+
+  const placed = new Map<'prefix' | 'compare', MarkPiece>()
+
+  for (const band of ['top', 'bottom', 'start', 'end'] as const) {
+    const inBand = wanted.filter((s) => bandOf(s.spec.place) === band)
+    if (inBand.length === 0) continue
+
+    const sideways = band === 'start' || band === 'end'
+    /**
+     * The room the band actually has, inset at both ends.
+     *
+     * A side band is a narrow column, and a was-price sized only against the
+     * major runs straight out of it and across the digits. Two ceilings, then:
+     * one on the type size — a satellite is a satellite — and one on the width,
+     * which is the band it was put in. The inset comes *out* of that room rather
+     * than being added to it, or the piece clears the band by exactly the inset.
+     */
+    const outer = sideways ? digits.width * SIDE_BAND : digits.width
+    const room = outer * (1 - 2 * SATELLITE_INSET)
+    const extent = digits.height * BAND
+
+    const sized = inBand.map((s) => {
+      const capped = Math.min(
+        s.spec.scale * majorSize,
+        extent,
+        // Shrink to the band rather than overflow it. `text.length` is exact
+        // here: every satellite string is figures or an uppercase word.
+        room / Math.max(s.text.length * DIGIT_WIDTH, 0.0001)
+      )
+      return { ...s, size: capped, width: s.text.length * capped * DIGIT_WIDTH }
+    })
+
+    const lineBaseline =
+      band === 'top'
+        ? digits.y + digits.height * (square ? TOP_LINE_AT_SQUARE : TOP_LINE_AT)
+        : band === 'bottom'
+          ? digits.y + digits.height * BOTTOM_LINE_AT
+          : baseline
+
+    const bandStart = band === 'end' ? digits.x + digits.width * (1 - SIDE_BAND) : digits.x
+    const hugs = new Set(sized.map((s) => hugOf(s.spec.place)))
+
+    /**
+     * When the band's pieces go to opposite edges they are laid out
+     * independently; otherwise they form one row.
+     *
+     * **A round ground always forms the row**, whatever the recipe asked for: a
+     * burst's usable area is a circle, so the corner of any box inscribed in it
+     * points at a spike — the gallery showed "32.00" printing across one — and
+     * everything in a burst should read off a single vertical axis anyway.
+     */
+    const independent =
+      !square && !sideways && hugs.size === sized.length && !hugs.has('center')
+
+    if (independent) {
+      for (const s of sized) {
+        const x =
+          hugOf(s.spec.place) === 'start'
+            ? digits.x + digits.width * SATELLITE_INSET
+            : digits.x + digits.width * (1 - SATELLITE_INSET) - s.width
+        placed.set(s.role, {
+          text: s.text,
+          x,
+          baseline: lineBaseline,
+          fontSize: s.size,
+          width: s.width,
+        })
+      }
+      continue
+    }
+
+    const gap = sized.length > 1 ? (sized[0]?.size ?? 0) * 0.5 : 0
+    const rowWidth = sized.reduce((sum, s) => sum + s.width, 0) + gap * (sized.length - 1)
+    // A round ground centres; otherwise the row sits where its pieces asked.
+    const hug: Hug = square ? 'center' : sideways ? 'start' : ([...hugs][0] ?? 'center')
+    const innerStart = bandStart + outer * SATELLITE_INSET
+
+    let cursor =
+      hug === 'start'
+        ? innerStart
+        : hug === 'end'
+          ? innerStart + room - rowWidth
+          : innerStart + (room - rowWidth) / 2
+
+    for (const s of sized) {
+      placed.set(s.role, {
+        text: s.text,
+        x: cursor,
+        baseline: lineBaseline,
+        fontSize: s.size,
+        width: s.width,
+      })
+      cursor += s.width + gap
+    }
+  }
+
+  const compare = placed.get('compare') ?? null
+  const prefix = placed.get('prefix') ?? null
+
+  // ── The tab ─────────────────────────────────────────────────────────────────
+  const tab =
+    label === undefined || tierBand === null
       ? null
-      : {
-          text: prefixText,
-          x: digits.x + digits.width * 0.02,
-          baseline: topLineBaseline,
-          fontSize: topLineSize,
-          width: prefixText.length * topLineSize * DIGIT_WIDTH,
-        }
+      : (() => {
+          const horizontal = tierBand === 'top' || tierBand === 'bottom'
+          const hug = hugOf(recipe.tier.place)
+          // The tab's thickness **is** the band it reserved, on whichever axis
+          // it took one. Sizing it from a separate constant let it intrude
+          // arbitrarily far into the mark instead of sinking the one overlap.
+          const width = horizontal ? container.width * TAB_WIDTH : tabExtent
+          const height = horizontal ? tabExtent : container.height * TAB_SIDE_HEIGHT
+
+          const x = horizontal
+            ? hug === 'end'
+              ? container.x + container.width - width
+              : hug === 'center'
+                ? container.x + (container.width - width) / 2
+                : container.x
+            : tierBand === 'start'
+              ? container.x
+              : container.x + container.width - width
+
+          const y = horizontal
+            ? tierBand === 'top'
+              ? container.y
+              : container.y + container.height - height
+            : container.y + (container.height - height) / 2
+
+          const room = horizontal ? container.width * TAB_TEXT_WIDTH : width * 0.86
+
+          return {
+            rect: { x, y, width, height },
+            fontSize: Math.min(height * 0.5, room / (label.length * 0.62)),
+            text: label,
+          }
+        })()
 
   return {
     groundShape,
-    tab:
-      label === undefined
-        ? null
-        : {
-            rect: { x: container.x, y: container.y, width: container.width * 0.56, height: tabHeight },
-            fontSize: Math.min(tabHeight * 0.5, (container.width * 0.48) / (label.length * 0.62)),
-            text: label,
-          },
+    tab,
     mark,
     digits,
+    amount,
     currency,
     major,
     minor,

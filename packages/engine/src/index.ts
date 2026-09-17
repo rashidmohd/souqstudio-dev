@@ -32,6 +32,12 @@ export {
   minorDigits,
   CAP_RATIO,
   MAX_ROTATION,
+  // The interior arrangement. `markRecipe` is what a renderer calls; the record
+  // is what the designer's gallery draws from, so the thumbnails are laid out by
+  // the same function that lays out the card.
+  markRecipe,
+  PRICE_MARK_RECIPES,
+  type ResolvedRecipe,
   type PriceMarkLayout,
   type PriceMarkOptions,
   type MarkPiece,

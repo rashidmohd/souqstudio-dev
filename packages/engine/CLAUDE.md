@@ -22,10 +22,22 @@ owns nothing else — E6 §1.
 `price-mark.ts` is the clearest case of that split. It decides where the currency
 code, the major digits, the raised minor, the tier tab and the struck-through
 compare price each sit, and returns them as rectangles and baselines; it draws
-nothing. That is what lets the same three rules hold in the browser and in the
+nothing. That is what lets the same rules hold in the browser and in the
 export worker, and what makes them testable at all — the rules that decide
 whether a page reads as a real offer book used to live in throwaway harness code
 and were checked only by eye.
+
+It is also where the anatomy/arrangement split is enforced. A `PriceMarkStyle`
+names a `preset` and refines it with a `recipe`; `markRecipe` merges the two and
+applies every bound, and `layoutPriceMark` then satisfies the invariants
+regardless of what was asked for — cap-aligned fils, the three-decimal branch,
+LTR cluster order, a tab that overlaps the mark wherever it is placed, and a
+ratio ceiling that keeps any part from approaching the major. **Bands are
+reserved by the recipe and never by the content**, so a price is the same size on
+a card with a was-price and a card without one; that is the rule a page's
+coherence actually rests on, and `price-mark.test.ts` asserts it per preset.
+`classic-tag` is pinned byte-for-byte against hand-computed pre-recipe numbers.
+Reasoning: `docs/composition-model.md` §3.5.
 
 `fit.ts` is the same split again: it decides sizes and line breaks and draws
 nothing, and it takes its `TextMeasurer` as an argument because measuring a glyph

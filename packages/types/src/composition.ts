@@ -347,16 +347,19 @@ export type TextOverflow =
   | { mode: 'truncate' }
 
 /**
- * `priceMark` is one element the owner drags, places and sizes — never one they
- * open. The was-price and the offer price are inside it, together, and are not
- * two text levels to be assembled: raised minor digits, the tier tab, the
- * three-decimal KWD/OMR/BHD branch and LTR-in-Arabic are all internal. E6 §3.
+ * `priceMark` is one element the owner drags, places and sizes — and now one
+ * they arrange, though never one they assemble.
  *
- * This is the one place the designer's drag-and-drop stops being free-form, and
- * it is deliberate. Owners given text boxes for a price produce hundreds of
- * inconsistent price treatments inside a month, and the price mark is the single
- * element that decides whether output reads as a real offer book. The owner's
- * one control is the tier, which lives on the offer.
+ * The was-price, the offer price and the currency stay inside it together,
+ * because the fit ladder has to shrink them as one thing and `compact.ts` has to
+ * see one participant in the card's vertical flow. What they are *not* is welded
+ * into a single arrangement: `PriceMarkStyle.preset` and `.recipe` decide where
+ * each part sits, out of a fixed vocabulary of parts and positions.
+ *
+ * The anatomy is still ours — cap-aligned minors, the three-decimal branch,
+ * LTR-in-Arabic, the attached tab, the ratio ceilings — and it is enforced by
+ * `layoutPriceMark` rather than by refusing the owner a control. E6 §3 as
+ * amended; see `PriceMarkStyle`.
  */
 /**
  * What every element carries, whatever it draws.
@@ -491,21 +494,196 @@ export type BlockElement =
       stroke?: Stroke | undefined
     })
 
+// ─── The price mark's interior ────────────────────────────────────────────────
+//
+// **Consistency comes from bounded ratios and enforced relations, never from a
+// single frozen arrangement.** That sentence is the whole of what changed here,
+// and it is worth stating before the types because the types are unreadable
+// without it.
+//
+// E6 §3 refused to let owners assemble a price from text layers, and it was
+// right: a price built from free boxes loses cap alignment, loses the
+// three-decimal branch, loses LTR-in-Arabic and cannot shrink as one thing when
+// the string is long. But that argument only ever defended the *anatomy*. It was
+// being used to defend the *arrangement* too — where the currency sits, where
+// the was-price sits, where the tab attaches, how the cluster aligns in its box
+// — and the arrangement is design, not craft.
+//
+// The evidence that the lock was too tight is in this repository. Forty of the
+// hundred shipped arrangements switched the ground off and hand-placed a disc
+// behind the digits. `currencyPlacement` has been on `PriceMark` since E6,
+// written by every producer and read by nothing. Six of the eight grounds had no
+// control in the designer. And `TextSource` gave the tier badge an escape hatch
+// — `{ from: 'offer', field: 'tier' }` — while the price got none at all, so an
+// owner who wanted a different treatment had nowhere to go.
+//
+// So the mark stays **one element, one box, one drag handle** — it has to, for
+// the fit ladder to shrink it as a unit and for `compact.ts` to keep treating it
+// as a single flow participant. What opens is its interior, and it opens into a
+// *fixed vocabulary*: seven named parts, a compass, a bounded scale. An owner
+// cannot add a part, cannot type into one, and cannot set a pixel.
+
 /**
- * What an owner may change about a price mark, and it is deliberately not its
- * composition.
+ * Where the currency code sits relative to the digits.
  *
- * E6 §3 and composition model §3.5 stand: raised minor digits, the tier tab
- * overlapping the mark, the three-decimal KWD/OMR/BHD branch and LTR-in-Arabic
- * are internal, and the digits are never separate text boxes. Owners given text
- * boxes for a price produce hundreds of inconsistent treatments inside a month,
- * and the price mark is the single element that decides whether output reads as
- * a real offer book.
+ * `before` is what every mark has drawn since E6 and stays the default.
  *
- * **What was over-locked was the styling.** Colour, ground, outline and whether
- * there is a tab at all are the shop's brand rather than our typography, and
- * refusing them is what made the mark feel like somebody else's component
- * sitting in the middle of their card.
+ * The other five are not decoration. `super-after` is how a Gulf shelf ticket
+ * sets a riyal; `above` is the hypermarket stack; `after` is the e-commerce
+ * convention. Each is a real retail idiom the product could not express.
+ */
+export type MarkCurrencyPlace =
+  | 'before'
+  | 'after'
+  | 'super-before'
+  | 'super-after'
+  | 'above'
+  | 'below'
+
+/**
+ * How the fils attach to the major.
+ *
+ * **`raised` is the default and the cap alignment stays computed.** That is the
+ * distinction this whole model rests on: the owner chooses the *treatment*, and
+ * never the offset. A raised minor whose cap top does not meet the major's is
+ * not a design choice, it is a defect, and no recipe can ask for one.
+ *
+ * `baseline` sets the fils on the major's baseline with a decimal separator —
+ * what an electronics price does. `hidden` drops them, for whole-currency
+ * pricing where "AED 25" is the design and "AED 25.00" is noise.
+ */
+export type MarkMinorTreatment = 'raised' | 'baseline' | 'hidden'
+
+/**
+ * Where a satellite sits relative to the amount cluster.
+ *
+ * A compass rather than coordinates, and that is the bound: nine positions an
+ * owner picks between, not two numbers they tune until the card looks wrong at
+ * the next aspect. `hidden` is a position too — an owner who has drawn their own
+ * was-price treatment elsewhere on the card wants this one gone.
+ */
+export type MarkPlace =
+  | 'above-start'
+  | 'above'
+  | 'above-end'
+  | 'start'
+  | 'end'
+  | 'below-start'
+  | 'below'
+  | 'below-end'
+  | 'hidden'
+
+/**
+ * One part orbiting the amount: the was-price, the FROM/EACH line, the tier tab.
+ *
+ * `scale` is a fraction of the major's size and is **clamped by the engine**, not
+ * by the control that sets it. `MARK_SATELLITE_SCALE` is the range, and its
+ * ceiling is the thing that actually prevents "hundreds of inconsistent price
+ * treatments": no part may approach the major, so the hierarchy
+ * major > minor > currency > satellite cannot invert however the recipe is
+ * assembled.
+ */
+export interface MarkSatellite {
+  place?: MarkPlace | undefined
+  /** Fraction of the major's size. Clamped to `MARK_SATELLITE_SCALE`. */
+  scale?: number | undefined
+}
+
+/**
+ * The interior arrangement of a price mark.
+ *
+ * **Bands are reserved by the recipe, not by the content**, and that is not an
+ * implementation shortcut — it is the rule that keeps a page coherent. A row of
+ * cards where some offers carry a was-price and some do not must set every price
+ * at the same size; reserving the band only when something fills it makes the
+ * price jump between neighbouring cards, which is exactly the inconsistency the
+ * component exists to prevent. `layoutPriceMark` asserts it.
+ */
+export interface PriceMarkRecipe {
+  currency?: MarkCurrencyPlace | undefined
+  minor?: MarkMinorTreatment | undefined
+  /** Fraction of the major's size. Clamped to `MARK_MINOR_SCALE`. */
+  minorScale?: number | undefined
+  /** The struck-through was-price. */
+  compare?: MarkSatellite | undefined
+  /** FROM / EACH / PER KG. */
+  prefix?: MarkSatellite | undefined
+  /**
+   * The tier tab.
+   *
+   * **It may go anywhere and it may never detach.** E6 §3's "tab and mark never
+   * separate" survives as a *constraint the solver satisfies* rather than as a
+   * fixed corner: wherever the tab is placed, its rect overlaps the mark's edge,
+   * and `price-mark.test.ts` asserts that at every size for every place.
+   */
+  tier?: MarkSatellite | undefined
+  /**
+   * How the whole assembly sits in the element's box.
+   *
+   * Absent means centred, which is what every mark did before this existed —
+   * and being unable to say otherwise is why a price could not be set flush to
+   * the start of a wide band.
+   */
+  align?: { inline: LogicalAlign; block: 'top' | 'middle' | 'bottom' } | undefined
+}
+
+/**
+ * A mark we drew, that an owner picks from a gallery.
+ *
+ * **Presets are the front door and the knobs are the back one.** The same
+ * argument as `docs/composition-model.md` §3.6 makes for seeding sixty-five
+ * blocks: a blank artboard produces something worse than our default and the
+ * owner blames the product. Most owners will pick one of these and never open
+ * `recipe` at all.
+ *
+ * `classic-tag` is the default and renders **identically** to every mark drawn
+ * before recipes existed. That is asserted, not intended — see the byte-identity
+ * test in `price-mark.test.ts`.
+ */
+/**
+ * The tuple is the declaration and the union is derived from it, rather than the
+ * other way round. That is what lets the document schema build its enum straight
+ * from this list with no assertion — adding a preset is one edit, and the
+ * validator cannot fall behind the type.
+ */
+export const PRICE_MARK_PRESETS = [
+  'classic-tag',
+  'shelf-ticket',
+  'price-bomb',
+  'was-now-stack',
+  'super-riyal',
+  'wide-band',
+  'stacked-currency',
+  'whole-number',
+] as const
+
+export type PriceMarkPreset = (typeof PRICE_MARK_PRESETS)[number]
+
+/** The satellite size range, as a fraction of the major. The ceiling is what
+ *  keeps the hierarchy from inverting; the floor is what keeps it legible. */
+export const MARK_SATELLITE_SCALE = { min: 0.14, max: 0.5 } as const
+
+/** The minor's size range, as a fraction of the major. One is a price set as a
+ *  single number — "24.50" all one size — which is a real treatment, not a bug. */
+export const MARK_MINOR_SCALE = { min: 0.3, max: 1 } as const
+
+/**
+ * What an owner may change about a price mark.
+ *
+ * **The anatomy is ours and the arrangement is theirs.** That line replaces
+ * "the price mark is not lego", which was doing the work of both and defending
+ * only one. What stays internal, permanently, and is enforced by
+ * `layoutPriceMark` rather than by the absence of a control:
+ *
+ *   - the raised minor's cap alignment, whenever `raised` is chosen
+ *   - tabular figures, and the three-decimal KWD/OMR/BHD branch
+ *   - LTR cluster order with Western numerals, in an Arabic edition too
+ *   - the tab overlapping the mark, wherever it is placed
+ *   - the ratio ceilings, so no part may approach the major
+ *   - fitting on both axes; the price never truncates (E6 §4)
+ *
+ * What is the shop's: colour, ground, outline, and now the interior arrangement
+ * — `preset` and `recipe` below.
  */
 export interface PriceMarkStyle {
   /** The tier tab and the outline. Defaults to the tier's own colour. */
@@ -550,8 +728,29 @@ export interface PriceMarkStyle {
    * saved work. `ground` wins where both are present.
    */
   frame?: 'tag' | 'plain' | undefined
-  /** `none` hides the tier tab. The chip element is the other place it shows. */
+  /**
+   * `none` hides the tier tab. The chip element is the other place it shows.
+   *
+   * Superseded by `recipe.tier.place`, and still read: `none` is
+   * `place: 'hidden'`. Same compatibility bargain as `frame` above, for the same
+   * reason — organization blocks already carry it and the schema is strict.
+   */
   tab?: 'attached' | 'none' | undefined
+  /**
+   * The interior arrangement, by name. Absent means `classic-tag`, which is what
+   * every mark drew before this field existed.
+   */
+  preset?: PriceMarkPreset | undefined
+  /**
+   * Bounded refinements on top of the preset, field by field.
+   *
+   * **A partial, deliberately.** An owner who moved the was-price has not
+   * thereby chosen a currency placement, and a preset that stopped applying the
+   * moment one knob was touched would make every adjustment a full re-authoring.
+   * Same rule the text element already follows for `size`, `weight` and
+   * `family`.
+   */
+  recipe?: PriceMarkRecipe | undefined
 }
 
 /** Mirrors `ChipAnchor` in `index.ts`; restated so this module stands alone. */

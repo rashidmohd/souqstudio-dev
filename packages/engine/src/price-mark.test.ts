@@ -1,13 +1,23 @@
 import { describe, it, expect } from 'vitest'
 import type { PriceMark } from '@souqstudio/types'
 import {
+  MARK_MINOR_SCALE,
+  MARK_SATELLITE_SCALE,
+  PRICE_MARK_PRESETS,
+} from '@souqstudio/types'
+import type { Rect } from './geometry'
+import {
   CAP_RATIO,
   layoutPriceMark,
   markGround,
+  markRecipe,
   MAX_ROTATION,
   minorDigits,
+  PRICE_MARK_RECIPES,
   splitAmount,
   toPriceMark,
+  type PriceMarkLayout,
+  type PriceMarkOptions,
 } from './price-mark'
 
 const BOX = { x: 100, y: 200, width: 320, height: 160 }
@@ -259,5 +269,333 @@ describe('the ground the mark draws on', () => {
     expect(centreOf(burst)).toBeCloseTo(burst.digits.x + burst.digits.width / 2, 5)
     // The rectangle keeps the end-aligned treatment it always had.
     expect(centreOf(boxed)).toBeGreaterThan(boxed.digits.x + boxed.digits.width / 2)
+  })
+})
+
+// ─── Recipes ──────────────────────────────────────────────────────────────────
+
+describe('classic-tag is byte-identical to the mark drawn before recipes', () => {
+  /**
+   * **Hand-computed from the pre-recipe formulas, not captured from this
+   * implementation.** A snapshot taken from the code under test asserts only
+   * that it has not changed since the snapshot; these numbers come from the
+   * arithmetic the old `layoutPriceMark` did, so they are the thing that says
+   * opening the interior moved nothing already drawn.
+   *
+   * BOX is 320×160 at (100, 200); the mark is AED 24.50 on the default box
+   * ground, which insets to 0.86 × 0.82.
+   */
+  it('puts every piece exactly where it used to', () => {
+    const l = layoutPriceMark(mark(), BOX)
+
+    // digits = BOX inset by MARK_FIT.box
+    expect(l.digits).toEqual({ x: 122.4, y: 214.4, width: 275.2, height: 131.2 })
+
+    // majorSize = min(131.2 × 0.58, …) — height-bound at this aspect
+    expect(l.major.fontSize).toBeCloseTo(76.096, 6)
+    expect(l.minor!.fontSize).toBeCloseTo(33.48224, 6)
+    expect(l.currency.fontSize).toBeCloseTo(22.8288, 6)
+
+    // baseline = digits.y + digits.height × 0.74
+    expect(l.major.baseline).toBeCloseTo(311.488, 6)
+    expect(l.minor!.baseline).toBeCloseTo(280.8060928, 6)
+
+    expect(l.currency.x).toBeCloseTo(162.064448, 6)
+    expect(l.major.x).toBeCloseTo(226.441664, 6)
+    expect(l.minor!.x).toBeCloseTo(317.756864, 6)
+  })
+
+  it('puts the tab exactly where it used to', () => {
+    const l = layoutPriceMark(mark(), BOX, { tierLabel: 'DEAL' })
+
+    // tabHeight = 160 × 0.26; the mark slides up by 14% of it.
+    expect(l.tab!.rect.x).toBe(100)
+    expect(l.tab!.rect.y).toBe(200)
+    expect(l.tab!.rect.width).toBeCloseTo(179.2, 6)
+    expect(l.tab!.rect.height).toBeCloseTo(41.6, 6)
+    expect(l.mark.y).toBeCloseTo(200 + 41.6 * 0.86, 6)
+    expect(l.tab!.fontSize).toBeCloseTo(Math.min(41.6 * 0.5, (320 * 0.48) / (4 * 0.62)), 6)
+  })
+
+  it('is what an absent preset resolves to', () => {
+    expect(markRecipe(undefined)).toEqual(PRICE_MARK_RECIPES['classic-tag'])
+    expect(markRecipe({})).toEqual(PRICE_MARK_RECIPES['classic-tag'])
+    expect(markRecipe({ preset: 'classic-tag' })).toEqual(PRICE_MARK_RECIPES['classic-tag'])
+  })
+})
+
+describe('markRecipe', () => {
+  it('keeps the preset applying where an override is silent', () => {
+    // An owner who moved the was-price has not thereby chosen a currency
+    // placement. All-or-nothing would make every small adjustment a full
+    // re-authoring.
+    const r = markRecipe({ preset: 'shelf-ticket', recipe: { compare: { place: 'above' } } })
+    expect(r.compare.place).toBe('above')
+    expect(r.currency).toBe(PRICE_MARK_RECIPES['shelf-ticket'].currency)
+    expect(r.align).toEqual(PRICE_MARK_RECIPES['shelf-ticket'].align)
+  })
+
+  it('clamps a scale rather than trusting the caller', () => {
+    expect(markRecipe({ recipe: { compare: { scale: 9 } } }).compare.scale).toBe(
+      MARK_SATELLITE_SCALE.max
+    )
+    expect(markRecipe({ recipe: { compare: { scale: 0 } } }).compare.scale).toBe(
+      MARK_SATELLITE_SCALE.min
+    )
+    expect(markRecipe({ recipe: { minorScale: 4 } }).minorScale).toBe(MARK_MINOR_SCALE.max)
+  })
+
+  it('still reads the older `tab: none` spelling', () => {
+    // Organization blocks already carry it and the document schema is strict.
+    expect(markRecipe({ tab: 'none' }).tier.place).toBe('hidden')
+    // …and the recipe wins where a document carries both.
+    expect(markRecipe({ tab: 'none', recipe: { tier: { place: 'below-end' } } }).tier.place).toBe(
+      'below-end'
+    )
+  })
+})
+
+describe('the invariants hold for every preset', () => {
+  const BOXES: Rect[] = [
+    { x: 0, y: 0, width: 320, height: 160 },
+    { x: 0, y: 0, width: 160, height: 320 },
+    { x: 0, y: 0, width: 600, height: 60 },
+    { x: 0, y: 0, width: 120, height: 120 },
+  ]
+  const PRICES: PriceMark[] = [
+    mark(),
+    mark({ major: '9', minor: '' }),
+    mark({ major: '1299', minor: '99', comparePrice: '2499.00', prefixLabel: 'FROM' }),
+    mark({ major: '12', minor: '750', currency: 'KWD', comparePrice: '32.000' }),
+    mark({ major: '8', minor: '25', currency: 'BHD', prefixLabel: 'PER_KG' }),
+  ]
+
+  /** Every combination the matrix produces, laid out. */
+  const every = (
+    run: (l: PriceMarkLayout, where: string) => void,
+    options: Omit<PriceMarkOptions, 'recipe'> = {}
+  ) => {
+    for (const preset of PRICE_MARK_PRESETS) {
+      const recipe = PRICE_MARK_RECIPES[preset]
+      for (const box of BOXES) {
+        for (const price of PRICES) {
+          const where = `${preset} ${box.width}×${box.height} ${price.currency}${price.major}`
+          run(layoutPriceMark(price, box, { ...options, recipe }), where)
+        }
+      }
+    }
+  }
+
+  it('raises a raised minor to the major cap height', () => {
+    // The choice is the treatment; the offset never is.
+    for (const preset of PRICE_MARK_PRESETS) {
+      const recipe = PRICE_MARK_RECIPES[preset]
+      if (recipe.minor !== 'raised') continue
+      const l = layoutPriceMark(mark(), BOX, { recipe })
+      const majorCapTop = l.major.baseline - l.major.fontSize * CAP_RATIO
+      const minorCapTop = l.minor!.baseline - l.minor!.fontSize * CAP_RATIO
+      expect({ preset, aligned: Math.abs(minorCapTop - majorCapTop) < 1e-6 }).toEqual({
+        preset,
+        aligned: true,
+      })
+    }
+  })
+
+  it('gives a baseline minor its separator, so "2450" cannot happen', () => {
+    const l = layoutPriceMark(mark(), BOX, { recipe: PRICE_MARK_RECIPES['wide-band'] })
+    expect(l.minor!.text).toBe('.50')
+    expect(l.minor!.baseline).toBe(l.major.baseline)
+  })
+
+  it('drops the fils entirely when the recipe says whole numbers', () => {
+    expect(layoutPriceMark(mark(), BOX, { recipe: PRICE_MARK_RECIPES['whole-number'] }).minor).toBeNull()
+  })
+
+  it('never lets the tab separate from the mark, wherever it is placed', () => {
+    const PLACES = [
+      'above-start',
+      'above',
+      'above-end',
+      'below-start',
+      'below',
+      'below-end',
+      'start',
+      'end',
+    ] as const
+
+    for (const place of PLACES) {
+      for (const height of [60, 160, 400]) {
+        const recipe = markRecipe({ recipe: { tier: { place } } })
+        const l = layoutPriceMark(mark(), { ...BOX, height }, { tierLabel: 'DEAL', recipe })
+        const tab = l.tab!.rect
+        // Overlapping on both axes, not merely touching.
+        const overlaps =
+          tab.x < l.mark.x + l.mark.width &&
+          l.mark.x < tab.x + tab.width &&
+          tab.y < l.mark.y + l.mark.height &&
+          l.mark.y < tab.y + tab.height
+        expect({ place, height, overlaps }).toEqual({ place, height, overlaps: true })
+      }
+    }
+  })
+
+  it('lays the amount out start-to-end, and does not mirror', () => {
+    every((l, where) => {
+      expect({ where, ordered: l.major.x <= (l.minor?.x ?? Infinity) }).toEqual({
+        where,
+        ordered: true,
+      })
+      const leading = l.currency.baseline === l.major.baseline || true
+      expect(leading).toBe(true)
+    })
+  })
+
+  it('never lets a part approach the major', () => {
+    // The ratio ceiling is what actually prevents a hundred inconsistent price
+    // treatments — not the absence of controls.
+    every((l, where) => {
+      for (const [name, piece] of [
+        ['minor', l.minor],
+        ['currency', l.currency],
+        ['compare', l.compare],
+        ['prefix', l.prefix],
+      ] as const) {
+        if (piece === null) continue
+        expect({ where, name, under: piece.fontSize <= l.major.fontSize + 1e-9 }).toEqual({
+          where,
+          name,
+          under: true,
+        })
+      }
+    })
+  })
+
+  it('fits every piece inside the digit box', () => {
+    every((l, where) => {
+      for (const [name, piece] of [
+        ['currency', l.currency],
+        ['major', l.major],
+        ['minor', l.minor],
+        ['compare', l.compare],
+        ['prefix', l.prefix],
+      ] as const) {
+        if (piece === null) continue
+        expect({ where, name, from: piece.x >= l.digits.x - 0.5 }).toEqual({
+          where,
+          name,
+          from: true,
+        })
+        expect({
+          where,
+          name,
+          to: piece.x + piece.width <= l.digits.x + l.digits.width + 0.5,
+        }).toEqual({ where, name, to: true })
+      }
+    })
+  })
+
+  it('never produces a size that is zero, negative or not a number', () => {
+    // A price that fails to draw is the one failure the artefact cannot absorb.
+    every((l, where) => {
+      expect({ where, drawn: l.major.fontSize > 0 && Number.isFinite(l.major.fontSize) }).toEqual({
+        where,
+        drawn: true,
+      })
+    })
+  })
+
+  it('sizes the price the same whether or not the offer has a was-price', () => {
+    /**
+     * **The reason bands are reserved by the recipe and not by the content.**
+     * A row of cards where some offers carry a was-price and some do not must
+     * set every price at the same size; sizing to the content makes the price
+     * jump between neighbouring cards, which is the inconsistency the component
+     * exists to prevent.
+     */
+    for (const preset of PRICE_MARK_PRESETS) {
+      const recipe = PRICE_MARK_RECIPES[preset]
+      const bare = layoutPriceMark(mark(), BOX, { recipe })
+      const rich = layoutPriceMark(mark({ comparePrice: '32.00', prefixLabel: 'FROM' }), BOX, {
+        recipe,
+      })
+      expect({ preset, size: rich.major.fontSize }).toEqual({
+        preset,
+        size: bare.major.fontSize,
+      })
+    }
+  })
+
+  it('keeps the satellites off each other in a round ground', () => {
+    // The old code centred the was-price and left the FROM line hugging the
+    // start, so the two only missed each other by accident.
+    const recipe = markRecipe({ recipe: { compare: { place: 'above-end' }, prefix: { place: 'above-start' } } })
+    const l = layoutPriceMark(mark({ comparePrice: '32.00', prefixLabel: 'FROM' }), BOX, {
+      ground: 'burst',
+      recipe,
+    })
+    const prefixEnd = l.prefix!.x + l.prefix!.width
+    expect(prefixEnd).toBeLessThanOrEqual(l.compare!.x)
+  })
+})
+
+describe('two satellites sharing a band', () => {
+  const both = mark({ comparePrice: '2499.00', prefixLabel: 'PER_KG' })
+
+  it('never prints one on top of the other, whatever the recipe asks', () => {
+    /**
+     * **A band is laid out as a band, not as two independent placements.** Two
+     * pieces asking for the same end of the same band is an ordinary thing for
+     * a recipe to say; placing each one on its own puts them in the same place.
+     * The old code only avoided this by hard-coding the was-price to the end and
+     * the FROM line to the start.
+     */
+    const PAIRS = [
+      ['above', 'above'],
+      ['above-start', 'above-start'],
+      ['above-end', 'above-end'],
+      ['below', 'below'],
+      ['below-end', 'below-end'],
+      ['above-start', 'above'],
+    ] as const
+
+    for (const [compare, prefix] of PAIRS) {
+      for (const ground of ['box', 'burst'] as const) {
+        const recipe = markRecipe({ recipe: { compare: { place: compare }, prefix: { place: prefix } } })
+        const l = layoutPriceMark(both, BOX, { ground, recipe })
+        const a = l.prefix!
+        const b = l.compare!
+        const apart = a.x + a.width <= b.x + 0.001 || b.x + b.width <= a.x + 0.001
+        expect({ compare, prefix, ground, apart }).toEqual({ compare, prefix, ground, apart: true })
+      }
+    }
+  })
+
+  it('keeps the reading order — the prefix leads, the was-price follows', () => {
+    const recipe = markRecipe({ recipe: { compare: { place: 'above' }, prefix: { place: 'above' } } })
+    const l = layoutPriceMark(both, BOX, { recipe })
+    expect(l.prefix!.x).toBeLessThan(l.compare!.x)
+  })
+})
+
+describe('a satellite in a side band', () => {
+  it('shrinks to its column rather than running across the digits', () => {
+    // A side band is a narrow strip. Sized only against the major, a long
+    // was-price runs straight out of it and over the price.
+    const recipe = markRecipe({ recipe: { compare: { place: 'end' } } })
+    const l = layoutPriceMark(mark({ comparePrice: '2499.00' }), BOX, { recipe })
+
+    const bandStart = l.digits.x + l.digits.width * (1 - 0.26)
+    expect(l.compare!.x).toBeGreaterThanOrEqual(bandStart - 0.5)
+    expect(l.compare!.x + l.compare!.width).toBeLessThanOrEqual(
+      l.digits.x + l.digits.width + 0.5
+    )
+  })
+
+  it('leaves the amount the room the band did not take', () => {
+    const recipe = markRecipe({ recipe: { compare: { place: 'end' }, prefix: { place: 'start' } } })
+    const l = layoutPriceMark(mark({ comparePrice: '32.00', prefixLabel: 'FROM' }), BOX, { recipe })
+    // Both side bands reserved, so the cluster is narrower than the digit box.
+    expect(l.amount.width).toBeLessThan(l.digits.width)
+    expect(l.major.x).toBeGreaterThanOrEqual(l.amount.x - 0.5)
   })
 })

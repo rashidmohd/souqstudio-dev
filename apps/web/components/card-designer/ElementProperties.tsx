@@ -5,6 +5,10 @@ import { AlignCenter, AlignLeft, AlignRight, Italic, Lock } from 'lucide-react'
 import type {
   BlockElement,
   BrandColor,
+  MarkPlace,
+  PriceMark,
+  PriceMarkPreset,
+  PriceMarkRecipe,
   TextOverflow,
   TokenRef,
   TypeLevel,
@@ -12,9 +16,15 @@ import type {
 import { TYPE_LEVELS } from '@souqstudio/types'
 import {
   chipPathShape,
+  layoutPriceMark,
+  markGround,
+  markRecipe,
   needsEvenOdd,
+  PRICE_MARK_RECIPES,
   shapePath,
   type ChipShape,
+  type MarkGround,
+  type MarkPiece,
   type Rect,
 } from '@souqstudio/engine'
 import { Input } from '@/components/ui/input'
@@ -42,9 +52,12 @@ import { describe } from '@/components/card-designer/LayerList'
  *   still what the fit ladder steps down, so a hand-set size degrades rather
  *   than overflows.
  *
- * The one thing still closed: **the price mark's composition**. Its colour,
- * ground and frame are the shop's; the raised minor digits, the attached tab and
- * the three-decimal branch are not, and never will be. E6 §3.
+ * The price mark used to be the exception and is not any more. **Its anatomy is
+ * ours and its arrangement is theirs**: the raised fils landing on the cap line,
+ * the three-decimal branch and LTR-in-Arabic are not negotiable and never will
+ * be — but where the currency, the was-price and the tier tab *go* is design,
+ * and locking those was the panel using E6 §3's argument past its reach. See
+ * `PriceMarkFields`.
  */
 
 type Props = {
@@ -267,16 +280,23 @@ type ColorProps = {
 /**
  * The price mark, opened as far as it goes.
  *
- * **Colour, ground and frame are the shop's brand. The composition is not.**
- * E6 §3 and composition model §3.5 stand: raised minor digits, the tier tab
- * overlapping the mark, the three-decimal KWD/OMR/BHD branch and LTR-in-Arabic
- * are internal, and the digits are never separate text boxes. Owners given text
- * boxes for a price produce hundreds of inconsistent treatments inside a month,
- * and the price is the one thing on a flyer a customer actually reads.
+ * **The anatomy is ours and the arrangement is theirs.** E6 §3's rule — a price
+ * is never assembled from text layers — still holds and always will: cap
+ * alignment, the three-decimal KWD/OMR/BHD branch, LTR-in-Arabic and a mark that
+ * shrinks as one thing cannot survive being cut into free boxes.
  *
- * What was over-locked was everything *around* those rules, which is why the
- * mark used to feel like somebody else's component sitting in the middle of the
- * owner's card.
+ * **That argument only ever defended the anatomy, and this panel was using it to
+ * defend the arrangement too.** Before this, an owner could choose two frames
+ * and three colours; where the currency sat, where the was-price sat, where the
+ * tab attached and how the cluster aligned were not theirs to decide, which
+ * meant the product could make exactly one price design. Six of the eight
+ * grounds the engine had shipped were not even reachable from here.
+ *
+ * So the gallery is the front door: eight marks we drew, each thumbnail laid out
+ * by `layoutPriceMark` itself, so the button and the card cannot disagree about
+ * what a shelf ticket looks like. The knobs below it refine one; every one of
+ * them is a closed list or a clamped number, and `markRecipe` applies the bounds
+ * again on the way to the canvas.
  */
 function PriceMarkFields({
   element,
@@ -292,30 +312,67 @@ function PriceMarkFields({
   const style = element.style ?? {}
   const set = (patch: Partial<typeof style>) =>
     onChange({ ...element, style: { ...style, ...patch } })
+  // A partial over a partial: the preset keeps applying to every field the owner
+  // has not spoken about. All-or-nothing would make moving the was-price a
+  // re-authoring of the whole mark.
+  const setRecipe = (patch: Partial<PriceMarkRecipe>) =>
+    set({ recipe: { ...(style.recipe ?? {}), ...patch } })
+
+  const recipe = markRecipe(style)
 
   return (
     <>
-      <Select
-        label="Frame"
-        disabled={disabled}
-        value={style.frame ?? 'tag'}
-        options={[
-          { value: 'tag', label: 'On a tag' },
-          { value: 'plain', label: 'Just the numbers' },
-        ]}
-        onChange={(event) => set({ frame: event.target.value as 'tag' | 'plain' })}
-      />
-      <Select
-        label="Tier badge"
-        disabled={disabled}
-        value={style.tab ?? 'attached'}
-        hint="The little tab reading “HALF PRICE”, attached to the mark."
-        options={[
-          { value: 'attached', label: 'Attached to the price' },
-          { value: 'none', label: 'Hidden' },
-        ]}
-        onChange={(event) => set({ tab: event.target.value as 'attached' | 'none' })}
-      />
+      {/*
+        **The gallery, and it is the front door rather than an advanced option.**
+        Same argument the seeded block library makes: a blank artboard produces
+        something worse than our default and the owner blames the product. Most
+        owners pick one of these and never open a knob.
+
+        Two columns rather than four — the difference between a shelf ticket and
+        a stacked mark is an *arrangement*, and an arrangement is unreadable at
+        icon size. This is the most consequential decision on the element and it
+        gets the room.
+      */}
+      <Field
+        label="Mark style"
+        hint="How the price is put together. Every one of them reads the same way."
+      >
+        <Segmented
+          label="Mark style"
+          className="grid w-full grid-cols-2 rounded-control"
+          disabled={disabled}
+          value={style.preset ?? 'classic-tag'}
+          options={PRESET_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+            render: () => <MarkPreview preset={option.value} />,
+          }))}
+          onChange={(preset) => set({ preset })}
+        />
+      </Field>
+
+      {/*
+        **Eight grounds, and six of them had no control here at all.** The engine
+        has drawn them since the shape kit reached the mark; the panel still
+        offered the two-option `frame` it shipped with, so the library worked
+        around it by hand-placing a disc behind the price. Drawn through the same
+        path function the card uses.
+      */}
+      <Field label="Ground" hint="The shape behind the digits.">
+        <Segmented
+          label="Ground"
+          className="grid w-full grid-cols-4 rounded-control"
+          disabled={disabled}
+          value={markGround(style)}
+          options={GROUND_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+            render: () => <GroundPreview ground={option.value} />,
+          }))}
+          onChange={(ground) => set({ ground })}
+        />
+      </Field>
+
       <ColorControl
         label="Tag and badge colour"
         value={style.tint}
@@ -339,17 +396,218 @@ function PriceMarkFields({
         onChange={(surface) => set({ surface })}
       />
 
+      {/*
+        The knobs. Each one is a closed list, so the mark cannot leave the
+        vocabulary however they are combined — and `markRecipe` clamps the two
+        numeric ones again before the canvas sees them.
+      */}
+      <Select
+        label="Currency code"
+        disabled={disabled}
+        value={recipe.currency}
+        options={[
+          { value: 'before', label: 'Before the price' },
+          { value: 'after', label: 'After the price' },
+          { value: 'super-before', label: 'Small, leading' },
+          { value: 'super-after', label: 'Small, trailing' },
+          { value: 'above', label: 'Above the price' },
+          { value: 'below', label: 'Below the price' },
+        ]}
+        onChange={(event) =>
+          setRecipe({ currency: event.target.value as PriceMarkRecipe['currency'] })
+        }
+      />
+      <Select
+        label="Fils"
+        disabled={disabled}
+        hint="Raised fils sit on the cap line of the big number — that part is ours."
+        value={recipe.minor}
+        options={[
+          { value: 'raised', label: 'Raised' },
+          { value: 'baseline', label: 'On the line, with a point' },
+          { value: 'hidden', label: 'Whole numbers only' },
+        ]}
+        onChange={(event) => setRecipe({ minor: event.target.value as PriceMarkRecipe['minor'] })}
+      />
+      <Select
+        label="Was-price"
+        disabled={disabled}
+        value={recipe.compare.place}
+        options={PLACE_OPTIONS}
+        onChange={(event) =>
+          setRecipe({
+            compare: { ...(style.recipe?.compare ?? {}), place: event.target.value as MarkPlace },
+          })
+        }
+      />
+      <Select
+        label="From / each / per kg"
+        disabled={disabled}
+        value={recipe.prefix.place}
+        options={PLACE_OPTIONS}
+        onChange={(event) =>
+          setRecipe({
+            prefix: { ...(style.recipe?.prefix ?? {}), place: event.target.value as MarkPlace },
+          })
+        }
+      />
+      <Select
+        label="Tier badge"
+        disabled={disabled}
+        hint="The little tab reading “HALF PRICE”. Wherever you put it, it stays joined to the price."
+        value={recipe.tier.place}
+        options={PLACE_OPTIONS}
+        onChange={(event) =>
+          setRecipe({
+            tier: { ...(style.recipe?.tier ?? {}), place: event.target.value as MarkPlace },
+          })
+        }
+      />
+      <Field label="Sits">
+        <Segmented
+          label="Sits"
+          className="grid w-full grid-cols-3 rounded-control"
+          disabled={disabled}
+          value={recipe.align.inline}
+          options={[
+            { value: 'start', label: 'Start', icon: AlignLeft },
+            { value: 'center', label: 'Centre', icon: AlignCenter },
+            { value: 'end', label: 'End', icon: AlignRight },
+          ]}
+          onChange={(inline) => setRecipe({ align: { ...recipe.align, inline } })}
+        />
+      </Field>
+
       <p className="flex items-start gap-2 rounded-control bg-sand-tint p-3 font-ui text-body-sm text-secondary">
         <Lock className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
         <span>
-          How the number itself is set stays ours: the raised fils, the currency,
-          the way it reads in Arabic. Every price in every book is read the
-          same way. Everything else about it is yours.
+          Where the parts go is yours. How the number is set stays ours — raised
+          fils land on the cap line, fils for Kuwait and Bahrain get three
+          digits, the price reads left to right in Arabic, and nothing in the
+          mark grows to rival the price itself. Arrange it any way you like and
+          it still reads as a price.
         </span>
       </p>
     </>
   )
 }
+
+/**
+ * The eight marks, named for what a shop would call them rather than for what
+ * they do to the geometry.
+ */
+const PRESET_OPTIONS: { value: PriceMarkPreset; label: string }[] = [
+  { value: 'classic-tag', label: 'Classic' },
+  { value: 'shelf-ticket', label: 'Shelf ticket' },
+  { value: 'price-bomb', label: 'Price bomb' },
+  { value: 'was-now-stack', label: 'Was and now' },
+  { value: 'super-riyal', label: 'Small code' },
+  { value: 'wide-band', label: 'One line' },
+  { value: 'stacked-currency', label: 'Stacked' },
+  { value: 'whole-number', label: 'Whole numbers' },
+]
+
+/**
+ * One preset, drawn at thumbnail size by the function that draws it on the card.
+ *
+ * **The same rule the shape picker follows** — a second drawing of an
+ * arrangement the engine already knows how to lay out is how the button and the
+ * card start disagreeing. The sample price is real and carries a was-price and a
+ * FROM line, because a preset's whole difference is *where those go*.
+ */
+const MARK_SAMPLE: PriceMark = {
+  tierId: 'preview',
+  major: '24',
+  minor: '50',
+  currency: 'AED',
+  currencyPlacement: 'PREFIX',
+  shape: 'TAG',
+  comparePrice: '32.00',
+  prefixLabel: 'FROM',
+}
+
+function MarkPreview({ preset }: { preset: PriceMarkPreset }) {
+  const l = layoutPriceMark(MARK_SAMPLE, { x: 2, y: 2, width: 60, height: 32 }, {
+    ground: 'none',
+    recipe: PRICE_MARK_RECIPES[preset],
+  })
+
+  const piece = (p: MarkPiece | null, opacity: number, strike = false) =>
+    p === null ? null : (
+      <text
+        x={p.x}
+        y={p.baseline}
+        fontSize={p.fontSize}
+        fill="currentColor"
+        opacity={opacity}
+        direction="ltr"
+        {...(strike ? { textDecoration: 'line-through' as const } : {})}
+      >
+        {p.text}
+      </text>
+    )
+
+  return (
+    <svg width={64} height={36} viewBox="0 0 64 36" aria-hidden="true">
+      {piece(l.currency, 0.6)}
+      {piece(l.major, 1)}
+      {piece(l.minor, 1)}
+      {piece(l.compare, 0.5, true)}
+      {piece(l.prefix, 0.5)}
+    </svg>
+  )
+}
+
+const GROUND_OPTIONS: { value: MarkGround; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'box', label: 'Rounded box' },
+  { value: 'burst', label: 'Burst' },
+  { value: 'star', label: 'Star' },
+  { value: 'ribbon', label: 'Ribbon' },
+  { value: 'tag', label: 'Tag' },
+  { value: 'flash', label: 'Corner flash' },
+  { value: 'arrow', label: 'Arrow' },
+]
+
+/** A ground at button size, drawn by the function the mark itself uses. */
+function GroundPreview({ ground }: { ground: MarkGround }) {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
+      {ground === 'none' ? (
+        // Digits with nothing behind them, which is the whole difference
+        // between this option and the box beside it.
+        <rect x={2} y={6} width={12} height={4} rx={1} fill="currentColor" />
+      ) : ground === 'box' ? (
+        <rect x={1} y={3} width={14} height={10} rx={2} fill="currentColor" />
+      ) : (
+        <path
+          d={shapePath(ground, PREVIEW)}
+          fill="currentColor"
+          {...(needsEvenOdd(ground) ? { fillRule: 'evenodd' as const } : {})}
+        />
+      )}
+    </svg>
+  )
+}
+
+/**
+ * The compass, in the shop's words.
+ *
+ * Nine positions rather than two numbers, and that is the bound that matters: an
+ * owner picks between places we drew, so a satellite cannot end up half off the
+ * ground at an aspect they never previewed.
+ */
+const PLACE_OPTIONS: { value: MarkPlace; label: string }[] = [
+  { value: 'above-start', label: 'Above, at the start' },
+  { value: 'above', label: 'Above, centred' },
+  { value: 'above-end', label: 'Above, at the end' },
+  { value: 'start', label: 'Beside, at the start' },
+  { value: 'end', label: 'Beside, at the end' },
+  { value: 'below-start', label: 'Below, at the start' },
+  { value: 'below', label: 'Below, centred' },
+  { value: 'below-end', label: 'Below, at the end' },
+  { value: 'hidden', label: 'Hidden' },
+]
 
 type ShapeVariant = NonNullable<Extract<BlockElement, { kind: 'shape' }>['variant']>
 

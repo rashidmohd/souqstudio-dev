@@ -251,16 +251,58 @@ product template".
 Owners never type a product name onto a page. A typed-in name cannot reflow, cannot
 translate, and is wrong the moment the catalog corrects itself.
 
-### 3.5 The price mark is not lego
+### 3.5 The price mark's anatomy is ours; its arrangement is theirs **REPLACES**
 
-E6 §3 stands unchanged and is worth restating here because a block designer is exactly the
-surface that would erode it: **the price mark is an element you place and size, never one
-you open.** Raised minor digits, the tier tab, the three-decimal KWD/OMR/BHD branch, and
-LTR-in-Arabic are all internal.
+This section used to read *"the price mark is not lego"*, and that sentence was doing the
+work of two rules while only justifying one.
 
-The owner's only control is the tier. Everything else derives from the offer. Owners given
-text boxes produce hundreds of inconsistent price treatments inside a month, and the price
-mark is the one element that decides whether output reads as a real offer book.
+The justified one stands and always will: **a price is never assembled from text boxes.**
+Cut into free elements it loses cap alignment, loses the three-decimal KWD/OMR/BHD branch,
+loses LTR-in-Arabic, and stops shrinking as one thing when the string is long — and the fit
+ladder has nothing left to shrink. The mark stays one element, one box, one drag handle,
+and `compact.ts` keeps seeing one participant in the card's vertical flow.
+
+The unjustified one was everything else. Where the currency sits, where the was-price sits,
+where the tier tab attaches, how the cluster aligns in its box — that is design, not craft,
+and it was locked by the same sentence. The result was a product that could make exactly
+one price design, and the evidence was in the repository:
+
+- forty of the hundred shipped arrangements switched the mark's ground off and hand-placed
+  a disc behind the digits;
+- `currencyPlacement` sat on `PriceMark` from E6 onward, written by every producer and read
+  by nothing;
+- six of the eight grounds the engine drew had no control in the designer;
+- `TextSource` gave the tier badge an escape hatch — `{ from: 'offer', field: 'tier' }` —
+  and gave the price none, so an owner who wanted a different treatment had nowhere to go.
+
+**So the interior opened into a fixed vocabulary.** `PriceMarkStyle.preset` names one of
+eight marks we drew; `PriceMarkStyle.recipe` refines it field by field. Seven named parts,
+a compass of nine positions, two clamped scales. An owner cannot add a part, cannot type
+into one, and cannot set a pixel.
+
+**Consistency comes from bounded ratios and enforced relations, never from a single frozen
+arrangement.** That is the replacement rule, and it is what makes the opening safe. These
+are enforced by `layoutPriceMark` rather than by the absence of a control, and asserted
+across every preset rather than only the default:
+
+| Invariant | Why it cannot be a control |
+| --- | --- |
+| A `raised` minor's cap top meets the major's | A raised minor that misses it is a defect, not a design |
+| Three-decimal KWD/OMR/BHD, tabular figures | Arithmetic, not taste |
+| LTR cluster order, Western numerals, in AR too | Every GCC retailer's actual print |
+| The tab overlaps the mark, wherever placed | E6 §3's rule, as a constraint the solver satisfies |
+| No part approaches the major | The ratio ceiling is what prevents a hundred treatments |
+| Bands are reserved by the recipe, not the content | Otherwise the price size jumps between neighbouring cards |
+| Fits both axes; the price never truncates | E6 §4 |
+
+That last one is the least obvious and the most load-bearing. A band is reserved whether or
+not anything fills it, so a row of cards where some offers carry a was-price and some do not
+still sets every price at the same size. Reserving on demand would have been less code and
+would have made the price jitter across a page — which is the exact inconsistency the
+component exists to prevent.
+
+**The owner's control over what a price *says* is unchanged**: the tier, and nothing else,
+derives from the offer. This section is about what it looks like.
 
 ### 3.6 The block library
 

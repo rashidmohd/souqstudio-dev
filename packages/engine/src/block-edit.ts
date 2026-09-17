@@ -13,6 +13,7 @@
  */
 
 import type { Arrangement, Block, BlockElement, Box } from '@souqstudio/types'
+import { markRecipe } from './price-mark'
 
 /**
  * The smallest element a designer may produce, as a fraction of the block.
@@ -327,7 +328,16 @@ function arrangementProblems(
 
     if (element.kind === 'priceMark') {
       priceMarks += 1
-      if (element.style?.tab !== 'none') attachedTabs += 1
+      /**
+       * **Through `markRecipe`, not off the legacy field.** A recipe hides the
+       * tab with `tier: { place: 'hidden' }`, and two of the shipped presets —
+       * `price-bomb` and `wide-band` — hide it by default without ever writing
+       * `tab: 'none'`. Reading the old spelling alone would warn on a card that
+       * draws the tier exactly once, and `library-source.ts` refuses a shipped
+       * block that draws any warning: a false positive here is a deploy that
+       * fails, which is what `duplicate-tier` itself cost on 10 September.
+       */
+      if (markRecipe(element.style).tier.place !== 'hidden') attachedTabs += 1
     }
     if (element.kind === 'chip' && element.shape !== 'none') badges += 1
 
