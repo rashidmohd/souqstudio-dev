@@ -3,7 +3,16 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bell } from 'lucide-react'
+import {
+  Bell,
+  ChevronRight,
+  Hexagon,
+  Image as ImageIcon,
+  PersonStanding,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react'
+import { IconChip } from '@/components/ui/icon-chip'
 import { NAV_ROW_LABEL, NAV_ROW_LEADING, navRowClass } from '@/components/shared/nav-item'
 import { cn } from '@/lib/utils'
 
@@ -55,16 +64,39 @@ type Job = {
   completedAt: string | null
 }
 
-/** Where an owner goes to collect each kind, and what to call it. */
-const CLAIM: Readonly<Record<string, { label: string; href: (id: string) => string }>> = {
+type Claim = {
+  icon: LucideIcon
+  tint: 'sand' | 'sand-tint' | 'sky-tint'
+  /** The noun alone. The panel's own heading already says these are ready. */
+  label: string
+  href: (id: string) => string
+}
+
+/**
+ * Where an owner goes to collect each kind, what to call it, and what it looks
+ * like.
+ *
+ * **The label is a noun, not a sentence.** It was
+ * `Covers are ready to choose from` on every row, which at nine outstanding
+ * covers printed the same eight words nine times and made the one fact that
+ * differed — which one, and how old — the hardest thing on the row to find. The
+ * panel's heading says they are ready; the row only has to say what it is.
+ *
+ * **The icon is what makes the list scannable**, which is `IconChip`'s stated
+ * job. A tint per kind means two covers and a character separate at a glance
+ * without reading a word.
+ */
+const CLAIM: Readonly<Record<string, Claim>> = {
   character_gen: {
-    label: 'Characters are ready to choose from',
+    icon: UserRound,
+    tint: 'sand',
+    label: 'Characters',
     href: (id) => `/brand/character?job=${id}`,
   },
-  logo_gen: { label: 'Logo marks are ready to choose from', href: () => '/brand' },
-  pose_gen: { label: 'Poses are ready to choose from', href: () => '/brand' },
-  prompt_gen: { label: 'Poses are ready to choose from', href: () => '/brand' },
-  cover_gen: { label: 'Covers are ready to choose from', href: () => '/brand' },
+  logo_gen: { icon: Hexagon, tint: 'sand-tint', label: 'Logo marks', href: () => '/brand' },
+  pose_gen: { icon: PersonStanding, tint: 'sand-tint', label: 'Poses', href: () => '/brand' },
+  prompt_gen: { icon: PersonStanding, tint: 'sand-tint', label: 'Poses', href: () => '/brand' },
+  cover_gen: { icon: ImageIcon, tint: 'sky-tint', label: 'Covers', href: () => '/brand' },
 }
 
 /** What the row is called. The panel's own heading, so the two agree. */
@@ -256,18 +288,27 @@ export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
           style={{ top }}
           className={cn(
             'fixed z-20 m-2 max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto',
-            'rounded-card border border-border-strong bg-surface p-3',
+            'rounded-card border border-border-strong bg-surface',
             // Beside the rail, not inside it. The offset follows whichever width
             // the rail is actually at.
             collapsed ? 'start-rail-collapsed' : 'start-rail-collapsed lg:start-rail'
           )}
         >
-          <p className="font-ui text-label font-medium text-primary">{LABEL}</p>
-          <p className="font-ui text-body-sm text-muted">
-            You have paid for these. They are waiting for you to choose.
-          </p>
+          {/*
+           * The header does not scroll with the list. Thirteen outstanding
+           * covers is enough to push it out of sight, and the sentence under it
+           * is the one that explains why any of this is worth a click.
+           */}
+          <div className="sticky top-0 border-b-hairline border-border-subtle bg-surface px-3 pb-2 pt-3">
+            <p className="font-ui text-label font-medium text-primary">
+              {LABEL} <span data-figure>({jobs.length})</span>
+            </p>
+            <p className="font-ui text-body-sm text-muted">
+              You have paid for these. They are waiting for you to choose.
+            </p>
+          </div>
 
-          <ul className="mt-2 flex flex-col gap-1">
+          <ul className="flex flex-col p-2">
             {jobs.map((job) => {
               const claim = CLAIM[job.type]
               if (claim === undefined) return null
@@ -277,12 +318,29 @@ export function UnfinishedWork({ collapsed }: { collapsed: boolean }) {
                   <Link
                     href={claim.href(job.id)}
                     onClick={() => setOpen(false)}
-                    className="flex flex-col rounded-control px-2 py-2 hover:bg-stone-100"
+                    className="flex items-center gap-3 rounded-control px-2 py-2 transition-colors duration-fast ease-sq hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
                   >
-                    <span className="font-ui text-label text-primary">{claim.label}</span>
-                    <span className="font-ui text-body-sm text-muted">
-                      <span data-figure>{job.creditsCost}</span> credits · {when(job.completedAt)}
+                    <IconChip icon={claim.icon} tint={claim.tint} />
+
+                    {/* `min-w-0` or a long line refuses to truncate: a flex
+                        child's floor is its content width until it is told
+                        otherwise. */}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-ui text-label font-medium text-primary">
+                        {claim.label}
+                      </span>
+                      <span className="truncate font-ui text-body-sm text-muted">
+                        <span data-figure>{job.creditsCost}</span> credits ·{' '}
+                        {when(job.completedAt)}
+                      </span>
                     </span>
+
+                    {/* Points at the destination, so it mirrors in Arabic.
+                        `-scale-x` is a transform, not a physical class. */}
+                    <ChevronRight
+                      className="size-icon shrink-0 text-muted rtl:-scale-x-100"
+                      aria-hidden="true"
+                    />
                   </Link>
                 </li>
               )
