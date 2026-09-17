@@ -245,6 +245,19 @@ export function DashboardRail({
         ))}
       </div>
 
+      {/*
+       * **Generations that finished while the owner was elsewhere.** It renders
+       * nothing when there is nothing waiting, so the rail is unchanged for the
+       * overwhelming majority of sessions. It closes the shop zone rather than
+       * heading the rail: what is waiting to be collected was made by the rows
+       * directly above it. `justify-center` when collapsed lines the bell up
+       * with the icons; expanded, `ps-2` sits it under their glyphs rather than
+       * floating it out at the far edge. E8; see the component.
+       */}
+      <div className={cn('flex', collapsed ? 'justify-center' : 'ps-2')}>
+        <UnfinishedWork collapsed={collapsed} />
+      </div>
+
       <hr className="my-3 border-t-hairline border-border-subtle" />
 
       {/* The eyebrow role is 11px mono, and the scale calls it caps — but this
@@ -264,24 +277,12 @@ export function DashboardRail({
         ))}
       </div>
 
-      {/*
-       * **Generations that finished while the owner was elsewhere.** It renders
-       * nothing when there is nothing waiting, so the rail is unchanged for the
-       * overwhelming majority of sessions. It sits at the foot of the rail,
-       * directly above the account row, so the `mt-auto` that pins that zone
-       * down belongs here instead — the two travel together. E8; see the
-       * component.
-       */}
-      <div className={cn('mt-auto flex', collapsed ? 'justify-center' : 'justify-end')}>
-        <UnfinishedWork collapsed={collapsed} />
-      </div>
-
       {/* The user zone. `leading` carries an avatar rather than the glyph: this
           row is a person, which is the whole reason it is pinned down here away
           from the org's own settings. The label stays `Account` — the
           destination is what the row promises, and the avatar is what says
           whose it is. */}
-      <div className="flex flex-col gap-1">
+      <div className="mt-auto flex flex-col gap-1">
         {USER_SCOPE.map((item) => (
           <NavItem
             key={item.href}
