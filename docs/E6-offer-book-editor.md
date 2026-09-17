@@ -3,7 +3,10 @@
 > **Partly superseded — read `docs/composition-model.md` first.**
 > §2 (template grammar), §5 (density profiles) and E6-05 (page management) are replaced by
 > the composition model: blocks with arrangements, a page as a grid of regions, one master
-> with instances, and products flowing through it. §1, §3, §4, §6, §7 and §8 stand.
+> with instances, and products flowing through it. §1, §4, §6, §7 and §8 stand.
+> **§3 stands on the anatomy and is amended on the arrangement** — see §3a, and
+> `docs/composition-model.md` §3.5 for why. Read §3 and §3a together or you will act on a
+> rule that has moved.
 
 ## Overview
 
@@ -312,7 +315,9 @@ Per offer, in the properties panel:
 
 - Price, and price mode (`FIXED` / `FROM` / `PER_UNIT`)
 - Compare price — the strikethrough was-price
-- **Promo tier** — the one authoring control on the price mark
+- **Promo tier** — the one authoring control on the price mark *in this panel*, and it stays
+  the only one. Per-offer layout control is sixty cards with sixty price layouts; the mark's
+  arrangement is a block decision, made once in the card designer. §3a.
 - Unit price: `AUTO` / `MANUAL` / `HIDDEN`, computed from pack maths and shown live
 - Chips: add, choose kind, label and anchor
 - Footnotes: text and scope

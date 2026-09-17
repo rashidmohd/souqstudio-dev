@@ -547,8 +547,15 @@ function MarkPreview({ preset }: { preset: PriceMarkPreset }) {
       </text>
     )
 
+  /**
+   * **48×27 rendered, 64×36 laid out.** The segment is `h-control` — 32px, and
+   * 44px on a coarse pointer — so a 36px mark overflows the button it sits in
+   * on every desktop. The viewBox keeps the layout arithmetic in comfortable
+   * units and the attributes scale it to something that fits; changing the box
+   * instead would have shrunk the type below the size the arrangement reads at.
+   */
   return (
-    <svg width={64} height={36} viewBox="0 0 64 36" aria-hidden="true">
+    <svg width={48} height={27} viewBox="0 0 64 36" aria-hidden="true">
       {piece(l.currency, 0.6)}
       {piece(l.major, 1)}
       {piece(l.minor, 1)}

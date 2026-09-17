@@ -507,6 +507,10 @@ Recorded here rather than edited into `docs/E6-offer-book-editor.md`.
 - **Step 1's "everything else renders around it" held.** It is worth keeping: the price
   mark was built first and every arrangement in the seeded library is laid out around its
   box.
+- **§3 itself was amended on 17 September, in the epic rather than here** — as `§3a`, using
+  the same **REPLACES** / **AMENDS** banner convention the epic already carries. It is the
+  one correction big enough that a reader of §3 who never opens this file would otherwise
+  act on a rule that has moved. The reasoning is §11 below.
 
 ---
 
