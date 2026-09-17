@@ -2,11 +2,9 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { CREDIT_COSTS, enqueueCoverGen, getCreditSnapshot, prisma } from '@souqstudio/db'
 import {
-  CAMPAIGNS,
   COVER_SHAPES,
   COVER_STYLES,
   storePhotoKeysOf,
-  type Campaign,
   type CoverShape,
   type CoverStyle,
 } from '@souqstudio/engine'
@@ -43,7 +41,15 @@ import { resolvePalette } from '@/lib/brand-palette'
 
 const schema = z
   .object({
-    campaign: z.enum(CAMPAIGNS as unknown as [Campaign, ...Campaign[]]),
+    /**
+     * Which row in `cover_prompts` to draw from, or `custom` for the owner's
+     * own words.
+     *
+     * **A slug, never the text.** The prompt is read here; a route that took a
+     * scene would be a route that lets a caller write our instruction to the
+     * image model.
+     */
+    promptSlug: z.string().min(1).max(64),
     shape: z
       .enum(COVER_SHAPES as unknown as [CoverShape, ...CoverShape[]])
       .default('portrait'),
@@ -68,8 +74,8 @@ const schema = z
     useScene: z.boolean().default(false),
   })
   .refine(
-    (value) => value.campaign !== 'custom' || value.described !== undefined,
-    'Describe the campaign you want.'
+    (value) => value.promptSlug !== 'custom' || value.described !== undefined,
+    'Describe the cover you want.'
   )
 
 export async function POST(request: NextRequest) {
@@ -88,6 +94,30 @@ export async function POST(request: NextRequest) {
 
   if (shop.role !== 'owner' && shop.role !== 'manager') {
     return fail('forbidden', 'You need to be a manager to make a cover.', 403)
+  }
+
+  /**
+   * The art direction, resolved here and put on the payload.
+   *
+   * **An owner's own words are quoted as data, never joined into an
+   * instruction.** `coverPrompt` wraps whatever it is handed in a paragraph of
+   * its own rules — the person's uniform, no text, the clear upper third — and
+   * those rules come after this text, so a sentence trying to countermand them
+   * is arguing from the wrong end of the prompt. The same treatment `shops.bio`
+   * already gets.
+   */
+  let scene: string
+  if (parsed.data.promptSlug === 'custom') {
+    scene = `The shop owner describes what they want: "${parsed.data.described ?? ''}"`
+  } else {
+    const prompt = await prisma.coverPrompt.findFirst({
+      where: { slug: parsed.data.promptSlug, isActive: true },
+      select: { scene: true },
+    })
+    if (prompt === null) {
+      return fail('no_prompt', 'That is not a cover we can make any more. Pick another.', 404)
+    }
+    scene = prompt.scene
   }
 
   /*
@@ -154,7 +184,8 @@ export async function POST(request: NextRequest) {
       jobId: job.id,
       organizationId: session.user.organizationId,
       shopId: shop.id,
-      campaign: parsed.data.campaign,
+      scene,
+      promptSlug: parsed.data.promptSlug,
       shape: parsed.data.shape,
       style: parsed.data.style,
       palette,

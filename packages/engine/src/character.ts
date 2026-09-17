@@ -307,8 +307,8 @@ export const COVER_STYLE_COPY: Readonly<
 > = {
   photographic: {
     label: 'Photographic',
-    note: 'A real scene, shot like an advert',
-    draw: 'A photograph, shot like a commercial product advertisement: a real scene with real depth, soft directional light, shallow depth of field falling off behind the focal point, rich natural colour.',
+    note: 'Looks like a photo taken in the shop',
+    draw: 'A real photograph taken inside the shop, not a studio set and not a stock image: the shop\'s own overhead lighting, real shelves and fittings receding out of focus behind, natural unforced colour, a shallow depth of field. It should look like somebody took it on the shop floor that morning — slightly candid, the person at ease rather than posed.',
   },
   'flat-graphic': {
     label: 'Flat graphic',

@@ -220,9 +220,17 @@ export interface CoverGenPayload {
   jobId: string
   organizationId: string
   shopId: string
-  /** One of `CAMPAIGNS`. */
-  campaign: string
-  described?: string
+  /**
+   * The art direction, already resolved.
+   *
+   * **The route reads `cover_prompts` and puts the text here**, so the worker
+   * never queries for it and editing a prompt does not rewrite a job already in
+   * the queue. For a shop's own words it is what they wrote, quoted as data by
+   * the route rather than concatenated into an instruction.
+   */
+  scene: string
+  /** Which row it came from, or `custom`. Recorded on the result, not drawn. */
+  promptSlug?: string
   /** One of `COVER_SHAPES`. */
   shape: string
   /**

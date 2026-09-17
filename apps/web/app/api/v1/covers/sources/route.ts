@@ -8,6 +8,10 @@ import { publicUrl } from '@/lib/r2'
 /**
  * What a cover can be drawn from. E8-04.
  *
+ * **The art direction comes from here too**, because it lives in `cover_prompts`
+ * and is tuned without a deploy. A picker with the occasions compiled into it
+ * would drift from the rows the moment somebody edited one.
+ *
  * **The dialog cannot ask a question it does not know the answer to.** Offering
  * "put your character in it" to a shop that has no character is an option that
  * fails on click, and offering "use photos of your shop" to one that uploaded
@@ -30,7 +34,14 @@ export async function GET() {
   const shop = await getActiveShop(session)
   if (!shop) return fail('no_shop', 'This account has no shop yet.', 409)
 
-  const [characters, shopRow] = await Promise.all([
+  const [prompts, characters, shopRow] = await Promise.all([
+    // Active only, in the order an admin put them in. The picker renders what
+    // it is given and never decides what is offerable.
+    prisma.coverPrompt.findMany({
+      where: { isActive: true },
+      select: { slug: true, label: true, hint: true, group: true },
+      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+    }),
     prisma.character.findMany({
       where: { shopId: shop.id },
       select: { id: true, baseImageUrl: true, style: true },
@@ -43,6 +54,7 @@ export async function GET() {
   ])
 
   return ok({
+    prompts,
     characters,
     // Read defensively: it is a JSON column, and `storePhotoKeysOf` is the one
     // function that decides what a usable value in it looks like.

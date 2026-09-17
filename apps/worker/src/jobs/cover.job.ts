@@ -3,11 +3,9 @@ import sharp from 'sharp'
 import { CREDIT_COSTS, consumeCredits, prisma } from '@souqstudio/db'
 import type { CoverGenPayload } from '@souqstudio/db'
 import {
-  CAMPAIGNS,
   COVER_SHAPES,
   COVER_STYLES,
   COVER_VARIATIONS,
-  type Campaign,
   type CoverShape,
   type CoverStyle,
 } from '@souqstudio/engine'
@@ -41,17 +39,23 @@ import { ImageGenerationOffError, NoImageError, draw } from '../lib/image-gen'
  * should acquire it.
  */
 export async function handleCoverGen(job: Job<CoverGenPayload>) {
-  const { jobId, organizationId, shopId, described, palette, characterId } = job.data
+  const { jobId, organizationId, shopId, palette, characterId } = job.data
 
   await prisma.aiJob.update({ where: { id: jobId }, data: { status: 'processing' } })
 
   try {
-    const campaign = asCampaign(job.data.campaign)
     const shape = asShape(job.data.shape)
     const style = asStyle(job.data.style)
 
-    if (campaign === 'custom' && (described === undefined || described.trim() === '')) {
-      throw new Error('cover: a custom campaign needs a description')
+    /**
+     * **The scene arrives resolved.** The route reads `cover_prompts` and puts
+     * the text on the payload, so this worker never queries for it — which also
+     * means editing a prompt does not rewrite a job already in the queue. The
+     * only other source is an owner's own words, which the route quotes as data.
+     */
+    const scene = job.data.scene?.trim()
+    if (scene === undefined || scene === '') {
+      throw new Error('cover: no scene to draw')
     }
 
     /**
@@ -87,13 +91,12 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
 
     const drawn = await draw({
       prompt: coverPrompt({
-        campaign,
+        scene,
         shape,
         style,
         palette,
         withCharacter: characterRef !== null,
         withScene: sceneRefs.length > 0,
-        ...(described === undefined ? {} : { described }),
       }),
       count: COVER_VARIATIONS,
       ...(references.length === 0 ? {} : { references }),
@@ -117,7 +120,8 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
         completedAt: new Date(),
         result: {
           options,
-          campaign,
+          /** The prompt this was made from, for the library to label itself. */
+          promptSlug: job.data.promptSlug ?? 'custom',
           shape,
           style,
           /** What it was drawn from, so a job claimed later explains itself. */
@@ -192,11 +196,7 @@ async function store(
   return { url, key }
 }
 
-function asCampaign(value: string): Campaign {
-  const found = CAMPAIGNS.find((campaign) => campaign === value)
-  if (found === undefined) throw new Error(`cover: "${value}" is not a campaign we draw`)
-  return found
-}
+
 
 /**
  * Absent is `flat-graphic` rather than an error: every cover drawn before the

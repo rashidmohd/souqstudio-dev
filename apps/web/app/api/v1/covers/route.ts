@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
   const common = {
     shopId: shop.id,
-    campaign: stringField(job.result, 'campaign', 'custom'),
+    campaign: stringField(job.result, 'promptSlug', 'custom'),
     style: stringField(job.result, 'style', 'flat-graphic'),
     shape: stringField(job.result, 'shape', 'portrait'),
   }

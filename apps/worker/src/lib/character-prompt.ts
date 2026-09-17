@@ -288,8 +288,17 @@ ${CHARACTER_RULES}`
  * instruction this feature most needs obeyed.
  */
 export function coverPrompt(input: {
-  campaign: Campaign
-  described?: string
+  /**
+   * The art direction, from `cover_prompts.scene` — a place, a person doing
+   * something, and a light.
+   *
+   * **A row rather than an enum, because this is the part that gets tuned.** It
+   * was a TypeScript map and was wrong twice in a day: adjectives that produced
+   * generic wallpaper, then nouns the model put *on* the assistant. Both fixes
+   * needed a deploy, which is the wrong shape for content you fix by looking at
+   * what came back.
+   */
+  scene: string
   shape: CoverShape
   palette: readonly string[]
   /** How it is drawn. Absent is `flat-graphic`, which is what this used to be. */
@@ -299,11 +308,6 @@ export function coverPrompt(input: {
   /** Reference photographs of the shop itself are being sent with this. */
   withScene?: boolean
 }): string {
-  const subject =
-    input.campaign === 'custom'
-      ? (input.described ?? 'a retail offer campaign')
-      : CAMPAIGN_COPY[input.campaign].draw
-
   const shape =
     input.shape === 'square'
       ? 'A square image.'
@@ -314,38 +318,16 @@ export function coverPrompt(input: {
   const colors =
     input.palette.length === 0 ? '' : `\nUse these colours: ${input.palette.join(', ')}.`
 
-  /**
-   * **Every element gets a declared role, because the first version gave two of
-   * them the same one.**
-   *
-   * It opened "A cover image for a retail offer book: back to school —
-   * notebooks, pencils, a backpack", called for "one dominant subject", and then
-   * ended "draw the character from the reference image as the subject". Two
-   * things were the subject, so the model did the reasonable thing and merged
-   * them: it put the backpack *on the shop assistant*. Summer, whose occasion
-   * copy mentions cold drinks, produced the assistant drinking a juice.
-   *
-   * **The character is the presenter and the occasion is the display.** A shop
-   * worker on a flyer wears their uniform and shows you the goods; they do not
-   * dress up as the season and they do not consume the stock. Saying so once is
-   * not enough — the occasion copy is full of wearable, drinkable nouns, so the
-   * prohibition has to name the failure.
-   *
-   * **The no-text rule survives every branch.** A model asked to render a shop's
-   * name produces misspelled words in a typeface nobody chose.
-   */
   const style = COVER_STYLE_COPY[input.style ?? 'flat-graphic'].draw
 
   /**
-   * **Where the empty space goes, said as a place rather than as a principle.**
+   * **Every element gets a declared role, because two of them once shared one.**
    *
-   * Every account of how a promotional cover works lands on the same two things:
-   * one dominant focal point, and real emptiness around the headline. A model
-   * told "leave space" centres everything and leaves none; told *which third* of
-   * the frame to keep clear, it composes to it.
-   *
-   * It says "focal point" rather than "subject" deliberately — "subject" is the
-   * word that collided above.
+   * The prompt used to open with the occasion as the image's subject, ask for
+   * "one dominant subject", then end "draw the character as the subject". Two
+   * subjects, so the model merged them and put the back-to-school backpack on
+   * the shop assistant. It says "focal point" now, and the person and the place
+   * are named separately and explicitly.
    */
   const composition = `Composition: one dominant focal point, placed off-centre and low. **Keep the
 upper third of the image clear** — quiet ground, no detail, nothing that
@@ -355,18 +337,17 @@ as cheap.`
 
   const place = input.withScene
     ? `
-The reference photographs show the actual shop this is for. Take the setting
-from them — the shelves, the counter, the kind of place it is — rather than
-inventing a generic store.`
+The reference photographs show the actual shop this is for. Take the room from
+them — the shelves, the fittings, the counter, the kind of place it is — rather
+than inventing a generic store.`
     : ''
 
   if (input.withCharacter) {
-    return `A cover image for a retail offer book. It shows the shop's own staff member
-presenting this week's offers.
+    return `A photograph for the cover of a shop's offer book. It looks like a picture taken
+inside this shop, of this shop's own staff member.
 
 **THE PERSON — from the reference image.** The same person: same face, same
-build, same uniform, same colours. They are a shop worker doing their job. They
-stand with, gesture towards or present the goods.
+build, same uniform, same colours. They are a member of staff at work.
 
 **Do not dress them for the occasion.** They wear their own uniform from the
 reference and nothing else. No costume, no themed outfit, no themed hat, no
@@ -376,8 +357,8 @@ clothing.
 **Do not have them eat, drink or use the products.** They are selling the goods,
 not consuming them.
 
-**THE OCCASION — this is the display and the setting around the person, never
-the person themselves:** ${subject}.
+**THE SCENE — where they are and what they are doing. This is the shop around
+them, never something they wear:** ${input.scene}
 
 ${style}
 ${shape}${colors}${place}
@@ -389,7 +370,9 @@ script. No logo and no brand mark. Leave room for the shop's name and logo, whic
 are placed on top afterwards.`
   }
 
-  return `A cover image for a retail offer book: ${subject}.
+  return `An image for the cover of a shop's offer book, of the shop itself: ${input.scene}
+
+**Nobody in the frame.** Show the place and the goods with no person in it.
 
 ${style}
 ${shape}${colors}${place}
@@ -397,9 +380,6 @@ ${shape}${colors}${place}
 ${composition}
 
 **No text of any kind.** No words, no letters, no numbers, in any language or
-script. No logo and no brand mark. The shop's name, its logo and its own
-characters are placed on top of this afterwards, so leave the middle of the image
-calm and uncluttered for them to sit on.
-
-No people.`
+script. No logo and no brand mark. The shop's name and its logo are placed on top
+of this afterwards, so leave the upper third calm and uncluttered for them.`
 }

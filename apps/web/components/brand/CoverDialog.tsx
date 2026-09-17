@@ -2,13 +2,10 @@
 
 import * as React from 'react'
 import {
-  CAMPAIGNS,
-  CAMPAIGN_COPY,
   COVER_SHAPES,
   COVER_SHAPE_NOTE,
   COVER_STYLES,
   COVER_STYLE_COPY,
-  type Campaign,
   type CoverShape,
   type CoverStyle,
 } from '@souqstudio/engine'
@@ -73,7 +70,8 @@ const ASPECT_OF: Readonly<Record<CoverShape, string>> = {
 type Option = { url: string; key: string }
 type Character = { id: string; baseImageUrl: string; style: string }
 type StorePhoto = { key: string; url: string }
-type Sources = { characters: Character[]; storePhotos: StorePhoto[] }
+type Prompt = { slug: string; label: string; hint: string | null; group: string }
+type Sources = { prompts: Prompt[]; characters: Character[]; storePhotos: StorePhoto[] }
 
 type Phase =
   | { at: 'asking'; error?: string }
@@ -81,7 +79,7 @@ type Phase =
   | { at: 'picking'; jobId: string; options: Option[]; withCharacter: boolean; error?: string }
 
 export function CoverDialog({ open, onOpenChange, onKept }: Props) {
-  const [campaign, setCampaign] = React.useState<Campaign>('weekend')
+  const [promptSlug, setPromptSlug] = React.useState<string>('custom')
   const [style, setStyle] = React.useState<CoverStyle>('photographic')
   /**
    * **Asked here, where it was derived in the editor.** There is no page in
@@ -111,6 +109,9 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
       .then((found) => {
         if (!live) return
         setSources(found)
+        // The first row an admin ordered, so the picker opens on something
+        // real rather than on the free-text option.
+        setPromptSlug(found.prompts[0]?.slug ?? 'custom')
         // The newest character, pre-selected. A shop that made one wants it in
         // the cover — that is the whole reason they made it.
         setCharacterId(found.characters[0]?.id ?? null)
@@ -154,12 +155,12 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
     try {
       const withCharacter = characterId !== null
       const queued = await post<{ jobId: string }>('/api/v1/covers/generate', {
-        campaign,
+        promptSlug,
         shape,
         style,
         useScene: useScene && hasPhotos,
         ...(withCharacter ? { characterId } : {}),
-        ...(campaign === 'custom' ? { described: described.trim() } : {}),
+        ...(promptSlug === 'custom' ? { described: described.trim() } : {}),
       })
       const options = await poll(queued.jobId)
       setPhase({ at: 'picking', jobId: queued.jobId, options, withCharacter })
@@ -168,7 +169,8 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
     }
   }
 
-  const ready = campaign !== 'custom' || described.trim().length >= 3
+  const ready = promptSlug !== 'custom' || described.trim().length >= 3
+  const prompts = sources?.prompts ?? []
   const characters = sources?.characters ?? []
   const storePhotos = sources?.storePhotos ?? []
   const hasPhotos = storePhotos.length > 0
@@ -294,20 +296,30 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
             </label>
           ) : null}
 
+          {/*
+            **The occasions come from the server**, because they are rows in
+            `cover_prompts` that get tuned against what the model sends back. A
+            list compiled in here would drift from them the first time somebody
+            edited one.
+          */}
           <RadioCards
-            label="What is this for?"
-            value={campaign}
+            label="What is this cover of?"
+            value={promptSlug}
             columns={2}
-            name="cover-campaign"
+            name="cover-prompt"
             disabled={phase.at === 'drawing'}
-            options={CAMPAIGNS.map((option) => ({
-              value: option,
-              label: option === 'custom' ? 'Describe it yourself' : CAMPAIGN_COPY[option].label,
-            }))}
-            onChange={setCampaign}
+            options={[
+              ...prompts.map((option) => ({
+                value: option.slug,
+                label: option.label,
+                ...(option.hint === null ? {} : { description: option.hint }),
+              })),
+              { value: 'custom', label: 'Describe it yourself' },
+            ]}
+            onChange={setPromptSlug}
           />
 
-          {campaign === 'custom' ? (
+          {promptSlug === 'custom' ? (
             <Textarea
               label="Describe the ground you want"
               rows={3}
@@ -317,11 +329,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               onChange={(event) => setDescribed(event.target.value)}
               hint="What the page should feel like — not the words on it. Those are typed in the editor."
             />
-          ) : (
-            <p className="font-ui text-body-sm text-secondary">
-              {CAMPAIGN_COPY[campaign].draw}
-            </p>
-          )}
+          ) : null}
 
           <RadioCards
             label="How should it look?"

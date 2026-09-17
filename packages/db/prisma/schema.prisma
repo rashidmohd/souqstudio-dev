@@ -1656,6 +1656,63 @@ model Character {
   @@map("characters")
 }
 
+/// One thing a cover can be *of*, as a row rather than as a constant. E8-04.
+///
+/// **In the database because the art direction is the product here.** These
+/// started as a TypeScript map and were wrong twice in a day — first a set of
+/// adjectives that produced generic wallpaper, then a set of nouns that got
+/// worn by the shop assistant. Both fixes needed a deploy. A prompt that is
+/// tuned by looking at what came back is content, and content that needs a
+/// release to change is content nobody tunes.
+///
+/// **`scene` is art direction, not a theme.** The thing that made covers look
+/// stock was describing an *occasion* — "a weekend sale, energetic" — rather
+/// than a photograph somebody took: the assistant with a microphone by a stacked
+/// display, the assistant in the vegetable aisle with a crate of tomatoes. A
+/// scene has a place, a person doing something, and a light. An occasion has
+/// none of those, so the model averages every image ever labelled with it.
+///
+/// **Global only, for now.** `organizationId` is absent deliberately: these are
+/// ours to write and tune, and a shop that wants something else has the
+/// free-text option the picker already offers. A per-shop library is a different
+/// feature and would want a different table shape.
+model CoverPrompt {
+  id   String @id @default(cuid())
+  /// Stable across edits, and what the client names. The id an owner's picker
+  /// sends; the text it resolves to is read here and never trusted from them.
+  slug String @unique
+
+  /// What the picker calls it. Sentence case, per the design system.
+  label String
+  /// One line under the label, so an owner can tell two shelf scenes apart.
+  hint  String?
+
+  /// The art direction itself — the paragraph that reaches the image model.
+  ///
+  /// **Written as a photograph of this shop.** It says where the person is,
+  /// what they are doing and what the light is like. It never says what they
+  /// wear: `coverPrompt` owns that, because the uniform comes from the
+  /// character reference and a scene that dresses them fights it.
+  scene String
+
+  /// Rough grouping for the picker — `everyday`, `season`, `occasion`. A string
+  /// rather than an enum because the groups are a presentation judgement that
+  /// will move, and a row naming a group we dropped should still render.
+  group String @default("everyday")
+
+  /// Off rather than deleted. A prompt that produced bad covers is worth keeping
+  /// to compare against the one that replaced it, and a `covers` row may name it.
+  isActive Boolean @default(true)
+  /// Ascending. Ties break on `label`.
+  sortOrder Int    @default(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("cover_prompts")
+}
+
 /// A cover an owner generated and kept. E8-04.
 ///
 /// **A brand asset, not a property of one book.** It was a page background in

@@ -306,6 +306,27 @@ model id that has moved is a 404 that reads like a bad key.
    and *derived* here — `shapeFor` moved to `lib/cover-shape.ts` for the two of them — and a
    kept cover whose shape does not suit the page is marked rather than hidden.
 
+   **Then the prompts moved into the database, because they had been wrong three
+   times and every fix needed a deploy.** First adjectives, which produced stock art.
+   Then wearable nouns, which the model put *on* the assistant. Then the discovery that an
+   *occasion* is not a picture at all: "a weekend sale, energetic and simple" has no place,
+   no person and no light in it, so a model returns the average of everything ever labelled
+   that way. `cover_prompts` (migration `20260917100000`) holds a `scene` per row — a place,
+   a person doing something, and a light. Eighteen seeded: the assistant with a microphone
+   beside a pallet display, in the vegetable section setting down a crate, holding a freezer
+   door open with the cold light spilling out, at the bakery rack, at the till.
+
+   **The seed inserts and never updates, which breaks `seed.ts`'s own rule on purpose.**
+   Everything else there upserts so a re-run restores shipped defaults; that is right for a
+   plan's price and wrong for a prompt, because a prompt is tuned by looking at what came
+   back and an upsert would discard that work on the next deploy. A new slug is added, an
+   existing slug is left alone. To take a default back, delete the row and re-seed.
+
+   **The client sends a slug and the route resolves the text.** A route that accepted a
+   scene would be a route that lets a caller write our instruction to the image model. An
+   owner's own words still work and are quoted as data, with `coverPrompt`'s rules after
+   them rather than before.
+
    **The tenancy rules did not move.** Photographs of *places* go to the drawer; photographs
    of *people* go to the vision reader and stop there. `storePhotoKeys` was already on the
    permitted side — E8-01 sends it as `sceneKeys` — and nothing here can reach the uniform

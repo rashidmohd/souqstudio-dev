@@ -10,6 +10,7 @@ import { DEFAULT_PROMO_TIERS } from '../src/promo-tiers'
 import { PrismaClient } from '@prisma/client'
 import { CATALOG_CATEGORIES } from '../src/catalog-categories'
 import { SEED_BRANDS } from '../src/product-brands'
+import { SEED_COVER_PROMPTS } from '../src/cover-prompts'
 import { brandSlug } from '@souqstudio/types'
 
 /**
@@ -267,11 +268,40 @@ async function seedBrands() {
   console.log(`[seed] ${SEED_BRANDS.length} product brands`)
 }
 
+/**
+ * Cover art direction. E8-04.
+ *
+ * **Inserted when missing and never updated, which breaks this file's own
+ * rule.** Everything else here upserts, so a re-run restores the shipped
+ * defaults over anything an admin edited — and that is right for a plan's price
+ * or a seeded block. It is wrong for these. The prompts moved into the database
+ * precisely so they can be tuned against what the model sends back, and a seed
+ * that overwrote a tuned scene on the next deploy would throw that work away
+ * every time.
+ *
+ * So: a new slug is added, an existing slug is left exactly as it is. To take a
+ * shipped default back, delete the row and re-run.
+ */
+async function seedCoverPrompts() {
+  const existing = await prisma.coverPrompt.findMany({ select: { slug: true } })
+  const known = new Set(existing.map((row) => row.slug))
+  const missing = SEED_COVER_PROMPTS.filter((prompt) => !known.has(prompt.slug))
+
+  if (missing.length > 0) {
+    await prisma.coverPrompt.createMany({ data: [...missing] })
+  }
+
+  console.log(
+    `[seed] ${missing.length} cover prompts added, ${known.size} left as they are`
+  )
+}
+
 async function main() {
   await backfillPromoTiers()
   await seedBlocks()
   await seedCatalogCategories()
   await seedBrands()
+  await seedCoverPrompts()
 
   for (const plan of PLANS) {
     await prisma.plan.upsert({
