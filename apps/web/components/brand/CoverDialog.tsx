@@ -13,7 +13,7 @@ import {
 import { Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { RadioCards } from '@/components/ui/radio-cards'
+import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { MachineOutput } from '@/components/ui/machine-output'
 import { uploadArtwork } from '@/lib/upload-artwork'
@@ -73,6 +73,13 @@ type Props = {
  * hand here, so an object URL costs nothing and shows the real file.
  */
 type Attached = { key: string; preview: string }
+
+/** What each person choice means, shown as the select's hint. */
+const PERSON_HINT: Readonly<Record<CoverPerson, string>> = {
+  staff: 'Your own shop worker, kept the same across covers',
+  customer: 'A shopper, invented fresh for this cover',
+  none: 'The shop and the goods alone',
+}
 
 type Option = { url: string; key: string }
 type Character = { id: string; baseImageUrl: string; style: string }
@@ -322,31 +329,95 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
         </MachineOutput>
       ) : (
         <div className="flex flex-col gap-4">
-          <RadioCards
-            label="Who is in it?"
-            value={person}
-            columns={2}
-            name="cover-person"
-            disabled={phase.at === 'drawing'}
-            options={[
-              {
-                value: 'staff',
-                label: 'Your character',
-                description:
-                  characters.length > 0
-                    ? 'Your own shop worker, kept the same'
-                    : 'Make one in the Character tab first',
-                ...(characters.length === 0 ? { disabled: true } : {}),
-              },
-              {
-                value: 'customer',
-                label: 'A customer',
-                description: 'A shopper, invented for this cover',
-              },
-              { value: 'none', label: 'Nobody', description: 'The shop and the goods alone' },
-            ]}
-            onChange={setPerson}
-          />
+          {/*
+            **Selects rather than cards, because there are thirty-one choices.**
+            The card grids read well one at a time and stacked four deep they
+            were a page of scrolling before the Generate button — an owner had to
+            hunt for the thing they came to press. The description each card
+            carried is not lost: it is the selected option's hint under the
+            select, which is where one answer belongs rather than eighteen.
+          */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Select
+              label="Who is in it?"
+              value={person}
+              disabled={phase.at === 'drawing'}
+              options={[
+                {
+                  value: 'staff',
+                  label: 'Your character',
+                  ...(characters.length === 0 ? { disabled: true } : {}),
+                },
+                { value: 'customer', label: 'A customer' },
+                { value: 'none', label: 'Nobody' },
+              ]}
+              onChange={(event) => setPerson(event.target.value as CoverPerson)}
+              hint={PERSON_HINT[person]}
+            />
+
+            {/*
+              **The occasions come from the server**, because they are rows in
+              `cover_prompts` that get tuned against what the model sends back.
+              A list compiled in here would drift from them the first time
+              somebody edited one.
+            */}
+            <Select
+              label="What is this cover of?"
+              value={promptSlug}
+              disabled={phase.at === 'drawing'}
+              options={[
+                ...prompts.map((option) => ({ value: option.slug, label: option.label })),
+                { value: 'custom', label: 'Describe it yourself' },
+              ]}
+              onChange={(event) => {
+                const slug = event.target.value
+                setPromptSlug(slug)
+                // **The scene answers who is in it, and the owner may still
+                // disagree.** A staff member pushing a full trolley of shopping
+                // is not a picture of anything; nobody but staff stands behind
+                // the meat counter.
+                const chosen = prompts.find((option) => option.slug === slug)
+                if (chosen !== undefined) setPerson(chosen.person)
+              }}
+              hint={prompts.find((option) => option.slug === promptSlug)?.hint ?? undefined}
+            />
+
+            <Select
+              label="How should it look?"
+              value={style}
+              disabled={phase.at === 'drawing'}
+              options={COVER_STYLES.map((option) => ({
+                value: option,
+                label: COVER_STYLE_COPY[option].label,
+              }))}
+              onChange={(event) => setStyle(event.target.value as CoverStyle)}
+              hint={COVER_STYLE_COPY[style].note}
+            />
+
+            <Select
+              label="What size?"
+              value={shape}
+              disabled={phase.at === 'drawing'}
+              options={COVER_SHAPES.map((option) => ({
+                value: option,
+                label: COVER_SHAPE_RATIO[option].label,
+              }))}
+              onChange={(event) => setShape(event.target.value as CoverShape)}
+              hint={COVER_SHAPE_NOTE[shape]}
+            />
+          </div>
+
+          {promptSlug === 'custom' ? (
+            <Textarea
+              label="Describe the cover you want"
+              rows={3}
+              maxLength={200}
+              value={described}
+              disabled={phase.at === 'drawing'}
+              onChange={(event) => setDescribed(event.target.value)}
+              hint="Where it is and what is happening — not the words on it. Those are typed in the editor."
+            />
+          ) : null}
 
           {person === 'staff' && characters.length > 0 ? (
             <fieldset className="flex flex-col gap-2">
@@ -407,75 +478,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
             </label>
           ) : null}
 
-          {/*
-            **The occasions come from the server**, because they are rows in
-            `cover_prompts` that get tuned against what the model sends back. A
-            list compiled in here would drift from them the first time somebody
-            edited one.
-          */}
-          <RadioCards
-            label="What is this cover of?"
-            value={promptSlug}
-            columns={2}
-            name="cover-prompt"
-            disabled={phase.at === 'drawing'}
-            options={[
-              ...prompts.map((option) => ({
-                value: option.slug,
-                label: option.label,
-                ...(option.hint === null ? {} : { description: option.hint }),
-              })),
-              { value: 'custom', label: 'Describe it yourself' },
-            ]}
-            onChange={(slug) => {
-              setPromptSlug(slug)
-              // **The scene answers this, and the owner may still disagree.** A
-              // staff member pushing a full trolley of shopping is not a picture
-              // of anything; nobody but staff stands behind the meat counter.
-              const chosen = prompts.find((option) => option.slug === slug)
-              if (chosen !== undefined) setPerson(chosen.person)
-            }}
-          />
-
-          {promptSlug === 'custom' ? (
-            <Textarea
-              label="Describe the ground you want"
-              rows={3}
-              maxLength={200}
-              value={described}
-              disabled={phase.at === 'drawing'}
-              onChange={(event) => setDescribed(event.target.value)}
-              hint="What the page should feel like — not the words on it. Those are typed in the editor."
-            />
-          ) : null}
-
-          <RadioCards
-            label="How should it look?"
-            value={style}
-            columns={2}
-            name="cover-style"
-            disabled={phase.at === 'drawing'}
-            options={COVER_STYLES.map((option) => ({
-              value: option,
-              label: COVER_STYLE_COPY[option].label,
-              description: COVER_STYLE_COPY[option].note,
-            }))}
-            onChange={setStyle}
-          />
-
-          <RadioCards
-            label="What size?"
-            value={shape}
-            columns={2}
-            name="cover-shape"
-            disabled={phase.at === 'drawing'}
-            options={COVER_SHAPES.map((option) => ({
-              value: option,
-              label: COVER_SHAPE_RATIO[option].label,
-              description: COVER_SHAPE_NOTE[option],
-            }))}
-            onChange={setShape}
-          />
 
           {/*
             **Advanced, and folded away, because most covers do not need it.**
