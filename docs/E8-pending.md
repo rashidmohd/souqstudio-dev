@@ -327,6 +327,47 @@ model id that has moved is a 404 that reads like a bad key.
    owner's own words still work and are quoted as data, with `coverPrompt`'s rules after
    them rather than before.
 
+   **Then three more corrections, one of which is not a design question at all.**
+
+   *Who is in the picture is a property of the scene.* A staff member pushing a full trolley
+   of shopping is not a picture of anything; a customer doing it is the commonest retail
+   cover there is. And nobody but staff stands behind the meat counter. `cover_prompts.person`
+   (migration `20260917110000`) is `staff | customer | none`, the picker follows the row and
+   the owner may still disagree. **Only `staff` spends the character reference** — a customer
+   is invented, because a shop has one mascot and many customers, and a shopper wearing the
+   assistant's face reads as the shop photographing its own staff pretending to shop.
+
+   ***The goods in a generated cover are invented, and that is a legal problem before it is
+   an aesthetic one.*** An offer book is a commercial document with real prices in it. A model
+   asked for a shelf of groceries draws packaging, and invented packaging resembling a real
+   brand is trademark infringement whether or not anybody intended it — every provider's terms
+   put that on whoever prompted. It is misrepresentation too: the shop does not sell the cereal
+   the model invented. Forbidding branding is necessary and insufficient; **steering to goods
+   that cannot carry a brand is what removes the problem**, so the prompt favours fresh
+   unpackaged goods in the foreground and keeps packaged ones plain and out of focus. The real
+   answers are the shop's own photographs, which already work, and compositing the catalog's
+   own `image_assets` cutouts, which is better than any prompt and is not built.
+
+   *Keeping one of three was throwing away two paid-for covers.* The route has taken an array
+   of indexes since it was written; the dialog sent one. It is a multi-select now.
+
+   **An advanced half, and real ratios.** An owner can attach up to four reference images
+   of the look they want — separate from the shop photographs, because those are a standing
+   fact about the shop and these are "make it like this", attached once. The prompt asks for
+   *the treatment* — palette, light, arrangement — and explicitly refuses their contents,
+   their layout and any mark in them; the no-branding rule is the second half of that answer,
+   and it is what makes a borrowed reference safe. They are weighted last in the reference
+   list on purpose: a mood image leading it produces a variation on the mood image rather
+   than a cover of this shop. Keys are prefix-checked against the organization, the same test
+   `PATCH .../background` makes.
+
+   **`COVER_SHAPES` went from three to six** — 16:9, 1:1, 4:5, 3:4, A4 and 9:16 — because
+   "portrait" was doing three jobs and a cover drawn at 3:4 loses a centimetre off two edges
+   on an A4 page, which is where the shop's name was going. The prompt now names the ratio as
+   a *number*: "a tall portrait image" is a description a model satisfies approximately,
+   "9:16" is a constraint. `shapeFor` matches nearest-by-ratio in log space rather than by
+   hand-written thresholds, which no longer separated A4 from 3:4 convincingly.
+
    **The tenancy rules did not move.** Photographs of *places* go to the drawer; photographs
    of *people* go to the vision reader and stop there. `storePhotoKeys` was already on the
    permitted side — E8-01 sends it as `sceneKeys` — and nothing here can reach the uniform

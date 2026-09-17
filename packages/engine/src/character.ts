@@ -341,11 +341,47 @@ export const COVER_STYLE_COPY: Readonly<
 export const COVER_VARIATIONS = 3
 
 /** The shapes a cover is generated at, matching the book's output format. */
-export const COVER_SHAPES = ['square', 'portrait', 'story'] as const
+/**
+ * The proportions a cover can be drawn at.
+ *
+ * **Six rather than three, because "portrait" was doing three jobs.** A 4:5
+ * Instagram post, a 3:4 leaflet and an A4 page are all portrait and none of them
+ * crops cleanly into the others — a cover drawn at 3:4 and placed on an A4 page
+ * loses a centimetre off two edges under `fit: 'cover'`, which is exactly where
+ * the shop's name was going to sit.
+ *
+ * Ordered widest to tallest, which is the order a picker should offer them in.
+ */
+export const COVER_SHAPES = ['wide', 'square', 'post', 'portrait', 'a4', 'story'] as const
 export type CoverShape = (typeof COVER_SHAPES)[number]
 
 export const COVER_SHAPE_NOTE: Readonly<Record<CoverShape, string>> = {
+  wide: 'Wide, for a banner or a screen',
   square: 'Square, for an Instagram post',
-  portrait: 'Portrait, for a catalog or leaflet',
-  story: 'Tall, for a story',
+  post: 'Portrait post, for Instagram',
+  portrait: 'Portrait, for a leaflet',
+  a4: 'A4, for a printed page',
+  story: 'Tall, for a story or a reel',
+}
+
+/**
+ * The ratio each shape is, as a model is told it and as a browser lays it out.
+ *
+ * **`label` goes in the prompt.** Naming the ratio is what actually gets an
+ * image back at that ratio; "a tall portrait image" is a description a model
+ * satisfies approximately, "9:16" is a number.
+ *
+ * `aspect` is width ÷ height, which is what `shapeFor` compares against a page
+ * and what a thumbnail's `aspect-ratio` uses.
+ */
+export const COVER_SHAPE_RATIO: Readonly<
+  Record<CoverShape, { label: string; css: string; aspect: number }>
+> = {
+  wide: { label: '16:9', css: '16 / 9', aspect: 16 / 9 },
+  square: { label: '1:1', css: '1 / 1', aspect: 1 },
+  post: { label: '4:5', css: '4 / 5', aspect: 4 / 5 },
+  portrait: { label: '3:4', css: '3 / 4', aspect: 3 / 4 },
+  // ISO 216: every A size is 1:√2, so this one number covers A4, A5 and A3.
+  a4: { label: '1:1.414 (A4)', css: '1 / 1.414', aspect: 1 / 1.414 },
+  story: { label: '9:16', css: '9 / 16', aspect: 9 / 16 },
 }

@@ -1,5 +1,7 @@
 import {
   CAMPAIGN_COPY,
+  COVER_SHAPE_NOTE,
+  COVER_SHAPE_RATIO,
   COVER_STYLE_COPY,
   INVENTED_PERSON_STYLES,
   tradesPhrase,
@@ -287,33 +289,44 @@ ${CHARACTER_RULES}`
  * language it guessed. The prompt says so twice because it is the single
  * instruction this feature most needs obeyed.
  */
+export type CoverPerson = 'staff' | 'customer' | 'none'
+
 export function coverPrompt(input: {
   /**
    * The art direction, from `cover_prompts.scene` — a place, a person doing
    * something, and a light.
    *
    * **A row rather than an enum, because this is the part that gets tuned.** It
-   * was a TypeScript map and was wrong twice in a day: adjectives that produced
-   * generic wallpaper, then nouns the model put *on* the assistant. Both fixes
-   * needed a deploy, which is the wrong shape for content you fix by looking at
-   * what came back.
+   * was a TypeScript map and was wrong three times: adjectives that produced
+   * generic wallpaper, nouns the model put *on* the assistant, and then the
+   * discovery that an occasion is not a picture at all.
    */
   scene: string
+  /**
+   * Who is in it.
+   *
+   * `staff` draws the shop's own character and is the only value that consumes
+   * the reference image. `customer` is invented by the model — a shop has one
+   * mascot and many customers, and a customer identical on every cover would
+   * read as another employee. `none` is the shop and its goods alone.
+   */
+  person: CoverPerson
   shape: CoverShape
   palette: readonly string[]
   /** How it is drawn. Absent is `flat-graphic`, which is what this used to be. */
   style?: CoverStyle
-  /** A reference image of the shop's character is being sent with this. */
-  withCharacter?: boolean
   /** Reference photographs of the shop itself are being sent with this. */
   withScene?: boolean
+  /** The owner uploaded their own reference images for this cover. */
+  withReference?: boolean
 }): string {
-  const shape =
-    input.shape === 'square'
-      ? 'A square image.'
-      : input.shape === 'story'
-        ? 'A tall portrait image, 9:16.'
-        : 'A portrait image, 3:4.'
+  /**
+   * **The ratio as a number, not as a word.** "A tall portrait image" is a
+   * description a model satisfies approximately; "9:16" is a constraint. The
+   * shape a cover was drawn at decides whether it survives `fit: 'cover'` on the
+   * page it ends up on, so approximately is not good enough.
+   */
+  const shape = `Aspect ratio ${COVER_SHAPE_RATIO[input.shape].label}. ${COVER_SHAPE_NOTE[input.shape]}.`
 
   const colors =
     input.palette.length === 0 ? '' : `\nUse these colours: ${input.palette.join(', ')}.`
@@ -321,14 +334,44 @@ export function coverPrompt(input: {
   const style = COVER_STYLE_COPY[input.style ?? 'flat-graphic'].draw
 
   /**
-   * **Every element gets a declared role, because two of them once shared one.**
+   * **The goods in a generated cover are invented, and that is a legal problem
+   * before it is an aesthetic one.**
    *
-   * The prompt used to open with the occasion as the image's subject, ask for
-   * "one dominant subject", then end "draw the character as the subject". Two
-   * subjects, so the model merged them and put the back-to-school backpack on
-   * the shop assistant. It says "focal point" now, and the person and the place
-   * are named separately and explicitly.
+   * An offer book is a commercial document with real prices in it. A model asked
+   * for a shelf of groceries draws packaging, and invented packaging that
+   * resembles a real brand is trademark infringement whether or not anybody
+   * intended it — the provider terms put that on whoever prompted. It is also
+   * misrepresentation: a shop does not sell the cereal the model invented.
+   *
+   * Two rules, and the second is the one that actually works. Forbidding
+   * branding is necessary; *steering to goods that cannot carry a brand* is what
+   * removes the problem. Tomatoes have no logo. A real product on a cover comes
+   * from a photograph the shop uploaded, or one day from compositing the
+   * catalog's own cutouts, which is a better answer than any prompt.
    */
+  const goods = `**The goods must not carry any branding.** No logos, no brand marks, no readable
+labels, no recognisable packaging design of any kind — nothing that could be
+taken for a real product from a real company. Favour fresh, unpackaged goods in
+the foreground: fruit, vegetables, bread, herbs, things with no label on them.
+Where packaged goods appear at all, keep them plain, generic and out of focus.`
+
+  /**
+   * **Take the treatment, not the picture.**
+   *
+   * An owner's reference is usually something they liked the look of, and the
+   * thing to learn from it is the light, the palette and the arrangement rather
+   * than its contents. Saying so matters more than it looks: a reference that is
+   * somebody else's flyer must not come back as that flyer, and the no-branding
+   * rule above is the second half of that answer.
+   */
+  const reference = input.withReference
+    ? `
+**The owner has attached reference images of the look they want.** Take the
+treatment from them — the palette, the quality of light, the way the frame is
+arranged, the overall feeling. Do not copy their contents, their layout or any
+mark in them; this is a new picture in that manner, of the scene described above.`
+    : ''
+
   const composition = `Composition: one dominant focal point, placed off-centre and low. **Keep the
 upper third of the image clear** — quiet ground, no detail, nothing that
 competes — because the shop's name and logo are placed over it afterwards.
@@ -342,11 +385,15 @@ them — the shelves, the fittings, the counter, the kind of place it is — rat
 than inventing a generic store.`
     : ''
 
-  if (input.withCharacter) {
-    return `A photograph for the cover of a shop's offer book. It looks like a picture taken
-inside this shop, of this shop's own staff member.
-
-**THE PERSON — from the reference image.** The same person: same face, same
+  /**
+   * **Three openings, because who is in the picture changes what the picture
+   * is.** The staff branch spends the character reference and has to defend it
+   * from the scene; the customer branch must *not* reuse that face; the empty
+   * branch has no person to argue about at all.
+   */
+  const who =
+    input.person === 'staff'
+      ? `**THE PERSON — from the reference image.** The same person: same face, same
 build, same uniform, same colours. They are a member of staff at work.
 
 **Do not dress them for the occasion.** They wear their own uniform from the
@@ -355,31 +402,40 @@ school bag, no props worn on the body, nothing from the theme added to their
 clothing.
 
 **Do not have them eat, drink or use the products.** They are selling the goods,
-not consuming them.
+not consuming them.`
+      : input.person === 'customer'
+        ? `**THE PERSON — an ordinary shopper.** Invent them. An everyday customer of this
+shop, dressed in their own ordinary clothes — **not a uniform, not a member of
+staff**. Do not use any person from the reference images. Relaxed and unposed,
+the way somebody looks when they are actually shopping.`
+        : `**Nobody in the frame.** Show the place and the goods with no person in it.`
 
-**THE SCENE — where they are and what they are doing. This is the shop around
+  const focal = input.person === 'none' ? '' : ' The person is the focal point.'
+
+  const opening =
+    input.person === 'staff'
+      ? `A photograph for the cover of a shop's offer book. It looks like a picture taken
+inside this shop, of this shop's own staff member.`
+      : input.person === 'customer'
+        ? `A photograph for the cover of a shop's offer book. It looks like a picture taken
+inside this shop, of a customer shopping in it.`
+        : `An image for the cover of a shop's offer book, of the shop itself.`
+
+  return `${opening}
+
+${who}
+
+**THE SCENE — where they are and what is happening. This is the shop around
 them, never something they wear:** ${input.scene}
 
-${style}
-${shape}${colors}${place}
-
-${composition} The person is the focal point.
-
-**No text of any kind.** No words, no letters, no numbers, in any language or
-script. No logo and no brand mark. Leave room for the shop's name and logo, which
-are placed on top afterwards.`
-  }
-
-  return `An image for the cover of a shop's offer book, of the shop itself: ${input.scene}
-
-**Nobody in the frame.** Show the place and the goods with no person in it.
+${goods}
 
 ${style}
-${shape}${colors}${place}
+${shape}${colors}${place}${reference}
 
-${composition}
+${composition}${focal}
 
 **No text of any kind.** No words, no letters, no numbers, in any language or
-script. No logo and no brand mark. The shop's name and its logo are placed on top
-of this afterwards, so leave the upper third calm and uncluttered for them.`
+script. No logo and no brand mark anywhere in the image. Leave room for the
+shop's name and logo, which are placed on top afterwards.`
 }

@@ -231,6 +231,14 @@ export interface CoverGenPayload {
   scene: string
   /** Which row it came from, or `custom`. Recorded on the result, not drawn. */
   promptSlug?: string
+  /**
+   * Who is in it — `staff`, `customer` or `none`.
+   *
+   * **Only `staff` uses `characterId`.** A customer is invented by the model on
+   * purpose: a shop has one mascot and many customers, and a customer who looked
+   * the same on every cover would read as a second employee.
+   */
+  person?: string
   /** One of `COVER_SHAPES`. */
   shape: string
   /**
@@ -265,6 +273,18 @@ export interface CoverGenPayload {
    * never travel this way, and nothing here should start sending them.
    */
   sceneKeys?: string[]
+  /**
+   * Images the owner uploaded for this cover alone — a look they want, an
+   * arrangement they like, a photograph of their own display.
+   *
+   * **Guidance, not source material.** The prompt asks for the palette, the
+   * light and the arrangement to be *taken from* these, and the no-branding rule
+   * applies over the top — so a competitor's flyer used as a reference cannot
+   * come back as a copy of that flyer with its logos on it. They are the owner's
+   * own uploads under the org prefix, and like `sceneKeys` they reach the image
+   * model and nothing else.
+   */
+  referenceKeys?: string[]
 }
 
 export interface BgRemovePayload {

@@ -60,6 +60,14 @@ const schema = z
     /** Required when the campaign is `custom`, ignored otherwise. */
     described: z.string().trim().min(3).max(200).optional(),
     /**
+     * Who is in it. Absent follows the prompt row's own `person`.
+     *
+     * **Only `staff` uses a character.** A customer is invented by the model on
+     * purpose — a shop has one mascot and many customers, and a shopper wearing
+     * the assistant's face is the failure this exists to prevent.
+     */
+    person: z.enum(['staff', 'customer', 'none']).optional(),
+    /**
      * Draw the shop's character into the cover. The id is checked against this
      * shop below and the worker checks it again before it draws — a cover of
      * another shop's mascot is the failure both checks exist to prevent.
@@ -72,6 +80,16 @@ const schema = z
      * the shop row; a caller naming keys would be naming arbitrary objects.
      */
     useScene: z.boolean().default(false),
+    /**
+     * Images the owner uploaded for this cover alone.
+     *
+     * **Keys, unlike `useScene` — and checked against this organization's
+     * prefix below.** The scene photographs are a known list on the shop row, so
+     * a boolean is enough; these are ad-hoc uploads with no row to name them, so
+     * the key has to travel and the prefix test is what stops it naming another
+     * tenant's object. The same check `PATCH .../background` makes.
+     */
+    referenceKeys: z.array(z.string().min(1).max(300)).max(4).optional(),
   })
   .refine(
     (value) => value.promptSlug !== 'custom' || value.described !== undefined,
@@ -107,17 +125,24 @@ export async function POST(request: NextRequest) {
    * already gets.
    */
   let scene: string
+  /** The row's own answer, which the owner may override but rarely needs to. */
+  let person: 'staff' | 'customer' | 'none'
+
   if (parsed.data.promptSlug === 'custom') {
     scene = `The shop owner describes what they want: "${parsed.data.described ?? ''}"`
+    // Their own words say nothing about who is in it, so a choice is the only
+    // answer here — and staff is what a shop with a character expects.
+    person = parsed.data.person ?? 'staff'
   } else {
     const prompt = await prisma.coverPrompt.findFirst({
       where: { slug: parsed.data.promptSlug, isActive: true },
-      select: { scene: true },
+      select: { scene: true, person: true },
     })
     if (prompt === null) {
       return fail('no_prompt', 'That is not a cover we can make any more. Pick another.', 404)
     }
     scene = prompt.scene
+    person = parsed.data.person ?? asPerson(prompt.person)
   }
 
   /*
@@ -150,6 +175,17 @@ export async function POST(request: NextRequest) {
       })
     : null
   const sceneKeys = storePhotoKeysOf(shopRow?.storePhotoKeys)
+
+  /*
+   * **An asset key is org-scoped by construction** — `uploadArtwork` writes
+   * `${organizationId}/blocks/…` — so tenancy here is a prefix test, and it is
+   * the only thing standing between a crafted request and another shop's
+   * artwork being sent to a third-party image model.
+   */
+  const referenceKeys = parsed.data.referenceKeys ?? []
+  if (referenceKeys.some((key) => !key.startsWith(`${session.user.organizationId}/`))) {
+    return fail('asset_not_found', 'One of those images is not one of yours.', 404)
+  }
 
   const brand = await readEffectiveBrand({
     organizationId: shop.organizationId,
@@ -185,12 +221,14 @@ export async function POST(request: NextRequest) {
       organizationId: session.user.organizationId,
       shopId: shop.id,
       scene,
+      person,
       promptSlug: parsed.data.promptSlug,
       shape: parsed.data.shape,
       style: parsed.data.style,
       palette,
-      ...(character === null ? {} : { characterId: character.id }),
+      ...(character === null || person !== 'staff' ? {} : { characterId: character.id }),
       ...(sceneKeys.length === 0 ? {} : { sceneKeys }),
+      ...(referenceKeys.length === 0 ? {} : { referenceKeys }),
       ...(parsed.data.described === undefined ? {} : { described: parsed.data.described }),
     })
   } catch {
@@ -202,4 +240,9 @@ export async function POST(request: NextRequest) {
   }
 
   return ok({ jobId: job.id, creditsCost: cost }, 202)
+}
+
+/** A stored value we no longer offer still has to resolve to something. */
+function asPerson(value: string): 'staff' | 'customer' | 'none' {
+  return value === 'customer' || value === 'none' ? value : 'staff'
 }

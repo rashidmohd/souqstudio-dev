@@ -1695,6 +1695,20 @@ model CoverPrompt {
   /// character reference and a scene that dresses them fights it.
   scene String
 
+  /// Who this scene wants in it — `staff`, `customer` or `none`.
+  ///
+  /// **A scene knows this and an owner does not have to.** A staff member
+  /// pushing a full trolley of shopping is not a picture of anything; a customer
+  /// doing it is the commonest retail cover there is. Equally, nobody but staff
+  /// stands behind the meat counter. So the row carries what it suits and the
+  /// picker follows it, while still letting an owner say otherwise.
+  ///
+  /// `staff` is the only one that consumes the shop's character reference.
+  /// `customer` is invented by the model, which is the point — a shop has one
+  /// mascot and many customers, and a customer who looked the same on every
+  /// cover would read as an employee.
+  person String @default("staff")
+
   /// Rough grouping for the picker — `everyday`, `season`, `occasion`. A string
   /// rather than an enum because the groups are a presentation judgement that
   /// will move, and a row naming a group we dropped should still render.

@@ -2,44 +2,50 @@ import { describe, expect, it } from 'vitest'
 import { shapeFor } from '@/lib/cover-shape'
 
 /**
- * The shape a generated ground is drawn at, from the page's own proportions.
+ * Which cover shape suits a page, from its own proportions.
  *
- * **Asked of the page rather than of the owner**, because the owner answered it
- * already when they chose what they were making, and a second asking is a second
- * chance to get it wrong. The failure is not an error either: a story-shaped
- * ground under `fit: 'cover'` on an A4 page is cropped to a sliver of itself, and
- * an owner sees a bad drawing rather than a mismatch.
+ * **Asked of the page rather than of the owner** in the editor, because they
+ * answered it already when they chose what they were making. The failure is not
+ * an error: a story-shaped cover under `fit: 'cover'` on an A4 page is cropped
+ * to a sliver, and an owner sees a bad picture rather than a mismatch.
+ *
+ * Matching is nearest-by-ratio in log space, not a ladder of thresholds — A4
+ * (1:1.414) and a 3:4 leaflet sit 0.04 apart and no hand-written cut-off
+ * separates them convincingly.
  */
 describe('shapeFor', () => {
-  it('draws a square post square', () => {
+  it('matches each shape to its own ratio', () => {
+    expect(shapeFor(16 / 9)).toBe('wide')
     expect(shapeFor(1)).toBe('square')
-    // 4:5, the other Instagram shape, is nearer square than portrait.
-    expect(shapeFor(0.8)).toBe('portrait')
+    expect(shapeFor(4 / 5)).toBe('post')
+    expect(shapeFor(3 / 4)).toBe('portrait')
+    expect(shapeFor(1 / 1.414)).toBe('a4')
+    expect(shapeFor(9 / 16)).toBe('story')
   })
 
-  it('draws A4 and US Letter as portrait', () => {
-    expect(shapeFor(210 / 297)).toBe('portrait')
+  it('tells A4 and a 3:4 leaflet apart, which a threshold could not', () => {
+    // 0.707 and 0.75 — the pair that made the old three-way ladder arbitrary.
+    expect(shapeFor(210 / 297)).toBe('a4')
+    expect(shapeFor(0.75)).toBe('portrait')
+  })
+
+  it('reads real page sizes', () => {
+    expect(shapeFor(1080 / 1920)).toBe('story')
+    expect(shapeFor(1080 / 1350)).toBe('post')
+    // US Letter is 0.773, which is nearer 3:4 (0.75) than A4 (0.707) — worth
+    // pinning, because it is the one people assume goes the other way.
     expect(shapeFor(8.5 / 11)).toBe('portrait')
   })
 
-  it('draws a story tall', () => {
-    expect(shapeFor(9 / 16)).toBe('story')
-    expect(shapeFor(1080 / 1920)).toBe('story')
+  it('takes the nearest shape for anything in between', () => {
+    expect(shapeFor(1.2)).toBe('square')
+    expect(shapeFor(0.5)).toBe('story')
   })
 
-  it('draws a landscape page square rather than inventing a shape', () => {
-    // There is no landscape ground to ask for. A square one cropped to a wide
-    // page loses its top and bottom; a portrait one loses its subject.
-    expect(shapeFor(1.4)).toBe('square')
-    expect(shapeFor(297 / 210)).toBe('square')
-  })
-
-  it('puts the boundaries where the formats actually sit', () => {
-    // Just inside square, and just outside it.
-    expect(shapeFor(0.86)).toBe('square')
-    expect(shapeFor(0.85)).toBe('portrait')
-    // Portrait holds A4 (0.707) and gives way before a story.
-    expect(shapeFor(0.63)).toBe('portrait')
-    expect(shapeFor(0.62)).toBe('story')
+  it('falls back rather than throwing on a degenerate page', () => {
+    // A page mid-layout can measure zero, and a cover picker is not the place
+    // for that to become an exception.
+    expect(shapeFor(0)).toBe('portrait')
+    expect(shapeFor(Number.NaN)).toBe('portrait')
   })
 })

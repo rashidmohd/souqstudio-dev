@@ -4,16 +4,19 @@ import * as React from 'react'
 import {
   COVER_SHAPES,
   COVER_SHAPE_NOTE,
+  COVER_SHAPE_RATIO,
   COVER_STYLES,
   COVER_STYLE_COPY,
   type CoverShape,
   type CoverStyle,
 } from '@souqstudio/engine'
+import { Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { RadioCards } from '@/components/ui/radio-cards'
 import { Textarea } from '@/components/ui/textarea'
 import { MachineOutput } from '@/components/ui/machine-output'
+import { uploadArtwork } from '@/lib/upload-artwork'
 
 /**
  * Generate a cover from the shop's own character and its own shop. E8-04.
@@ -60,17 +63,28 @@ type Props = {
   onKept: () => void
 }
 
-/** What each shape is, as a CSS aspect ratio, so a thumbnail matches the file. */
-const ASPECT_OF: Readonly<Record<CoverShape, string>> = {
-  square: '1 / 1',
-  portrait: '3 / 4',
-  story: '9 / 16',
-}
+/**
+ * One attached reference: its key for the server, its preview for this screen.
+ *
+ * **The preview is the local file, not a fetch.** `uploadArtwork` hands back an
+ * R2 key and nothing else, and turning that into a URL needs `R2_PUBLIC_URL`,
+ * which is a server variable — making it public to draw a thumbnail would put a
+ * deployment detail in the browser bundle for good. The bytes are already in
+ * hand here, so an object URL costs nothing and shows the real file.
+ */
+type Attached = { key: string; preview: string }
 
 type Option = { url: string; key: string }
 type Character = { id: string; baseImageUrl: string; style: string }
 type StorePhoto = { key: string; url: string }
-type Prompt = { slug: string; label: string; hint: string | null; group: string }
+type CoverPerson = 'staff' | 'customer' | 'none'
+type Prompt = {
+  slug: string
+  label: string
+  hint: string | null
+  group: string
+  person: CoverPerson
+}
 type Sources = { prompts: Prompt[]; characters: Character[]; storePhotos: StorePhoto[] }
 
 type Phase =
@@ -80,6 +94,7 @@ type Phase =
 
 export function CoverDialog({ open, onOpenChange, onKept }: Props) {
   const [promptSlug, setPromptSlug] = React.useState<string>('custom')
+  const [person, setPerson] = React.useState<CoverPerson>('staff')
   const [style, setStyle] = React.useState<CoverStyle>('photographic')
   /**
    * **Asked here, where it was derived in the editor.** There is no page in
@@ -89,6 +104,21 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
    */
   const [shape, setShape] = React.useState<CoverShape>('portrait')
   const [keeping, setKeeping] = React.useState(false)
+  /** Which of the three options are ticked. `POST /covers` takes them all. */
+  const [picked, setPicked] = React.useState<number[]>([])
+  /**
+   * The advanced half: images the owner attaches for this cover alone.
+   *
+   * **Not the shop photographs.** Those are a standing fact about the shop and
+   * live on its profile; these are "make it look like this", attached once and
+   * belonging to nothing. Keeping them apart is what lets the prompt say
+   * different things about them — the room is taken from one, the treatment
+   * from the other.
+   */
+  const [references, setReferences] = React.useState<Attached[]>([])
+  const [uploading, setUploading] = React.useState(false)
+  const [advanced, setAdvanced] = React.useState(false)
+  const referenceInput = React.useRef<HTMLInputElement>(null)
   const [described, setDescribed] = React.useState('')
   const [phase, setPhase] = React.useState<Phase>({ at: 'asking' })
   const [sources, setSources] = React.useState<Sources | null>(null)
@@ -112,6 +142,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
         // The first row an admin ordered, so the picker opens on something
         // real rather than on the free-text option.
         setPromptSlug(found.prompts[0]?.slug ?? 'custom')
+        setPerson(found.prompts[0]?.person ?? 'staff')
         // The newest character, pre-selected. A shop that made one wants it in
         // the cover — that is the whole reason they made it.
         setCharacterId(found.characters[0]?.id ?? null)
@@ -133,14 +164,25 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
    * an in-flight generation is over.
    */
   React.useEffect(() => {
-    if (open) setPhase({ at: 'asking' })
+    if (open) {
+      setPhase({ at: 'asking' })
+      setPicked([])
+    }
   }, [open])
 
-  async function keep(index: number) {
-    if (phase.at !== 'picking') return
+  /**
+   * Keep every ticked option, in one write.
+   *
+   * **Several, because the generation already produced several and charged for
+   * them.** The first build kept one and silently abandoned the other two —
+   * which is five credits spent on three covers and one kept, every time. The
+   * route has taken an array of indexes since it was written.
+   */
+  async function keep() {
+    if (phase.at !== 'picking' || picked.length === 0) return
     setKeeping(true)
     try {
-      await post('/api/v1/covers', { jobId: phase.jobId, indexes: [index] })
+      await post('/api/v1/covers', { jobId: phase.jobId, indexes: picked })
       onKept()
       onOpenChange(false)
     } catch (error) {
@@ -150,19 +192,43 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
     }
   }
 
+  async function attach(files: File[]) {
+    setUploading(true)
+    try {
+      const room = 4 - references.length
+      const taking = files.slice(0, room)
+      const uploaded = await Promise.all(
+        taking.map(async (file) => {
+          const key = await uploadArtwork(file)
+          return key === null ? null : { key, preview: URL.createObjectURL(file) }
+        })
+      )
+      setReferences((was) => [
+        ...was,
+        ...uploaded.filter((one): one is Attached => one !== null),
+      ])
+    } finally {
+      setUploading(false)
+    }
+  }
+
   async function generate() {
     setPhase({ at: 'drawing' })
     try {
-      const withCharacter = characterId !== null
+      const withCharacter = person === 'staff' && characterId !== null
+      const referenceKeys = references.map((attached) => attached.key)
       const queued = await post<{ jobId: string }>('/api/v1/covers/generate', {
         promptSlug,
         shape,
         style,
+        person,
         useScene: useScene && hasPhotos,
-        ...(withCharacter ? { characterId } : {}),
+        ...(referenceKeys.length === 0 ? {} : { referenceKeys }),
+        ...(person === 'staff' && characterId !== null ? { characterId } : {}),
         ...(promptSlug === 'custom' ? { described: described.trim() } : {}),
       })
       const options = await poll(queued.jobId)
+      setPicked([])
       setPhase({ at: 'picking', jobId: queued.jobId, options, withCharacter })
     } catch (error) {
       setPhase({ at: 'asking', error: message(error) })
@@ -193,8 +259,8 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
         >
         <div className="flex flex-col gap-3">
           <p className="font-ui text-body-sm text-secondary">
-            Three covers, {COVER_SHAPE_NOTE[shape].toLowerCase()}. Keep the one you want — it
-            joins your covers and any book can use it. Your name and logo go on top in the editor.
+            Three covers, {COVER_SHAPE_NOTE[shape].toLowerCase()}. Tap the ones worth keeping —
+            you already paid for all three. They join your covers and any book can use them.
           </p>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -202,19 +268,26 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               <button
                 key={option.key}
                 type="button"
-                className="group overflow-hidden rounded-card border border-default bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className={`group overflow-hidden rounded-card border bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus ${
+                  picked.includes(index) ? 'border-action-primary-bg' : 'border-default'
+                }`}
+                aria-pressed={picked.includes(index)}
                 disabled={keeping}
-                onClick={() => void keep(index)}
+                onClick={() =>
+                  setPicked((was) =>
+                    was.includes(index) ? was.filter((at) => at !== index) : [...was, index]
+                  )
+                }
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={option.url}
                   alt=""
                   className="block w-full transition-transform group-hover:scale-[1.02]"
-                  style={{ aspectRatio: ASPECT_OF[shape] }}
+                  style={{ aspectRatio: COVER_SHAPE_RATIO[shape].css }}
                 />
                 <span className="block p-2 font-ui text-body-sm text-secondary group-hover:text-primary">
-                  {keeping ? 'Keeping…' : 'Keep this one'}
+                  {picked.includes(index) ? 'Keeping this one' : 'Tap to keep'}
                 </span>
               </button>
             ))}
@@ -226,18 +299,58 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
             </p>
           ) : null}
 
-          <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              disabled={picked.length === 0}
+              loading={keeping}
+              onClick={() => void keep()}
+            >
+              {picked.length > 1 ? (
+                <>
+                  Keep <span data-figure>{picked.length}</span> covers
+                </>
+              ) : (
+                'Keep'
+              )}
+            </Button>
             <Button type="button" variant="ghost" onClick={() => setPhase({ at: 'asking' })}>
-              Try another campaign
+              Start again
             </Button>
           </div>
         </div>
         </MachineOutput>
       ) : (
         <div className="flex flex-col gap-4">
-          {characters.length > 0 ? (
+          <RadioCards
+            label="Who is in it?"
+            value={person}
+            columns={2}
+            name="cover-person"
+            disabled={phase.at === 'drawing'}
+            options={[
+              {
+                value: 'staff',
+                label: 'Your character',
+                description:
+                  characters.length > 0
+                    ? 'Your own shop worker, kept the same'
+                    : 'Make one in the Character tab first',
+                ...(characters.length === 0 ? { disabled: true } : {}),
+              },
+              {
+                value: 'customer',
+                label: 'A customer',
+                description: 'A shopper, invented for this cover',
+              },
+              { value: 'none', label: 'Nobody', description: 'The shop and the goods alone' },
+            ]}
+            onChange={setPerson}
+          />
+
+          {person === 'staff' && characters.length > 0 ? (
             <fieldset className="flex flex-col gap-2">
-              <legend className="font-ui text-label text-primary">Who is in it?</legend>
+              <legend className="font-ui text-label text-primary">Which character?</legend>
               {/* A grid with `aspect-square w-full`, as `CharacterGallery`
                   sizes its thumbnails. The size scale is replaced rather than
                   extended here, so a fixed `size-*` that is not a token is a
@@ -268,9 +381,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
                 })}
               </div>
               <p className="font-ui text-body-sm text-secondary">
-                {characterId === null
-                  ? 'Nobody — just a graphic. Tap a character to put them in it.'
-                  : 'Drawn into the cover, kept the same as the one you made.'}
+                Drawn into the cover, kept the same as the one you made.
               </p>
             </fieldset>
           ) : null}
@@ -316,7 +427,14 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               })),
               { value: 'custom', label: 'Describe it yourself' },
             ]}
-            onChange={setPromptSlug}
+            onChange={(slug) => {
+              setPromptSlug(slug)
+              // **The scene answers this, and the owner may still disagree.** A
+              // staff member pushing a full trolley of shopping is not a picture
+              // of anything; nobody but staff stands behind the meat counter.
+              const chosen = prompts.find((option) => option.slug === slug)
+              if (chosen !== undefined) setPerson(chosen.person)
+            }}
           />
 
           {promptSlug === 'custom' ? (
@@ -346,17 +464,104 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
           />
 
           <RadioCards
-            label="What shape?"
+            label="What size?"
             value={shape}
-            columns={1}
+            columns={2}
             name="cover-shape"
             disabled={phase.at === 'drawing'}
             options={COVER_SHAPES.map((option) => ({
               value: option,
-              label: COVER_SHAPE_NOTE[option],
+              label: COVER_SHAPE_RATIO[option].label,
+              description: COVER_SHAPE_NOTE[option],
             }))}
             onChange={setShape}
           />
+
+          {/*
+            **Advanced, and folded away, because most covers do not need it.**
+            Four references is the ceiling: past that a provider weights the
+            earliest ones and quietly ignores the rest, which reads to an owner
+            as the feature not working.
+          */}
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setAdvanced((was) => !was)}
+              disabled={phase.at === 'drawing'}
+            >
+              {advanced ? 'Hide reference images' : 'Add reference images'}
+            </Button>
+
+            {advanced ? (
+              <div className="flex flex-col gap-2">
+                <p className="font-ui text-body-sm text-secondary">
+                  Attach up to <span data-figure>4</span> pictures of the look you want. We take
+                  the colours, the light and the arrangement from them — not their contents, and
+                  never anything branded in them.
+                </p>
+
+                {references.length > 0 ? (
+                  <ul className="grid grid-cols-4 gap-2">
+                    {references.map((attached) => (
+                      <li
+                        key={attached.key}
+                        className="overflow-hidden rounded-card border border-default"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={attached.preview}
+                          alt=""
+                          className="block aspect-square w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          className="block w-full p-1 font-ui text-body-sm text-secondary hover:text-primary"
+                          onClick={() => {
+                            // The object URL is this component's to release —
+                            // the browser holds the blob until it is revoked.
+                            URL.revokeObjectURL(attached.preview)
+                            setReferences((was) =>
+                              was.filter((other) => other.key !== attached.key)
+                            )
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                <div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    loading={uploading}
+                    disabled={references.length >= 4 || phase.at === 'drawing'}
+                    onClick={() => referenceInput.current?.click()}
+                  >
+                    <ImageIcon className="size-4" aria-hidden="true" strokeWidth={1.75} />
+                    {references.length === 0 ? 'Choose images' : 'Add another'}
+                  </Button>
+                </div>
+
+                <input
+                  ref={referenceInput}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    const chosen = [...(event.target.files ?? [])]
+                    // Cleared so picking the same file again still fires.
+                    event.target.value = ''
+                    if (chosen.length > 0) void attach(chosen)
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
 
           <p className="font-ui text-body-sm text-secondary">
             Drawn in your brand colours. Three options, 5 credits.

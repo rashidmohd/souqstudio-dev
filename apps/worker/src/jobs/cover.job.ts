@@ -10,7 +10,7 @@ import {
   type CoverStyle,
 } from '@souqstudio/engine'
 import { getObjectBytes, keyFromPublicUrl, putObject } from '../lib/r2'
-import { coverPrompt } from '../lib/character-prompt'
+import { coverPrompt, type CoverPerson } from '../lib/character-prompt'
 import { ImageGenerationOffError, NoImageError, draw } from '../lib/image-gen'
 
 /**
@@ -58,6 +58,8 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
       throw new Error('cover: no scene to draw')
     }
 
+    const person = asPerson(job.data.person)
+
     /**
      * **The character is re-read here and scoped to the shop**, never taken
      * from the payload as an image. `pose.job.ts` makes the same move for the
@@ -85,18 +87,43 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
      * heavily, so a scene leading the list produces a photograph of a shop with
      * somebody small in the corner of it.
      */
-    const characterRef = character === null ? null : await referenceFrom(character.baseImageUrl)
+    /**
+     * **The character is only fetched for a staff scene.** A customer is
+     * invented, so sending the mascot as a reference would produce a shopper
+     * with the assistant's face — which is the failure this branch exists to
+     * prevent, and it would look like the shop photographing its own staff
+     * pretending to shop.
+     */
+    const characterRef =
+      person !== 'staff' || character === null
+        ? null
+        : await referenceFrom(character.baseImageUrl)
     const sceneRefs = await Promise.all((job.data.sceneKeys ?? []).map(referenceFromKey))
-    const references = [...(characterRef === null ? [] : [characterRef]), ...sceneRefs]
+
+    /**
+     * **The owner's own references come last.** They are guidance about the
+     * look, and everything before them is what the picture is *of* — the person
+     * and the room. Providers weight earlier references more heavily, so a mood
+     * image leading the list produces a variation on the mood image rather than
+     * a cover of this shop.
+     */
+    const ownRefs = await Promise.all((job.data.referenceKeys ?? []).map(referenceFromKey))
+
+    const references = [
+      ...(characterRef === null ? [] : [characterRef]),
+      ...sceneRefs,
+      ...ownRefs,
+    ]
 
     const drawn = await draw({
       prompt: coverPrompt({
         scene,
+        person,
         shape,
         style,
         palette,
-        withCharacter: characterRef !== null,
         withScene: sceneRefs.length > 0,
+        withReference: ownRefs.length > 0,
       }),
       count: COVER_VARIATIONS,
       ...(references.length === 0 ? {} : { references }),
@@ -125,8 +152,9 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
           shape,
           style,
           /** What it was drawn from, so a job claimed later explains itself. */
-          withCharacter: characterRef !== null,
+          person,
           withScene: sceneRefs.length > 0,
+          withReference: ownRefs.length > 0,
           charged: spend.ok ? spend.charged : 0,
         },
       },
@@ -203,6 +231,11 @@ async function store(
  * style axis existed was one, so an old job replayed from the queue should come
  * back looking like itself.
  */
+/** Absent is `staff`, which is what every scene was before customers existed. */
+function asPerson(value: string | undefined): CoverPerson {
+  return value === 'customer' || value === 'none' || value === 'staff' ? value : 'staff'
+}
+
 function asStyle(value: string | undefined): CoverStyle {
   if (value === undefined) return 'flat-graphic'
   const found = COVER_STYLES.find((style) => style === value)

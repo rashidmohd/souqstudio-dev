@@ -39,7 +39,7 @@ export async function GET() {
     // it is given and never decides what is offerable.
     prisma.coverPrompt.findMany({
       where: { isActive: true },
-      select: { slug: true, label: true, hint: true, group: true },
+      select: { slug: true, label: true, hint: true, group: true, person: true },
       orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
     }),
     prisma.character.findMany({
