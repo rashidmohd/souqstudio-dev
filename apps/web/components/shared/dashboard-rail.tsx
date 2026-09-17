@@ -239,16 +239,6 @@ export function DashboardRail({
           while `Shops` belongs to the business. */}
       <ShopSwitcher shops={shops} activeShopId={activeShopId} collapsed={collapsed} />
 
-      {/*
-       * **Generations that finished while the owner was elsewhere.** It renders
-       * nothing when there is nothing waiting, so the rail is unchanged for the
-       * overwhelming majority of sessions — which is why it can sit at the top
-       * rather than being hidden behind the collapse. E8; see the component.
-       */}
-      <div className={cn('flex', collapsed ? 'justify-center' : 'justify-end')}>
-        <UnfinishedWork collapsed={collapsed} />
-      </div>
-
       <div className="flex flex-col gap-1">
         {SHOP_SCOPE.map((item) => (
           <NavItem key={item.href} {...item} active={isActive(item.href)} collapsed={collapsed} />
@@ -274,12 +264,24 @@ export function DashboardRail({
         ))}
       </div>
 
+      {/*
+       * **Generations that finished while the owner was elsewhere.** It renders
+       * nothing when there is nothing waiting, so the rail is unchanged for the
+       * overwhelming majority of sessions. It sits at the foot of the rail,
+       * directly above the account row, so the `mt-auto` that pins that zone
+       * down belongs here instead — the two travel together. E8; see the
+       * component.
+       */}
+      <div className={cn('mt-auto flex', collapsed ? 'justify-center' : 'justify-end')}>
+        <UnfinishedWork collapsed={collapsed} />
+      </div>
+
       {/* The user zone. `leading` carries an avatar rather than the glyph: this
           row is a person, which is the whole reason it is pinned down here away
           from the org's own settings. The label stays `Account` — the
           destination is what the row promises, and the avatar is what says
           whose it is. */}
-      <div className="mt-auto flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         {USER_SCOPE.map((item) => (
           <NavItem
             key={item.href}
