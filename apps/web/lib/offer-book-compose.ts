@@ -120,6 +120,16 @@ export interface ComposedOffer {
    * which is a paid action on a photo that does not need it.
    */
   fallbackImageProductId: string | null
+  /**
+   * The lead item's product, when it has no photo at all.
+   *
+   * **A second field rather than one that means two things.** The two flags
+   * lead to different actions on different routes — one asks for a matte on a
+   * photo that exists, the other supplies a photo that does not — and they are
+   * mutually exclusive by construction in `flagsFor`. One id serving both
+   * would be an id whose meaning depends on a flag list read somewhere else.
+   */
+  missingImageProductId: string | null
 }
 
 export interface ComposedChip {
@@ -336,6 +346,9 @@ export function composeOffer(
     fallbackImageProductId: flags.includes('fallback-image')
       ? (items[0]?.product.id ?? null)
       : null,
+    // Same rule, same reason: set only when the flag is. The lead item is the
+    // one whose photo a card draws, and `flagsFor` reads the same item.
+    missingImageProductId: flags.includes('no-image') ? (items[0]?.product.id ?? null) : null,
     items: items.map((item) => ({
       id: item.id,
       name: nameFor(item, edition),

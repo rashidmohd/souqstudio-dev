@@ -2066,3 +2066,90 @@ same string in the same box wraps to two lines at weight 400 and three at 700.
 - **The worker will need the same measurer.** When `pdf` stops throwing it brings its own
   context, and a measurer built without the weight would reintroduce this in the one place
   nobody looks until it is printed.
+
+---
+
+## 27. Adding a photo to a product that has none, 19 September
+
+Asked in the editor: *"I want to add an image for that particular product — how?"* The
+answer was **you cannot**. The properties panel has said *"This product has no photo"* for
+as long as the flag has existed, with nothing beside it to press, while its sibling
+`fallback-image` has had a fix button all along. On a catalog where only a small share of
+rows carry a packshot, that made the most common flag the one with no action.
+
+### 27.1 Most of it already existed
+
+`POST /api/v1/catalog/upload-url` presigns a PUT straight to R2. `image_assets`,
+`pickImage` and the `bg` cutout worker are all built. `products/[id]/cutout` is the
+precedent for acting on one existing product from inside the editor. What was missing was
+a route to attach a photo to a product that already exists — and a decision about whose
+photo it then is.
+
+`offer_items.imageAssetId`, incidentally, is still a dead column: written by "duplicate
+book", selected by nothing. E6-04's per-offer image swap remains unbuilt and this did not
+build it.
+
+### 27.2 The decision, and it was the owner's
+
+Most catalog rows are universal — shared by every tenant — and a shop must not mutate one.
+Three options were put up: an org-private asset column, shadowing the product into the
+org, or contributing the photo to everyone behind review. **The owner chose to
+contribute.**
+
+The concern raised against it was that a reviewer standing between an owner and their own
+flyer breaks the eleven-o'clock-on-a-Friday promise. That is answered rather than
+accepted, by the rule `product_contributions` already states in its own schema comment:
+**review decides promotion, not availability.** So:
+
+- The asset lands on the shared product, `PENDING`, stamped `contributedBy`.
+- The contributing shop's books draw it immediately, and prefer it over the shared photo.
+- Every other tenant sees it only once it is `APPROVED`.
+- A `product_contributions` row is written in the same transaction as the reviewer's queue
+  entry — a contributed asset with no queue row would sit PENDING forever.
+
+A product the organization *owns* skips all of that: `APPROVED`, unattributed, no queue
+row. There is nobody to review it for, and attributing it would hide it from the
+organization's other shops, which is the opposite of what the column is for.
+
+### 27.3 The worker would have bypassed the gate in seconds
+
+`bg.job.ts` created its CUTOUT with `reviewState` from the matte score and **no
+attribution**. So a clean matte on an unreviewed contributed photo became an `APPROVED`
+asset with `contributedBy` null — visible to every tenant, moments after the upload, with
+no human involved. The whole gate, defeated by the job that runs next.
+
+The cutout now inherits its source's `contributedBy`, and a contributed cutout is held
+`PENDING` whatever the matte scores. That also settles a collision the column exposed:
+`reviewState` means *matte quality* on an ordinary cutout and *human acceptance* on a
+contributed one, and letting a good matte approve a contribution nobody looked at would
+conflate them. The score is not lost — `quality` is the column that always carried it.
+
+### 27.4 The files
+
+| File | What |
+| --- | --- |
+| `schema.prisma` + `20260919120000_contributed_product_images` | `image_assets.contributedBy`, nullable, no backfill |
+| `apps/web/lib/catalog.ts` | `imageVisibility`, and `IMAGE_PICK` becomes `imagePick(organizationId)` |
+| `apps/web/lib/offer-book.ts` | The Prisma half of the same rule; `pickImage` prefers the shop's own |
+| `apps/web/lib/offer-book-compose.ts` | `missingImageProductId`, set only alongside the flag |
+| `app/api/v1/catalog/products/[id]/image/route.ts` | The route — new |
+| `apps/worker/src/jobs/bg.job.ts` | The cutout inherits the contributor and stays pending |
+| `components/editor/OfferProperties.tsx` | `AddPhoto`, beside the flag that reports the problem |
+
+### 27.5 Still owed
+
+- **Nothing approves a contribution.** `product_contributions.status` is written `pending`
+  and no screen flips it — E13's admin panel is unstarted. So a contributed photo is
+  visible to its contributor and to nobody else, indefinitely. That is the safe failure
+  mode and it is not the intended one: the catalog does not actually learn anything until
+  a reviewer exists.
+- **Not opened in a browser.** 611 web tests, 514 engine, 45 worker, 95 db, plus lint,
+  typecheck, build and `check:classes` all pass. Nobody has uploaded a photo.
+- **The migration has not been run** against a database. `pnpm db:generate` has; `db:push`
+  and `db:migrate` have not.
+- **No test covers `imageVisibility`.** It is raw SQL in a `LATERAL` join and the tenancy
+  rule it enforces is the one that decides whether one shop's unreviewed photo reaches
+  another shop's printed flyer. `pickImage` has four tests; its SQL twin has none.
+- **Nothing rate-limits contributions.** A shop can attach a photo to any universal
+  product it can see, as often as it likes, and each one queues a cutout. Same gap the
+  rest of the product has, now reachable one click from the editor.

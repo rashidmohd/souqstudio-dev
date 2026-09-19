@@ -204,7 +204,34 @@ async function handleCatalogCutout(input: {
   const { bbox, quality } = analyseMatte(alpha, width, height)
 
   const url = await putObject(input.targetPath, png, 'image/png')
-  const reviewState = quality >= MATTE_APPROVAL_THRESHOLD ? 'APPROVED' : 'PENDING'
+
+  /*
+   * **A cutout inherits its source's contributor, and that is a visibility
+   * fix rather than bookkeeping.** A photo one shop supplied for a *universal*
+   * product is held back from every other shop until a human accepts it —
+   * `imageVisibility` in the web app keys that off `contributedBy`. The cutout
+   * derived from it is the same picture with its background off, so without
+   * inheriting the attribution it would be an unattributed asset on a shared
+   * product, and a good matte would publish it to every tenant within seconds
+   * of the upload. The gate would be bypassed by this function.
+   *
+   * It also means `reviewState` carries the *human* decision on a contributed
+   * cutout rather than the matte score, so a clean matte cannot approve a
+   * contribution nobody looked at. The score is not lost — `quality` is the
+   * column that always held it, and it is what a reviewer reads.
+   */
+  const sourceAsset = await prisma.imageAsset.findUnique({
+    where: { id: input.sourceAssetId },
+    select: { contributedBy: true },
+  })
+  const contributedBy = sourceAsset?.contributedBy ?? null
+
+  const reviewState =
+    contributedBy !== null
+      ? 'PENDING'
+      : quality >= MATTE_APPROVAL_THRESHOLD
+        ? 'APPROVED'
+        : 'PENDING'
 
   await prisma.imageAsset.create({
     data: {
@@ -219,6 +246,7 @@ async function handleCatalogCutout(input: {
       bboxTight: bbox ?? Prisma.JsonNull,
       quality,
       reviewState,
+      ...(contributedBy === null ? {} : { contributedBy }),
     },
   })
 

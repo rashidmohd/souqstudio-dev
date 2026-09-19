@@ -243,9 +243,24 @@ export async function loadBook(
                      * `desc` would be depends on that same declaration order —
                      * one reordered enum away from breaking the same way again.
                      */
-                    where: { reviewState: 'APPROVED', kind: { not: 'THUMB' } },
+                    /*
+                     * **Approved, or this shop's own contribution.** A photo a
+                     * shop supplied for a universal product sits PENDING until
+                     * a reviewer promotes it, and `APPROVED` alone would mean
+                     * the owner uploads a packshot, sees the flag clear in the
+                     * catalog, opens their book and finds the placeholder
+                     * still there. `imageVisibility` in `lib/catalog.ts` makes
+                     * the same allowance in SQL; this is its Prisma half.
+                     */
+                    where: {
+                      kind: { not: 'THUMB' },
+                      OR: [
+                        { reviewState: 'APPROVED' },
+                        { contributedBy: organizationId, reviewState: 'PENDING' },
+                      ],
+                    },
                     orderBy: { createdAt: 'desc' },
-                    select: { kind: true, r2Key: true },
+                    select: { kind: true, r2Key: true, contributedBy: true },
                   },
                 },
               },
@@ -295,7 +310,7 @@ export async function loadBook(
         chips: offer.chips,
         footnotes: offer.footnotes,
         items: offer.items.map((item) => {
-          const image = pickImage(item.product.images)
+          const image = pickImage(item.product.images, organizationId)
           return {
             id: item.id,
             position: item.position,
@@ -1537,8 +1552,20 @@ export async function composeCover(
  *
  * The rows arrive newest-first, so the `find` is the whole precedence rule.
  */
-export function pickImage<T extends { kind: 'ORIGINAL' | 'CUTOUT' | 'THUMB' }>(
-  images: readonly T[]
-): T | undefined {
+export function pickImage<
+  T extends { kind: 'ORIGINAL' | 'CUTOUT' | 'THUMB'; contributedBy?: string | null },
+>(images: readonly T[], organizationId?: string): T | undefined {
+  /*
+   * **This shop's own photo outranks the shared one, cutout or not.** A shop
+   * that supplied a packshot for a universal product with none — or with a bad
+   * one — has said which picture belongs on their flyer, and a reviewer
+   * agreeing later is not a precondition for their own book using it. Matches
+   * the first `ORDER BY` term in `imagePick`.
+   */
+  if (organizationId !== undefined) {
+    const own = images.filter((image) => image.contributedBy === organizationId)
+    if (own.length > 0) return own.find((image) => image.kind === 'CUTOUT') ?? own[0]
+  }
+
   return images.find((image) => image.kind === 'CUTOUT') ?? images[0]
 }

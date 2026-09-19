@@ -153,18 +153,64 @@ function toSummary(row: CatalogRow): CatalogProductSummary {
  * were sent to review onto the screen. A REJECTED asset is never returned at
  * all.
  */
-const IMAGE_PICK = Prisma.sql`
+/**
+ * Whether this organization may see a given asset.
+ *
+ * **Two different things are called review here and they must not be
+ * conflated.** On a cutout, `reviewState` is the *matte* — the worker sets it
+ * from its own confidence, and PENDING means "this might be haloed", which is
+ * why a pending cutout is not preferred but is still shown. On a **contributed**
+ * asset it is a *human* decision about the shared catalog, and PENDING there
+ * means "no other shop should see this yet".
+ *
+ * `contributedBy` is what tells them apart. A row with it set is one shop's
+ * photo on a product every tenant reads, so until it is approved it is visible
+ * to its contributor alone — which is what keeps review deciding promotion
+ * rather than availability, the rule `product_contributions` already states.
+ * A rejected asset is invisible to everyone, contributor included.
+ */
+function imageVisibility(organizationId: string): Prisma.Sql {
+  return Prisma.sql`
+    i."reviewState" <> 'REJECTED'
+    AND (
+      i."contributedBy" IS NULL
+      OR i."reviewState" = 'APPROVED'
+      OR i."contributedBy" = ${organizationId}
+    )
+  `
+}
+
+/**
+ * The one image a card should draw, chosen in SQL rather than by loading every
+ * asset and picking in TypeScript.
+ *
+ * Preference order is approved cutout, then anything else that is not rejected,
+ * newest first. A `PENDING` cutout is deliberately not preferred: `reviewState`
+ * defaults to PENDING and the worker promotes it to APPROVED above the matte
+ * threshold, so preferring PENDING would put exactly the haloed cutouts that
+ * were sent to review onto the screen. A REJECTED asset is never returned at
+ * all.
+ *
+ * **Its own photo outranks the shared one.** A shop that supplied a packshot
+ * for a universal product with none — or with a bad one — is telling us which
+ * picture they want on their flyer, and they should not have to wait for a
+ * reviewer to agree before their own book uses it.
+ */
+function imagePick(organizationId: string): Prisma.Sql {
+  return Prisma.sql`
   LEFT JOIN LATERAL (
     SELECT i."r2Key", i.kind
     FROM image_assets i
     WHERE i."productId" = p.id
-      AND i."reviewState" <> 'REJECTED'
       AND i.kind <> 'THUMB'
-    ORDER BY (i.kind = 'CUTOUT' AND i."reviewState" = 'APPROVED') DESC,
+      AND ${imageVisibility(organizationId)}
+    ORDER BY (i."contributedBy" = ${organizationId}) DESC,
+             (i.kind = 'CUTOUT' AND i."reviewState" = 'APPROVED') DESC,
              i."createdAt" DESC
     LIMIT 1
   ) img ON TRUE
 `
+}
 
 /**
  * Which rows this organization may see, and which universal ones are shadowed.
@@ -258,7 +304,7 @@ export async function searchCatalog(
         END AS "matchedBy"
       FROM catalog_products p
       CROSS JOIN q
-      ${IMAGE_PICK}
+      ${imagePick(organizationId)}
       LEFT JOIN LATERAL (
         SELECT TRUE AS hit
         FROM product_synonyms s
@@ -466,7 +512,7 @@ export async function browseCatalog(
         img."r2Key" AS "imageKey",
         img.kind::text AS "imageKind"
       FROM catalog_products p
-      ${IMAGE_PICK}
+      ${imagePick(organizationId)}
       WHERE ${visibleRows(organizationId)}
         AND p.category = ${options.category}
         AND (${
@@ -574,7 +620,7 @@ export async function lookupBarcode(
         img."r2Key" AS "imageKey",
         img.kind::text AS "imageKind"
       FROM catalog_products p
-      ${IMAGE_PICK}
+      ${imagePick(organizationId)}
       WHERE p."archivedAt" IS NULL
         AND p.barcode = ${barcode}
         AND (p."organizationId" = ${organizationId} OR p."organizationId" IS NULL)
@@ -833,7 +879,7 @@ async function resolveBrand(
  *
  * The `ImageAsset` is `ORIGINAL` and `APPROVED`: it is what the owner
  * photographed, so there is no matte to judge. The cutout the worker produces
- * arrives as a second row, `PENDING`, and `IMAGE_PICK` above will not prefer it
+ * arrives as a second row, `PENDING`, and `imagePick` above will not prefer it
  * until it is approved.
  */
 export async function createOrgProduct(
@@ -1201,7 +1247,7 @@ export async function summariesByIds(
         img."r2Key" AS "imageKey",
         img.kind::text AS "imageKind"
       FROM catalog_products p
-      ${IMAGE_PICK}
+      ${imagePick(organizationId)}
       WHERE p.id = ANY(${ids}::text[])
         AND (p."organizationId" = ${organizationId} OR p."organizationId" IS NULL)
     `

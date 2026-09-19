@@ -93,6 +93,16 @@ export function OfferProperties({ bookId, tiers, currency, direction }: Props) {
                 {flag === 'fallback-image' && offer.fallbackImageProductId !== null ? (
                   <RemoveBackground productId={offer.fallbackImageProductId} />
                 ) : null}
+                {/*
+                 * **The catalog can name a product it cannot picture**, which
+                 * is the common case rather than the edge one — only a small
+                 * share of rows carry a packshot. So this flag was the most
+                 * frequent thing the panel said and the only one with nothing
+                 * to do about it.
+                 */}
+                {flag === 'no-image' && offer.missingImageProductId !== null ? (
+                  <AddPhoto productId={offer.missingImageProductId} />
+                ) : null}
               </li>
             ))}
           </ul>
@@ -340,6 +350,132 @@ function RemoveBackground({ productId }: { productId: string }) {
     <span className="flex flex-col gap-1">
       <Button type="button" variant="ghost" loading={state === 'working'} onClick={() => void run()}>
         Remove the background — <span data-figure>1</span> credit
+      </Button>
+      {error === null ? null : (
+        <span className="font-ui text-body-sm text-critical-fg" role="alert">
+          {error}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * Supply the photo this product does not have.
+ *
+ * **Three steps, the middle one going nowhere near a route.** The server
+ * presigns a PUT, the bytes go browser → R2, and only then does a route hear
+ * about it — the same handshake `uploadArtwork` documents, and for the same
+ * reason: a serverless function caps its body well below what a phone camera
+ * produces, so proxying would reject good photos with a platform error the
+ * owner can do nothing about.
+ *
+ * **It says who else will see it, before the press.** On a universal catalog
+ * product the photo is contributed: this shop's books use it immediately and
+ * every other shop gets it once a reviewer accepts it. That is worth one line
+ * of copy, because "add a photo" reads like a private act and this one is not.
+ *
+ * Like `RemoveBackground` it queues the cutout and does not wait. The refresh
+ * brings the ORIGINAL in; the cutout replaces it a moment later on its own.
+ */
+function AddPhoto({ productId }: { productId: string }) {
+  const router = useRouter()
+  const file = React.useRef<HTMLInputElement>(null)
+  const [state, setState] = React.useState<'idle' | 'working' | 'done' | 'error'>('idle')
+  const [error, setError] = React.useState<string | null>(null)
+  /** Whether the photo went onto a shared catalog row. Only known after. */
+  const [shared, setShared] = React.useState(false)
+
+  async function upload(chosen: File) {
+    setState('working')
+    setError(null)
+
+    try {
+      // 1. Authorise. The key is built from the session, never from the client.
+      const auth = await fetch('/api/v1/catalog/upload-url', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contentType: chosen.type, contentLength: chosen.size }),
+      })
+      const granted = (await auth.json()) as {
+        data: { uploadUrl: string; key: string } | null
+        error: { message: string } | null
+      }
+      if (granted.data === null) throw new Error(granted.error?.message ?? 'That upload was refused.')
+
+      // 2. The bytes, straight to the bucket.
+      const put = await fetch(granted.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': chosen.type },
+        body: chosen,
+      })
+      if (!put.ok) throw new Error('That photo did not upload. Check your connection.')
+
+      // 3. Record it. Nothing on the server knows the file's shape until it
+      //    reads the object back, which is where it is measured and refused.
+      const attach = await fetch(`/api/v1/catalog/products/${productId}/image`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ imageKey: granted.data.key }),
+      })
+      const saved = (await attach.json()) as {
+        data: { shared: boolean } | null
+        error: { message: string } | null
+      }
+      if (saved.data === null) throw new Error(saved.error?.message ?? 'That photo was refused.')
+
+      setShared(saved.data.shared)
+      setState('done')
+      router.refresh()
+    } catch (problem) {
+      setState('error')
+      setError(problem instanceof Error ? problem.message : 'That did not work. Try again.')
+    }
+  }
+
+  if (state === 'done') {
+    return (
+      <span className="font-ui text-body-sm text-secondary">
+        {/*
+          **Said after rather than before, because only the server knows.**
+          Whether this product is the shop's own row or a shared catalog one is
+          not on the composed offer, and putting it there would mean carrying a
+          fact about the catalog on every card to caption one button. The
+          sentence an owner needs is the same either way — the photo is on
+          their flyer now — and the second half is the part worth telling them
+          once it is true.
+        */}
+        Photo added, and your books use it now.
+        {shared
+          ? ' It goes to other shops using this product once we have checked it.'
+          : ''}{' '}
+        The cutout follows in a moment.
+      </span>
+    )
+  }
+
+  return (
+    <span className="flex flex-col gap-1">
+      <input
+        ref={file}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={(event) => {
+          const chosen = event.target.files?.[0]
+          // Cleared so choosing the same file twice fires again — after a
+          // failure that is exactly what an owner does.
+          event.target.value = ''
+          if (chosen !== undefined) void upload(chosen)
+        }}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        loading={state === 'working'}
+        onClick={() => file.current?.click()}
+      >
+        Add a photo
       </Button>
       {error === null ? null : (
         <span className="font-ui text-body-sm text-critical-fg" role="alert">

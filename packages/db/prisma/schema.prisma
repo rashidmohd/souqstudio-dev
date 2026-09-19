@@ -953,6 +953,18 @@ enum ReviewState {
 model ImageAsset {
   id          String         @id @default(cuid())
   productId   String
+  /// The organization that supplied this photo, when a shop contributed one to
+  /// a product it does not own. Null on everything seeded, imported or
+  /// generated, which is almost every row.
+  ///
+  /// **It is a visibility key, not just provenance.** A contributed photo sits
+  /// on a *universal* product — shared by every tenant — so before review it
+  /// must be visible to the shop that uploaded it and to nobody else. Without
+  /// this column the choice is between showing one shop's unreviewed packshot
+  /// in every other shop's books, or making the contributor wait on a reviewer
+  /// to see their own flyer. `imageVisibility` in `lib/catalog.ts` is the one
+  /// place that reads it.
+  contributedBy String?
   kind        ImageKind
   /// The ImageAsset this was derived from. Set on CUTOUT and THUMB, null on
   /// ORIGINAL. Keeping the original is what makes a bad matte recoverable.
@@ -974,6 +986,8 @@ model ImageAsset {
 
   @@index([productId, kind])
   @@index([reviewState])
+  /// Every read that filters unreviewed contributions pairs these two.
+  @@index([contributedBy, reviewState])
   @@map("image_assets")
 }
 
