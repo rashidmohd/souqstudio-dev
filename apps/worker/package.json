@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "magic:check": "tsx --env-file-if-exists=.env src/scripts/magic-check.ts"
+    "magic:check": "tsx --env-file-if-exists=.env src/scripts/magic-check.ts",
+    "catalog:images": "tsx --env-file-if-exists=.env src/scripts/ingest-catalog-images.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

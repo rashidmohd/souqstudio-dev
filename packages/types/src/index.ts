@@ -14,6 +14,9 @@ export * from './brand-slug'
 // The pack line — same reasoning again. The render harness composes real
 // catalog rows and must draw the string the product card draws.
 export * from './pack'
+// R2 key derivation for catalog images. Reason again: the worker writes these
+// objects and the web app builds URLs from them, so the two must agree.
+export * from './catalog-image-keys'
 import type { BrandColor, TextStyle, TypeScale } from './composition'
 
 export type Role = 'owner' | 'manager' | 'editor' | 'viewer'

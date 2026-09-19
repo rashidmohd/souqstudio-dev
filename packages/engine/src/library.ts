@@ -21,7 +21,7 @@ import { SEASONAL_BLOCKS } from './library-seasonal'
  * and every box is a fraction of the block so one design serves a 1080 carousel
  * post and a third of an A4 column.
  *
- * ## Sixty-five, and why the count is the point
+ * ## Sixty-six, and why the count is the point
  *
  * This started as four. Four is enough to prove the model and not enough to
  * start from: a shop that opens the library, sees one card and one footer, and
@@ -30,7 +30,9 @@ import { SEASONAL_BLOCKS } from './library-seasonal'
  * owed, and puts the number at fifteen to twenty-five *real designs*.
  *
  * The designs are drawn from what a printed offer book, a hypermarket weekly and
- * an e-commerce grid actually do — the reasoning is in `library-cards.ts` and
+ * an e-commerce grid actually do — and since September 2026 the offer cards are
+ * drawn from **seven photographed reference cards** rather than from a
+ * description of what those do. The reasoning is in `library-cards.ts` and
  * `library-panels.ts`, beside the blocks it produced. Two conclusions are worth
  * stating here because they shaped the whole list:
  *

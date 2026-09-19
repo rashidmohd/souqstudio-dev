@@ -3,7 +3,7 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 16 September 2026.
+Last updated 19 September 2026.
 
 **Home is a shelf of book covers.** The six most recent draw their own first page — the
 real `BookPage` at thumbnail size, not a stored image, so a cover cannot disagree with the
@@ -26,9 +26,21 @@ is the record. §1.4.
 **The block designer is a design tool, it has a library to design from, and the first AI
 feature is live on dev.** A shop owner can build an offer book end to end — create it,
 price it, adjust it, lay it out, pin panels into it, duplicate it next week — design the
-blocks it is built from, start from **sixty-five seeded blocks**,
+blocks it is built from, start from **sixty-six seeded blocks**,
 and now **photograph a card they like and get one of their own back**. What no owner can do
 is get any of it out of the product, which is E9.
+
+**The offer cards were redrawn from real cards, 19 September.** All twenty-five
+structures in `library-cards.ts` were rebuilt against seven photographed reference cards —
+a Gulf quick-commerce tile, two German discounter leaflets, an electronics deal card, a
+Bahraini grocery tile. Three registers the library had no answer for arrived
+(`blk_top_ribbon`, `blk_deal_frame`, `blk_price_pill`); `blk_price_first` and
+`blk_split_tint` retired. **A re-seed is required** — `pruneSeededBlocks` deletes the two
+retired ids, or archives either one a live book still names. The four changes that carry
+it: the price is placed per register instead of running the full measure at the foot of
+sixteen cards, the brand gets its own line on nearly every card, the detail block gets two
+or three lines instead of one caption, and a card carries a chip *or* the mark's attached
+tab and never both. §1.8.
 
 **The library is distributed through R2 and dev reads it.** `BLOCK_LIBRARY_URL` decides
 the source per environment; unset is the repo. `docs/block-library-from-r2.md`, and read
@@ -235,7 +247,7 @@ share one implementation, and drift there means the PDF does not match the scree
 | `render` | a block's elements to absolute rectangles |
 | `price-mark` | every piece of a price mark, and the money formatting |
 | `fit` | the four-rung fit ladder and what each text may suffer |
-| `library` | the seeded library — **65 blocks** across `library-cards`, `library-panels`, `library-seasonal` on a shared `library-kit` |
+| `library` | the seeded library — **66 blocks** across `library-cards`, `library-panels`, `library-seasonal` on a shared `library-kit` |
 | `direction` | which way a *string* reorders, and where its line is anchored |
 | `compact` | reclaiming the height a card's content did not use |
 | `override` | the bounded nudge, and the key that survives next week's products |
@@ -327,7 +339,7 @@ dropped, along with `offer_books.templateId`/`densityProfile` and
 `offer_book_pages.pageType`/`densityProfile`. Safe to drop with rows in them because
 nothing referenced either — the database held zero offer books.
 
-**`pnpm db:seed`** publishes **65 blocks** — 25 repeating offer cards, 7 headers and
+**`pnpm db:seed`** publishes **66 blocks** — 26 repeating offer cards, 7 headers and
 covers, 9 panels, 5 footers, 8 square social posts and 11 seasonal bands — and **prunes
 the ones that have been retired**, archiving any a live book still names rather than deleting it. Upserting alone
 was enough only while the library could not shrink. It was four until 8 September: offer
@@ -700,6 +712,81 @@ is unstarted and this is one query over one table.
 - **`check:classes` missed a class that generates no CSS.** `w-pane` is not a token — the
   width scale is replaced, not extended — and the notification panel shipped with no width,
   clipped inside the rail's `overflow-y-auto`. The check is not the whole story.
+
+---
+
+### 1.8 The offer cards were redrawn from real cards — 19 September
+
+The previous set was designed from a *description* of what a leaflet does. This one was
+designed from seven photographed cards: a Gulf quick-commerce tile, two German discounter
+leaflets, an electronics deal card, a Bahraini grocery tile, and two more from the same
+two families. Every one of the twenty-five structures in `library-cards.ts` was rebuilt.
+
+**What the references disagreed with, and what changed because of it.**
+
+- **Sixteen of twenty-five cards ended the same way** — the price in a full-measure box at
+  the foot — so the structures differed in the middle of the card and agreed on the
+  ending, which is most of why they read as one card in costumes. §1.3 found the same
+  class of problem in the *skins* and fixed that half. The price is now a property of the
+  register: end-aligned on a half measure for the discounter card, a saturated block at the
+  leading edge for the flyer, a pill with the compare price beside it for the delivery-app
+  tile, a burst over the packshot for the lead deal. `endPrice` and `startPrice` are the
+  two helpers, and they work through `recipe.align`, which has existed since the mark's
+  interior opened and had no caller.
+- **The brand was on three cards and is on nearly all of them.** Six of the seven
+  references set it above the product name in small caps. `brand` has been bindable since
+  E6; nothing was using it. It is one factory now — `brandLine` — rather than four lines
+  repeated at each call site, which is the difference between a treatment the library has
+  and one it remembers to apply.
+- **The detail line was one 6%-tall caption and is now two or three clamped lines.** A
+  discounter card gives variant, weight and pack count more room than anything but the
+  photograph. Clamping rather than shrinking is what stops a long spec stealing the name's
+  size.
+- **A card carries a chip or the mark's attached tab, never both.** The quietest reference
+  has no badge at all — the tier is a coloured flag welded to the price, which is what the
+  default card does now. `duplicate-tier` is a warning and `library-source.ts` refuses a
+  shipped block that draws any warning, so this is enforced rather than remembered.
+
+**Three registers arrived and two retired.** In: `blk_top_ribbon` (a coloured bar across
+the head naming the promotion, a solid price block at the foot), `blk_deal_frame` (bars at
+head and foot, the price inside the foot bar), `blk_price_pill` (the quick-commerce tile —
+tinted plate, filled pill, compare price beside it). Out: `blk_price_first`, which put the
+price above the packshot for a reading-order gain no reference makes and no owner asked
+for, and `blk_split_tint`, which was `blk_split_vertical` with one half coloured — exactly
+the skin-only difference §1.3 cut sixteen cards for. **`pnpm db:seed` must be re-run**:
+`pruneSeededBlocks` deletes a retired seeded block, or **archives** it if a page grid or a
+pin still names it.
+
+**What the gallery found that the 509 tests could not.** All four are the kind of defect
+`validateBlock` has no opinion about, and all four are why the gallery exists:
+
+- **The harness painter drew every chip as a rounded pill in white**, reading neither
+  `shape` nor `ink` — so `topRibbon` and `dealFrame`, which ask for no badge because the
+  bar behind the words *is* the badge, were reported with a pill inside the bar. The web
+  painter has honoured both since E7. A renderer that ignores a field does not merely miss
+  a feature; it reports a card the document does not describe, which is worse in the one
+  renderer whose whole job is to be looked at. `harness/svg.ts` now goes through the same
+  `CHIP_FIT`, `chipPathShape` and `drawsGround` that `draw.tsx` does.
+- **`markOn` outlined a filled block in the tier's colour.** `tint` defaults to the promo
+  tier's token, which is right for an outlined tag on a white card and wrong for every
+  shape that factory draws — a price block in the brand blue came out ringed in gold.
+- **The corner flag swung clear of the card's top edge** and sat on the page above it. The
+  *box* was inside the block, which is all `validateBlock` measures; rotation is about an
+  element's own centre, so a band whose box starts at the top sweeps past the trim once
+  turned. Lowered, widened and rotated less, it overhangs the leading edge by a few pixels
+  and reads as a sticker, which was the intent.
+- **`nameBand` set its brand line in muted grey on a saturated band.** `brandLine` takes a
+  colour now. Same failure as the tier pill in §1.3 — a colour that resolves against the
+  card's ground when the element is not sitting on it.
+
+**What the references ask for that this still cannot draw**, and it is data rather than
+design: the unit-price line ("1 kg = 11.98"), the validity window on the card, the deposit
+footnote and the star rating. `packLabel` and `unitPriceLabel` are already in
+`@souqstudio/types` and `TextSource` already carries `packSize` and `origin` — what is
+missing is `contentFor` in the two painters, which returns an empty string for both, and
+`library.test.ts` holds the seed to the three fields both painters resolve. Wiring
+`packSize` is the smallest change with the largest effect on how close these read to the
+references; §3 has it.
 
 ---
 

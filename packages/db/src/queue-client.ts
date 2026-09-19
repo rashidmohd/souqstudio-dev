@@ -433,3 +433,20 @@ export async function enqueueEnrich(payload: EnrichPayload) {
     priority: 10, // low priority — background enrichment
   })
 }
+
+/**
+ * Close every queue's Redis connection.
+ *
+ * **For a script, not for a server.** `queues` is built at module load and each
+ * `Queue` opens its connection there, so any process that imports this module
+ * holds five handles that keep the event loop alive — which is what a long-lived
+ * web or worker process wants, and what makes a CLI script hang after printing
+ * its last line instead of exiting.
+ *
+ * A script that enqueues anything calls this in its `finally`. A script that
+ * enqueues nothing should not import this module at all: see the note at the
+ * top of `scripts/import-unioncoop.ts`.
+ */
+export async function closeQueues(): Promise<void> {
+  await Promise.all(Object.values(queues).map((queue) => queue.close()))
+}

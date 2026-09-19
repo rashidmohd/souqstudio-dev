@@ -93,6 +93,16 @@ interface ShapeOptions {
   stroke?: Stroke
   opacity?: number
   rotation?: number
+  /**
+   * A path from the shape kit rather than a rectangle.
+   *
+   * **The furniture a leaflet is actually made of.** A ribbon across the head
+   * of a card and a flash in its corner were being drawn as rotated rectangles,
+   * which is a rectangle at an angle and not a ribbon — the notch is the whole
+   * point of the shape. `shapePath` in the engine computes all six, so the
+   * screen and the export worker draw the same one.
+   */
+  variant?: 'rect' | 'ellipse' | 'burst' | 'ribbon' | 'tag' | 'flash' | 'star' | 'arrow'
 }
 
 /**
@@ -126,6 +136,7 @@ export const panel = (
   box: b,
   fill: role(fill),
   radius: options.radius ?? 3,
+  ...(options.variant === undefined ? {} : { variant: options.variant }),
   ...(options.stroke === undefined ? {} : { stroke: options.stroke }),
   ...(options.opacity === undefined ? {} : { opacity: options.opacity }),
   ...(options.rotation === undefined ? {} : { rotation: options.rotation }),
@@ -336,6 +347,13 @@ export const markOn = (
   ground,
   surface: role(fill),
   ink: role('surface'),
+  // **The outline takes the ground's colour, not the tier's.** `tint` defaults
+  // to the promo tier's token, which is right for an outlined tag on a white
+  // card and wrong for every shape this factory draws: a filled block in the
+  // brand blue came out ringed in the tier's gold, an edge nobody chose and the
+  // gallery read as a mistake. A shape that is already a solid colour wants its
+  // outline to disappear into it.
+  tint: role(fill),
   tab: 'none',
 })
 
@@ -380,12 +398,27 @@ export const REVERSED_PRICE: PriceMarkStyle = {
  * when it calculates the gap, which is why `validateBlock` allows a chip a
  * quarter of the block outside its own bounds and nothing else any.
  */
-export const chip = (b: Box, anchor: ChipAnchorRef = 'TOP_START', fill?: TokenRef): BlockElement => ({
+export const chip = (
+  b: Box,
+  anchor: ChipAnchorRef = 'TOP_START',
+  fill?: TokenRef,
+  options: { shape?: 'none' | 'pill' | 'burst' | 'ribbon' | 'tag'; ink?: TokenRef } = {}
+): BlockElement => ({
   id: 'chip',
   kind: 'chip',
   box: b,
   anchor,
   ...(fill === undefined ? {} : { fill: role(fill) }),
+  // A pill unless the card asks otherwise. The three path shapes are what a
+  // weekly actually prints: a ribbon across the head, a tag hung off the edge,
+  // a burst over the packshot. `none` draws no badge and leaves the tier as
+  // words — which is what a card that has already drawn its own coloured band
+  // wants, and what the discounter references actually do.
+  ...(options.shape === undefined ? {} : { shape: options.shape }),
+  // **The label's colour, when the badge sits on a ground of its own.** A chip
+  // placed inside an accent ribbon inherits the tier's tint for its own fill
+  // and would otherwise work out its ink against that, not against the ribbon.
+  ...(options.ink === undefined ? {} : { ink: role(options.ink) }),
 })
 
 export const logo = (b: Box, options: { opacity?: number } = {}): BlockElement => ({

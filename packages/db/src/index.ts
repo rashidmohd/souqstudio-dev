@@ -42,6 +42,7 @@ export {
 export type { CreditAction, CreditSnapshot, SpendResult } from './credits'
 export {
   queues,
+  closeQueues,
   enqueueEmail,
   enqueuePdf,
   enqueueAiJob,

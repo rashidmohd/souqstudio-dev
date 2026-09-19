@@ -24,6 +24,11 @@ Next.js API routes add jobs to the queue. This process consumes them.
 apps/worker/
 ├── src/
 │   ├── index.ts              # Entry point — starts all workers
+│   ├── scripts/
+│   │   ├── magic-check.ts    # E8-07 — compare the two vision providers on one picture
+│   │   └── ingest-catalog-images.ts  # Fetch a catalog product's packshot, store the size
+│   │                         #   ladder in R2, write the ORIGINAL image_assets row.
+│   │                         #   Second half of packages/db's catalog import.
 │   ├── lib/
 │   │   ├── env.ts            # Zod-validated env vars
 │   │   ├── redis.ts          # Upstash Redis connection
@@ -139,6 +144,39 @@ Two branches in one handler, told apart by the payload: `catalogProductId` plus
   the same result three times.
 - **An unavailable Rembg writes no row at all** — which is already the correct state,
   because no cutout means the fallback. Unlike the logo branch there is no status to undo.
+
+---
+
+## Catalog image ingest
+
+```bash
+pnpm --filter @souqstudio/db catalog:import-unioncoop     # rows first — no network, no images
+pnpm --filter @souqstudio/worker catalog:images -- --dry-run
+pnpm --filter @souqstudio/worker catalog:images           # fetch, resize, upload, record
+pnpm --filter @souqstudio/worker catalog:images -- --cutouts   # and queue bg.remove for each
+```
+
+**Two runs, because they fail differently.** The import writes rows and records each
+packshot's source URL in `metadata.sourceImageUrl`; this fetches it. Rows are worth having
+on their own — the Arabic names alone unblock Arabic editions — so a network failure over
+17,000 files must not be able to fail the import.
+
+**Resumable.** The work queue is "universal rows with a `sourceImageUrl` and no `ORIGINAL`
+asset", recomputed every run, so an interrupted run is finished by re-running it. The
+`image_assets` row is written *last* for exactly that reason: it is what marks a product
+done, so writing it before the objects land would strand a product whose image never
+arrived.
+
+**Sizes are keys, not rows.** `variantKey()` in `packages/types` derives `@sm` (320px) and
+`@md` (800px) WebP siblings of the full-size object; the print path takes the full size.
+Nothing in the database records that a variant exists, so the ingest writes the whole
+ladder in one pass and a caller that cannot tolerate a miss asks for `image_assets.r2Key`.
+`ImageKind` is a Postgres enum and `pickImage()` filters on it, which is why a size is not
+a kind.
+
+**It does not remove backgrounds.** That is `bg.remove` and it needs Rembg. `--cutouts`
+queues those jobs through the same handler the rest of the system uses — a second matting
+implementation is how the printed page stops matching the screen.
 
 ---
 

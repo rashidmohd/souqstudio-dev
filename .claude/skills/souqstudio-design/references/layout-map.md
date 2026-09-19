@@ -80,7 +80,7 @@ business name, and truncating one to three letters says nothing.
 
 **`Blocks` was moved up on 16 September**, from `/brand/blocks` to `/blocks`. It lived
 under the brand kit because E7 grew out of E4, and that stopped being true: the library is
-sixty-five shipped designs plus everything the shop has drawn, it is the way into the
+sixty-six shipped designs plus everything the shop has drawn, it is the way into the
 designer, and it is where an owner spends real time. A brand kit is an identity you set
 and leave; a block library is a workspace. It also unloaded `/brand`, which is now four
 tabs — logo, colours, type, character — rather than five cards with a library at the

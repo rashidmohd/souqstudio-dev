@@ -194,6 +194,30 @@ export function cutoutKey(originalKey: string): string {
   return `${originalKey.replace(/\.[^./]+$/, '')}-cutout.png`
 }
 
+/**
+ * Catalog image keys — `universalProductKey`, `IMAGE_VARIANTS` and
+ * `variantKey` — are defined in `packages/types` and re-exported here, so a
+ * call site keeps importing every key helper from this one module. The worker
+ * writes those objects and this app builds URLs from them; a second copy of the
+ * derivation is how the two come to disagree. See the file for the reasoning.
+ */
+export {
+  IMAGE_VARIANTS,
+  universalProductKey,
+  variantKey,
+  type ImageVariant,
+  type ImageVariantName,
+} from '@souqstudio/types'
+
+// Re-exporting does not bind the names locally, and `variantUrl` below needs
+// them.
+import { variantKey as toVariantKey, type ImageVariantName as Variant } from '@souqstudio/types'
+
+/** The public URL for a stored size. See `variantKey` on why this can 404. */
+export function variantUrl(fullKey: string, variant: Variant): string {
+  return publicUrl(toVariantKey(fullKey, variant))
+}
+
 /** The public URL for a stored object. R2_PUBLIC_URL is the CDN origin. */
 export function publicUrl(key: string): string {
   return `${env.R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`

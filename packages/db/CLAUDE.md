@@ -15,6 +15,8 @@ packages/db/
 │   └── seed.ts                # Reference data: plans, blocks, catalog categories, promo tiers
 ├── scripts/
 │   ├── import-off.ts          # E5 — stream the Open Food Facts export into the universal catalog
+│   ├── import-unioncoop.ts    # Union Coop export → universal catalog. Rows only; the images are
+│   │                          #   a separate run in the worker. See below.
 │   ├── seed-catalog-demo.ts   # E5 — 99 hand-written demo products, so the screens can be looked at
 │   └── export-harness-products.ts  # Real rows for the engine's render harness. JSON, so the
 │                              #   engine keeps its zero database imports. Prices are invented.
@@ -23,6 +25,9 @@ packages/db/
 │   ├── client.ts              # PrismaClient with RLS middleware
 │   ├── credits.ts             # E3-03 AI credit accounting (shared between web + worker)
 │   ├── off-mapping.ts         # E5 — the pure half of the OFF import. Tested; no Prisma.
+│   ├── unioncoop-mapping.ts   # The pure half of the Union Coop import. Tested; no Prisma.
+│   ├── catalog-categories.ts  # The sixteen top-level categories. Six were added on
+│   │                          #   19 Sep 2026 — see the note in the file.
 │   ├── promo-tiers.ts         # E5 — seeded per organization inside the signup transaction
 │   └── queue-client.ts        # BullMQ queue producers (shared between web + worker)
 └── package.json
@@ -34,8 +39,12 @@ dataset that lives elsewhere, is measured in gigabytes, and is nobody's dependen
 are separated so `pnpm db:seed` stays something you can run without thinking.
 
 **The package now has tests.** `pnpm --filter @souqstudio/db test` covers the pure
-modules — the OFF mapping today. Anything needing a connection is checked by running it,
-not here.
+modules — the OFF mapping and the Union Coop mapping. Anything needing a connection is
+checked by running it, not here.
+
+**`tsconfig.json` includes `scripts/` as well as `src/`.** A bulk script writes to the
+database against the generated client, which is exactly where a type error costs the most,
+and leaving it out of the project meant `pnpm typecheck` had no opinion on any of them.
 
 ---
 
@@ -181,7 +190,7 @@ pnpm db:migrate:dev --name add_character_poses
 # Apply migrations in production (CI)
 pnpm db:migrate
 
-# Reference data — plans, the four seeded blocks, the ten catalog categories,
+# Reference data — plans, the four seeded blocks, the sixteen catalog categories,
 # and the promo-tier backfill. (The five grids and five templates this line used
 # to name are gone with their tables; see docs/composition-model.md.)
 # Idempotent: every row is upserted against a hand-written id, so running it

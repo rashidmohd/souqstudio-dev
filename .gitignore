@@ -46,3 +46,6 @@ playwright-report/
 
 # Bulk catalog exports. Large, regenerable, and not source.
 data/
+
+# Local product catalog working files. Large and regenerable.
+products/

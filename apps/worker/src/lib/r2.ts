@@ -40,6 +40,25 @@ export async function putObject(
   return publicUrl(key)
 }
 
+/**
+ * Catalog image keys, re-exported so this side imports them from the same
+ * module it imports `putObject` from.
+ *
+ * They are *defined* in `packages/types` rather than here or in the web app's
+ * r2.ts, because both sides need the same answer: this process writes the
+ * objects and the web app builds the URLs that read them. The note above about
+ * the two clients being deliberately separate is about the S3 client, not about
+ * key derivation — a second copy of a key rule is how an image comes to 404 on
+ * a printed page.
+ */
+export {
+  IMAGE_VARIANTS,
+  universalProductKey,
+  variantKey,
+  type ImageVariant,
+  type ImageVariantName,
+} from '@souqstudio/types'
+
 /** R2 keys are paths; the public URL is that path under the CDN origin. */
 export function keyFromPublicUrl(url: string): string | null {
   const origin = env.R2_PUBLIC_URL.replace(/\/$/, '')

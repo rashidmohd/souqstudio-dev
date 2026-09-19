@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "catalog:import-off": "tsx scripts/import-off.ts",
+    "catalog:import-unioncoop": "tsx scripts/import-unioncoop.ts",
     "catalog:seed-demo": "tsx scripts/seed-catalog-demo.ts",
     "catalog:harness-export": "tsx scripts/export-harness-products.ts"
   },

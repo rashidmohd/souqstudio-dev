@@ -308,7 +308,7 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   Still no Fabric: direct manipulation goes through `moveBox`, `resizeBox` and
   `snapBox` in the engine and the same painter as the editor, because a second
   painter is how the PDF stops matching the screen. The seeded gallery is built:
-  sixty-five blocks, grouped by category on `/brand/blocks`. Gradients are in on
+  sixty-six blocks, grouped by category on `/brand/blocks`. Gradients are in on
   shape fills only — `resolvePaint` in the engine, never `resolveColor`, which is
   narrowed to `FlatColor` so the compiler names any field that tries to widen.
   E7-03 computes its window from the calendar rather than reading a stored date,

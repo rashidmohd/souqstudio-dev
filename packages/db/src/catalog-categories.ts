@@ -1,5 +1,5 @@
 /**
- * The ten top-level catalog categories, in one place. E5-02.
+ * The sixteen top-level catalog categories, in one place. E5-02.
  *
  * **They were written out in three files** — `prisma/seed.ts` publishes them,
  * `scripts/seed-catalog-demo.ts` assigns them, and the Open Food Facts mapping
@@ -26,9 +26,37 @@ export const CATALOG_CATEGORIES = [
   { id: 'cat_electronics',   name: 'Electronics',   nameAr: 'إلكترونيات',       displayOrder: 8 },
   { id: 'cat_fresh_produce', name: 'Fresh Produce', nameAr: 'خضار وفواكه',      displayOrder: 9 },
   { id: 'cat_frozen_foods',  name: 'Frozen Foods',  nameAr: 'أطعمة مجمدة',      displayOrder: 10 },
+  /**
+   * **The six non-grocery aisles, added 19 September 2026.**
+   *
+   * The ten above were specified for a grocery. The first real regional
+   * assortment imported into the universal catalog is a hypermarket, and 4,691
+   * of its 18,428 rows — a quarter — had no category among the ten: Men Wear,
+   * Cat Food, Stationery Supplies, Baby Diaper, Toys, Kitchen Ware. They were
+   * fully searchable and completely absent from the category browser, which to
+   * a shop owner reads as a catalog that is missing a quarter of the shop.
+   *
+   * **Each one is here because a measured count justified it**, not because a
+   * taxonomy ought to have it: Stationery 835 rows, Household 765, Apparel 762,
+   * Baby 550, Pet 469, Toys 308. Nothing smaller got a tile — an aisle with
+   * nine products in it is a tile that reads as empty.
+   *
+   * **There is deliberately no Outdoor category**, which the subcategory names
+   * argue for and the products refuse: `Camping & Hiking` is charcoal tablets,
+   * `BBQ Accessories` is charcoal and fuel cans, `Picnic Accessories` is more
+   * charcoal, and `Outdoor Equipment` is gas lighters and matches. All of it is
+   * the household aisle. Reading the product names rather than the category
+   * names is the only thing that catches that.
+   */
+  { id: 'cat_baby',          name: 'Baby',          nameAr: 'مستلزمات الأطفال', displayOrder: 11 },
+  { id: 'cat_household',     name: 'Household',     nameAr: 'أدوات منزلية',     displayOrder: 12 },
+  { id: 'cat_pet',           name: 'Pet',           nameAr: 'مستلزمات الحيوانات الأليفة', displayOrder: 13 },
+  { id: 'cat_stationery',    name: 'Stationery',    nameAr: 'قرطاسية',          displayOrder: 14 },
+  { id: 'cat_apparel',       name: 'Apparel',       nameAr: 'ملابس',            displayOrder: 15 },
+  { id: 'cat_toys',          name: 'Toys',          nameAr: 'ألعاب',            displayOrder: 16 },
 ] as const
 
-/** The name column's vocabulary, so a mapping cannot invent an eleventh. */
+/** The name column's vocabulary, so a mapping cannot invent a seventeenth. */
 export type CategoryName = (typeof CATALOG_CATEGORIES)[number]['name']
 
 export const CATEGORY_NAMES: readonly CategoryName[] = CATALOG_CATEGORIES.map((c) => c.name)
@@ -50,4 +78,10 @@ export const CATEGORY = {
   ELECTRONICS: 'Electronics',
   FRESH_PRODUCE: 'Fresh Produce',
   FROZEN_FOODS: 'Frozen Foods',
+  BABY: 'Baby',
+  HOUSEHOLD: 'Household',
+  PET: 'Pet',
+  STATIONERY: 'Stationery',
+  APPAREL: 'Apparel',
+  TOYS: 'Toys',
 } as const satisfies Record<string, CategoryName>

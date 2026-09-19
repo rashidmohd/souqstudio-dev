@@ -12,15 +12,20 @@
 
 import type { Block, BlockElement, Currency, TokenRef } from '@souqstudio/types'
 import {
+  CHIP_FIT,
+  chipPathShape,
   compactBlock,
+  drawsGround,
   fitPolicy,
   fitText,
+  fromHex,
   layoutPriceMark,
   markGround,
   markRecipe,
   needsEvenOdd,
   PATH_SHAPES,
   placeText,
+  readableInkOn,
   resolveBlock,
   resolveColor,
   resolvePaint,
@@ -289,19 +294,48 @@ function chip(
   ctx: RenderContext
 ): string {
   const label = ctx.direction === 'rtl' ? product.tier.labelAr : product.tier.labelEn
-  // Fit on both axes. Sizing from height alone is what broke the wide
-  // arrangement: the same box is a tall pill in one region aspect and a flat
-  // sliver in another.
-  const size = fitLabel(label, rect.width * 0.86, rect.height * 0.52, 0.56)
+  /**
+   * **The badge's shape, through the same three helpers `draw.tsx` calls.**
+   *
+   * This drew a rounded pill in white, always, and read neither `shape` nor
+   * `ink` — so a card that asked for a ribbon got a pill, and a card that asked
+   * for no badge at all got one anyway. That is worse than a missing feature in
+   * the one renderer whose whole job is to be looked at: the gallery is how a
+   * design defect is found, and a painter that ignores a field reports a card
+   * the document does not describe. `topRibbon` and `dealFrame` are the two it
+   * misreported.
+   */
+  const shape = element.shape ?? 'pill'
+  const fit = CHIP_FIT[shape]
+  const size = fitLabel(label, rect.width * fit.width, rect.height * fit.height, 0.56)
   // The tier's own colour unless the block named one. A seeded card that puts
   // the pill on a coloured tab needs it to stop being the tier colour there.
-  const pill =
+  const badge =
     element.fill === undefined ? color(product.tier.token) : resolveColor(element.fill, color)
+  // With no ground behind it the badge's colour becomes the label's, rather
+  // than a contrast computed against a rectangle nobody can see.
+  const rgb = fromHex(badge)
+  const labelInk =
+    element.ink !== undefined
+      ? resolveColor(element.ink, color)
+      : !drawsGround(shape)
+        ? badge
+        : rgb === null
+          ? KIT.surface
+          : readableInkOn(rgb)
+
+  const path = chipPathShape(shape)
+  const ground = !drawsGround(shape)
+    ? ''
+    : path === null
+      ? rounded(rect, badge, rect.height / 2)
+      : `<path d="${shapePath(path, rect, ctx.direction)}" fill="${badge}"` +
+        `${needsEvenOdd(path) ? ' fill-rule="evenodd"' : ''}/>`
 
   return [
-    rounded(rect, pill, rect.height / 2),
+    ground,
     `<text x="${mid(rect.x, rect.width)}" y="${mid(rect.y, rect.height)}" font-size="${size}"`,
-    ` font-weight="700" fill="${KIT.surface}" text-anchor="middle"`,
+    ` font-weight="700" fill="${labelInk}" text-anchor="middle"`,
     ` dominant-baseline="middle">${esc(label)}</text>`,
   ].join('')
 }
