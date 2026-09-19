@@ -65,7 +65,9 @@ display concern only.
 POST   /api/v1/auth/signup
 POST   /api/v1/auth/login              # our session layer, not next-auth
 POST   /api/v1/auth/logout            # built by E1-03 — the forced-enrollment
-                                       # screen needs an exit that is not itself
+                                       # screen needs an exit that is not itself.
+                                       # The rail's `Log out` row is the second
+                                       # caller, and the first ordinary one
 POST   /api/v1/auth/verify-email
 POST   /api/v1/auth/forgot-password
 POST   /api/v1/auth/reset-password
@@ -97,6 +99,20 @@ GET    /api/v1/shops
 POST   /api/v1/shops                    # triggers Stripe subscription item add
 PATCH  /api/v1/shops/:id
 DELETE /api/v1/shops/:id                # triggers prorated Stripe credit
+
+PATCH  /api/v1/users/me                 # your own name, and nothing else
+GET    /api/v1/users                    # E2-03 team list, manager and above
+PATCH  /api/v1/users/:id                # E2-03 role change, owner only
+DELETE /api/v1/users/:id                # E2-03 remove from the organization
+PUT    /api/v1/users/:id/shops          # E2-03 which branches they can reach
+        (`me` is a separate path from `:id`, not a convenience alias for it.
+         `:id` is management — owner-only, and it refuses to act on the caller
+         at all, because an owner demoting or removing themselves is one of the
+         two ways an organization locks itself out. `me` is the opposite
+         resource: no role gate, no id to validate, and the only field it will
+         write is `name`. Email is the login identifier and needs a verification
+         round trip that does not exist yet; role is the organization's answer
+         about a person, never their own.)
 
 GET    /api/v1/catalog/search?q=&category=&limit=    # E5-01. Ranked top 10, no paging
 GET    /api/v1/catalog/categories                    # E5-02. ?parent=<name> for subcategories

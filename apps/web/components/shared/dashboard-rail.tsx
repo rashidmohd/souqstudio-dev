@@ -15,11 +15,12 @@ import {
   Store,
   Users,
   CreditCard,
-  UserCog,
+  UserRound,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ShopSwitcher } from '@/components/shop/ShopSwitcher'
+import { LogOutRow } from '@/components/shared/LogOutRow'
 import { UnfinishedWork } from '@/components/shared/UnfinishedWork'
 import { NavItem } from '@/components/shared/nav-item'
 import { cn } from '@/lib/utils'
@@ -109,7 +110,18 @@ const ORG_SCOPE = [
   { icon: CreditCard, label: 'Billing', href: '/settings/billing', built: true },
 ].filter((item) => item.built)
 
-const USER_SCOPE = [{ icon: UserCog, label: 'Account', href: '/settings/account' }]
+/**
+ * **`Profile`, not `Account`.** The row is what a person goes looking for when
+ * they want to change their own name or find the way out, and `Account` is the
+ * word the product uses for the organization's business with us — invoices,
+ * plan, team. The screen behind it was retitled in the same change, because a
+ * row promises its destination and the two must agree; the path stays
+ * `/settings/account`, which is not copy.
+ *
+ * `Log out` is not in this list. It is a `<button>`, not a destination, so it
+ * cannot be a `NavItem` — see `LogOutRow`.
+ */
+const USER_SCOPE = [{ icon: UserRound, label: 'Profile', href: '/settings/account' }]
 
 export function DashboardRail({
   initialState,
@@ -157,8 +169,8 @@ export function DashboardRail({
         //
         // `overflow-y-auto` is the short-viewport case. The rail is the one
         // component every signed-in screen renders, and a laptop in a video
-        // call is not tall — without it, Account drops off the bottom with no
-        // way to reach it.
+        // call is not tall — without it, Profile and Log out drop off the
+        // bottom with no way to reach either.
         'sticky top-0 h-dvh self-start overflow-y-auto',
         // No width transition. The design system permits opacity and transform
         // only — animating width forces layout on every frame and stutters on
@@ -279,9 +291,14 @@ export function DashboardRail({
 
       {/* The user zone. `leading` carries an avatar rather than the glyph: this
           row is a person, which is the whole reason it is pinned down here away
-          from the org's own settings. The label stays `Account` — the
-          destination is what the row promises, and the avatar is what says
-          whose it is. */}
+          from the org's own settings. The label is the destination — the avatar
+          is what says whose it is.
+
+          `Log out` sits directly under it, inside the same zone rather than
+          below a divider of its own: it is the same scope, it is the thing
+          people look for next to their own name, and a third rule between two
+          rows would say they are different kinds of thing. It is last because
+          it is the one row that ends the session. */}
       <div className="mt-auto flex flex-col gap-1">
         {USER_SCOPE.map((item) => (
           <NavItem
@@ -292,6 +309,7 @@ export function DashboardRail({
             leading={<Avatar name={userName} email={userEmail} />}
           />
         ))}
+        <LogOutRow collapsed={collapsed} />
       </div>
     </nav>
   )

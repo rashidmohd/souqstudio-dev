@@ -75,7 +75,8 @@ business name, and truncating one to three letters says nothing.
   Team
   Billing
 ──────────────       ← pinned to the foot
-  Account            ← user scope, an Avatar rather than a glyph
+  Profile            ← user scope, an Avatar rather than a glyph
+  Log out            ← the second row that is not a link; ends the session
 ```
 
 **`Blocks` was moved up on 16 September**, from `/brand/blocks` to `/blocks`. It lived
@@ -116,6 +117,23 @@ scope nor shop scope: it follows the human, not the business, and putting it und
 divider would imply an owner could reach it for someone else. It is pinned to the foot of
 the rail rather than listed with the others, so it reads as "you" rather than as another
 section of the product.
+
+**The row is `Profile`, and the screen behind it is titled to match.** `Account` is the
+word this product uses for the organization's business with us — the plan, the invoices,
+the people on it — and a row in the *user* zone carrying it sent anyone looking for their
+own name to read it as one more org screen. The row now says what it is for; the heading
+on the screen was changed in the same edit, because a row promises its destination and two
+names for one thing is how a product acquires a synonym. The path stays
+`/settings/account`, which is not copy and is in people's bookmarks.
+
+**`Log out` is the second row that is not a link**, after `Ready to collect`, and it is
+built from the same exported `navRowClass` for the same reason. It sits inside the user
+zone under `Profile` rather than behind a divider of its own — same scope, and it is what
+people look for beside their own name — and it is last because it is the row that ends the
+session. There is no confirmation: the design system prefers undo over confirm, and here
+the undo is logging back in. Until it was built, `POST /api/v1/auth/logout` had exactly one
+caller in the product, the forced two-factor screen, and a signed-in owner on an ordinary
+page could not sign out at all.
 
 `/settings/account` is a plain member of family 1 and needs no layout of its own.
 
