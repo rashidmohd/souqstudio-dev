@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { LayoutGrid, Pencil } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
 import {
@@ -44,6 +46,19 @@ import type { GridPatch } from '@/components/editor/use-grid-patch'
 type Props = {
   perRow: number
   bodyRows: number
+  /**
+   * The card every cell draws, named. Null when the book has none stored,
+   * which means the engine's own default.
+   */
+  cardName: string | null
+  /** Open the picker at book scope. */
+  onChangeCard: () => void
+  /**
+   * Open the card in the designer. Absent for a member who may not change
+   * blocks — hidden rather than disabled, because no tier or permission they
+   * can reach would turn it on.
+   */
+  onEditCard?: (() => void) | undefined
   /** Fraction of the page's shorter edge. */
   margin: number
   /** The gutter between cards, in the same units. */
@@ -79,6 +94,9 @@ type Props = {
 export function LayoutPanel({
   perRow,
   bodyRows,
+  cardName,
+  onChangeCard,
+  onEditCard,
   margin,
   gap,
   headerBlockId,
@@ -116,6 +134,44 @@ export function LayoutPanel({
         {offerCount === 1 ? 'offer' : 'offers'} → <Figure value={pages} size="data-sm" />{' '}
         {pages === 1 ? 'page' : 'pages'}
       </p>
+
+      {/*
+        **What every cell draws, and the two things an owner does to it.**
+        Change is picking a different design; Edit is reworking the one they
+        have. They were the same missing control for a long time and they are
+        not the same act — one is a choice from sixty-five, the other opens a
+        canvas — so they are two buttons rather than one menu.
+
+        **Here rather than on the artboard**, because this is the book's card
+        and everything else on this tab is the book's too. The artboard's
+        equivalent changes *one cell*, which is the Page tab's business.
+
+        A button showing the name, not a select. Sixty-five designs reduced to
+        sixty-five names asks the owner to know what "Corner flag card" looks
+        like, which is the knowledge the picker's previews exist to save them
+        needing — the same argument `BlockPickerDialog` opens with.
+      */}
+      <div className="flex flex-col gap-2 rounded-control border-hairline border-border-subtle p-3">
+        <div className="flex flex-col gap-px">
+          <span className="font-ui text-label text-secondary">Offer card</span>
+          <span className="font-ui text-body-sm text-primary">
+            {cardName ?? 'The standard card'}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" disabled={busy} onClick={onChangeCard}>
+            <LayoutGrid className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            Change
+          </Button>
+          {onEditCard === undefined ? null : (
+            <Button type="button" variant="secondary" disabled={busy} onClick={onEditCard}>
+              <Pencil className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Edit
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/*
         Named steps rather than a number. A margin is a fraction of the page's

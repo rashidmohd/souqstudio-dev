@@ -1852,3 +1852,141 @@ No migration: the column and its default were already there.
   to ask, the way it can for its own paper (§867 of `E6-pending.md`). Nobody has asked.
 - **`MAX_GAP` assumes `MAX_MARGIN`.** Both are constants in one module and the test pins
   the pair, so raising either without running that test is how the throw comes back.
+
+---
+
+## 25. Editing a block without leaving the book, 19 September
+
+Two verbs had been collapsed into one missing feature. **Change** is picking a different
+design; **edit** is reworking the one you have. Before this, change existed per cell, per
+band and per pin but not for the book's own card, and edit existed nowhere — the only way
+to alter the card a book draws was to leave the editor, find the block in `/blocks`, open
+the designer, and come back.
+
+### 25.1 A window, not a round trip
+
+The first plan was `returnTo` on `/card-designer/[blockId]`: validate a redirect target on
+every load, lose the book's scroll and selection, and ask the owner to trust that "back"
+lands where they started. The owner's counter-proposal was a full window over the editor
+that saves and closes, and it is better on inspection — three things it needs were already
+true:
+
+- **`DesignerShell` is already shaped like a window.** `h-screen flex flex-col
+  overflow-hidden bg-canvas-surround`. It drops into a full-screen dialog unchanged.
+- **`hydrate` already resets** `past`, `future` and `selectedIds` when the block differs,
+  so the singleton designer store is safe to open repeatedly.
+- **The dangerous keystroke was already guarded.** `useRemoveKey` bails on
+  `document.querySelector('dialog[open]')` — its comment says the native `<dialog>`
+  contains focus but not window listeners. So Backspace deleting a block element does not
+  also delete the offer behind it.
+
+The two autosaves do not race either: the designer patches `/api/v1/blocks/:id`, the
+editor patches offers and page overrides.
+
+### 25.2 What was actually missing
+
+- **`UndoRedo` had no such guard.** It skipped input fields and nothing else, so Cmd+Z
+  would have popped the book's undo stack *and* the designer's, in one keystroke, in two
+  documents. One line, the same check, with a pointer to the other two.
+- **The designer had no way to be closed.** `onClose` is the only prop a window adds, and
+  the only thing that forks: the exit becomes a button instead of a link. Nothing else
+  about the designer knows where it is.
+- **`flushBlock`.** Autosave is debounced two seconds, and unmounting cancels the pending
+  timer — so without a flush the last edit before closing is the one edit that never
+  lands, which is the worst one to lose. `writeBlock` was extracted out of the debounce
+  so the two callers cannot send different documents. A refused write leaves the window
+  open: `validateBlock` problems are already on screen, and closing over one would take
+  away the design and the explanation together.
+
+### 25.3 Not `components/ui/dialog.tsx`
+
+That component's own documentation says "a dialog wide enough to need a third size is a
+screen", and this is a screen: no title, no description, no action row, because the
+designer brings a full header. Giving `Dialog` a `full` size would have meant suppressing
+every part of it — a second component wearing the first one's name. `BlockEditorWindow` is
+a bare native `<dialog>`, which is what keeps the two keyboard guards working.
+
+**Escape deselects and does not close.** The designer already binds it to clearing the
+selection, and the native dialog would close on the same key — so an owner dropping a
+selection would lose the window and anything still inside the debounce. `onCancel` is
+prevented; closing is the button, which flushes first.
+
+### 25.4 A block is org-wide, and a window makes it feel local
+
+This is the part that needed a decision rather than a mechanism. The owner is visibly
+inside one book; the design may be drawn by three others, or be one of ours that every
+account composes with. `blockUsage` replaces `blockIsInUse`'s boolean with the list of
+books — *"also in Week 31 and Ramadan 2026"* is a decision, *"this block is in use"* is
+only a sentence to agree to. It scans `page_grids.regions` **and** `offer_book_pages.regionBlocks`,
+because a design used in a single cell would otherwise be missed.
+
+`GET /api/v1/blocks/:id/usage` answers it, and `useBlockEdit` turns the answer into one of
+three things:
+
+| What it is | What happens |
+| --- | --- |
+| Seeded | No confirmation, a statement: ours are read-only, so we copy, repoint and open. One button. |
+| Theirs, drawn elsewhere | The other books named, then *give this book its own copy* (primary) or *change it in every book*. |
+| Theirs, only here | Opens. A confirmation that always says yes is a keystroke, not a safeguard. |
+
+**The copy is repointed before the window opens**, not after. The other order shows a
+designer over a book still drawing the original, and every save looks lost. `repoint` is
+passed to `begin` rather than to the hook, because the scope differs per press: the book's
+card is `PATCH .../grid`, one cell is `PATCH .../pages/:index/region-blocks`.
+
+The copy's name is the source's own, so `copyName` on the server decides it. A second
+naming scheme here would diverge from the rest of the product the first time either moved.
+
+### 25.5 Change, at book scope, and the check that inverts
+
+`cardBlockId` is now on `PATCH .../grid`. The band loop grew a second case rather than a
+second loop, because tenancy and the plan gate are identical and only the shape differs:
+**a band must not repeat, and the offer card must.** That second half is not tidiness — a
+region's fill is decided from the block's own `repeats`, so a panel as the book-wide card
+turns every flowing cell static, and a book whose cells all refuse products places none of
+them. One cell holding a panel is a feature; every cell holding one is a book with no
+offers in it.
+
+`CellBlockDialog` is now `BlockPickerDialog` with a `scope`. One picker at two scopes,
+because it is one question — what differs is the sentence above the grid, whether static
+blocks are candidates at all, and whether "the book's own card" is one of the answers.
+
+### 25.6 The files
+
+| File | What |
+| --- | --- |
+| `components/editor/UndoRedo.tsx` | The `dialog[open]` guard |
+| `components/card-designer/DesignerShell.tsx` | `onClose`, `CloseButton`, `writeBlock`/`flushBlock` |
+| `components/editor/BlockEditorWindow.tsx` | The window — new |
+| `components/editor/use-block-edit.ts` | Seeded / shared / neither — new |
+| `components/editor/BlockEditDialog.tsx` | What the owner is asked — new |
+| `components/editor/BlockPickerDialog.tsx` | Was `CellBlockDialog`; `scope`, `onEdit` |
+| `apps/web/lib/blocks.ts` | `blockUsage`; `namesBlock` shared with `blockIsInUse` |
+| `app/api/v1/blocks/[id]/usage/route.ts` | Seeded, locked, and which books — new |
+| `app/api/v1/offer-books/[id]/grid/route.ts` | `cardBlockId`, and the inverted `repeats` check |
+| `components/editor/LayoutPanel.tsx` | The offer-card row: Change and Edit |
+| `components/editor/EditorShell.tsx` | `canDesign`, the scope state, both repoints |
+
+### 25.7 A defect this nearly shipped
+
+`check:classes` caught `w-32`, `w-48` and `w-72` in the loading skeleton — the fifth-plus
+instance of the defect `STATUS.md` §1.0 tracks, and typecheck and ESLint both passed with
+them in. They are now `w-field-select`, `w-pane-start` and `w-pane-end`.
+
+Then it caught them **a second time, inside the comment explaining the first fix**: the
+script greps the source, so naming an offending class in prose trips it. Worth knowing
+before someone spends ten minutes on it.
+
+### 25.8 Still owed
+
+- **Not opened in a browser.** Typecheck, lint, 607 tests and `check:classes` are all
+  clean, and nobody has pressed Edit. The whole feature is a window opening over a live
+  canvas — this is the one that most needs looking at.
+- **`blockUsage` has no test.** It is a Prisma scan over two JSON columns, and every test
+  in `apps/web` today is a pure function. Worth a fixture before the list it produces is
+  trusted for anything more consequential than a warning.
+- **A band and a pin still cannot be edited from here.** The same hook would serve both;
+  they were left out because the card is what an owner means by "the design of my book".
+- **Nothing stops two people editing one block.** `PATCH /api/v1/blocks/:id` sends the
+  document whole and last write wins. That was already true from `/blocks`; opening a
+  second door to it makes a collision likelier.

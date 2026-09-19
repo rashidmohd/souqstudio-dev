@@ -76,6 +76,19 @@ export function UndoRedo({ bookId }: { bookId: string }) {
         return
       }
 
+      /*
+       * **An open dialog owns the keystroke.** `Dialog` is the native
+       * `<dialog>`, which makes the page behind it inert and contains focus —
+       * and does nothing at all about a listener bound to `window`. So the
+       * block editor's own Cmd+Z, which has its own undo stack, would pop this
+       * one at the same time: one keystroke, two undos, in two documents.
+       *
+       * `useRemoveKey` makes exactly this check for exactly this reason, and
+       * the comment there is the longer version. If a third window-level
+       * accelerator is ever added to the editor, it makes it too.
+       */
+      if (document.querySelector('dialog[open]') !== null) return
+
       event.preventDefault()
       if (event.shiftKey) redo()
       else undo()

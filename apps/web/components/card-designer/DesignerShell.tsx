@@ -52,6 +52,22 @@ import { useDesignerKeys } from '@/components/card-designer/useDesignerKeys'
  */
 
 type Props = {
+  /**
+   * Present when the designer is a window over something else — today, the
+   * offer book editor — and absent on its own route.
+   *
+   * **It changes one thing: the way out.** On `/card-designer/[blockId]` the
+   * exit is a link back to the library, because that is where the owner came
+   * from and the browser's own history is the mechanism. In a window there is
+   * no history entry to go back to, the book is still mounted underneath, and
+   * the owner's question is "am I done" rather than "where next" — so the exit
+   * becomes a button that flushes the pending save and hands control back.
+   *
+   * Nothing else forks. Two designers would be two sets of bugs, and the rule
+   * this file opens with — canvas parity — is not a rule the designer gets to
+   * break against itself.
+   */
+  onClose?: (() => void) | undefined
   blockId: string
   name: string
   description: string | null
@@ -105,6 +121,7 @@ function defaultShape(arrangement: Arrangement | undefined): PageShape {
 }
 
 export function DesignerShell({
+  onClose,
   blockId,
   name: initialName,
   status: initialStatus,
@@ -290,13 +307,21 @@ export function DesignerShell({
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas-surround">
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
-        <Link
-          href="/blocks"
-          className="flex items-center gap-2 rounded-pill px-2 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100"
-        >
-          <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" strokeWidth={1.75} />
-          Blocks
-        </Link>
+        {/*
+          **The way out, and it is the only thing a window changes.** On its own
+          route this is a link to the library. Over the book editor there is no
+          history entry behind it and the book is still mounted below, so it is
+          a button that writes what is pending and hands control back.
+        */}
+        {onClose === undefined ? (
+          <Link
+            href="/blocks"
+            className="flex items-center gap-2 rounded-pill px-2 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100"
+          >
+            <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" strokeWidth={1.75} />
+            Blocks
+          </Link>
+        ) : null}
 
         <h1 className="font-ui text-subhead text-primary">{store.name}</h1>
 
@@ -357,6 +382,10 @@ export function DesignerShell({
             </>
           ) : (
             <DuplicateButton blockId={blockId} name={store.name} />
+          )}
+
+          {onClose === undefined ? null : (
+            <CloseButton blockId={blockId} editable={editable} onClose={onClose} />
           )}
         </div>
       </header>
@@ -832,6 +861,49 @@ function Problems({ problems }: { problems: BlockProblem[] }) {
   )
 }
 
+/**
+ * Save and close, for the designer in a window.
+ *
+ * **It is a flush, not a second save model.** Both canvases autosave on a
+ * two-second debounce with no save button, which `apps/web/CLAUDE.md` asks for
+ * and which this does not change: the button exists because the *window* has to
+ * close, and what it adds is writing whatever the debounce has not got to yet.
+ * The label says "Save and close" rather than "Close" because that is the order
+ * the two things happen in, and an owner who has just moved something wants to
+ * be told it was kept.
+ *
+ * **A refused write leaves the window open.** `validateBlock` problems are
+ * already on screen above the canvas; closing over one would take away the
+ * design and the explanation in the same gesture.
+ */
+function CloseButton({
+  blockId,
+  editable,
+  onClose,
+}: {
+  blockId: string
+  editable: boolean
+  onClose: () => void
+}) {
+  const [closing, setClosing] = React.useState(false)
+
+  return (
+    <Button
+      type="button"
+      variant="primary"
+      loading={closing}
+      onClick={async () => {
+        setClosing(true)
+        const ok = await flushBlock(blockId, editable)
+        setClosing(false)
+        if (ok) onClose()
+      }}
+    >
+      {editable ? 'Save and close' : 'Close'}
+    </Button>
+  )
+}
+
 function SaveStatus() {
   const save = useDesignerStore((state) => state.save)
 
@@ -906,26 +978,71 @@ function useAutosave(blockId: string, editable: boolean) {
   React.useEffect(() => {
     if (!editable || save !== 'dirty') return
 
-    const timer = setTimeout(async () => {
-      setSave('saving')
-      try {
-        const response = await fetch(`/api/v1/blocks/${blockId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, status, arrangements }),
-        })
-        // A refusal is left visible rather than retried: the reason is almost
-        // always structural — two price marks, a product field on a block that
-        // is placed once — and retrying a document the server has already
-        // judged invalid produces a spinner that never settles.
-        setSave(response.ok ? 'saved' : 'error')
-      } catch {
-        setSave('error')
-      }
+    const timer = setTimeout(() => {
+      void writeBlock(blockId)
     }, 2000)
 
     return () => clearTimeout(timer)
   }, [blockId, editable, save, arrangements, name, status, setSave])
+}
+
+/**
+ * The write itself, off the store rather than out of a closure.
+ *
+ * **Extracted because a second caller appeared, and the two must not drift.**
+ * The debounce above is one; `flushBlock` below is the other, and a window that
+ * closed by sending a *slightly different* document than the autosave would
+ * have sent is a design that is one thing on screen and another in the
+ * database. Reading the state at call time also means the flush sends what is
+ * on the canvas now, not what was on it when the effect last ran.
+ *
+ * Returns whether the document landed, which only the flush has any use for.
+ */
+async function writeBlock(blockId: string): Promise<boolean> {
+  const state = useDesignerStore.getState()
+  state.setSave('saving')
+
+  try {
+    const response = await fetch(`/api/v1/blocks/${blockId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: state.name,
+        status: state.status,
+        arrangements: state.arrangements,
+      }),
+    })
+    // A refusal is left visible rather than retried: the reason is almost
+    // always structural — two price marks, a product field on a block that
+    // is placed once — and retrying a document the server has already
+    // judged invalid produces a spinner that never settles.
+    state.setSave(response.ok ? 'saved' : 'error')
+    return response.ok
+  } catch {
+    state.setSave('error')
+    return false
+  }
+}
+
+/**
+ * Everything unsaved, written now, for a window that is about to close.
+ *
+ * **The two-second debounce is the reason this exists.** An owner who nudges an
+ * element and immediately presses Save and close is inside that window, and
+ * unmounting the designer cancels the pending timer — so without this the last
+ * edit before closing is the one edit that never lands. That is the worst
+ * possible edit to lose, because it is the one they were thinking about.
+ *
+ * A read-only block has nothing to flush and a clean one has nothing to send,
+ * so both are immediate. A failed write returns false and the caller keeps the
+ * window open: closing over a refusal would drop the design *and* the only
+ * message saying why.
+ */
+async function flushBlock(blockId: string, editable: boolean): Promise<boolean> {
+  if (!editable) return true
+  const save = useDesignerStore.getState().save
+  if (save !== 'dirty' && save !== 'error') return true
+  return writeBlock(blockId)
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))

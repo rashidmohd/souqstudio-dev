@@ -68,6 +68,14 @@ const schema = z.object({
    * ceiling is arithmetic rather than taste — `MAX_GAP` shows the working.
    */
   gap: z.number().min(0).max(MAX_GAP).optional(),
+  /**
+   * The repeating card every cell draws.
+   *
+   * **Not nullable, unlike the bands.** A book with no header is a book with no
+   * header; a book with no offer card is a book that cannot draw a product.
+   * Removing it is not an answer, so "none" is not on the wire.
+   */
+  cardBlockId: z.string().min(1).max(64).optional(),
   /** A running band on every page. `null` removes it. */
   headerBlockId: z.string().min(1).max(64).nullable().optional(),
   footerBlockId: z.string().min(1).max(64).nullable().optional(),
@@ -144,15 +152,31 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const bands = [parsed.data.headerBlockId, parsed.data.footerBlockId].filter(
     (id): id is string => typeof id === 'string'
   )
+  const card = parsed.data.cardBlockId
 
-  if (bands.length > 0) {
+  if (bands.length > 0 || card !== undefined) {
     const organization = await prisma.organization.findUnique({
       where: { id: session.user.organizationId },
       select: { planId: true },
     })
     const planId = organization?.planId ?? null
 
-    for (const blockId of bands) {
+    /*
+     * **The same three checks, and the third one inverts.** Tenancy and the
+     * plan gate are identical whatever the block is for. What differs is the
+     * shape: a band must not repeat, and the offer card must.
+     *
+     * The card's half of that is not a tidiness rule. A region's fill is
+     * decided at load time from the block's own `repeats` — see
+     * `pages/[index]/region-blocks/route.ts` — so a panel as the book-wide card
+     * turns *every* flowing cell static, and a book whose cells all refuse
+     * products places none of them. One cell may hold a panel and that is a
+     * feature; every cell holding one is a book with no offers in it.
+     */
+    for (const [blockId, wants] of [
+      ...bands.map((id) => [id, 'band'] as const),
+      ...(card === undefined ? [] : [[card, 'card'] as const]),
+    ]) {
       const block = await loadBlock(blockId, session.user.organizationId, planId)
 
       // A seeded block and another organization's are the same answer on
@@ -163,10 +187,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       if (block.locked) {
         return fail('plan_required', 'That block is part of a higher plan. Upgrade to use it.', 403)
       }
-      if (block.repeats) {
+      if (wants === 'band' && block.repeats) {
         return fail(
           'block_repeats',
           'That block is an offer card, so it cannot be a header or a footer.',
+          422
+        )
+      }
+      if (wants === 'card' && !block.repeats) {
+        return fail(
+          'block_static',
+          'That block shows no product, so it cannot be the card every cell draws.',
           422
         )
       }
@@ -204,6 +235,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     ...(parsed.data.bodyRows === undefined ? {} : { bodyRows: parsed.data.bodyRows }),
     ...(parsed.data.margin === undefined ? {} : { margin: parsed.data.margin }),
     ...(parsed.data.gap === undefined ? {} : { gap: parsed.data.gap }),
+    ...(card === undefined ? {} : { cardBlockId: card }),
     ...(parsed.data.headerBlockId === undefined
       ? {}
       : { headerBlockId: parsed.data.headerBlockId }),
@@ -262,6 +294,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     bodyRows: applied.bodyRows ?? 1,
     margin: applied.margin ?? 0,
     gap: applied.gap ?? grid.gap,
+    cardBlockId: applied.cardBlockId ?? null,
     headerBlockId: applied.headerBlockId ?? null,
     footerBlockId: applied.footerBlockId ?? null,
     background: applied.background ?? null,

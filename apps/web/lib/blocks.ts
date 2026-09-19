@@ -308,6 +308,81 @@ export function importName(base: string, existing: readonly string[]): string {
  * live book draws would leave that book unrenderable, which is worse than a
  * scan over the handful of grids an organization has.
  */
+/**
+ * The books that draw this block, by name.
+ *
+ * **`blockIsInUse` answers a different question and both are wanted.** Deleting
+ * needs a yes or a no; *editing* needs the list, because a design is shared and
+ * the owner is about to change every book on it. "This card is also in Week 31
+ * and Ramadan 2026" is a decision they can make. "This block is in use" is a
+ * sentence they can only agree to.
+ *
+ * `exclude` drops the book the owner is editing from inside, which is the
+ * caller every time: naming the book they are looking at as a reason to be
+ * careful is noise.
+ *
+ * Same JSON scan as `blockIsInUse` and for the same reason — `page_grids.regions`
+ * names its block inside the document, so there is no foreign key to join. It
+ * runs over the handful of grids an organization has, once, when a window is
+ * about to open.
+ */
+export async function blockUsage(
+  blockId: string,
+  organizationId: string,
+  exclude?: string
+): Promise<{ id: string; title: string }[]> {
+  const [pins, grids] = await Promise.all([
+    prisma.bookPin.findMany({
+      where: { blockId, book: { shop: { organizationId } } },
+      select: { book: { select: { id: true, title: true } } },
+    }),
+    prisma.pageGrid.findMany({
+      where: { book: { shop: { organizationId } } },
+      select: { regions: true, book: { select: { id: true, title: true } } },
+    }),
+  ])
+
+  const books = new Map<string, string>()
+
+  for (const pin of pins) books.set(pin.book.id, pin.book.title)
+
+  for (const grid of grids) {
+    if (namesBlock(grid.regions, blockId)) books.set(grid.book.id, grid.book.title)
+  }
+
+  /*
+   * A cell the owner changed on one page lives on `offer_book_pages`, not on
+   * the grid — so a book drawing this block in a single cell would be missed by
+   * the scan above. It is a second JSON column with the same shape of answer.
+   */
+  const pages = await prisma.offerBookPage.findMany({
+    where: { book: { shop: { organizationId } } },
+    select: { regionBlocks: true, book: { select: { id: true, title: true } } },
+  })
+
+  for (const page of pages) {
+    const map = page.regionBlocks
+    if (typeof map !== 'object' || map === null || Array.isArray(map)) continue
+    if (Object.values(map).includes(blockId)) books.set(page.book.id, page.book.title)
+  }
+
+  if (exclude !== undefined) books.delete(exclude)
+
+  return Array.from(books, ([id, title]) => ({ id, title }))
+}
+
+/** Whether a `regions` JSON value names this block. Shared by both scans. */
+function namesBlock(regions: unknown, blockId: string): boolean {
+  if (!Array.isArray(regions)) return false
+  return regions.some(
+    (region) =>
+      typeof region === 'object' &&
+      region !== null &&
+      'blockId' in region &&
+      (region as { blockId?: unknown }).blockId === blockId
+  )
+}
+
 export async function blockIsInUse(blockId: string, organizationId: string): Promise<boolean> {
   const [pins, grids] = await Promise.all([
     prisma.bookPin.count({
@@ -321,15 +396,5 @@ export async function blockIsInUse(blockId: string, organizationId: string): Pro
 
   if (pins > 0) return true
 
-  return grids.some((grid) => {
-    const regions = grid.regions
-    if (!Array.isArray(regions)) return false
-    return regions.some(
-      (region) =>
-        typeof region === 'object' &&
-        region !== null &&
-        'blockId' in region &&
-        (region as { blockId?: unknown }).blockId === blockId
-    )
-  })
+  return grids.some((grid) => namesBlock(grid.regions, blockId))
 }

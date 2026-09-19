@@ -20,7 +20,10 @@ import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PagePanel } from '@/components/editor/PagePanel'
-import { CellBlockDialog } from '@/components/editor/CellBlockDialog'
+import { BlockPickerDialog } from '@/components/editor/BlockPickerDialog'
+import { BlockEditDialog } from '@/components/editor/BlockEditDialog'
+import { BlockEditorWindow } from '@/components/editor/BlockEditorWindow'
+import { useBlockEdit, type Repoint } from '@/components/editor/use-block-edit'
 import { PinsPanel } from '@/components/editor/PinsPanel'
 import {
   BookToolRail,
@@ -98,6 +101,16 @@ type Props = {
   }[]
   /** The book's repeating card — what a cell draws with no choice of its own. */
   offerCardBlockId: string | null
+  /**
+   * Whether this member may change a block's design — owner or manager, the
+   * same bar `POST /api/v1/blocks` and the designer route both apply.
+   *
+   * **It hides the affordance rather than disabling it.** A viewer who cannot
+   * design has nothing to gain from a greyed-out Edit; changing the card is
+   * not a thing the product will let them do at any tier, so offering it would
+   * only be a question with no answer.
+   */
+  canDesign: boolean
   /** The master grid as a set of choices. `loadBook` reads it off the regions. */
   layout: {
     perRow: number
@@ -156,6 +169,7 @@ export function EditorShell({
   pins,
   pageBackgrounds,
   cellBlocks,
+  canDesign,
   offerCardBlockId,
   layout,
   pinnable,
@@ -421,8 +435,39 @@ export function EditorShell({
   const [pendingBlock, setPendingBlock] = React.useState(false)
   React.useEffect(() => setPendingBlock(false), [pages])
 
-  /** Whether the design picker is open. */
-  const [pickingBlock, setPickingBlock] = React.useState(false)
+  /**
+   * Whether the design picker is open, and at which scope.
+   *
+   * `cell` is the cell the owner clicked; `book` is the card every cell draws.
+   * One picker serves both — the scope decides its wording and which blocks it
+   * offers — so this is the scope rather than a second boolean.
+   */
+  const [picking, setPicking] = React.useState<'cell' | 'book' | null>(null)
+
+  /**
+   * The design open in the designer window, or null for none.
+   *
+   * **A window over the book rather than a route away from it.** The book stays
+   * mounted underneath, the way back is a button that flushes the pending save,
+   * and `BlockEditorWindow` refreshes the page behind on close so the artboard
+   * draws what was just edited. Its doc comment carries the rest.
+   */
+  const [editingBlock, setEditingBlock] = React.useState<string | null>(null)
+
+  /**
+   * Repointing the *book's* card, for a copy made on the way into the designer.
+   *
+   * The grid route rebuilds the master from the stored one, so this changes the
+   * card and nothing else — the tracks, the margin, the gap, the bands and the
+   * paper all survive. Per-cell choices are on `offer_book_pages` and are not
+   * touched by a master rebuild either.
+   */
+  const repointBook = React.useCallback<Repoint>(
+    (blockId) => grid.patch({ cardBlockId: blockId }),
+    [grid]
+  )
+
+  const blockEdit = useBlockEdit({ bookId, open: setEditingBlock })
 
   /**
    * Write one cell's design, as the whole map for that page.
@@ -440,10 +485,42 @@ export function EditorShell({
       else next[selectedCell.regionId] = blockId
 
       setPendingBlock(true)
-      setPickingBlock(false)
+      setPicking(null)
       void regionBlocks.write(cellPage, next).then((ok) => {
         if (!ok) setPendingBlock(false)
       })
+    },
+    [cellPage, chosenOnPage, regionBlocks, selectedCell]
+  )
+
+  /**
+   * Write the card every cell draws.
+   *
+   * Through the grid route rather than the page route, because it is the
+   * master's: one write, every page. `null` cannot arrive — the picker offers
+   * no "none" at book scope, since a book with no offer card cannot draw a
+   * product — and it is ignored rather than asserted away.
+   */
+  const chooseBookCard = React.useCallback(
+    (blockId: string | null) => {
+      if (blockId === null) return
+      setPicking(null)
+      void grid.patch({ cardBlockId: blockId })
+    },
+    [grid]
+  )
+
+  /**
+   * Repointing *one cell*, for a copy made on the way into the designer.
+   *
+   * The cell scope's counterpart to `repointBook`. It writes the whole map for
+   * the page, as every caller of `regionBlocks.write` does — a delta into a
+   * collection is how two tabs interleave into a page neither owner laid out.
+   */
+  const repointCell = React.useCallback<Repoint>(
+    async (blockId) => {
+      if (selectedCell === null || cellPage === null) return false
+      return regionBlocks.write(cellPage, { ...chosenOnPage, [selectedCell.regionId]: blockId })
     },
     [cellPage, chosenOnPage, regionBlocks, selectedCell]
   )
@@ -662,6 +739,15 @@ export function EditorShell({
               <LayoutPanel
                 perRow={layout.perRow}
                 bodyRows={layout.bodyRows}
+                cardName={
+                  cellBlocks.find((block) => block.id === offerCardBlockId)?.name ?? null
+                }
+                onChangeCard={() => setPicking('book')}
+                onEditCard={
+                  canDesign && offerCardBlockId !== null
+                    ? () => void blockEdit.begin(offerCardBlockId, repointBook)
+                    : undefined
+                }
                 margin={layout.margin}
                 gap={layout.gap}
                 headerBlockId={layout.headerBlockId}
@@ -746,7 +832,7 @@ export function EditorShell({
                 cell={selectedCell}
                 currentBlockName={currentBlockName}
                 pendingBlock={pendingBlock}
-                onPickBlock={() => setPickingBlock(true)}
+                onPickBlock={() => setPicking('cell')}
                 onMerge={() => {
                   if (selectionSpan === null || cellPage === null) return
                   applyMerges(cellPage, mergeSpan(pageMerges, selectionSpan, bounds), 'merge')
@@ -789,7 +875,7 @@ export function EditorShell({
                 }
                 onPickBlock={
                   tool === 'page' && selectedCell !== null
-                    ? () => setPickingBlock(true)
+                    ? () => setPicking('cell')
                     : undefined
                 }
               >
@@ -849,19 +935,60 @@ export function EditorShell({
           ))}
         </div>
 
-        <CellBlockDialog
-          open={pickingBlock}
-          onOpenChange={setPickingBlock}
+        {/*
+          **One picker, opened at two scopes.** A cell's design and the book's
+          card are the same question asked of different things, and the dialog
+          says which it is. `current` and `onChoose` are what differ, so they
+          are chosen here rather than inside it.
+        */}
+        <BlockPickerDialog
+          open={picking !== null}
+          onOpenChange={(next) => setPicking(next ? (picking ?? 'cell') : null)}
+          scope={picking ?? 'cell'}
           blocks={cellBlocks}
           kit={kit}
           current={
-            selectedCell === null || selectedCell.blockId === layout.cardBlockId
-              ? null
-              : selectedCell.blockId
+            picking === 'book'
+              ? offerCardBlockId
+              : selectedCell === null || selectedCell.blockId === layout.cardBlockId
+                ? null
+                : selectedCell.blockId
           }
           offerCardBlockId={offerCardBlockId}
-          onChoose={chooseCellBlock}
-          busy={pendingBlock}
+          onChoose={picking === 'book' ? chooseBookCard : chooseCellBlock}
+          busy={pendingBlock || grid.busy}
+          onEdit={
+            canDesign
+              ? (blockId) => {
+                  setPicking(null)
+                  void blockEdit.begin(
+                    blockId,
+                    picking === 'book' ? repointBook : repointCell
+                  )
+                }
+              : undefined
+          }
+        />
+
+        {/*
+          Asked before a designer opens, never after: a block is
+          organization-wide and the window makes it feel local. See
+          `use-block-edit.ts`.
+        */}
+        <BlockEditDialog
+          step={blockEdit.step}
+          onCancel={blockEdit.dismiss}
+          onFork={(blockId, name, repoint) => void blockEdit.fork(blockId, name, repoint)}
+          onEditShared={blockEdit.editShared}
+        />
+
+        <BlockEditorWindow
+          blockId={editingBlock}
+          onClose={() => setEditingBlock(null)}
+          canDesign={canDesign}
+          kit={kit}
+          shopName={shopName}
+          assetBaseUrl={assetBaseUrl}
         />
 
         <CanvasDrawer

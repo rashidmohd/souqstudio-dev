@@ -40,6 +40,11 @@ export interface GridPatch {
    * reason.
    */
   merges?: readonly CellSpan[]
+  /**
+   * The repeating card every cell draws. No `null`: a book without one cannot
+   * draw a product, so there is nothing to remove it to.
+   */
+  cardBlockId?: string
   /** `null` removes the band. Absent leaves it. */
   headerBlockId?: string | null
   footerBlockId?: string | null

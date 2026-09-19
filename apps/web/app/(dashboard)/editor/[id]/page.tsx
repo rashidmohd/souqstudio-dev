@@ -126,6 +126,11 @@ export default async function EditorPage({ params }: { params: { id: string } })
       pins={book.pins}
       pageBackgrounds={book.pageBackgrounds}
       cellBlocks={cellBlocks}
+      // Designing a block changes what every future book in the organization
+      // looks like, which is a manager's decision — the same bar
+      // `POST /api/v1/blocks` and `/card-designer/[blockId]` both apply. The
+      // editor hides the Edit affordance below it rather than disabling it.
+      canDesign={shop.role === 'owner' || shop.role === 'manager'}
       offerCardBlockId={book.layout.cardBlockId ?? null}
       layout={book.layout}
       // **The composer's half of E7-03.** A seasonal panel is offered first in
