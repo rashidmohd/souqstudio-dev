@@ -298,3 +298,84 @@ describe('a size the owner set by hand', () => {
     expect(fitted.lines.length).toBeLessThanOrEqual(2)
   })
 })
+
+/**
+ * What the renderer draws with has to be what the ladder measured with.
+ *
+ * **The defect these pin.** `TextMeasurer` took only the size and the family,
+ * `measureText` set `context.font` without a weight, and the painter drew at
+ * `step.weight` — so a product name at 700 was wrapped against normal-weight
+ * metrics and drew wider than the box it was fitted to. `letterSpacing` was
+ * worse: applied at render and in no measurement at all.
+ */
+describe('render metrics reach the measurement', () => {
+  /** Bold is wider, which is the whole of the bug and enough to reproduce it. */
+  const weighted: TextMeasurer = (text, fontSize, _family, style) =>
+    text.length * fontSize * ((style?.weight ?? 400) >= 600 ? 0.6 : 0.5)
+
+  it('wraps bold text sooner than normal text of the same size', () => {
+    // "one two" is 7 characters: 70 at the light rate, 84 at the bold one. The
+    // box at 80 sits between them, which is exactly the band this bug lived in
+    // — measured light it fits, drawn bold it does not.
+    const light = wrapText('one two three', 80, 20, 'x', weighted, { weight: 400 })
+    const bold = wrapText('one two three', 80, 20, 'x', weighted, { weight: 700 })
+
+    expect(light).toEqual(['one two', 'three'])
+    // The same string, the same box, one weight heavier — and it no longer
+    // fits two words to a line. Measured at 400 and drawn at 700, that second
+    // word is what hangs out past the edge of the card.
+    expect(bold).toEqual(['one', 'two', 'three'])
+  })
+
+  it('counts letter spacing, which nothing used to', () => {
+    const plain = wrapText('one two', 80, 20, 'x', measure)
+    const tracked = wrapText('one two', 80, 20, 'x', measure, { letterSpacing: 0.08 })
+
+    expect(plain).toEqual(['one two'])
+    // 7 characters at 0.08 of a 20px size is 11.2 on top of 70, which is 81.2
+    // — over the 80 only because the tracking is finally in the sum.
+    expect(tracked).toEqual(['one', 'two'])
+  })
+
+  it('hands the level its own weight without being asked', () => {
+    const seen: (number | undefined)[] = []
+    const spy: TextMeasurer = (text, fontSize, family, style) => {
+      seen.push(style?.weight)
+      return measure(text, fontSize, family, style)
+    }
+
+    // h3 is weight 700 in this scale and in the product's default scale.
+    fitText(req({ measure: spy }))
+
+    expect(seen.length).toBeGreaterThan(0)
+    expect(new Set(seen)).toEqual(new Set([700]))
+  })
+
+  it('lets the element override the level, because the renderer does', () => {
+    const seen: { weight?: number | undefined; letterSpacing?: number | undefined }[] = []
+    const spy: TextMeasurer = (text, fontSize, family, style) => {
+      seen.push({ ...style })
+      return measure(text, fontSize, family, style)
+    }
+
+    fitText(req({ measure: spy, style: { weight: 400, letterSpacing: 0.08 } }))
+
+    expect(seen[0]).toEqual({ weight: 400, letterSpacing: 0.08 })
+  })
+
+  it('keeps the original weight as the ladder steps down', () => {
+    const seen: (number | undefined)[] = []
+    const spy: TextMeasurer = (text, fontSize, family, style) => {
+      seen.push(style?.weight)
+      return measure(text, fontSize, family, style)
+    }
+
+    // Narrow and short enough that rung 0 and rung 1 both fail and the ladder
+    // walks the scale — h5 and below are lighter than h3, and the renderer
+    // goes on drawing at h3's weight, so every measurement must too.
+    fitText(req({ measure: spy, box: { width: 90, height: 40 } }))
+
+    expect(seen.length).toBeGreaterThan(1)
+    expect(new Set(seen)).toEqual(new Set([700]))
+  })
+})

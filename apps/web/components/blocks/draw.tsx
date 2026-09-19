@@ -807,6 +807,18 @@ export function fitTextElement(
     blockSize: ctx.blockSize,
     measure: ctx.measure,
     truncatable: policy.truncatable,
+    /*
+     * **The merged step's, not the level's.** `step` above is the level
+     * overlaid with whatever the element set, and it is what the `<text>`
+     * below is rendered with — so it has to be what the ladder measures with
+     * too. The uppercase brand line tracked at 0.08em is the visible case:
+     * unmeasured, it draws about 8% per character wider than it was wrapped
+     * for.
+     */
+    style: {
+      weight: step.weight,
+      ...(step.letterSpacing === undefined ? {} : { letterSpacing: step.letterSpacing }),
+    },
     ...(element.size === undefined ? {} : { size: element.size }),
     ...(policy.floor === undefined ? {} : { floor: policy.floor }),
     ...(policy.maxLines === undefined ? {} : { maxLines: policy.maxLines }),
@@ -923,7 +935,11 @@ export function contentFor(
  * Crude, and it has to be: it must produce the same answer in Node and in the
  * browser or the two renders disagree and React reports a hydration mismatch.
  */
-export const estimateWidth: TextMeasurer = (text, fontSize) => text.length * fontSize * 0.52
+export const estimateWidth: TextMeasurer = (text, fontSize, _family, style) =>
+  // A bold face is wider, and the estimator is what runs on the server and in
+  // tests — so it carries the same lean the real measurement does, or the two
+  // disagree about whether a name wraps and the preview differs from the page.
+  text.length * fontSize * ((style?.weight ?? 400) >= 600 ? 0.55 : 0.52)
 
 /**
  * Real metrics, from a canvas the browser already has.
@@ -934,14 +950,32 @@ export const estimateWidth: TextMeasurer = (text, fontSize) => text.length * fon
  */
 let context: CanvasRenderingContext2D | null = null
 
-export const measureText: TextMeasurer = (text, fontSize, family) => {
-  if (typeof document === 'undefined') return estimateWidth(text, fontSize, family)
+export const measureText: TextMeasurer = (text, fontSize, family, style) => {
+  if (typeof document === 'undefined') return estimateWidth(text, fontSize, family, style)
   context ??= document.createElement('canvas').getContext('2d')
   if (context === null) {
     // No canvas — a hardened environment, or one where the context was refused.
     // Estimate rather than throw: a slightly wrong preview beats a blank card.
-    return estimateWidth(text, fontSize, family)
+    return estimateWidth(text, fontSize, family, style)
   }
-  context.font = `${fontSize}px ${family}`
+
+  /*
+   * **The weight is part of the font shorthand, and leaving it out was the
+   * bug.** Omitted, the context measures at `normal`; a product name draws at
+   * 700 — `DEFAULT_STEPS` puts h3 and h4 there — and bold glyphs are wider. So
+   * every wrap decision for the largest, boldest string on a card was made
+   * against light metrics, and a name that measured inside its box drew
+   * outside it. Two cards in the same book could differ only by which side of
+   * that error their name landed.
+   *
+   * The family is quoted. Unquoted it is still valid CSS when every part is an
+   * identifier, but a face whose name begins with a digit is not — and an
+   * invalid shorthand is *ignored*, leaving the context on whatever it
+   * measured last. A silent wrong answer rather than an error.
+   *
+   * `letterSpacing` is deliberately not set here: the engine adds tracking in
+   * `advance`, and doing it in both places would count it twice.
+   */
+  context.font = `${style?.weight ?? 400} ${fontSize}px '${family}'`
   return context.measureText(text).width
 }

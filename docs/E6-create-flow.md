@@ -1990,3 +1990,79 @@ before someone spends ten minutes on it.
 - **Nothing stops two people editing one block.** `PATCH /api/v1/blocks/:id` sends the
   document whole and last write wins. That was already true from `/blocks`; opening a
   second door to it makes a collision likelier.
+
+---
+
+## 26. Names drew wider than they were measured, 19 September
+
+Reported from a screenshot: in a 5-across grocery book, some product names wrapped to two
+lines correctly and others ran straight out through the side of their card — *Store Brand
+Long Life Milk*, *Store Brand Bottled Water*, *Greek Style Yoghurt Plain* — while
+*Slices Cheddar Burger Processed Cheese*, a longer string in an identical cell, wrapped
+fine.
+
+The fit ladder was not at fault and neither was `wrapText`. Both wrap against `box.width`
+and always did. **The measurement they wrap against was wrong**, in two independent ways,
+and both are the same shape of mistake: a property applied at render that nothing told the
+measurer about.
+
+### 26.1 The weight
+
+`TextMeasurer` was `(text, fontSize, family) => number`. `measureText` set
+`context.font = \`${fontSize}px ${family}\``, which measures at `normal`. The painter drew
+`fontWeight={step.weight}`, and `DEFAULT_STEPS` puts h3 and h4 — the product name — at
+**700**.
+
+So the largest, boldest string on the card was wrapped against light metrics. Bold glyphs
+are wider, so a name that measured inside its box drew outside it, and two cards in one
+book differed only by which side of that error their particular string landed on. That is
+exactly the pattern in the screenshot: not every name, and no obvious rule about which.
+
+### 26.2 The tracking
+
+`letterSpacing` was applied at render — `letterSpacing={step.letterSpacing * fitted.fontSize}`
+— and appeared in **no** measurement anywhere. The seeded `brandLine` and `overlay`'s caps
+line both track at `0.08em`, so an uppercase brand line was measured about 8% per character
+narrower than it draws.
+
+It is now added in one place, `advance` in `fit.ts`, and measurers are documented as
+*not* implementing it. Canvas has a `letterSpacing` property and SVG has the attribute, so
+applying it in both would count it twice.
+
+### 26.3 What changed
+
+`TextMeasurer` gains an optional fourth argument, `TextStyleMetrics` — optional so a
+measurer that ignores it stays assignable, which is what kept every existing test compiling
+unchanged. `FitRequest.style` carries the *merged* step's weight and tracking, because a
+block may override either per element and the renderer honours the override. It does not
+follow the ladder down: rung 2 borrows another level's size while the renderer keeps
+drawing at the original level's weight, so the measurement keeps it too.
+
+`measureText` now writes `${weight} ${fontSize}px '${family}'`. The family is quoted as
+well — unquoted is valid CSS only while every part is an identifier, and an invalid font
+shorthand is *ignored*, leaving the context measuring with whatever it had last. A silent
+wrong answer rather than an error.
+
+`estimateWidth` carries the same lean (0.55 at ≥600 against 0.52), because it is what runs
+on the server and in tests, and an estimator that disagrees with the real measurement about
+whether a name wraps is a preview that disagrees with the page.
+
+Five tests in `fit.test.ts` pin it, including one that reproduces the defect directly: the
+same string in the same box wraps to two lines at weight 400 and three at 700.
+
+### 26.4 Still owed
+
+- **Not confirmed against the screenshot.** Two real measure/render mismatches are fixed
+  and both would produce this symptom; nobody has re-rendered that book in a browser to
+  say the overflow is gone. 514 engine tests and 607 web tests pass, which is not the same
+  claim.
+- **`document.fonts.load()` is still called nowhere**, and `apps/web/CLAUDE.md` requires it.
+  The reasoning in `BookPage`'s header is about Fabric's object model and misses that
+  `measureText` uses a canvas 2d context with the same exposure. It appears not to *bite*
+  today — the artboard names brand faces like `Cairo` that no editor route loads, so both
+  the canvas and the SVG fall through the same stack to `system-ui` and agree. That is an
+  accident of nothing being loaded, and it will stop being true the day the fonts are
+  mirrored into R2 and actually served. Fix it in that change, not after it.
+- **The worker will need the same measurer.** When `pdf` stops throwing it brings its own
+  context, and a measurer built without the weight would reintroduce this in the one place
+  nobody looks until it is printed.

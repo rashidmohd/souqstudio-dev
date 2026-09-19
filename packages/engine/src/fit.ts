@@ -31,13 +31,70 @@ import type {
 import { TYPE_LEVELS } from '@souqstudio/types'
 
 /**
- * Advance width of `text` at `fontSize` in `family`.
+ * The render-time properties that change how wide a string draws.
+ *
+ * **They exist because leaving them out was a bug rather than a
+ * simplification.** A measurer that is told only the size and the family
+ * measures every string at the canvas default weight — and a product name
+ * renders at 700, which is wider. The wrap decision for the boldest text on
+ * the card was being made against light metrics, so a name that measured
+ * inside its box drew outside it.
+ */
+export interface TextStyleMetrics {
+  /** CSS weight, as the renderer will draw it. Absent means normal. */
+  weight?: number | undefined
+  /**
+   * Extra advance per character, as a multiple of the font size.
+   *
+   * **Added by `advance` below, never by the measurer.** Canvas has a
+   * `letterSpacing` property and SVG has the attribute, and if both this and a
+   * measurer applied it the width would be counted twice. One place, and it is
+   * the engine's, so every measurer gets it right by not implementing it.
+   */
+  letterSpacing?: number | undefined
+}
+
+/**
+ * Advance width of `text` at `fontSize` in `family`, at `style`.
  *
  * Injected rather than computed: the engine cannot measure a glyph without a
  * font, and it must not try. The browser renderer passes a canvas measurement,
  * the worker passes the same from its own context, and tests pass an estimator.
+ *
+ * `style` is optional so a measurer that ignores it stays assignable — an
+ * estimator has no use for a weight. A real one must honour `weight` and must
+ * ignore `letterSpacing`.
  */
-export type TextMeasurer = (text: string, fontSize: number, family: string) => number
+export type TextMeasurer = (
+  text: string,
+  fontSize: number,
+  family: string,
+  style?: TextStyleMetrics | undefined
+) => number
+
+/**
+ * What a string actually occupies: the measurer's answer plus the tracking.
+ *
+ * **Every width in this module goes through here.** `letterSpacing` is applied
+ * at render — `letter-spacing` on the `<text>` — and was in no measurement at
+ * all, so an uppercase brand line tracked at 0.08em was measured about 8% per
+ * character narrower than it draws.
+ *
+ * Counted over every character rather than the gaps between them, which
+ * over-states by one. That is the safe direction: it wraps a shade early
+ * instead of drawing through the edge of the box.
+ */
+function advance(
+  text: string,
+  fontSize: number,
+  family: string,
+  measure: TextMeasurer,
+  style: TextStyleMetrics | undefined
+): number {
+  const width = measure(text, fontSize, family, style)
+  const tracking = style?.letterSpacing
+  return tracking === undefined ? width : width + tracking * fontSize * text.length
+}
 
 /** Leading will not tighten below this multiple, at any rung. */
 export const MIN_LINE_HEIGHT = 1.0
@@ -76,6 +133,20 @@ export interface FitRequest {
    * the owner chose, and the designer's clamp control is how they say so.
    */
   maxLines?: number | undefined
+  /**
+   * The weight and tracking the renderer will use, when they are not the
+   * level's own.
+   *
+   * **Passed in rather than read off the level, because the element wins.** A
+   * block may set either per element — `fitTextElement` merges them over the
+   * level before it draws — and measuring the level's values while drawing the
+   * element's is the same class of mismatch as not measuring them at all.
+   *
+   * It does not follow the ladder down. Rung 2 changes the *size* by borrowing
+   * another level's, and the renderer keeps drawing at the original level's
+   * weight, so the measurement has to as well.
+   */
+  style?: TextStyleMetrics | undefined
   measure: TextMeasurer
 }
 
@@ -109,7 +180,8 @@ export function wrapText(
   maxWidth: number,
   fontSize: number,
   family: string,
-  measure: TextMeasurer
+  measure: TextMeasurer,
+  style?: TextStyleMetrics | undefined
 ): string[] {
   const words = text.split(/\s+/).filter((word) => word !== '')
   if (words.length === 0) return []
@@ -119,7 +191,7 @@ export function wrapText(
 
   for (const word of words) {
     const candidate = line === '' ? word : `${line} ${word}`
-    if (measure(candidate, fontSize, family) <= maxWidth) {
+    if (advance(candidate, fontSize, family, measure, style) <= maxWidth) {
       line = candidate
     } else {
       if (line !== '') lines.push(line)
@@ -133,10 +205,27 @@ export function wrapText(
 
 export function fitText(request: FitRequest): FitResult {
   const { text, box, scale, blockSize, measure } = request
-  const style = scale.levels[request.level]
-  const family = scale.families[style.family]
+  const level = scale.levels[request.level]
+  const family = scale.families[level.family]
 
-  if (request.size !== undefined) return fitFreeSize(request, style.lineHeight, family)
+  /*
+   * What the renderer will draw with, which is the level's weight and tracking
+   * unless the element overrode them. Every `wrapText` below is handed this
+   * rather than nothing, and that is the fix: the ladder used to measure the
+   * default weight and then draw at 700.
+   */
+  const metrics: TextStyleMetrics = {
+    weight: request.style?.weight ?? level.weight,
+    ...(request.style?.letterSpacing === undefined
+      ? level.letterSpacing === undefined
+        ? {}
+        : { letterSpacing: level.letterSpacing }
+      : { letterSpacing: request.style.letterSpacing }),
+  }
+
+  if (request.size !== undefined) {
+    return fitFreeSize(request, level.lineHeight, family, metrics)
+  }
 
   const steps = stepsDescending(scale)
   const floorIndex =
@@ -145,15 +234,15 @@ export function fitText(request: FitRequest): FitResult {
 
   const lineCap = request.maxLines === undefined ? Infinity : Math.max(1, request.maxLines)
 
-  const attempt = (level: TypeLevel, lineHeight: number) => {
-    const fontSize = sizeOf(scale, level, blockSize)
-    const lines = wrapText(text, box.width, fontSize, family, measure)
+  const attempt = (at: TypeLevel, lineHeight: number) => {
+    const fontSize = sizeOf(scale, at, blockSize)
+    const lines = wrapText(text, box.width, fontSize, family, measure, metrics)
     const height = lines.length * fontSize * lineHeight
     // Two ceilings, and both have to hold: the height the box has, and the line
     // count the owner declared. A clamp that only stopped the box from
     // overflowing would not be a clamp.
     return {
-      level,
+      level: at,
       fontSize,
       lineHeight,
       lines,
@@ -162,19 +251,19 @@ export function fitText(request: FitRequest): FitResult {
   }
 
   // Rung 0 — as designed.
-  const asDesigned = attempt(request.level, style.lineHeight)
+  const asDesigned = attempt(request.level, level.lineHeight)
   if (asDesigned.fits) return { ...asDesigned, truncated: false, escalated: false }
 
   // Rung 1 — tighten the leading, and only the leading.
-  const tightened = attempt(request.level, Math.max(MIN_LINE_HEIGHT, style.lineHeight * 0.88))
+  const tightened = attempt(request.level, Math.max(MIN_LINE_HEIGHT, level.lineHeight * 0.88))
   if (tightened.fits) return { ...tightened, truncated: false, escalated: false }
 
   // Rung 2 — walk down the scale. Never an arbitrary size, and never past the
   // floor: a name below its floor is a wasted card, not a smaller one.
   for (let i = startIndex + 1; i <= floorIndex && i < steps.length; i += 1) {
-    const level = steps[i]
-    if (level === undefined) continue
-    const stepped = attempt(level, Math.max(MIN_LINE_HEIGHT, scale.levels[level].lineHeight))
+    const at = steps[i]
+    if (at === undefined) continue
+    const stepped = attempt(at, Math.max(MIN_LINE_HEIGHT, scale.levels[at].lineHeight))
     if (stepped.fits) return { ...stepped, truncated: false, escalated: false }
   }
 
@@ -186,7 +275,7 @@ export function fitText(request: FitRequest): FitResult {
     1,
     Math.min(Math.floor(box.height / (floorSize * floorLeading)), lineCap)
   )
-  const full = wrapText(text, box.width, floorSize, family, measure)
+  const full = wrapText(text, box.width, floorSize, family, measure, metrics)
 
   if (request.truncatable === true && full.length > maxLines) {
     const kept = full.slice(0, maxLines)
@@ -223,14 +312,19 @@ export function fitText(request: FitRequest): FitResult {
  * asked for a size and "no smaller than 60% of that" is the honest reading of
  * a floor when there is no scale in play.
  */
-function fitFreeSize(request: FitRequest, lineHeight: number, family: string): FitResult {
+function fitFreeSize(
+  request: FitRequest,
+  lineHeight: number,
+  family: string,
+  metrics: TextStyleMetrics
+): FitResult {
   const { text, box, blockSize, measure } = request
   const asked = (request.size ?? 0) * blockSize
   const floor = asked * 0.6
   const lineCap = request.maxLines === undefined ? Infinity : Math.max(1, request.maxLines)
 
   const attempt = (fontSize: number, leading: number) => {
-    const lines = wrapText(text, box.width, fontSize, family, measure)
+    const lines = wrapText(text, box.width, fontSize, family, measure, metrics)
     return {
       fontSize,
       lineHeight: leading,
@@ -252,7 +346,7 @@ function fitFreeSize(request: FitRequest, lineHeight: number, family: string): F
     if (stepped.fits) return { ...stepped, truncated: false, escalated: false }
   }
 
-  const lines = wrapText(text, box.width, floor, family, measure)
+  const lines = wrapText(text, box.width, floor, family, measure, metrics)
   const maxLines = Math.max(1, Math.min(Math.floor(box.height / (floor * leading)), lineCap))
 
   if (request.truncatable === true && lines.length > maxLines) {
