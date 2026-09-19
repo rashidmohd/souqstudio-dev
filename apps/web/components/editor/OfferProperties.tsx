@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronUp, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { callApi } from '@/lib/api-client'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { OfferDetails } from '@/components/editor/OfferDetails'
@@ -390,47 +391,71 @@ function AddPhoto({ productId }: { productId: string }) {
     setState('working')
     setError(null)
 
-    try {
-      // 1. Authorise. The key is built from the session, never from the client.
-      const auth = await fetch('/api/v1/catalog/upload-url', {
+    /*
+     * **Each step names itself in its own failure.** Three requests to three
+     * different places fail in three different ways, and "that did not work"
+     * across all of them is a message that cannot be acted on by the owner or
+     * debugged by us. `callApi` never throws and never surfaces a parse error,
+     * so there is no `catch` here to leak one.
+     */
+
+    // 1. Authorise. The key is built from the session, never from the client.
+    const granted = await callApi<{ uploadUrl: string; key: string }>(
+      '/api/v1/catalog/upload-url',
+      {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contentType: chosen.type, contentLength: chosen.size }),
-      })
-      const granted = (await auth.json()) as {
-        data: { uploadUrl: string; key: string } | null
-        error: { message: string } | null
+        fallback: 'We could not start that upload.',
       }
-      if (granted.data === null) throw new Error(granted.error?.message ?? 'That upload was refused.')
+    )
+    if (granted.data === null) {
+      setState('error')
+      setError(granted.error)
+      return
+    }
 
-      // 2. The bytes, straight to the bucket.
+    // 2. The bytes, straight to the bucket. Not our route and not our envelope
+    //    — R2 answers XML on failure, which is the other reason nothing here
+    //    may assume a body is JSON.
+    try {
       const put = await fetch(granted.data.uploadUrl, {
         method: 'PUT',
         headers: { 'content-type': chosen.type },
         body: chosen,
       })
-      if (!put.ok) throw new Error('That photo did not upload. Check your connection.')
+      if (!put.ok) {
+        console.error(`[upload] R2 refused the PUT: ${put.status}`, await put.text().catch(() => ''))
+        setState('error')
+        setError('That photo could not be stored. Try again in a moment.')
+        return
+      }
+    } catch {
+      setState('error')
+      setError('That photo did not upload. Check your connection.')
+      return
+    }
 
-      // 3. Record it. Nothing on the server knows the file's shape until it
-      //    reads the object back, which is where it is measured and refused.
-      const attach = await fetch(`/api/v1/catalog/products/${productId}/image`, {
+    // 3. Record it. Nothing on the server knows the file's shape until it
+    //    reads the object back, which is where it is measured and refused.
+    const saved = await callApi<{ shared: boolean }>(
+      `/api/v1/catalog/products/${productId}/image`,
+      {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ imageKey: granted.data.key }),
-      })
-      const saved = (await attach.json()) as {
-        data: { shared: boolean } | null
-        error: { message: string } | null
+        fallback: 'That photo uploaded but could not be added to the product.',
       }
-      if (saved.data === null) throw new Error(saved.error?.message ?? 'That photo was refused.')
-
-      setShared(saved.data.shared)
-      setState('done')
-      router.refresh()
-    } catch (problem) {
+    )
+    if (saved.data === null) {
       setState('error')
-      setError(problem instanceof Error ? problem.message : 'That did not work. Try again.')
+      setError(saved.error)
+      return
     }
+
+    setShared(saved.data.shared)
+    setState('done')
+    router.refresh()
   }
 
   if (state === 'done') {
