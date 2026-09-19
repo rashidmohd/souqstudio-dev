@@ -103,6 +103,8 @@ type Props = {
     perRow: number
     bodyRows: number
     margin: number
+    /** The gutter between cards, same units as the margin. */
+    gap: number
     headerBlockId: string | null
     footerBlockId: string | null
     /** False when the offer card has no design for the shape this layout gives
@@ -661,6 +663,7 @@ export function EditorShell({
                 perRow={layout.perRow}
                 bodyRows={layout.bodyRows}
                 margin={layout.margin}
+                gap={layout.gap}
                 headerBlockId={layout.headerBlockId}
                 footerBlockId={layout.footerBlockId}
                 cardFits={layout.cardFits}

@@ -9,7 +9,7 @@ import { loadBlock } from '@/lib/blocks'
 import { pageSizeFor, toMasterGrid } from '@/lib/offer-book-compose'
 import { gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { backgroundSchema } from '@/lib/offer-book-background'
-import { MAX_MARGIN } from '@/lib/offer-book-layout'
+import { MAX_GAP, MAX_MARGIN } from '@/lib/offer-book-layout'
 
 /**
  * The master grid — the cards across and down, the page margin, and the header
@@ -60,6 +60,14 @@ const schema = z.object({
   bodyRows: z.number().int().min(1).max(8).optional(),
   /** Fraction of the page's shorter edge. Zero is full bleed. */
   margin: z.number().min(0).max(MAX_MARGIN).optional(),
+  /**
+   * The gutter between cards, same units. Zero makes them touch.
+   *
+   * **Bounded because `resolveTracks` throws rather than clamps.** Gaps that do
+   * not fit the page are an exception at render, not a squashed layout, so the
+   * ceiling is arithmetic rather than taste — `MAX_GAP` shows the working.
+   */
+  gap: z.number().min(0).max(MAX_GAP).optional(),
   /** A running band on every page. `null` removes it. */
   headerBlockId: z.string().min(1).max(64).nullable().optional(),
   footerBlockId: z.string().min(1).max(64).nullable().optional(),
@@ -195,6 +203,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     ...(parsed.data.perRow === undefined ? {} : { perRow: parsed.data.perRow }),
     ...(parsed.data.bodyRows === undefined ? {} : { bodyRows: parsed.data.bodyRows }),
     ...(parsed.data.margin === undefined ? {} : { margin: parsed.data.margin }),
+    ...(parsed.data.gap === undefined ? {} : { gap: parsed.data.gap }),
     ...(parsed.data.headerBlockId === undefined
       ? {}
       : { headerBlockId: parsed.data.headerBlockId }),
@@ -252,6 +261,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     perRow: applied.perRow ?? grid.cols.length,
     bodyRows: applied.bodyRows ?? 1,
     margin: applied.margin ?? 0,
+    gap: applied.gap ?? grid.gap,
     headerBlockId: applied.headerBlockId ?? null,
     footerBlockId: applied.footerBlockId ?? null,
     background: applied.background ?? null,

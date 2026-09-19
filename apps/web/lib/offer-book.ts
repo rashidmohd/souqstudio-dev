@@ -77,6 +77,8 @@ export interface ComposedBook {
     bodyRows: number
     /** Fraction of the page's shorter edge. Zero is full bleed. */
     margin: number
+    /** The gutter between cards, same units. Zero makes them touch. */
+    gap: number
     /** The running band at the top of every page, or null for none. */
     headerBlockId: string | null
     footerBlockId: string | null
@@ -434,6 +436,7 @@ export async function loadBook(
       perRow: choice.perRow ?? master.cols.length,
       bodyRows: choice.bodyRows ?? 1,
       margin: choice.margin ?? 0,
+      gap: choice.gap ?? master.gap,
       headerBlockId: choice.headerBlockId ?? null,
       footerBlockId: choice.footerBlockId ?? null,
       background: choice.background ?? null,

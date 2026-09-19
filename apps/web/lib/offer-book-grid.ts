@@ -47,6 +47,16 @@ export interface GridChoice {
   /** Fraction of the page's shorter edge. Zero is full bleed. */
   margin?: number
   /**
+   * The gutter between cards, as a fraction of the shorter edge.
+   *
+   * **Absent means the preset's own**, which is `0.022` for a booklet and
+   * `0.028` for a post — the two values every book had before this was a choice.
+   * It has to be read back by `readGridChoice` like everything else here or the
+   * next margin edit would hand the preset's gap back; that it was *not* read
+   * back was the whole of the defect this field fixes.
+   */
+  gap?: number
+  /**
    * The paper behind every card: a colour, a gradient or uploaded artwork.
    *
    * **Absent, `null` and a value are three answers**, exactly as the bands are.
@@ -74,6 +84,7 @@ export function gridForKind(choice: GridChoice): PageGrid {
     bodyRows: choice.bodyRows ?? spec.bodyRows,
     ...(choice.cardBlockId === undefined ? {} : { cardBlockId: choice.cardBlockId }),
     ...(choice.margin === undefined ? {} : { margin: choice.margin }),
+    ...(choice.gap === undefined ? {} : { gap: choice.gap }),
     ...(choice.background === undefined ? {} : { background: choice.background }),
     // Passed through as-is, `null` included: the preset reads absent as "use my
     // default" and `null` as "no band". Normalising here would lose that.
@@ -133,6 +144,10 @@ export function readGridChoice(format: string, grid: PageGrid): GridChoice {
     // own schema already sets.
     bodyRows: Math.max(1, bodyRows),
     margin: grid.margin ?? 0,
+    // Always a number on a stored grid — `composeGrid` writes its preset's
+    // default when nothing asked — so there is no absent case to preserve here
+    // the way the bands and the background have one.
+    gap: grid.gap,
     // `null` rather than absent, same reason as the bands below: a cleared
     // background must not be handed back by a rebuild.
     background: grid.background ?? null,

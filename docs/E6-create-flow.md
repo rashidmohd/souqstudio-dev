@@ -1766,3 +1766,89 @@ same way because there is only one way.
 - **Drafts are still not on the shelf** — unchanged from §22.3, and still the tile that
   belongs in that grid more than the sixth finished book does.
 - **Not opened in a browser.**
+
+---
+
+## 24. The gutter was not a choice, 19 September
+
+The page background shipped on 11 September (§11) and the argument for it was a shop whose
+brand is a deep navy printing its cards on white paper. It got the paper. It did not get
+the thing that makes paper visible: **the gap between the cards was whatever preset built
+the book, and nothing could change it.** `bookletGrid` writes `0.022` and `postGrid`
+writes `0.028`, so a navy ground showed up as a 2% hairline between cards and nowhere
+else, which is not the design anyone was making.
+
+`PageGrid.gap` has existed since the composition model. `page_grids.gap` has a column.
+`resolveTracks` has always taken it. The only missing piece was every layer between the
+owner and it.
+
+### 24.1 The defect underneath, which is the more interesting half
+
+`readGridChoice` read the track counts, the margin, the bands, the background and the
+offer card back off a stored grid — and not the gap. `GridChoice` had no field for it.
+
+So `PATCH .../grid` rebuilt through `gridForKind` with no gap, `composeGrid` applied
+`options.gap ?? 0.022`, and **the preset's gap was written back on every layout edit.**
+This is exactly the class of bug §10.1 describes for the offer card, in the one field that
+had not been swept up when that seam was built. It was invisible because no stored gap had
+ever differed from its preset; the first owner to widen a gutter would have lost it the
+next time they touched the margin. `keeps a widened gap through a margin change` in
+`offer-book-grid.test.ts` is the regression, and it fails against the old `readGridChoice`.
+
+### 24.2 `MAX_GAP` is arithmetic, not a round number
+
+`resolveTracks` **throws** when the gaps do not fit — `resolveTracks: 10 tracks with a gap
+of 75.6 do not fit in 648` — rather than clamping. So a ceiling set by taste is not a
+squashed page, it is a book that will not render.
+
+The worst page this product can be asked for is eight rows of cards between two bands, on
+a square post where the page's height *is* its shorter edge, inset by `MAX_MARGIN` on both:
+
+```
+1 − 2(0.2) − 9(0.06) = 0.06     renders
+1 − 2(0.2) − 9(0.07) = −0.03    throws
+```
+
+`MAX_GAP` is `0.06`, the largest step an owner can pick is `0.05`, and three tests hold
+all of it: the bound renders, the next value up throws, and no step exceeds the bound. A
+derivation nothing exercises is a comment.
+
+### 24.3 Six steps, and both presets are on the list
+
+Named steps, same reasoning as the margin's and in the same module: a gap is a fraction of
+the shorter edge, which is what makes one number work on a story and on A3, and nobody has
+an opinion about `0.022`.
+
+Both engine defaults are steps rather than values near steps — `Standard` is `0.022` and
+`Roomy` is `0.028` — so a book that has never had its gap touched shows the step it is
+actually on. They sit close together because they *are* close together; the alternative is
+a select reading "Standard" over a book that is not. `nearestMarginStep` and
+`nearestGapStep` now share a private `nearest`.
+
+The control sits directly under Page margin in the Layout tab. Both are white space
+measured off the same edge, and an owner tightening a page is choosing between them.
+
+### 24.4 The files
+
+| File | What |
+| --- | --- |
+| `apps/web/lib/offer-book-layout.ts` | `GAP_STEPS`, `MAX_GAP`, `nearestGapStep`; `nearest` factored out |
+| `apps/web/lib/offer-book-grid.ts` | `GridChoice.gap`, passed through and **read back** |
+| `app/api/v1/offer-books/[id]/grid/route.ts` | `gap` on the schema, in the delta, in the reply |
+| `apps/web/lib/offer-book.ts` | `layout.gap` on what `loadBook` returns |
+| `components/editor/use-grid-patch.ts` | `GridPatch.gap` |
+| `components/editor/LayoutPanel.tsx` | The select |
+| `components/editor/EditorShell.tsx` | One prop |
+| `apps/web/lib/offer-book-grid.test.ts` | Round trip, the regression, and the three on the bound |
+
+No migration: the column and its default were already there.
+
+### 24.5 Still owed
+
+- **Not opened in a browser.** 607 web tests pass, `pnpm typecheck` and `pnpm lint` are
+  clean, and nobody has looked at a widened gutter with a navy ground behind it — which is
+  the entire point of the change and the one thing a test cannot report on.
+- **The gap is the book's, like the margin.** A page that wants its own gutter has no way
+  to ask, the way it can for its own paper (§867 of `E6-pending.md`). Nobody has asked.
+- **`MAX_GAP` assumes `MAX_MARGIN`.** Both are constants in one module and the test pins
+  the pair, so raising either without running that test is how the throw comes back.

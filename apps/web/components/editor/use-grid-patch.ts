@@ -28,6 +28,8 @@ export interface GridPatch {
   perRow?: number
   bodyRows?: number
   margin?: number
+  /** The gutter between cards, same units as the margin. */
+  gap?: number
   /**
    * The cells the owner has merged, in body-card coordinates.
    *

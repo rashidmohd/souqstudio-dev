@@ -3,7 +3,12 @@
 import * as React from 'react'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
-import { MARGIN_STEPS, nearestMarginStep } from '@/lib/offer-book-layout'
+import {
+  GAP_STEPS,
+  MARGIN_STEPS,
+  nearestGapStep,
+  nearestMarginStep,
+} from '@/lib/offer-book-layout'
 import type { GridPatch } from '@/components/editor/use-grid-patch'
 
 /**
@@ -41,6 +46,8 @@ type Props = {
   bodyRows: number
   /** Fraction of the page's shorter edge. */
   margin: number
+  /** The gutter between cards, in the same units. */
+  gap: number
   /** The running band at the top of every page, or null for none. */
   headerBlockId: string | null
   footerBlockId: string | null
@@ -73,6 +80,7 @@ export function LayoutPanel({
   perRow,
   bodyRows,
   margin,
+  gap,
   headerBlockId,
   footerBlockId,
   cardFits,
@@ -126,6 +134,30 @@ export function LayoutPanel({
         }))}
         onChange={(event) => patch({ margin: Number(event.target.value) })}
         hint="The white edge around every page."
+      />
+
+      {/*
+        **Beside the margin because they are one decision seen twice.** Both are
+        white space measured off the shorter edge, and an owner tightening a page
+        is choosing between them — a wider gutter and a narrower edge is a
+        different flyer from the reverse. Two selects of named steps, adjacent,
+        say that better than a paragraph would.
+
+        **It is also what makes the Background tab mean anything.** Until this
+        control existed the gap was whatever preset built the book, so a shop
+        that set its paper to a deep navy got navy in a 2% hairline between cards
+        and nowhere else. The ground is only visible in the gutter.
+      */}
+      <Select
+        label="Gap between cards"
+        value={String(nearestGapStep(gap).value)}
+        disabled={busy}
+        options={GAP_STEPS.map((step) => ({
+          value: String(step.value),
+          label: step.label,
+        }))}
+        onChange={(event) => patch({ gap: Number(event.target.value) })}
+        hint="Where the page background shows through."
       />
 
       {/*

@@ -1,5 +1,6 @@
 /**
- * The page margin, as something an owner can choose.
+ * The two page measurements an owner can choose: the margin around the page and
+ * the gap between the cards on it.
  *
  * **A margin is a fraction of the page's shorter edge**, which is how
  * `flowBook` reads it — `(master.margin ?? 0) * shorterEdge` — and that is what
@@ -37,7 +38,7 @@ export const MARGIN_STEPS: readonly MarginStep[] = [
 export const MAX_MARGIN = 0.2
 
 /**
- * The step a stored margin belongs to.
+ * The step a stored value belongs to.
  *
  * **Nearest rather than exact.** A book created before these steps existed, or
  * by a caller passing its own number, still has to render the select with
@@ -45,8 +46,68 @@ export const MAX_MARGIN = 0.2
  * its first entry, which would tell the owner their margin is None when it is
  * not.
  */
-export function nearestMarginStep(margin: number): MarginStep {
-  return MARGIN_STEPS.reduce((best, step) =>
-    Math.abs(step.value - margin) < Math.abs(best.value - margin) ? step : best
+function nearest(steps: readonly MarginStep[], value: number): MarginStep {
+  return steps.reduce((best, step) =>
+    Math.abs(step.value - value) < Math.abs(best.value - value) ? step : best
   )
+}
+
+export function nearestMarginStep(margin: number): MarginStep {
+  return nearest(MARGIN_STEPS, margin)
+}
+
+/**
+ * The gap between cards, in the same units and for the same reason.
+ *
+ * **It is a fraction of the shorter edge exactly as the margin is**, because
+ * `resolveTracks` is handed `gap * shorterEdge` the same way the inset is, and
+ * a gutter that did not scale with the page would be a hairline on A3 and a
+ * chasm on a story.
+ *
+ * **This is the control the page background was waiting for.** Until it existed
+ * the gap was whatever preset made the book — `0.022` for a booklet, `0.028`
+ * for a post — and neither the owner nor anything else could change it. A shop
+ * that set its paper to a deep navy therefore got navy in a hairline between
+ * cards and nowhere else, which is not the design they were making. Widening
+ * the gutter is what makes a page ground visible at all.
+ */
+export type GapStep = MarginStep
+
+/**
+ * Six, and **both engine defaults are on the list** rather than near it — same
+ * rule the margin steps follow. `bookletGrid` writes `0.022` and `postGrid`
+ * writes `0.028`, so a book that has never had its gap touched shows the step
+ * it is actually on instead of the nearest one. The two sit close together
+ * because they *are* close together; the alternative is a select that reads
+ * "Standard" over a book which is not.
+ */
+export const GAP_STEPS: readonly GapStep[] = [
+  { value: 0, label: 'None, cards touch' },
+  { value: 0.012, label: 'Tight' },
+  { value: 0.022, label: 'Standard' },
+  { value: 0.028, label: 'Roomy' },
+  { value: 0.04, label: 'Wide' },
+  { value: 0.05, label: 'Extra wide' },
+]
+
+/**
+ * The bound the route validates against, and it is **not** a round number
+ * picked for looking like one.
+ *
+ * `resolveTracks` throws rather than clamping when the gaps do not fit —
+ * "10 tracks with a gap of x do not fit in y" — and a throw here is a book that
+ * will not render at all. The worst page this product can be asked for is eight
+ * rows of cards between two bands, ten tracks and nine gaps, on a page whose
+ * height *is* its shorter edge (a square post, or anything landscape), inset by
+ * `MAX_MARGIN` top and bottom:
+ *
+ *     1 − 2(0.2) − 9(0.06) = 0.06
+ *
+ * Still positive, so the extreme renders. At `0.07` it does not.
+ */
+export const MAX_GAP = 0.06
+
+/** The step a stored gap belongs to. Nearest, for the reason `nearest` gives. */
+export function nearestGapStep(gap: number): GapStep {
+  return nearest(GAP_STEPS, gap)
 }

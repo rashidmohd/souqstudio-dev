@@ -3,6 +3,7 @@ import type { PageBackground } from '@souqstudio/types'
 import { flowBook, validateGrid } from '@souqstudio/engine'
 import { BOOK_KINDS, KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
 import { gridForFormat, gridForKind, readGridChoice } from '@/lib/offer-book-grid'
+import { GAP_STEPS, MAX_GAP, MAX_MARGIN } from '@/lib/offer-book-layout'
 import { pageSizeFor } from '@/lib/offer-book-compose'
 
 /**
@@ -201,6 +202,28 @@ describe('readGridChoice', () => {
     expect(gridForKind(readGridChoice('leaflet', grid))).toEqual(grid)
   })
 
+  it('reads a gap back', () => {
+    const grid = gridForKind({ kind: 'booklet', gap: 0 })
+    expect(readGridChoice('leaflet', grid).gap).toBe(0)
+    expect(gridForKind(readGridChoice('leaflet', grid))).toEqual(grid)
+  })
+
+  /**
+   * **The defect the gap control was built on top of.** `readGridChoice` read
+   * every other choice back and not this one, so the rebuild handed the preset's
+   * own gap — `0.022` for a booklet, `0.028` for a post — to every grid it
+   * produced. Nothing failed and nothing looked wrong, because until there was a
+   * control no stored gap was ever anything else; the first owner to widen their
+   * gutter would have lost it on their next margin change.
+   */
+  it('keeps a widened gap through a margin change', () => {
+    const before = gridForKind({ kind: 'post', gap: 0.05 })
+    const after = gridForKind({ ...readGridChoice('instagram_post', before), margin: 0.02 })
+
+    expect(after.gap).toBe(0.05)
+    expect(after.margin).toBe(0.02)
+  })
+
   /**
    * A change applied on top of what was read must alter one thing and keep the
    * rest. This is exactly what the layout route does.
@@ -289,5 +312,58 @@ describe('gridForKind — background', () => {
     const grid = gridForKind({ kind: 'status', background: NAVY })
     expect(grid.background).toEqual(NAVY)
     expect(grid.regions.some((region) => region.id === 'footer')).toBe(false)
+  })
+})
+
+/**
+ * The gap bound, checked as arithmetic rather than trusted as a round number.
+ *
+ * `resolveTracks` **throws** when the gaps do not fit — it does not clamp — so a
+ * ceiling that is a little too high is not a squashed page, it is a book that
+ * will not render. `MAX_GAP` is derived from the worst page this product can be
+ * asked for, and a derivation nothing exercises is a comment.
+ */
+describe('MAX_GAP', () => {
+  /**
+   * Eight rows of cards between two bands is ten tracks and nine gaps, and a
+   * square post is the page whose height *is* its shorter edge — so the gaps and
+   * the inset are measured against the dimension they eat. Every other format is
+   * taller than it is wide and therefore has room to spare.
+   */
+  function worstPage(gap: number, margin: number) {
+    const grid = gridForKind({
+      kind: 'post',
+      perRow: 6,
+      bodyRows: 8,
+      headerBlockId: 'blk_masthead',
+      footerBlockId: 'blk_footer',
+      gap,
+      margin,
+    })
+
+    return () =>
+      flowBook({
+        master: grid,
+        offerIds: grid.regions.filter((region) => region.fill === 'flow').map((_, i) => `o${i}`),
+        pins: [],
+        page: pageSizeFor('instagram_post'),
+        direction: 'ltr',
+      })
+  }
+
+  it('leaves the worst page renderable at the bound, with the widest margin', () => {
+    expect(worstPage(MAX_GAP, MAX_MARGIN)).not.toThrow()
+  })
+
+  it('is a real ceiling — the next step up does not fit', () => {
+    // If this ever stops throwing, the bound has become superstition and the
+    // comment on `MAX_GAP` is wrong about which number is load-bearing.
+    expect(worstPage(0.07, MAX_MARGIN)).toThrow()
+  })
+
+  it('offers no step an owner could pick that exceeds it', () => {
+    for (const step of GAP_STEPS) {
+      expect(step.value).toBeLessThanOrEqual(MAX_GAP)
+    }
   })
 })
