@@ -48,4 +48,12 @@ playwright-report/
 data/
 
 # Local product catalog working files. Large and regenerable.
-products/
+#
+# **Anchored, and it has to be.** Unanchored, `products/` matches a directory
+# of that name at *any* depth — which silently excluded
+# `apps/web/app/api/v1/catalog/products/`, the API routes for the catalog. The
+# two routes already committed when this rule arrived stayed tracked, because
+# gitignore does not affect tracked files, so nothing looked wrong; the next
+# route added under that path was never committed, deployed as a 404, and
+# reached the browser as an HTML error page that a `response.json()` choked on.
+/products/
