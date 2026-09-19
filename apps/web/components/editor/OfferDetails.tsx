@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { useEditorStore } from '@/stores/editor-store'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
+import { callApi } from '@/lib/api-client'
+import { offerTypeOf, offerTypeOptions } from '@/lib/offer-types'
 
 /**
  * The rest of E6-03: unit price, legal lines, chips, footnotes, and what each
@@ -35,6 +37,7 @@ export function OfferDetails({ bookId, offer }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <UnitPriceFields bookId={bookId} offer={offer} />
+      <OfferTypeField bookId={bookId} offer={offer} />
       <Chips bookId={bookId} offer={offer} />
       <Footnotes bookId={bookId} offer={offer} />
       <LegalLines bookId={bookId} offer={offer} />
@@ -191,6 +194,146 @@ function UnitPriceFields({ bookId, offer }: Props) {
 }
 
 /**
+ * What kind of promotion this is — buy one get one, and the rest.
+ *
+ * **The vocabulary was import-only until now**, which meant a book built from
+ * a price list said "Buy 1 get 1 free" in both languages and a book built by
+ * hand said whatever the owner typed into a free-text chip, in one. Same
+ * promotion, same product, two wordings — which is what a closed set exists to
+ * prevent. The options are generated from `OFFER_TYPES`, so a new mechanic is
+ * a row there and appears here with no edit.
+ *
+ * **One value, replaced rather than appended.** An offer has one mechanic;
+ * `PUT .../type` deletes the old chip and writes the new one in a transaction,
+ * so choosing buy-2-get-1 over buy-1-get-1 cannot print both. That is the
+ * difference between this and `Chips` below, which is a list.
+ *
+ * **"Something else" is not a fallback, it is the honest third answer.** A shop
+ * running `Ramadan special` means it, and refusing the words because they are
+ * not in our table would be deciding we know their promotions better than they
+ * do. Its Arabic is theirs to supply — a chip is copy rather than catalog data,
+ * so a missing translation is not the publish blocker a missing product name is.
+ */
+function OfferTypeField({ bookId, offer }: Props) {
+  const router = useRouter()
+  const current = offer.chips.find((chip) => chip.isOfferType)
+  const known = current === undefined ? null : offerTypeOf(current.label)
+
+  /**
+   * What the select is showing. Three states share it: a key from the table,
+   * `custom` for the owner's own words, and `none`.
+   *
+   * Seeded from the stored chip and then owned by the control — a select that
+   * re-derived its value from props on every render would snap back while the
+   * write was in flight.
+   */
+  const [choice, setChoice] = React.useState<string>(
+    current === undefined ? 'none' : (known ?? 'custom')
+  )
+  const [words, setWords] = React.useState(known === null ? (current?.label ?? '') : '')
+  const [wordsAr, setWordsAr] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  // The offer the panel is describing can change under it — clicking another
+  // card keeps this component mounted. Without this the new offer's mechanic
+  // would be shown as the old one's until something else re-rendered.
+  React.useEffect(() => {
+    const chip = offer.chips.find((entry) => entry.isOfferType)
+    const key = chip === undefined ? null : offerTypeOf(chip.label)
+    setChoice(chip === undefined ? 'none' : (key ?? 'custom'))
+    setWords(key === null ? (chip?.label ?? '') : '')
+    setWordsAr('')
+    setError(null)
+  }, [offer.id, offer.chips])
+
+  async function write(body: unknown) {
+    setBusy(true)
+    setError(null)
+    const result = await callApi(`/api/v1/offer-books/${bookId}/offers/${offer.id}/type`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      fallback: 'That offer type could not be applied.',
+    })
+    setBusy(false)
+    if (result.error !== null) {
+      setError(result.error)
+      return
+    }
+    router.refresh()
+  }
+
+  function choose(next: string) {
+    setChoice(next)
+    if (next === 'none') void write({ kind: 'none' })
+    // Custom waits for the words — writing on selection would clear the
+    // mechanic and leave an empty box where one used to be.
+    else if (next !== 'custom') void write({ kind: 'known', key: next })
+  }
+
+  return (
+    <Section title="Offer type">
+      <Select
+        label="Promotion"
+        value={choice}
+        disabled={busy}
+        options={[
+          { value: 'none', label: 'No promotion — the prices say it' },
+          ...offerTypeOptions().map((option) => ({
+            value: option.key,
+            label: option.labelEn,
+          })),
+          { value: 'custom', label: 'Something else' },
+        ]}
+        onChange={(event) => choose(event.target.value)}
+      />
+
+      {choice === 'custom' ? (
+        <div className="flex flex-col gap-2 rounded-control border-hairline border-border-subtle p-3">
+          <Input
+            label="What it says"
+            value={words}
+            placeholder="Ramadan special"
+            onChange={(event) => setWords(event.target.value)}
+          />
+          <Input
+            label="In Arabic"
+            dir="rtl"
+            value={wordsAr}
+            hint="Optional. Shown in Arabic editions."
+            onChange={(event) => setWordsAr(event.target.value)}
+          />
+          <div>
+            <Button
+              type="button"
+              variant="primary"
+              loading={busy}
+              disabled={words.trim() === ''}
+              onClick={() =>
+                void write({
+                  kind: 'custom',
+                  labelEn: words.trim(),
+                  ...(wordsAr.trim() === '' ? {} : { labelAr: wordsAr.trim() }),
+                })
+              }
+            >
+              Use these words
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {error === null ? null : (
+        <p className="font-ui text-body-sm text-critical-fg" role="alert">
+          {error}
+        </p>
+      )}
+    </Section>
+  )
+}
+
+/**
  * Chips. E6 §7 — the flashes at the top of a card's z-order.
  *
  * **Not the promo tier.** The tier is the one authoring control on the price
@@ -293,12 +436,18 @@ function Chips({ bookId, offer }: Props) {
           <Select
             label="Kind"
             value={kind}
+            /*
+              **No "Buy N of M" here any more.** That was this dropdown's name
+              for `SCALE`, which is now the marker for the offer's mechanic and
+              is written by the Offer type control above. Two ways to make one
+              would mean a card could carry two, and the control above could
+              not tell which it was editing.
+            */
             options={[
               { value: 'CUSTOM', label: 'Anything else' },
               { value: 'COUNTER', label: 'Purchase limit' },
               { value: 'ORIGIN', label: 'Country of origin' },
               { value: 'CERT', label: 'Certification' },
-              { value: 'SCALE', label: 'Buy N of M' },
               { value: 'LOYALTY', label: 'Loyalty points' },
             ]}
             onChange={(event) => setKind(event.target.value)}

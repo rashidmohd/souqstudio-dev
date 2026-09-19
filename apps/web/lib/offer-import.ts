@@ -1,3 +1,5 @@
+import { OFFER_TYPES, type OfferTypeKey } from '@/lib/offer-types'
+
 /**
  * Turning a price-list row into an offer. `docs/E6-create-flow.md` §18.
  *
@@ -14,29 +16,11 @@
  */
 
 /**
- * The promotions a sheet can name, and what the card says for each.
- *
- * **A closed set with bilingual phrases, because a chip that has no Arabic
- * cannot publish in an Arabic edition** — E5 §2 makes a missing translation a
- * publish-time blocker, and a CSV will never carry one. So the sheet names a
- * *kind* and the phrase comes from here, in both languages, the same move
- * `MAGIC_CATEGORIES` makes for block matching.
- *
- * **Extending this is a row, not a change.** The set is deliberately short — the
- * mechanics a GCC grocery actually prints — rather than a guess at every
- * promotion in retail. Anything not here still reaches the card: see
- * `readOfferType`.
+ * The promotions a sheet can name now live in `lib/offer-types.ts`, because the
+ * editor needed the same words. Re-exported so every existing importer call
+ * site is unchanged — the vocabulary moved, the parser did not.
  */
-export const OFFER_TYPES = {
-  /** The ordinary case: a price came down. Carries no chip — the two prices say
-   *  it, and E6 §3 removed the discount-magnitude badge deliberately. */
-  discount: null,
-  bogo: { labelEn: 'Buy 1 get 1 free', labelAr: 'اشترِ 1 واحصل على 1 مجاناً' },
-  buy2get1: { labelEn: 'Buy 2 get 1 free', labelAr: 'اشترِ 2 واحصل على 1 مجاناً' },
-  buy3get1: { labelEn: 'Buy 3 get 1 free', labelAr: 'اشترِ 3 واحصل على 1 مجاناً' },
-} as const satisfies Record<string, { labelEn: string; labelAr: string } | null>
-
-export type OfferTypeKey = keyof typeof OFFER_TYPES
+export { OFFER_TYPES, type OfferTypeKey } from '@/lib/offer-types'
 
 /**
  * Spellings seen in the wild, normalised the same way `HEADER_HINTS` normalises

@@ -8,6 +8,7 @@ import type { BrandFacet, BrandLevel } from '@/lib/brand-inheritance'
 import { Button } from '@/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
 import { ColorFields, firstInvalidColorSlot } from '@/components/brand/ColorFields'
+import { PromoTiers, type Tier } from '@/components/brand/PromoTiers'
 import { palettePatch, resolvePalette } from '@/lib/brand-palette'
 import { TypographyFields } from '@/components/brand/TypographyFields'
 import { Card } from '@/components/ui/card'
@@ -22,6 +23,7 @@ import {
   Palette,
   Smile,
   Sparkles,
+  Tag,
   Type,
   type LucideIcon,
 } from 'lucide-react'
@@ -44,6 +46,18 @@ type Props = {
   credits: number
   /** The shop's characters and their poses. E8-01 — the card shows them. */
   characters: Character[]
+  /**
+   * The promo tiers this organization prints. E5 §5.
+   *
+   * **Organization-scoped, unlike everything else on this screen.** The kit is
+   * the *shop's* — a branch may override its parent's — and a tier is not: it
+   * is `promo_tiers.organizationId`, shared by every shop in the group, which
+   * is what makes a chain's books consistent. That is a real seam in a screen
+   * whose other tabs are all shop-scoped, so the card says so rather than
+   * letting an owner discover it by changing a branch and finding the head
+   * office changed.
+   */
+  tiers: Tier[]
 }
 
 /** Which section a save or an error belongs to. */
@@ -89,6 +103,7 @@ export function BrandKitScreen({
   isOwner,
   credits,
   characters,
+  tiers,
 }: Props) {
   const router = useRouter()
   const { kit, hydrate } = useBrandStore()
@@ -245,6 +260,7 @@ export function BrandKitScreen({
               { value: 'type', label: 'Type' },
               { value: 'character', label: 'Character' },
               { value: 'covers', label: 'Covers' },
+              { value: 'tiers', label: 'Offer tiers' },
             ]}
           />
 
@@ -433,6 +449,28 @@ export function BrandKitScreen({
                * from what is kept here.
                */}
               {canEdit ? <CoverGallery /> : null}
+            </BrandCard>
+          </TabPanel>
+
+          <TabPanel value="tiers" active={tab}>
+            <BrandCard
+              icon={Tag}
+              title="Offer tiers"
+              description="The badge on the price of every card — “Deal”, “Half price”. Chosen per offer in the editor, from this list."
+              state={
+                <>
+                  <span data-figure>{tiers.length}</span> {tiers.length === 1 ? 'tier' : 'tiers'}
+                </>
+              }
+              /*
+               * **The one card on this screen that is not the shop's.** Every
+               * other tab edits a brand kit, which a branch may override; a
+               * tier is the organization's and every shop in the group prints
+               * it. Said here rather than learned by surprise.
+               */
+              note="Shared by every shop in your organization."
+            >
+              <PromoTiers tiers={tiers} canEdit={canEdit} />
             </BrandCard>
           </TabPanel>
         </>

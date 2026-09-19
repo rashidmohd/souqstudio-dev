@@ -354,11 +354,52 @@ describe('the unit price line — E5 §4', () => {
 describe('chips, footnotes and legal lines', () => {
   it('takes the edition’s label and falls back to the other language', () => {
     const chips = [
-      { id: 'chip_1', labelEn: 'Limit 2', labelAr: 'حد ٢', anchor: 'TOP_START' as const },
-      { id: 'chip_2', labelEn: 'Halal', labelAr: null, anchor: 'TOP_END' as const },
+      {
+        id: 'chip_1',
+        labelEn: 'Limit 2',
+        labelAr: 'حد ٢',
+        anchor: 'TOP_START' as const,
+        kind: 'COUNTER',
+      },
+      {
+        id: 'chip_2',
+        labelEn: 'Halal',
+        labelAr: null,
+        anchor: 'TOP_END' as const,
+        kind: 'CERT',
+      },
     ]
     const out = composeOffer(offer([item(RICE)], { chips }), TIER, 'ar')
     expect(out.chips.map((chip) => chip.label)).toEqual(['حد ٢', 'Halal'])
+  })
+
+  /**
+   * Which chip the panel's offer-type control is editing.
+   *
+   * **Derived from the kind rather than stored twice.** A card draws all four
+   * chips the same way; only the properties panel needs to know which one is
+   * the mechanic, because that control replaces its value instead of appending
+   * a second. `SCALE` is the marker — `lib/offer-types.ts` says why.
+   */
+  it('marks the mechanic chip and no other', () => {
+    const chips = [
+      {
+        id: 'chip_1',
+        labelEn: 'Buy 1 get 1 free',
+        labelAr: 'اشترِ 1 واحصل على 1 مجاناً',
+        anchor: 'TOP_START' as const,
+        kind: 'SCALE',
+      },
+      {
+        id: 'chip_2',
+        labelEn: 'Limit 2',
+        labelAr: null,
+        anchor: 'TOP_END' as const,
+        kind: 'COUNTER',
+      },
+    ]
+    const out = composeOffer(offer([item(RICE)], { chips }), TIER, 'en')
+    expect(out.chips.map((chip) => chip.isOfferType)).toEqual([true, false])
   })
 
   it('carries footnotes without a marker number', () => {

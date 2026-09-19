@@ -524,3 +524,5 @@ export type CatalogMatchKind = 'text' | 'synonym' | 'fuzzy' | 'barcode'
 export interface CatalogSearchHit extends CatalogProductSummary {
   matchedBy: CatalogMatchKind
 }
+
+export * from './promo-tier'

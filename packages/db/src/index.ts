@@ -6,6 +6,9 @@ export { prisma, withOrg } from './client'
  * needs.
  */
 export { Prisma } from '@prisma/client'
+// The tier *vocabulary* — the colours and what emphasis means — is in
+// `@souqstudio/types`, not here. A client component renders it, and importing
+// this package from one pulls Prisma and BullMQ into the browser bundle.
 export { DEFAULT_PROMO_TIERS, seedPromoTiers } from './promo-tiers'
 /**
  * Row types, for the same reason. A library that takes "a plan" as an argument

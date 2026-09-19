@@ -2153,3 +2153,127 @@ conflate them. The score is not lost — `quality` is the column that always car
 - **Nothing rate-limits contributions.** A shop can attach a photo to any universal
   product it can see, as often as it likes, and each one queues a cutout. Same gap the
   rest of the product has, now reachable one click from the editor.
+
+---
+
+## 28. Offer types, and tiers you can actually configure, 19 September
+
+Two gaps, found by asking how to mark a card as buy-one-get-one.
+
+**The vocabulary existed and the editor could not reach it.** `OFFER_TYPES` —
+`bogo`, `buy2get1`, `buy3get1`, bilingual, with a `TYPE_HINTS` matcher that already
+understood `BOGOF`, `b1g1` and `1+1` — lived in `lib/offer-import.ts` and was reachable
+only from a CSV column. A book built from a price list said "Buy 1 get 1 free" in both
+languages; a book built by hand said whatever the owner typed into a free-text chip, in
+one. Same promotion, same product, two wordings — which is what a closed set exists to
+prevent.
+
+**And the tier had two values, for ever.** *Deal* and *Offer* are seeded at signup and
+nothing in the product could add a third — so every card in the screenshot that started
+this said "Deal", the "one authoring control on the price mark" was a select of two, and
+a shop wanting *Half price* reached for a chip instead, which puts it in the wrong place
+on the card at the wrong size.
+
+### 28.1 `SCALE` already meant this
+
+An offer has one mechanic, so choosing a different one must *replace* rather than stack —
+which needs the mechanic chip to be identifiable on the row. `ChipKind.SCALE` has existed
+since E5 and the editor's own chip dropdown labelled it "Buy N of M", which is exactly a
+multi-buy. So it becomes the marker: **no migration**, at most one per offer, and
+`PUT .../offers/:id/type` deletes and rewrites it in one transaction.
+
+Two consequences, both deliberate:
+
+- `SCALE` is **off** the free-text chips route's enum. Two ways to make a mechanic means a
+  card that can carry two and a control that cannot tell which it is editing.
+- The importer now writes `SCALE` rather than `CUSTOM`, so a promotion from a sheet is the
+  same kind of thing as one chosen by hand — and the editor shows it as the offer's type
+  instead of as an anonymous chip.
+
+### 28.2 Adding a mechanic is a row
+
+The property worth protecting, and the one the tests aim at. `OFFER_TYPES` moved to
+`lib/offer-types.ts`; the select is generated from it, the route validates a key against
+it, and the chip's words are looked up in it. **Nothing names a key** — no `switch` on
+`'bogo'` anywhere — so a new mechanic is one entry and reaches the importer, the editor
+and the route with no other edit.
+
+The words are never sent by the client. A request names a key; the route reads the phrase.
+If the label travelled, a hand-built book and an imported one would drift the first time
+somebody typed "BOGO" instead.
+
+`custom` is the third answer and not a fallback: a shop running *Ramadan special* means
+it, and refusing their words because they are not in our table would be deciding we know
+their promotions better than they do.
+
+### 28.3 Tiers, on the brand kit rather than under settings
+
+`GET/POST /api/v1/promo-tiers` and `PATCH/DELETE /api/v1/promo-tiers/:id`, and a fifth
+brand-kit tab. A tier is the shop's offer-book vocabulary in the way its colours and its
+type are — what their cards *say*, decided once. `/settings` is the business: the invoice,
+the people, the shops.
+
+Three rules the routes enforce rather than the UI:
+
+- **A tier in use is not deleted.** `offers.promoTierId` is NOT NULL, so it would fail on
+  the foreign key as a 500 or — cascading — take published books with it. Reassigning
+  silently would repaint cards in books already printed. It says how many offers hold it.
+- **The default cannot be deleted**, because an organization with no default is the dead
+  account `seedPromoTiers` exists to prevent.
+- **Promoting a default demotes the old one in the same transaction.** `isDefault` is a
+  plain boolean with no partial unique index, readers take the first, and two defaults
+  would make the next book depend on row order.
+
+A new tier is never created as the default: that decides what the *next* offer says, and
+moving it because somebody added a tier changes a card nobody edited.
+
+### 28.4 Where the tier colours ended up, after two wrong homes
+
+The literals are `--sq-tpl-*`, and the journey is worth recording because both failures
+are ones this codebase has documented and still repeats.
+
+1. **`apps/web/lib`** — the design lint refused it within a minute, correctly: a template
+   token in application chrome is the rule's whole point.
+2. **`packages/db`**, beside `DEFAULT_PROMO_TIERS`, which is where that file's own header
+   says such data belongs. `typecheck` and `lint` both passed. **`next build` failed** with
+   `Can't resolve 'child_process'` — the picker is a client component, and importing
+   `@souqstudio/db` from one pulls Prisma and BullMQ into the browser bundle. Fourth
+   instance; `apps/web/CLAUDE.md` and `STATUS` §5 both warn about it and neither linter
+   can see it.
+3. **`packages/types`** — pure, client-safe, not linted as chrome, and already the home of
+   `Currency` and `THREE_DECIMAL_CURRENCIES`. The database imports it, the route validates
+   against it, the picker renders it.
+
+### 28.5 The files
+
+| File | What |
+| --- | --- |
+| `apps/web/lib/offer-types.ts` | The vocabulary, extracted — new |
+| `apps/web/lib/offer-import.ts` | Re-exports it; the parser is unchanged |
+| `.../offers/[offerId]/type/route.ts` | `PUT` — replace, never append — new |
+| `.../offers/[offerId]/chips/route.ts` | `SCALE` removed from the enum |
+| `apps/web/lib/offer-book.ts` | The importer writes the mechanic kind; `kind` travels |
+| `apps/web/lib/offer-book-compose.ts` | `ComposedChip.isOfferType` |
+| `components/editor/OfferDetails.tsx` | `OfferTypeField`; "Buy N of M" gone from chips |
+| `packages/types/src/promo-tier.ts` | `TIER_TOKENS`, labels, emphasis — new |
+| `api/v1/promo-tiers/*` | CRUD — new |
+| `components/brand/PromoTiers.tsx` | The tab's contents — new |
+| `components/brand/BrandKitScreen.tsx` | A fifth tab |
+
+### 28.6 Still owed
+
+- **Not opened in a browser.** 618 web, 514 engine, 45 worker, 95 db tests, plus lint,
+  typecheck, build and `check:classes`.
+- **A tier is organization-scoped on a screen whose every other tab is shop-scoped.** The
+  card says so in a note. That is a real seam and a note is the cheapest possible answer
+  to it; a chain with a branch that wants its own tiers will need more.
+- **Nothing migrates an existing `CUSTOM` promotion chip to `SCALE`.** Books imported
+  before today keep a chip the offer-type control reads as "Something else" and shows the
+  words for — correct, and not the same as recognising it. A one-off backfill matching on
+  the `OFFER_TYPES` phrases would fix it and has not been written.
+- **`offerTypeOf` matches on the English phrase**, because the row has no key column.
+  Editing the words by hand makes a known mechanic read back as custom. Honest, but a
+  `typeKey` column would be better the day a mechanic's wording changes.
+- **Emphasis is offered as three named steps and nothing validates the result.** A shop
+  that makes every tier "Loud" has a book where nothing bids first, which the engine will
+  resolve by offer position and nobody will have chosen.

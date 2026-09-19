@@ -23,7 +23,7 @@ import { requireApiSession } from '@/lib/api-session'
  * data rather than about copy they chose.
  */
 
-/** Kind-specific payload. `SCALE` is "3 of 5"; `LOYALTY` is an amount. */
+/** Kind-specific payload. `LOYALTY` is an amount. */
 const valueSchema = z
   .object({
     scale: z.number().int().min(1).max(99).optional(),
@@ -33,7 +33,15 @@ const valueSchema = z
   .strict()
 
 const createSchema = z.object({
-  kind: z.enum(['COUNTER', 'ORIGIN', 'CERT', 'SCALE', 'LOYALTY', 'CUSTOM']),
+  /**
+   * **`SCALE` is not on this list, and its absence is the point.** That kind
+   * marks the offer's *mechanic* — buy one get one and the rest — which
+   * `PUT .../type` owns because there is exactly one per offer and setting it
+   * replaces rather than appends. Allowing it here would let a card carry two
+   * mechanics, and the panel's offer-type control could not tell which of them
+   * it was editing. `lib/offer-types.ts`.
+   */
+  kind: z.enum(['COUNTER', 'ORIGIN', 'CERT', 'LOYALTY', 'CUSTOM']),
   labelEn: z.string().trim().min(1).max(40),
   labelAr: z.string().trim().max(40).nullable().optional(),
   anchor: z.enum(['TOP_START', 'TOP_END', 'INLINE']).default('TOP_START'),

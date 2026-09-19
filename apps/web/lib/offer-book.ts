@@ -1,3 +1,4 @@
+import { OFFER_TYPE_CHIP_KIND } from '@/lib/offer-types'
 import 'server-only'
 
 import { adoptRowsIntoCatalog } from '@/lib/catalog'
@@ -192,7 +193,10 @@ export async function loadBook(
           },
           chips: {
             orderBy: { id: 'asc' },
-            select: { id: true, labelEn: true, labelAr: true, anchor: true },
+            // `kind` travels so the panel can tell the offer's mechanic from a
+            // note beside it — one control, one value, a replace-not-append
+            // write. `lib/offer-types.ts`.
+            select: { id: true, labelEn: true, labelAr: true, anchor: true, kind: true },
           },
           footnotes: {
             orderBy: { id: 'asc' },
@@ -857,7 +861,13 @@ async function insertBook(
         return [
           {
             offerId,
-            kind: 'CUSTOM' as const,
+            // **The offer-type kind, not `CUSTOM`.** This chip is the sheet's
+            // promotion column, and writing it as a free-text chip made it
+            // indistinguishable from a note the owner typed — so the editor
+            // could not show it as the offer's mechanic, and changing the
+            // mechanic would have stacked a second one beside it.
+            // `lib/offer-types.ts` explains why `SCALE` is the marker.
+            kind: OFFER_TYPE_CHIP_KIND,
             labelEn: offer.chip.labelEn,
             labelAr: offer.chip.labelAr,
             anchor: 'TOP_START' as const,

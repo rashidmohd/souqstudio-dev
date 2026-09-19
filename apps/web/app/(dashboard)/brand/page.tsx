@@ -46,7 +46,7 @@ export default async function BrandKitPage() {
   // The block library moved to `/blocks` on 16 September and is no longer read
   // here — a library of sixty-five designs is a workspace rather than a facet of
   // an identity, and the brand kit is four tabs without it.
-  const [brand, credits, characters] = await Promise.all([
+  const [brand, credits, characters, tiers] = await Promise.all([
     readEffectiveBrand({
       organizationId: shop.organizationId,
       shopId: shop.id,
@@ -71,6 +71,27 @@ export default async function BrandKitPage() {
         },
       },
       orderBy: { createdAt: 'desc' },
+    }),
+    /**
+     * E5 §5. **Organization-scoped, unlike everything else on this screen** —
+     * a brand kit belongs to the shop and a branch may override its parent's,
+     * but a promo tier is the group's and every shop in it prints the same
+     * list. The card says so; this is where the seam actually is.
+     *
+     * Ordered the way the editor's own tier select orders them, so the two
+     * screens agree about which is first.
+     */
+    prisma.promoTier.findMany({
+      where: { organizationId: session.user.organizationId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        labelEn: true,
+        labelAr: true,
+        tokenRef: true,
+        emphasis: true,
+        isDefault: true,
+      },
     }),
   ])
 
@@ -107,6 +128,7 @@ export default async function BrandKitPage() {
         isOwner={isOwner}
         credits={credits.total}
         characters={characters}
+      tiers={tiers}
       />
     </PageContainer>
   )

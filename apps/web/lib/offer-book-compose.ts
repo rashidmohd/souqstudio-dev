@@ -13,6 +13,7 @@ import type {
 import { deriveUnitPrice, unitPriceLabel } from '@souqstudio/types'
 import { minorDigits, toPriceMark } from '@souqstudio/engine'
 import type { FlowPage } from '@souqstudio/engine'
+import { OFFER_TYPE_CHIP_KIND } from '@/lib/offer-types'
 
 /**
  * Turning the rows of an offer book into what the engine and a renderer need.
@@ -137,6 +138,17 @@ export interface ComposedChip {
   /** The edition's label, falling back to the other language. */
   label: string
   anchor: ChipAnchor
+  /**
+   * True for the chip that carries the offer's *mechanic* — buy one get one,
+   * and so on — rather than a note beside it.
+   *
+   * **A card draws it like any other chip; only the panel cares.** The offer
+   * type has one control, one value and a replace-rather-than-append write, so
+   * the panel has to know which of an offer's chips it is editing. Derived
+   * from the kind rather than carried as a second field on the row — see
+   * `lib/offer-types.ts` for why `SCALE` is the marker.
+   */
+  isOfferType: boolean
 }
 
 export interface ComposedFootnote {
@@ -221,6 +233,12 @@ export interface ChipRow {
   labelEn: string
   labelAr: string | null
   anchor: ChipAnchor
+  /**
+   * `offer_chips.kind`. Only one value is read here — the marker that says
+   * this chip is the offer's mechanic — so the field is a plain string rather
+   * than the Prisma enum, which would pull the client into a pure module.
+   */
+  kind: string
 }
 
 export interface FootnoteRow {
@@ -333,6 +351,7 @@ export function composeOffer(
       id: chip.id,
       label: pick(chip.labelAr, chip.labelEn, edition) ?? chip.labelEn,
       anchor: chip.anchor,
+      isOfferType: chip.kind === OFFER_TYPE_CHIP_KIND,
     })),
     footnotes: offer.footnotes.map((note) => ({
       id: note.id,
