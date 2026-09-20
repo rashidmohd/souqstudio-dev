@@ -17,14 +17,16 @@ import { cutoutKey, customProductKey, getObjectBytes, publicUrl } from '@/lib/r2
  * nothing beside it to press. Its sibling flag, `fallback-image`, has had a
  * fix button all along. This is the missing one.
  *
- * **It writes to the shared row on purpose, and that is a decision rather than
- * an oversight.** The sibling route — `products/[id]/cutout` — refuses a
- * universal product outright, because re-mattéing somebody else's photo
- * changes what every other shop's cards draw and charges whoever pressed the
- * button. Supplying a photo to a product that has *none* is the opposite case:
- * nothing is overwritten, every other shop is drawing a placeholder today, and
- * a catalog that learns a packshot once is the whole reason the universal
- * catalog exists. So it is contributed rather than kept private.
+ * **It writes to the shared row on purpose.** Nothing is overwritten, every
+ * other shop is drawing a placeholder today, and a catalog that learns a
+ * packshot once is the whole reason the universal catalog exists. So it is
+ * contributed rather than kept private.
+ *
+ * Its sibling — `products/[id]/cutout` — used to refuse a universal product
+ * outright on the grounds that re-mattéing somebody else's photo changes what
+ * every other shop's cards draw. It now takes this route's bargain instead: the
+ * cutout is attributed to the shop that paid for it and released to the rest by
+ * a reviewer. Same rule, both halves.
  *
  * **Review decides promotion, not availability** — the rule
  * `product_contributions` already states, and the reason `contributedBy` is a

@@ -23,7 +23,7 @@ is the reason that is possible at all.
 | E8-02 Character pose library | **Built** 16 September — worker and routes. **No UI yet** — §3a |
 | E8-03 Custom character prompt | **Built** 16 September, same job as E8-02. **No UI yet** — §3a |
 | E8-04 AI cover generation | **Built** 16 September — worker and route. **No UI yet** — §3a |
-| E8-05 Background removal | **Built**, and now complete — the manual action and its credit landed 16 September. §2b |
+| E8-05 Background removal | **Built**, and now complete — the manual action and its credit landed 16 September. Its refusal of shared catalog photos was reversed 20 September. §2b, §2c |
 | E8-06 AI metadata enrichment | Not built — `enrich` throws, and it blocks E5's Arabic |
 | E8-07 Magic block | **Built**, end to end, exercised live |
 | E8-08 Brand direction | **Built** 16 September, end to end. Never run against a live model — §2 |
@@ -168,10 +168,8 @@ owner their photo still had its background with nothing to do about it.
 `POST /api/v1/catalog/products/:id/cutout` is that action, offered in `OfferProperties`
 beside the flag that reports the problem. Three things worth not undoing:
 
-- **A universal catalog row is refused.** A null `organizationId` is the shared catalog
-  every tenant reads; re-cutting one changes what every other shop's cards draw, paid for
-  by whoever pressed the button. The refusal is the same `where` clause that scopes the
-  read, rather than a second check beside it.
+- ~~**A universal catalog row is refused.**~~ **Reversed on 20 September — see §2c.** The
+  premise was right and the conclusion was wrong.
 - **Ingest stays free**, and that is why `billOrganizationId` is a payload field rather
   than a rule in the worker. Charging for ingest cutouts because they run the same job
   would be a retroactive pricing change applied through a queue.
@@ -197,6 +195,52 @@ the same declaration order and break the same way one reordered enum later — a
 This is the third time in this epic that a defect has been invisible to a test over a
 schema and visible the moment somebody looked at a render. §4 makes the same point about
 `magic.test.ts`.
+
+---
+
+## 2c. The refusal that was the answer for nearly everyone — 20 September
+
+**§2b's first rule was wrong, and it was wrong in the direction that matters.** Refusing a
+universal catalog row meant the button beside `fallback-image` answered *"That product is
+not one of yours. Shared catalog photos cannot be changed here."* to almost everyone who
+pressed it — almost every product in a book is a shared row. The one flag in the panel
+that had a fix had a fix that did not work.
+
+**The premise held: a shared photo must not become everybody's because one shop paid a
+credit.** The conclusion did not, because `image_assets.contributedBy` already describes
+the third state — a photo sitting on a shared product that belongs to one shop until a
+reviewer promotes it. That is what `products/[id]/image` does for a photo supplied to a
+product that has none, and there was never a reason the same bargain could not cover a
+photo that has a background. Review decides promotion, not availability.
+
+Four changes, and the shape to keep:
+
+- **The route takes a universal row** and refuses only another tenant's. It picks the
+  photo by `pickImage`'s precedence — this shop's own contribution ahead of the shared one
+  — so the credit is spent on the picture the card is actually drawing.
+- **The worker attributes a paid cutout to the payer** when the product is not theirs, in
+  `bg.job.ts`. Inheritance alone could not: the shared ORIGINAL has no contributor, so the
+  cutout would be unattributed and a good matte would approve it for every tenant within
+  seconds. Ingest is untouched — `billOrganizationId` is absent there, which is the same
+  field that keeps ingest free.
+- **A rejected matte is refused.** A CUTOUT derived from that exact photo and rejected
+  means a reviewer looked and said no, and Rembg on the same bytes returns the same halo.
+  The way out is a better photo, and the message says so.
+- **The panel asks before it spends.** A shared photo gets a dialog naming both
+  irreversible parts — the credit, and that other shops get the cutout once it is
+  checked. The shop's own photo gets no dialog, because neither is true of it.
+
+**There was a straight bug underneath the design mistake.** A shop that contributed a
+packshot to a universal product, whose ingest cutout failed, was drawing *their own*
+ORIGINAL — `pickImage` puts it first — and being told the product was not theirs. The
+photo was theirs. That case now runs with no dialog at all.
+
+**The rejected alternative was forking the product** into the shop's own catalog on a
+confirm. It buys a permanent disconnect from everything the shared row learns later — the
+Arabic name, the pack columns, enrichment, a better packshot — in exchange for one matte,
+at a moment when nobody reads a dialog carefully enough to make that trade. It also
+multiplies rows per shop and leaves the shared catalog no better off, which is the
+opposite of what E5-04's contribution path is for.
 
 ---
 

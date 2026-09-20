@@ -27,6 +27,8 @@ const RICE: ProductRow = {
   originAr: 'الهند',
   imageUrl: 'https://cdn.example/rice-cutout.png',
   imageIsFallback: false,
+  // A demo-seed row belongs to the organization that was seeded with it.
+  imageIsShared: false,
   packSize: '5.000',
   packUnit: 'KG',
   packCount: null,
@@ -45,6 +47,8 @@ const CREPES: ProductRow = {
   originAr: null,
   imageUrl: null,
   imageIsFallback: false,
+  // An Open Food Facts row is universal, and so is whatever photo it carries.
+  imageIsShared: true,
   // 4.2% of the catalog carries a pack size, so the ordinary row has none and
   // the unit price line has nothing to derive from.
   packSize: null,
@@ -337,6 +341,33 @@ describe('composeOffer', () => {
       const flags = composeOffer(offer([original]), TIER, 'en').flags
       expect(flags).toContain('fallback-image')
       expect(flags).not.toContain('no-image')
+    })
+
+    it('says whether the fallback photo is the shared catalog\'s', () => {
+      /*
+       * What the panel asks before spending a credit. A shared photo's cutout
+       * reaches every other shop once a reviewer accepts it; the shop's own
+       * photo is theirs, and asking about it would be a dialog with nothing
+       * behind it.
+       */
+      const photo = { imageUrl: 'https://cdn.example/crepes.jpg', imageIsFallback: true }
+      const shared = composeOffer(offer([item({ ...CREPES, ...photo })]), TIER, 'en')
+      expect(shared.fallbackImageProductId).toBe('p-crepes')
+      expect(shared.fallbackImageIsShared).toBe(true)
+
+      const own = composeOffer(offer([item({ ...RICE, imageIsFallback: true })]), TIER, 'en')
+      expect(own.fallbackImageProductId).toBe('p-rice')
+      expect(own.fallbackImageIsShared).toBe(false)
+    })
+
+    it('does not describe a photo no button is offered against', () => {
+      // Gated on the flag exactly as the id is, so a card with a good cutout
+      // carries neither. A shared photo that needs nothing is not "shared" here
+      // — there is no question to caption.
+      const fine = composeOffer(offer([item(CREPES)]), TIER, 'en')
+      expect(fine.flags).not.toContain('fallback-image')
+      expect(fine.fallbackImageProductId).toBeNull()
+      expect(fine.fallbackImageIsShared).toBe(false)
     })
 
     it('flags an unset price, because zero is not free', () => {

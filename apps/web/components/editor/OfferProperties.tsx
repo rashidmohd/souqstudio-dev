@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronUp, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { callApi } from '@/lib/api-client'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -92,7 +93,10 @@ export function OfferProperties({ bookId, tiers, currency, direction }: Props) {
                  * tells an owner the photo still has its background.
                  */}
                 {flag === 'fallback-image' && offer.fallbackImageProductId !== null ? (
-                  <RemoveBackground productId={offer.fallbackImageProductId} />
+                  <RemoveBackground
+                    productId={offer.fallbackImageProductId}
+                    shared={offer.fallbackImageIsShared}
+                  />
                 ) : null}
                 {/*
                  * **The catalog can name a product it cannot picture**, which
@@ -309,13 +313,23 @@ function Items({ bookId, offer }: { bookId: string; offer: ComposedOffer }) {
  * refresh is what brings the new cutout in, and a card that still shows its
  * background after one is an owner pressing the button again rather than a
  * spinner that never resolves.
+ *
+ * **On a shared catalog photo it asks first, and this is the one case that
+ * earns a dialog.** The design system prefers undo over confirm and reserves
+ * dialogs for the irreversible; both halves here are. A credit is spent, and
+ * the cutout is offered to every other shop using this product once a reviewer
+ * accepts it — an owner who learns that afterwards has already published
+ * somebody's photo on their behalf. On their *own* photo none of that is true
+ * and the button simply runs.
  */
-function RemoveBackground({ productId }: { productId: string }) {
+function RemoveBackground({ productId, shared }: { productId: string; shared: boolean }) {
   const router = useRouter()
   const [state, setState] = React.useState<'idle' | 'working' | 'queued' | 'error'>('idle')
   const [error, setError] = React.useState<string | null>(null)
+  const [asking, setAsking] = React.useState(false)
 
   async function run() {
+    setAsking(false)
     setState('working')
     setError(null)
 
@@ -343,13 +357,19 @@ function RemoveBackground({ productId }: { productId: string }) {
     return (
       <span className="font-ui text-body-sm text-secondary">
         Removing the background. It appears here in a moment.
+        {shared ? ' Other shops get it once we have checked it.' : ''}
       </span>
     )
   }
 
   return (
     <span className="flex flex-col gap-1">
-      <Button type="button" variant="ghost" loading={state === 'working'} onClick={() => void run()}>
+      <Button
+        type="button"
+        variant="ghost"
+        loading={state === 'working'}
+        onClick={() => (shared ? setAsking(true) : void run())}
+      >
         Remove the background — <span data-figure>1</span> credit
       </Button>
       {error === null ? null : (
@@ -357,6 +377,28 @@ function RemoveBackground({ productId }: { productId: string }) {
           {error}
         </span>
       )}
+      <Dialog
+        open={asking}
+        onOpenChange={setAsking}
+        title="This is a shared catalog photo"
+        /*
+         * Their flyer first, because that is what they came for and what
+         * happens immediately; the catalog second, because it is the part they
+         * would not have guessed. The cost last — the button already said it,
+         * and repeating it as the headline would read like a warning about a
+         * single credit rather than about the photo.
+         */
+        description="We will make your own cut-out of it. Your books use it straight away, and other shops using this product get it once we have checked it."
+        primaryAction={{ label: 'Remove the background', onClick: () => void run() }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setAsking(false) }}
+      >
+        {/* The cost as a body line rather than inside `description`, because
+            the figure rule needs an element to mark and a string prop has
+            nowhere to put one. */}
+        <p className="font-ui text-body text-secondary">
+          It costs <span data-figure>1</span> credit.
+        </p>
+      </Dialog>
     </span>
   )
 }

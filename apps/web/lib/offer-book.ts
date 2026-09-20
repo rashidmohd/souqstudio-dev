@@ -247,6 +247,10 @@ export async function loadBook(
                   // E8-05's manual cutout acts on this row, so the panel needs
                   // to be able to name it.
                   id: true,
+                  // Null on a universal row. The panel asks before spending a
+                  // credit on a shared photo, because that cutout reaches other
+                  // shops once a reviewer accepts it.
+                  organizationId: true,
                   nameEn: true,
                   nameAr: true,
                   specEn: true,
@@ -380,6 +384,16 @@ export async function loadBook(
               sellBy: item.product.sellBy,
               imageUrl: image ? publicUrl(image.r2Key) : null,
               imageIsFallback: image !== undefined && image.kind !== 'CUTOUT',
+              /*
+               * **The photo, not the product.** A shop that contributed a
+               * packshot to a universal row owns that picture — `pickImage`
+               * above is what put it on the card — so re-matting it is a
+               * private act and the panel should not ask about it. Both halves
+               * have to be false for this to be somebody else's photo.
+               */
+              imageIsShared:
+                item.product.organizationId !== organizationId &&
+                image?.contributedBy !== organizationId,
             },
           }
         }),

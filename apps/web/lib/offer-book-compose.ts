@@ -146,6 +146,16 @@ export interface ComposedOffer {
    */
   fallbackImageProductId: string | null
   /**
+   * Whether that photo is the shared catalog's rather than this shop's.
+   *
+   * **A flag beside the id rather than a fact on every card.** `AddPhoto` made
+   * the case against carrying catalog ownership on every composed offer to
+   * caption one button, and that case holds — this is set only where
+   * `fallbackImageProductId` is, so it costs nothing on the cards that have no
+   * button to caption. False whenever there is no id.
+   */
+  fallbackImageIsShared: boolean
+  /**
    * The lead item's product, when it has no photo at all.
    *
    * **A second field rather than one that means two things.** The two flags
@@ -237,6 +247,17 @@ export interface ProductRow {
   imageUrl: string | null
   /** True when the image is an ORIGINAL standing in for a missing CUTOUT. */
   imageIsFallback: boolean
+  /**
+   * True when the photo on the card belongs to the shared catalog rather than
+   * to this shop — the product is universal *and* this shop did not contribute
+   * the picture.
+   *
+   * **Only read alongside `imageIsFallback`.** It exists to caption one button:
+   * a cutout of a shared photo goes to other shops once a reviewer accepts it,
+   * and an owner about to spend a credit is owed that sentence before the press
+   * rather than after.
+   */
+  imageIsShared: boolean
   /** The three pack columns, for the derived unit price. E5 §4. */
   packSize: string | null
   packUnit: PackUnit | null
@@ -457,6 +478,9 @@ export function composeOffer(
     fallbackImageProductId: flags.includes('fallback-image')
       ? (items[0]?.product.id ?? null)
       : null,
+    // Same gate, so it cannot describe a photo no button is offered against.
+    fallbackImageIsShared:
+      flags.includes('fallback-image') && (items[0]?.product.imageIsShared ?? false),
     // Same rule, same reason: set only when the flag is. The lead item is the
     // one whose photo a card draws, and `flagsFor` reads the same item.
     missingImageProductId: flags.includes('no-image') ? (items[0]?.product.id ?? null) : null,
