@@ -253,15 +253,23 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   any slot, so a hero band is a different voice rather than a bigger product name. **Chrome loads those faces from Google's CDN for
   the specimen, and the render path must not.** Playwright cannot depend on an
   external network on a critical path, PDF embedding needs the real font file,
-  and subsetting is what stops a bilingual book shipping every Arabic glyph
-  twice. Mirroring the files into R2 is still required before export ships —
+  and **a measurer needs the file rather than a CSS link** — which is what put
+  this on E14's critical path as well as E9's, because `hug` means measuring a
+  string. `pnpm --filter @souqstudio/web fonts:mirror -- --dry-run` is written
+  (10 families, 31 faces, 3.8 MB, every one verified OFL against google/fonts)
+  and **has never been run for real**. **Subsetting turned out not to be owed**:
+  Chromium subsets on embed — a bilingual page of Cairo carries a 9 kB font
+  program out of a 91 kB face — and Google already splits by script for the
+  specimen. Mirroring the files into R2 is still required before export ships —
   `souqstudio-design → references/brand-kit-fonts.md`. E6 also has to
   `await document.fonts.load()` for every family and weight *before* creating any
   Fabric text object, or every bounding box is measured against the fallback.
 - **The layout engine is what everything draws through.** `packages/engine` carries track
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation, the
   flow engine, the fit ladder, the price mark, bounded overrides, snapping, the block
-  document schema and the seeded block library of **65 blocks** — **365 tests**. Four surfaces render from it and all four share one
+  document schema, **the binding vocabulary and its one resolver**, **shadow ring
+  expansion**, **starter blocks** and the seeded block library of **66 blocks** —
+  **661 tests**. Four surfaces render from it and all four share one
   painter, `components/blocks/draw.tsx`: `/brand`'s block preview, the editor's page, the
   designer's canvas and its worst-case panel. `pnpm --filter @souqstudio/engine harness`
   draws sample pages to SVG from the seeded blocks and both invented products and **real

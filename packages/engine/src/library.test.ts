@@ -130,6 +130,28 @@ describe('SEED_BLOCKS', () => {
     }
   })
 
+
+  /**
+   * **The canvas shape an owner designs on comes from the range's *middle*.**
+   *
+   * `DesignerShell` draws a repeating block at `sqrt(aspectMin × aspectMax)`,
+   * so a range wide enough to "cover everything" produces a canvas that is not
+   * a card — `{0.1, 1.35}` centres on 0.37, a sliver, and `{1.35, 30}` on 6.36.
+   * The Layout control then names those in ratios an owner cannot place.
+   *
+   * Nothing else in the codebase says this, which is why it had to be found by
+   * opening the designer. The library's own ranges centre on 0.55, 1.07, 1.87
+   * and 5.59; the bound here is what keeps a new one honest.
+   */
+  it('centres every layout on a shape somebody would design a card at', () => {
+    const middle = (a: { aspectMin: number; aspectMax: number }) =>
+      Math.sqrt(a.aspectMin * a.aspectMax)
+    for (const arrangement of SEED_BLOCKS.filter((b) => b.repeats).flatMap((b) => b.arrangements)) {
+      expect(middle(arrangement)).toBeGreaterThanOrEqual(0.35)
+      expect(middle(arrangement)).toBeLessThanOrEqual(6)
+    }
+  })
+
   it('gives a repeating card an arrangement for every merge an owner can draw', () => {
     // No exceptions. `pickArrangement` falls back to the nearest range rather
     // than failing, so a shape a card declines to design is not a shape it

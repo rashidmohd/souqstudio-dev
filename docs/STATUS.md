@@ -5,22 +5,40 @@ of the remaining epics needs before it can begin.
 
 Last updated 20 September 2026.
 
-**E14 is proposed and unbuilt, and it is where the block designer is going.**
-`docs/E14-layout-frames.md` replaces `groupId` with frames that lay their children
-out, folds the price mark's compass, presets, shape kit and colour slots into
-ordinary frame properties, and makes the data map cover headers and footers rather
-than only offer cards. `docs/E14-implementation-plan.md` is the phased work, with
-two gates before anything large is committed to.
+**E14 is under way. Its first gate is passed and three of its nine phases are
+built.** `docs/E14-layout-frames.md` is the design, `docs/E14-implementation-plan.md`
+the phased work, **`docs/E14-progress.md` what is actually done**, and
+`docs/E14-phase-0-findings.md` the measurements that changed the plan. §1.9.
 
-Two things in it are already actionable and do not wait on the rest. **Two
-bindings in the vocabulary draw nothing** — `shop.address` and `shop.phone` are
-declared in `@souqstudio/types` and fall through to `''` in both painters, so a
-footer bound to a shop's number renders an empty box. And **soft shadows are
-available and fully vector**, measured rather than assumed: `feDropShadow`
-rasterizes its element at a resolution nothing in this codebase can set, a
-drop-shadow on text destroys the font, and a gradient carrying alpha stops
-rasterizes the entire page at 72 dpi — while concentric vector rings cost nothing
-and match it. `E14` §2.4 carries the measurements.
+Built: **Phase 0** (the gate), **Phase 1** (the data map, which ships alone),
+**Phase 3** (paint), and Phase 7's paint controls early. **Phase 2 — frames and
+the solver — is the next real work and nothing after it is startable.**
+
+Four findings from Phase 0 changed the plan and are worth knowing before
+touching any of it:
+
+- **`estimateWidth` is off by 5–40% at the median**, not "slightly", measured
+  over 1.1M strings — the whole catalog, both scripts, all 31 brand-kit faces.
+  But **word-segmented HarfBuzz matches Chromium's canvas at 0.000% through
+  p99**, so `hug` is buildable and the plan's fallback of shipping numbers from
+  the server is not needed. Two itemization rules fell out of measuring: shape
+  per *word* (Chromium's word cache skips kerning across spaces) and itemize per
+  *bidi run* (the entire Arabic residual is mixed-direction tokens).
+- **Self-hosting the brand-kit fonts moved onto E14's critical path.** It was
+  E9's. A shaper needs the font file, not a CSS link. `fonts:mirror` is written
+  and has never been run.
+- **§2.4's gradient row overstates the damage.** A gradient with alpha stops
+  emits a vector shading pattern plus a page-sized soft mask, and **the page's
+  text survives** — it is resolution-limited rather than page-destroying. It
+  stays banned on the export path; the disqualifying case is
+  `filter: drop-shadow()` over text, which takes the font out of the PDF
+  entirely. `pnpm --filter @souqstudio/engine export:check` is that measurement,
+  in the repo now, 11 cases.
+- **§8's ring-count question is closed.** 24 ringed bursts at 300 dpi is 1,992
+  paths, 274 kB, zero rasters. No cap needed — except on **text**, where a
+  glyph's ring is the string again under a stroke and Chromium outlines it:
+  ~24 kB a ring, 663 kB for one softly-shadowed price. Text takes a hard shadow
+  and the schema refuses any blur on it.
 
 **Home is a shelf of book covers.** The six most recent draw their own first page — the
 real `BookPage` at thumbnail size, not a stored image, so a cover cannot disagree with the
@@ -803,7 +821,58 @@ footnote and the star rating. `packLabel` and `unitPriceLabel` are already in
 missing is `contentFor` in the two painters, which returns an empty string for both, and
 `library.test.ts` holds the seed to the three fields both painters resolve. Wiring
 `packSize` is the smallest change with the largest effect on how close these read to the
-references; §3 has it.
+references; §3 has it. **Done — E14 Phase 1 wired both, and §1.9 is the record.**
+
+---
+
+### 1.9 E14 began, and the data map turned out to be full of holes — 20 September
+
+`docs/E14-progress.md` is the record. What belongs here is what it changed about
+the product rather than about the plan.
+
+**Every binding in the vocabulary now draws, and there are twenty of them.**
+`shop.address` and `shop.phone` were the two the plan named. The test that walks
+the vocabulary found four more nobody had noticed — `product.origin`,
+`product.packSize`, `offer.prefix` and `offer.unitPrice` — all declared, all
+resolving to `''` in both painters. Seven are new: `offer.price`, both save
+fields, `brand.name` and the three `book.*`. **One seeded block was working
+around the hole with a static "Your phone number"**, and a test had the bug
+written down as a rule.
+
+**There is one resolver now.** `draw.tsx` and `harness/svg.ts` each carried their
+own `switch` over `TextSource`, and they "agreed with each other and with nothing
+else" — which is why testing one was never going to be enough. Both delegate to
+`resolveTextBinding` in the engine and keep only their own adapter. Two tests
+walk the vocabulary, one per painter.
+
+**`logo` stopped being an element kind.** It is an `image` bound to
+`brand.logo`, so every image property applies to it. The seeded library, all 38
+stored blocks that carried one, *and* the palette that makes new ones. That last
+one was missed on the first pass and every logo an owner added went on being the
+dead kind.
+
+**Shadows, outlines and outline-only shapes are real**, model and both painters,
+with controls in the designer. A square with just a thin border could not be
+drawn at any setting before; neither could a shadow.
+
+**A block can be started from scratch**, which `composition-model.md` §3.6
+deliberately forbade. The rule is right about *blank* and was wrong about *new* —
+so a starter is the smallest block of its kind that already reads as one, held to
+the shipped-block bar by `starter.test.ts`, and there is still no branch that
+creates an empty one.
+
+**Two columns landed and are applied on dev**: `offer_books.validFrom`/`validTo`
+— the offer period a header prints, deliberately not `expiresAt`, which is when
+the share *link* dies — and `blocks.identityPin`, §3.2's mode.
+
+**What the tests could not find, looking did.** Nine defects came out of
+rendering the real painter to an SVG and looking at the picture, with the suite
+green throughout: the binding picker offering eleven of twenty, `shop.*` painting
+white on white, the canvas having nothing to lay out, a shadow showing through an
+unfilled shape. Every one was about what a sample contained or what a control was
+wired to rather than about painter logic. **`static` text is still white on
+white on a light card** — the same heuristic, 81 seeded call sites, not yet
+unpicked.
 
 ---
 

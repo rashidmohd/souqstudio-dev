@@ -380,7 +380,7 @@ export function DesignerShell({
               >
                 <Redo2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
               </Button>
-              <SaveStatus />
+              <SaveStatus blockId={blockId} />
             </>
           ) : (
             <DuplicateButton blockId={blockId} name={store.name} />
@@ -918,33 +918,77 @@ function CloseButton({
   )
 }
 
-function SaveStatus() {
+/**
+ * What the save is doing, and a way to make it happen now.
+ *
+ * **Still not a second save model** — the same thing `CloseButton` says about
+ * itself. Both canvases autosave on a two-second debounce, which
+ * `apps/web/CLAUDE.md` asks for and this does not change; what it adds is a way
+ * to stop waiting, which an owner asked for after moving something and watching
+ * the corner say "Unsaved changes" with nothing to press.
+ *
+ * **The error state was a dead end and that is the real defect here.** "Not
+ * saved" was a passive `<span>`: the only way to retry a failed write was to
+ * make another change and hope the next debounce caught it. A status that
+ * reports a failure and offers nothing to do about it is worse than no status.
+ *
+ * Ghost, never primary — the primary action on this screen is the design, and
+ * saving is something the product is already doing.
+ */
+function SaveStatus({ blockId }: { blockId: string }) {
   const save = useDesignerStore((state) => state.save)
+  const editable = useDesignerStore((state) => state.editable)
+  const [flushing, setFlushing] = React.useState(false)
 
-  const copy =
-    save === 'saving'
-      ? 'Saving…'
-      : save === 'saved'
-        ? 'Saved'
-        : save === 'error'
-          ? 'Not saved'
-          : save === 'dirty'
-            ? 'Unsaved changes'
-            : ''
+  // Nothing has changed, so there is nothing to say and nothing to press.
+  if (save === 'idle') return null
 
-  if (copy === '') return null
+  if (save === 'saving' || flushing) {
+    return (
+      <span role="status" className="font-ui text-body-sm text-secondary">
+        Saving…
+      </span>
+    )
+  }
+
+  if (save === 'saved') {
+    return (
+      <span role="status" className="font-ui text-body-sm text-secondary">
+        Saved
+      </span>
+    )
+  }
+
+  // `dirty` and `error`, both of which have something to do about them. A
+  // viewer sees the words and no control, because they have nothing to save.
+  if (!editable) {
+    return (
+      <span
+        role="status"
+        className={
+          save === 'error'
+            ? 'font-ui text-body-sm text-critical-fg'
+            : 'font-ui text-body-sm text-secondary'
+        }
+      >
+        {save === 'error' ? 'Not saved' : 'Unsaved changes'}
+      </span>
+    )
+  }
 
   return (
-    <span
-      role="status"
-      className={
-        save === 'error'
-          ? 'font-ui text-body-sm text-critical-fg'
-          : 'font-ui text-body-sm text-secondary'
-      }
+    <Button
+      type="button"
+      variant="ghost"
+      className={save === 'error' ? 'text-critical-fg' : undefined}
+      onClick={async () => {
+        setFlushing(true)
+        await flushBlock(blockId, true)
+        setFlushing(false)
+      }}
     >
-      {copy}
-    </span>
+      {save === 'error' ? 'Not saved — try again' : 'Save now'}
+    </Button>
   )
 }
 

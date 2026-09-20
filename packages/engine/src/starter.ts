@@ -25,12 +25,16 @@
  * nothing here can pick the occasion.
  */
 
-import type { Arrangement } from '@souqstudio/types'
+import type { Arrangement, BlockElement } from '@souqstudio/types'
 import { categoryRepeats, type MagicCategory } from './block-category'
 import {
+  BANNER,
   OPEN,
   PLAIN_PRICE,
+  SQUARISH,
   STRIP,
+  TALL,
+  WIDE,
   at,
   bound,
   box,
@@ -48,29 +52,42 @@ export interface StarterBlock {
 }
 
 /**
- * A repeating card, at the two shapes a merge actually produces.
+ * A repeating card, at every shape a merge produces.
  *
- * **Two arrangements rather than one**, because a block that declines to design
- * a shape does not avoid that shape — `pickArrangement` falls back to the
- * nearest range and the layout gets crushed into it, which is a defect the
- * gallery found in a shipped block and the tests could not. Upright is the
- * common cell; wide is what a two-cell merge gives.
+ * **Four arrangements over the library's own ranges, not two wide ones.** The
+ * first version used `{0.1, 1.35}` and `{1.35, 30}` to guarantee coverage, and
+ * that was wrong in a way only the designer shows: it derives the canvas shape
+ * from the *geometric middle* of the range, so those two produced a 0.37 sliver
+ * and a 6.36 banner — neither of which is a card, and both of which the Layout
+ * control then named in ratios an owner could not place. `TALL`, `SQUARISH`,
+ * `WIDE` and `BANNER` are centred on 0.55, 1.07, 1.87 and 5.59, which are.
+ *
+ * **Two layouts across four ranges.** Upright is the common cell and the square
+ * merge; wide is what a two-cell merge and a banner give. A block that declines
+ * a shape does not avoid it — `pickArrangement` falls back to the nearest range
+ * and the layout is crushed into it.
  */
+const upright = (): BlockElement[] => [
+  ground('surface'),
+  photo(box(0.1, 0.06, 0.8, 0.42)),
+  bound('name', box(0.08, 0.53, 0.84, 0.16), 'h4'),
+  bound('spec', box(0.08, 0.69, 0.84, 0.08), 'caption'),
+  price(box(0.08, 0.78, 0.84, 0.16), PLAIN_PRICE),
+]
+
+const alongside = (): BlockElement[] => [
+  ground('surface'),
+  photo(box(0.04, 0.1, 0.34, 0.8)),
+  bound('name', box(0.42, 0.18, 0.54, 0.26), 'h4'),
+  bound('spec', box(0.42, 0.46, 0.54, 0.14), 'caption'),
+  price(box(0.42, 0.62, 0.54, 0.24), PLAIN_PRICE),
+]
+
 const offerCard = (): Arrangement[] => [
-  at({ aspectMin: 0.1, aspectMax: 1.35 }, [
-    ground('surface'),
-    photo(box(0.1, 0.06, 0.8, 0.42)),
-    bound('name', box(0.08, 0.53, 0.84, 0.16), 'h4'),
-    bound('spec', box(0.08, 0.69, 0.84, 0.08), 'caption'),
-    price(box(0.08, 0.78, 0.84, 0.16), PLAIN_PRICE),
-  ]),
-  at({ aspectMin: 1.35, aspectMax: 30 }, [
-    ground('surface'),
-    photo(box(0.04, 0.1, 0.34, 0.8)),
-    bound('name', box(0.42, 0.18, 0.54, 0.26), 'h4'),
-    bound('spec', box(0.42, 0.46, 0.54, 0.14), 'caption'),
-    price(box(0.42, 0.62, 0.54, 0.24), PLAIN_PRICE),
-  ]),
+  at(TALL, upright()),
+  at(SQUARISH, upright()),
+  at(WIDE, alongside()),
+  at(BANNER, alongside()),
 ]
 
 /**
