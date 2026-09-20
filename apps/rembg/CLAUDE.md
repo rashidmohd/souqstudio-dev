@@ -112,6 +112,14 @@ Node service. It is the only service here that does not use Railpack, and the
 `dockerfilePath` is relative to the repository root because Railway's config
 file does not follow Root Directory.
 
+**A build log naming Railpack is a settings problem, not a code one.** It means
+Railway never read `railway/rembg.json` and fell back to auto-detection; the
+symptom is `Detected Node` followed by `No start command detected`, because
+this directory has no `package.json` for it to find. Fix it at
+**Settings → Config-as-code → Path**, or force the builder with a
+`RAILWAY_DOCKERFILE_PATH=apps/rembg/Dockerfile` variable, which is read before
+auto-detection. `docs/deployment-railway.md` §2a.
+
 **No public domain.** The worker reaches it over Railway's private network. A
 background-removal endpoint on the open internet is free CPU for anyone who
 finds it.

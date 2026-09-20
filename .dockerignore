@@ -1,20 +1,20 @@
 # The Docker build context is the repository root — Railway's config-as-code
-# does not follow Root Directory, so every Dockerfile here builds from the root
-# and would otherwise upload the whole workspace to the builder.
+# does not follow Root Directory, so `apps/rembg/Dockerfile` builds from the
+# root and would otherwise upload the whole workspace to the builder.
 #
-# `apps/rembg` copies two files. Everything below is weight nothing needs, and
-# `node_modules` alone is several gigabytes of it.
+# **Railpack reads this file too**, which is the reason it is short. It is not
+# only the Dockerfile build that is filtered by it: the `web`, `admin` and
+# `worker` services print "Found .dockerignore file, applying filters" in their
+# own build logs, so anything excluded here is excluded from three Node builds
+# that were working before it existed. Only things no build can need belong
+# below — generated output, caches and secrets. When in doubt, leave it in.
 node_modules
 **/node_modules
 .pnpm-store
-.git
 .turbo
 **/.turbo
 **/.next
-**/dist
-**/build
-**/out
-**/*.tsbuildinfo
+.git
 
 # Never into an image, even one that does not read them.
 .env
@@ -22,8 +22,7 @@ node_modules
 **/.env
 **/.env.local
 
-# Large working artefacts that are not application code.
-packages/engine/harness/out
-products
-docs
-.claude
+# Python, from apps/rembg only.
+**/__pycache__
+**/*.pyc
+apps/rembg/.venv

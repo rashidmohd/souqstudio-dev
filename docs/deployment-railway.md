@@ -157,6 +157,27 @@ Two things differ from the three Node services, and both are load-bearing:
   say so. `REMBG_MODEL` is the only other variable it understands and the default is
   correct.
 
+**If the build log says `Railpack 0.39.0 … Detected Node … No start command detected`, the
+config file is not being read.** That message is Railway falling back to auto-detection:
+it inspected the repository root, found the pnpm workspace, and tried to build this Python
+service as Node. It is never a problem with `apps/rembg` and always a problem with the
+service's settings — most often that **Config-as-code → Path** is empty, was typed into a
+different service, or was set after the build had already started.
+
+Check it under **Settings → Config-as-code**, then **redeploy** — saving the path does not
+rebuild on its own. A build that is reading the file says `Using detected Dockerfile`
+rather than naming Railpack at all.
+
+If it still falls back, set the path *and* add a variable that says the same thing a
+second way:
+
+```bash
+RAILWAY_DOCKERFILE_PATH=apps/rembg/Dockerfile
+```
+
+That is read before auto-detection, so it does not depend on the config file being found.
+Belt and braces; the config file stays the source of truth for everything else.
+
 **The first build is slow — five to ten minutes — and that is expected.** It installs
 onnxruntime and downloads the U^2-Net weights into the image, about 176MB. That is
 deliberate: the alternative is downloading them on the first request after every deploy,
