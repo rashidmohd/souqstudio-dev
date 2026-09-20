@@ -21,6 +21,7 @@ import {
   needsEvenOdd,
   PATH_SHAPES,
   placeText,
+  PREFIX_TEXT,
   resolveColor,
   resolvePaint,
   shapePath,
@@ -59,7 +60,17 @@ import type { ComposedOffer } from '@/lib/offer-book-compose'
  */
 export type ArtboardOffer = Pick<
   ComposedOffer,
-  'name' | 'spec' | 'brand' | 'imageUrl' | 'priceMark' | 'tierLabel' | 'tierToken' | 'chips'
+  | 'name'
+  | 'spec'
+  | 'brand'
+  | 'imageUrl'
+  | 'priceMark'
+  | 'tierLabel'
+  | 'tierToken'
+  | 'chips'
+  // The `(1 kg = 1.76)` line, so it can be placed as its own layer rather than
+  // only drawn under the card by whatever renders it.
+  | 'unitPrice'
 >
 
 export type DrawContext = {
@@ -883,6 +894,24 @@ function Text({
   // static and shop text sits on a tinted band and reads in the surface colour,
   // a caption is muted, everything else is ink.
   const onTint = element.source.from === 'static' || element.source.from === 'shop'
+
+  /**
+   * A rule through the text.
+   *
+   * **The default is the source's, and for the was-price that default is not
+   * cosmetic.** A text element bound to `offer.compare` carries the old price;
+   * printed plain it reads as the price the customer pays. Inside `priceMark`
+   * the painter knew which piece it was drawing and struck it; a free-placed
+   * layer is just text, so the binding has to carry the rule with it.
+   *
+   * An owner who genuinely wants it unstruck says `decoration: 'none'` and gets
+   * it — the default is what happens when nobody has thought about it, which is
+   * exactly when a card would otherwise misprice itself.
+   */
+  const struck =
+    element.decoration === undefined
+      ? element.source.from === 'offer' && element.source.field === 'compare'
+      : element.decoration === 'line-through'
   const fill =
     element.color !== undefined
       ? paint(ctx, element.color)
@@ -906,6 +935,7 @@ function Text({
           textAnchor={anchor}
           direction={direction}
           {...(element.italic === true ? { fontStyle: 'italic' } : {})}
+          {...(struck ? { textDecoration: 'line-through' } : {})}
           {...(step.letterSpacing === undefined
             ? {}
             : { letterSpacing: step.letterSpacing * fitted.fontSize })}
@@ -935,15 +965,50 @@ function Text({
  * text show" is the same class of divergence `packages/engine` exists to stop,
  * arriving in the app rather than in a renderer.
  */
+/**
+ * One part of the offer, as a string.
+ *
+ * Its own function rather than a nested switch: exhaustiveness is what makes
+ * adding a binding safe, and a `switch` inside a `switch` satisfies the compiler
+ * while reading to ESLint as a fallthrough.
+ */
+function offerText(
+  field: Extract<Extract<BlockElement, { kind: 'text' }>['source'], { from: 'offer' }>['field'],
+  offer: ArtboardOffer | undefined
+): string {
+  if (offer === undefined) return ''
+
+  switch (field) {
+    case 'tier':
+      return offer.tierLabel
+    // The label the shop chose — its symbol, or the ISO code. Resolved by the
+    // composer, so this and the price mark cannot disagree about it.
+    case 'currency':
+      return offer.priceMark.currencyLabel ?? offer.priceMark.currency
+    // **Empty rather than a zero when there is no was-price**, and the
+    // difference matters: a card with nothing to compare against draws no line
+    // at all, where "0.00" struck through is a claim about a price.
+    case 'compare':
+      return offer.priceMark.comparePrice ?? ''
+    case 'prefix':
+      return offer.priceMark.prefixLabel === undefined
+        ? ''
+        : PREFIX_TEXT[offer.priceMark.prefixLabel]
+    case 'unitPrice':
+      return offer.unitPrice ?? ''
+  }
+}
+
 export function contentFor(
   element: Extract<BlockElement, { kind: 'text' }>,
   ctx: DrawContext
 ): string {
   switch (element.source.from) {
     // The offer's own words rather than the product's — see `TextSource`. This
-    // is what puts a live tier on artwork the owner uploaded.
+    // is what puts a live tier on artwork the owner uploaded, and what lets the
+    // currency, the was-price and the FROM line be placed as their own layers.
     case 'offer':
-      return ctx.offer?.tierLabel ?? ''
+      return offerText(element.source.field, ctx.offer)
     case 'static':
       return ctx.ar ? element.source.textAr : element.source.textEn
     case 'shop':

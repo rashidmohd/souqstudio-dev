@@ -37,6 +37,8 @@ export type ActiveShop = {
   brandOverride: BrandOverride
   isActive: boolean
   archivedAt: Date | null
+  /** The ISO 4217 code this shop prices in. Validated at the route that sets it. */
+  currency: string
   /** The session's effective role *on this shop*, already resolved. */
   role: Role
 }
@@ -50,6 +52,10 @@ const SELECT = {
   brandOverride: true,
   isActive: true,
   archivedAt: true,
+  // What this shop prices in. The new-book wizard needs it before a book
+  // exists: a sheet of dinars has to be read to three decimals on the way in,
+  // and rounding it there cannot be undone later.
+  currency: true,
 } as const
 
 function shape(
@@ -62,6 +68,7 @@ function shape(
     brandOverride: string
     isActive: boolean
     archivedAt: Date | null
+    currency: string
   },
   role: Role
 ): ActiveShop {

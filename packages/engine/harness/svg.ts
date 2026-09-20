@@ -563,8 +563,26 @@ function resolveText(
 ): string {
   const ar = ctx.direction === 'rtl'
   switch (element.source.from) {
-    case 'offer':
-      return product === undefined ? '' : ar ? product.tier.labelAr : product.tier.labelEn
+    case 'offer': {
+      // The harness paints what the product paints, or it is checking a picture
+      // nobody sees. The parts of the price that can be placed as their own
+      // layers have to resolve here too.
+      if (product === undefined) return ''
+      switch (element.source.field) {
+        case 'tier':
+          return ar ? product.tier.labelAr : product.tier.labelEn
+        case 'currency':
+          return product.currency
+        case 'compare':
+          return product.comparePrice ?? ''
+        // The harness's rows carry no price mode and no pack columns — they are
+        // invented prices against real catalog names. An empty string is the
+        // honest answer, and it is also what a real offer with neither produces.
+        case 'prefix':
+        case 'unitPrice':
+          return ''
+      }
+    }
     case 'static':
       return ar ? element.source.textAr : element.source.textEn
     case 'shop':

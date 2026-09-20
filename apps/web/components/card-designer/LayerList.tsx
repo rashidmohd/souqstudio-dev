@@ -230,15 +230,32 @@ function IconButton({
  * because the field is the whole reason it is there, and a list of six rows all
  * called "Text" is a list nobody can navigate.
  */
+/**
+ * What each offer binding is called in the layer list.
+ *
+ * The same words the "Shows" control uses. Two names for one binding is how an
+ * owner loses track of which layer is which in a stack of five.
+ */
+const OFFER_LAYER_NAME: Record<
+  Extract<Extract<BlockElement, { kind: 'text' }>['source'], { from: 'offer' }>['field'],
+  string
+> = {
+  tier: 'Offer tier',
+  currency: 'Currency',
+  compare: 'Was-price',
+  prefix: 'From / each / per kg',
+  unitPrice: 'Unit price',
+}
+
 export function describe(element: BlockElement): string {
   switch (element.kind) {
     case 'text':
       if (element.source.from === 'product') return `Product ${element.source.field}`
       if (element.source.from === 'shop') return `Shop ${element.source.field}`
-      // Named for what an owner calls it. "Offer tier" is the label on the
-      // binding control, and a layer list that says something else is a second
-      // vocabulary for one thing.
-      if (element.source.from === 'offer') return 'Offer tier'
+      // Named for what an owner calls it. These match the labels on the
+      // binding control exactly, because a layer list that says something else
+      // is a second vocabulary for one thing.
+      if (element.source.from === 'offer') return OFFER_LAYER_NAME[element.source.field]
       return element.source.textEn === '' ? 'Fixed text' : `“${element.source.textEn}”`
     case 'image':
       return element.source.from === 'product' ? 'Product image' : 'Artwork'

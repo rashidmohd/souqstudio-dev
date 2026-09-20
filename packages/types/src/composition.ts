@@ -320,7 +320,33 @@ export type TextSource =
    * product has no tier until it is put in a book at one — and the vocabulary
    * should not blur that.
    */
-  | { from: 'offer'; field: 'tier' }
+  | {
+      from: 'offer'
+      /**
+       * **The parts of the price that are not the price.**
+       *
+       * `tier` came first and made the argument: a badge is an ordinary line of
+       * text, and welding it inside `chip` meant an owner with their own artwork
+       * could put nothing live on it. The currency, the was-price and the
+       * FROM/EACH line were in exactly that position inside `priceMark` — an
+       * owner could move them around a compass and nothing more.
+       *
+       * **What is deliberately absent is the price itself, and the fils.** The
+       * fraction is positioned *against the digits*: it is the one part whose
+       * place depends on how many of them there are, and a block is drawn once
+       * per offer. Pin it to a fraction of the block and it is correct for the
+       * price it was designed against, overlapping a longer one and adrift from
+       * a shorter one. Everything here is a short run that sits beside the
+       * number rather than inside it, which is why it can leave and the fils
+       * cannot.
+       *
+       * `priceMark` stays, and stays able to draw all of these itself. The same
+       * bargain `chip` struck: the prebuilt assembly is the default, and it can
+       * stand aside. `recipe.currency.place: 'hidden'` and the satellites'
+       * `'hidden'` are how it stands aside, so nothing is ever drawn twice.
+       */
+      field: 'tier' | 'currency' | 'compare' | 'prefix' | 'unitPrice'
+    }
   | { from: 'static'; textEn: string; textAr: string }
 
 /**
@@ -430,6 +456,21 @@ export type BlockElement =
       italic?: boolean | undefined
       letterSpacing?: number | undefined
       transform?: 'none' | 'uppercase' | undefined
+      /**
+       * A rule through the text.
+       *
+       * **Here because the was-price left the price mark.** Inside `priceMark`
+       * the strike was drawn by the painter, which knew the piece it was drawing
+       * was a compare price; a text element bound to `offer.compare` is just a
+       * line of text, and without this it would print the old price as though it
+       * were the current one. That is not a styling gap, it is a card that
+       * misprices itself.
+       *
+       * Absent means the source's own default — struck for `offer.compare`,
+       * plain for everything else — so binding a was-price does the right thing
+       * without the owner having to know that it should.
+       */
+      decoration?: 'none' | 'line-through' | undefined
       /** Overrides the face the level binds to. */
       family?: TypeFamily | undefined
       /** Overrides the automatic ink. */
@@ -531,8 +572,17 @@ export type BlockElement =
  * The other five are not decoration. `super-after` is how a Gulf shelf ticket
  * sets a riyal; `above` is the hypermarket stack; `after` is the e-commerce
  * convention. Each is a real retail idiom the product could not express.
+ *
+ * **`hidden` is what lets the currency leave.** A shop that wants the code set
+ * as its own layer — its own size, its own colour, its own place on the card,
+ * grouped with whatever else it likes — binds a text element to
+ * `{ from: 'offer', field: 'currency' }` and switches this off. Without it the
+ * code would be drawn twice, which is the same bargain `chip` and the `tier`
+ * text binding already strike: the prebuilt assembly stays, and it can stand
+ * aside for an owner who would rather place the part themselves.
  */
 export type MarkCurrencyPlace =
+  | 'hidden'
   | 'before'
   | 'after'
   | 'super-before'
@@ -632,8 +682,56 @@ export interface MarkSatellite {
  * price jump between neighbouring cards, which is exactly the inconsistency the
  * component exists to prevent. `layoutPriceMark` asserts it.
  */
+/**
+ * The currency code, as a part rather than only a position.
+ *
+ * **Placement was the only thing about it an owner could change**, and it was
+ * the least of what they asked for. Its size was `CURRENCY_RATIO`, its gap to
+ * the digits was `GAP_RATIO`, and how it sat against them was implied by whether
+ * the place had `super-` in front of it — three constants in the engine, none of
+ * them reachable, and no way at all to centre a code against the number it
+ * belongs to.
+ *
+ * Every field is optional and every one defaults to the constant it replaced, so
+ * a recipe that names only a place lays out exactly as it did.
+ */
+export interface MarkCurrency {
+  place?: MarkCurrencyPlace | undefined
+  /** Fraction of the major's size. Clamped to `MARK_CURRENCY_SCALE`. */
+  scale?: number | undefined
+  /**
+   * Air between the code and the nearest digit, as a fraction of the major's
+   * size. Clamped to `MARK_CURRENCY_GAP`, whose floor is zero — a code set
+   * tight against the digits is a real treatment, and the pair are different
+   * sizes and usually different colours, so they do not read as one word.
+   *
+   * Ignored when the code has its own line: `above` and `below` are separated
+   * by the strip they sit in, not by this.
+   */
+  gap?: number | undefined
+  /**
+   * How the code sits against the digits, on the block axis.
+   *
+   * **The thing `super-` was standing in for, said properly.** That prefix
+   * meant "ride the cap line" and nothing else — the size was the same either
+   * way — so the vocabulary had two of the three alignments a shop actually
+   * wants and no name for either of them. `middle` is the one that was missing
+   * altogether, and it is the commonest treatment on a Gulf shelf ticket after
+   * the raised one.
+   *
+   * Absent means what the place implies, so nothing already drawn moves:
+   * `super-before` and `super-after` are `top`, everything else is `baseline`.
+   */
+  align?: 'top' | 'middle' | 'baseline' | undefined
+}
+
 export interface PriceMarkRecipe {
-  currency?: MarkCurrencyPlace | undefined
+  /**
+   * The currency code. A bare `MarkCurrencyPlace` is still accepted and means
+   * that placement with every other field defaulted — organization blocks carry
+   * documents written that way and this object is strict.
+   */
+  currency?: MarkCurrencyPlace | MarkCurrency | undefined
   minor?: MarkMinorTreatment | undefined
   /** Fraction of the major's size. Clamped to `MARK_MINOR_SCALE`. */
   minorScale?: number | undefined
@@ -699,6 +797,30 @@ export const MARK_SATELLITE_SCALE = { min: 0.14, max: 0.5 } as const
 /** The minor's size range, as a fraction of the major. One is a price set as a
  *  single number — "24.50" all one size — which is a real treatment, not a bug. */
 export const MARK_MINOR_SCALE = { min: 0.3, max: 1 } as const
+
+/**
+ * The currency code's size range, as a fraction of the major.
+ *
+ * Wider than the satellite range at both ends and deliberately so. The floor is
+ * lower because a code is two or three glyphs rather than a number to be read
+ * off a shelf, and a shop setting a discreet riyal is doing something ordinary.
+ * The ceiling is higher because the currency is *above* the satellites in the
+ * hierarchy — `major > minor > currency > satellite` — and pinning it to the
+ * same ceiling as the FROM line said the opposite. It stays below the major,
+ * which is the part that matters.
+ */
+export const MARK_CURRENCY_SCALE = { min: 0.12, max: 0.6 } as const
+
+/**
+ * The gap between the code and the digits, as a fraction of the major.
+ *
+ * **The floor is zero, not the old constant.** `GAP_RATIO` existed because at
+ * `0` a Latin code touches the first digit — but that was a statement about
+ * `AED 24`, and a small riyal set tight against a large number is a treatment
+ * every hypermarket in the Gulf prints. The two are different sizes and usually
+ * different colours; they do not read as one word.
+ */
+export const MARK_CURRENCY_GAP = { min: 0, max: 0.6 } as const
 
 /**
  * How far a part may be nudged off its compass point, as a fraction of the

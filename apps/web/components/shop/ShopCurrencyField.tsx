@@ -7,7 +7,10 @@ import {
   CURRENCY_LABEL,
   CURRENCY_SYMBOLS,
   MAX_CURRENCY_SYMBOL,
+  PRIORITY_CURRENCIES,
   currencyLabelFor,
+  isCurrency,
+  minorUnits,
   type Currency,
   type CurrencyDisplay,
 } from '@souqstudio/types'
@@ -37,6 +40,26 @@ import { Segmented } from '@/components/ui/segmented'
  * says which.
  */
 
+/**
+ * The register, the priority six first.
+ *
+ * Built once at module scope rather than per render: it is a hundred and
+ * fifty-five objects that never change, and rebuilding it on every keystroke in
+ * the symbol field is work for nothing.
+ */
+const CURRENCY_OPTIONS = [
+  ...PRIORITY_CURRENCIES.map((value) => ({
+    value,
+    label: `${CURRENCY_LABEL[value]} (${value})`,
+    group: 'Gulf',
+  })),
+  ...CURRENCIES.filter((value) => !PRIORITY_CURRENCIES.includes(value)).map((value) => ({
+    value,
+    label: `${CURRENCY_LABEL[value]} (${value})`,
+    group: 'All currencies',
+  })),
+]
+
 type Props = {
   shopId: string
   currency: string
@@ -56,9 +79,7 @@ export function ShopCurrencyField({
 
   // Narrowed once, here. The column is a string because the database has no
   // enum for it; everything below branches on the union.
-  const initialCode = (CURRENCIES as readonly string[]).includes(currency)
-    ? (currency as Currency)
-    : 'AED'
+  const initialCode = isCurrency(currency) ? currency : 'AED'
   const initialDisplay: CurrencyDisplay = currencyDisplay === 'SYMBOL' ? 'SYMBOL' : 'CODE'
 
   const [code, setCode] = React.useState<Currency>(initialCode)
@@ -126,16 +147,24 @@ export function ShopCurrencyField({
 
       {canEdit ? (
         <>
+          {/*
+            **The six this product sells into, then all of them.** A hundred and
+            fifty-five rows alphabetical is a list nobody scrolls: the shop that
+            needs the euro will look for it, and the shop that needs the dirham
+            should not have to pass Afghanistan to reach it. Both groups come
+            from one register — this only decides what is offered first.
+          */}
           <Select
             label="Currency"
             disabled={saving}
             value={code}
-            options={CURRENCIES.map((value) => ({
-              value,
-              label: `${CURRENCY_LABEL[value]} (${value})`,
-            }))}
+            options={CURRENCY_OPTIONS}
             onChange={(event) => setCode(event.target.value as Currency)}
-            hint="Books already made keep the currency they were priced in."
+            hint={
+              minorUnits(code) === 0
+                ? `${CURRENCY_LABEL[code]} prices are whole numbers — no decimal part.`
+                : `${CURRENCY_LABEL[code]} prices carry ${minorUnits(code)} decimal places. Books already made keep the currency they were priced in.`
+            }
           />
 
           <div className="flex flex-col gap-1">

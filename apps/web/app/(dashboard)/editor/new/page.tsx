@@ -6,6 +6,7 @@ import { readEffectiveBrand } from '@/lib/brand-kit'
 import { listBlocks } from '@/lib/blocks'
 import { NewBookWizard } from '@/components/offer-book/NewBookWizard'
 import type { PickableBlock } from '@/components/offer-book/types'
+import { isCurrency } from '@souqstudio/types'
 
 export const metadata: Metadata = { title: 'New offer book · SouqStudio' }
 
@@ -101,6 +102,10 @@ export default async function NewBookPage() {
       <NewBookWizard
         blocks={pickable}
         kit={brand.brandKit}
+        // The shop's own, so a price list is read to the right precision. A
+        // column that is not a currency this build knows falls back rather than
+        // throwing — the row is a string and the register may have moved.
+        currency={isCurrency(shop.currency) ? shop.currency : 'AED'}
         // The book's language *defaults* from the interface and is not asked
         // about. An owner working in an Arabic UI is overwhelmingly making an
         // Arabic flyer, and the one who is not changes it in the editor. It stays

@@ -15,6 +15,7 @@ import { PriceListMatcher } from '@/components/offer-book/PriceListMatcher'
 import { ProductSearch } from '@/components/offer-book/ProductSearch'
 import { WizardStep } from '@/components/offer-book/WizardStep'
 import type { PickableBlock } from '@/components/offer-book/types'
+import type { Currency } from '@souqstudio/types'
 
 /**
  * Starting an offer book. E6 — `docs/E6-create-flow.md`.
@@ -46,6 +47,14 @@ type Props = {
   kit: BrandKit
   /** The interface language, which is what the book's language defaults to. */
   lang: 'en' | 'ar'
+  /**
+   * What this shop prices in.
+   *
+   * Needed before the book exists, because a price list is read on the way in:
+   * how many decimals a cell may carry is the currency's business, and a sheet
+   * of dinars rounded at import cannot be un-rounded in the editor.
+   */
+  currency: Currency
 }
 
 /** `POST /api/v1/offer-books` caps both arrays here. The message has to arrive
@@ -107,7 +116,7 @@ function useDebouncedDraft(save: (draft: MatcherDraft | null) => void) {
   }, [])
 }
 
-export function NewBookWizard({ blocks, kit, lang }: Props) {
+export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
   const router = useRouter()
 
   const [step, setStep] = React.useState<Step>(1)
@@ -372,6 +381,7 @@ export function NewBookWizard({ blocks, kit, lang }: Props) {
             <ProductSearch picked={picked} onChange={setPicked} max={MAX_OFFERS} />
           ) : restored === undefined ? null : (
             <PriceListMatcher
+              currency={currency}
               onResolved={takeRows}
               initial={restored?.matcher}
               onDraftChange={onDraftChange}

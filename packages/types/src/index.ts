@@ -1,6 +1,11 @@
 // Shared TypeScript types for SouqStudio
 // Add types here that are used across multiple apps/packages
 
+// `Currency` is referenced by `PriceMark` below and re-exported at the foot of
+// this file. Imported as a type rather than taken from the star re-export,
+// because a module cannot read its own re-exports.
+import type { Currency } from './currency'
+
 // The composition model — blocks, page grids, flow and pins. See
 // `docs/composition-model.md`. It supersedes `GridConfig`, `TemplateConfig` and
 // the E6 §2 grammar further down this file; those stay until the E4 brand flow
@@ -357,12 +362,17 @@ export interface OfferTemplate {
 // Exactly one authoring control is exposed — tier. Everything else derives from
 // the offer and the template.
 
-export const CURRENCIES = ['AED', 'SAR', 'QAR', 'KWD', 'OMR', 'BHD'] as const
-export type Currency = (typeof CURRENCIES)[number]
-
-/** KWD, OMR and BHD are three-decimal. The minor treatment differs and the
- *  branch is one line now and a forgotten bug later. */
-export const THREE_DECIMAL_CURRENCIES: readonly Currency[] = ['KWD', 'OMR', 'BHD']
+// `Currency`, `CURRENCIES` and `THREE_DECIMAL_CURRENCIES` live in `./currency`
+// and are re-exported at the foot of this file. They were six codes and a
+// hand-written list of the three that carry an extra digit; they are now the
+// ISO 4217 register, because a currency picker that cannot name the euro is a
+// product telling a shop it may not run a book for its Frankfurt branch.
+//
+// The move matters for one reason beyond tidiness: the three-decimal list is
+// **derived from the register** rather than restated. It was right about KWD,
+// OMR and BHD and silently wrong about JOD, TND, IQD and LYD, which nothing
+// could select — and the moment the picker opened up, that would have printed
+// a Jordanian price a tenth of what it costs.
 
 export interface PriceMark {
   /** PromoTier id — supplies label, colour token and emphasis. */

@@ -55,6 +55,10 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     }),
     tierLabel: ar ? product.tierLabelAr : product.tierLabelEn,
     tierToken: '',
+    // A sample has no pack columns behind it, and a rate invented for a preview
+    // is a number an owner could read as real. Null is *no line*, which is what
+    // `composeOffer` produces for an offer whose pack cannot answer.
+    unitPrice: null,
     // A sample has no chips. The tier flash is the one every card carries, and
     // inventing a "Limit 2" beside it would show a block preview that no real
     // offer produces until an owner asks for it.

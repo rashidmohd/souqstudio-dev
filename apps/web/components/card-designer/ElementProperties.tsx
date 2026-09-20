@@ -5,6 +5,8 @@ import { AlignCenter, AlignLeft, AlignRight, Italic, Lock } from 'lucide-react'
 import type {
   BlockElement,
   BrandColor,
+  MarkCurrency,
+  MarkCurrencyPlace,
   MarkPlace,
   MarkSatellite,
   PriceMark,
@@ -16,6 +18,8 @@ import type {
   TypeLevel,
 } from '@souqstudio/types'
 import {
+  MARK_CURRENCY_GAP,
+  MARK_CURRENCY_SCALE,
   MARK_MINOR_SCALE,
   MARK_NUDGE,
   MARK_SATELLITE_SCALE,
@@ -456,6 +460,20 @@ function PriceMarkFields({
   const setRecipe = (patch: Partial<PriceMarkRecipe>) =>
     set({ recipe: { ...(style.recipe ?? {}), ...patch } })
 
+  /**
+   * Merge into the currency, whichever shape the document holds it in.
+   *
+   * A block written before the code had a size carries a bare placement string,
+   * and spreading a string gives an object of numbered characters — so it is
+   * normalised to `{ place }` first. Every seeded block is in that older shape,
+   * which makes this the common path rather than the edge case.
+   */
+  const patchCurrency = (patch: Partial<MarkCurrency>) => {
+    const held = style.recipe?.currency
+    const base: MarkCurrency = typeof held === 'string' ? { place: held } : (held ?? {})
+    setRecipe({ currency: { ...base, ...patch } })
+  }
+
   const recipe = markRecipe(style)
 
   /**
@@ -666,22 +684,94 @@ function PriceMarkFields({
         vocabulary however they are combined — and `markRecipe` clamps the two
         numeric ones again before the canvas sees them.
       */}
-      <Select
-        label="Currency code"
-        disabled={disabled}
-        value={recipe.currency}
-        options={[
-          { value: 'before', label: 'Before the price' },
-          { value: 'after', label: 'After the price' },
-          { value: 'super-before', label: 'Small, leading' },
-          { value: 'super-after', label: 'Small, trailing' },
-          { value: 'above', label: 'Above the price' },
-          { value: 'below', label: 'Below the price' },
-        ]}
-        onChange={(event) =>
-          setRecipe({ currency: event.target.value as PriceMarkRecipe['currency'] })
-        }
-      />
+      {/*
+        **The currency, as a part rather than only a position.** Its size was
+        `CURRENCY_RATIO`, its gap to the digits was `GAP_RATIO`, and how it sat
+        against them was implied by whether the place had `super-` in front of
+        it — three constants in the engine, none of them reachable. A small
+        riyal set tight against a large number and centred on it is the
+        commonest shelf treatment in this market and could not be built at any
+        setting.
+
+        Its colour is in the group above, with the other six.
+      */}
+      <Group label="Currency">
+        <Select
+          label="Where it goes"
+          disabled={disabled}
+          value={recipe.currency.place}
+          options={[
+            { value: 'before', label: 'Before the price' },
+            { value: 'after', label: 'After the price' },
+            { value: 'super-before', label: 'Small, leading' },
+            { value: 'super-after', label: 'Small, trailing' },
+            { value: 'above', label: 'Above the price' },
+            { value: 'below', label: 'Below the price' },
+            { value: 'hidden', label: 'Somewhere else — I’ll place it' },
+          ]}
+          onChange={(event) => patchCurrency({ place: event.target.value as MarkCurrencyPlace })}
+          {...(recipe.currency.place === 'hidden'
+            ? {
+                hint: 'Add a text layer bound to the currency and put it where you like.',
+              }
+            : {})}
+        />
+
+        {recipe.currency.place === 'hidden' ? null : (
+          <>
+            <Slider
+              label="Size"
+              unit="%"
+              hint="Against the big number."
+              disabled={disabled}
+              min={Math.round(MARK_CURRENCY_SCALE.min * 100)}
+              max={Math.round(MARK_CURRENCY_SCALE.max * 100)}
+              step={1}
+              value={Math.round(recipe.currency.scale * 100)}
+              onValueChange={(next) => patchCurrency({ scale: next / 100 })}
+            />
+
+            {/*
+              A code on its own line is separated by the strip it sits in, and
+              sits across the price rather than beside it — so neither the gap
+              nor the vertical alignment has anything to act on. Two controls
+              that do nothing are worse than two that are absent.
+            */}
+            {recipe.currency.place === 'above' || recipe.currency.place === 'below' ? null : (
+              <>
+                <Slider
+                  label="Gap to the price"
+                  unit="%"
+                  hint="Zero sets it tight against the digits, which is a real treatment."
+                  disabled={disabled}
+                  min={Math.round(MARK_CURRENCY_GAP.min * 100)}
+                  max={Math.round(MARK_CURRENCY_GAP.max * 100)}
+                  step={1}
+                  value={Math.round(recipe.currency.gap * 100)}
+                  onValueChange={(next) => patchCurrency({ gap: next / 100 })}
+                />
+
+                <Field label="Sits against the price">
+                  <Segmented
+                    label="Sits against the price"
+                    className="grid w-full grid-cols-3 rounded-control"
+                    disabled={disabled}
+                    value={recipe.currency.align}
+                    options={[
+                      { value: 'top', label: 'Top' },
+                      { value: 'middle', label: 'Middle' },
+                      { value: 'baseline', label: 'Bottom' },
+                    ]}
+                    onChange={(align) =>
+                      patchCurrency({ align: align as 'top' | 'middle' | 'baseline' })
+                    }
+                  />
+                </Field>
+              </>
+            )}
+          </>
+        )}
+      </Group>
       <Select
         label="Fils"
         disabled={disabled}
@@ -1088,6 +1178,14 @@ function TextFields({
                 // The offer's own words, not the product's. It is what makes a
                 // badge out of artwork the owner uploaded — see `TextSource`.
                 { value: 'offer:tier', label: 'Offer tier' },
+                // The parts of the price that sit *beside* the number. Placed
+                // here, they are ordinary layers: own size, own colour, own
+                // place, groupable with anything. Switch the matching part off
+                // in the price mark or the card draws it twice.
+                { value: 'offer:currency', label: 'Currency' },
+                { value: 'offer:compare', label: 'Was-price' },
+                { value: 'offer:prefix', label: 'From / each / per kg' },
+                { value: 'offer:unitPrice', label: 'Unit price' },
               ]
             : []),
           { value: 'shop:name', label: 'Shop name' },
@@ -1460,8 +1558,31 @@ function parseSource(
   if (from === 'shop' && field !== undefined) {
     return { from: 'shop', field: field as 'name' | 'phone' | 'address' }
   }
-  if (from === 'offer') return { from: 'offer', field: 'tier' }
+  if (from === 'offer' && field !== undefined) {
+    return {
+      from: 'offer',
+      field: field as 'tier' | 'currency' | 'compare' | 'prefix' | 'unitPrice',
+    }
+  }
   return current
+}
+
+/**
+ * What each part of the offer is, to an owner.
+ *
+ * Four of the five name a piece the price mark can also draw, so each says so:
+ * an owner who places one and leaves the mark drawing it too gets the same
+ * thing twice, and the panel is where that is cheapest to say.
+ */
+const OFFER_PURPOSE: Record<
+  Extract<Extract<BlockElement, { kind: 'text' }>['source'], { from: 'offer' }>['field'],
+  string
+> = {
+  tier: 'The offer’s tier. It changes with every product, and it is what a badge says.',
+  currency: 'The currency, as its own layer. Set the price mark’s currency to “somewhere else” so it is not drawn twice.',
+  compare: 'The was-price, struck through. Hide it on the price mark so it is not drawn twice.',
+  prefix: 'Reads FROM, EACH or PER KG, depending on how the offer is priced.',
+  unitPrice: 'The “(1 kg = 1.76)” line. Empty when the pack cannot answer.',
 }
 
 /** One line on what this element is for, in the owner's terms. */
@@ -1471,7 +1592,7 @@ function purpose(element: BlockElement): string {
       return element.source.from === 'product'
         ? 'Follows the catalog. It changes with every product.'
         : element.source.from === 'offer'
-          ? 'The offer’s tier. It changes with every product, and it is what a badge says.'
+          ? OFFER_PURPOSE[element.source.field]
           : element.source.from === 'shop'
             ? 'Comes from the shop this book belongs to.'
             : 'The same on every card.'

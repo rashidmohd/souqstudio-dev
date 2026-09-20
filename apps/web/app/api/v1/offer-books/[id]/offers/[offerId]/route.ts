@@ -1,6 +1,12 @@
 import type { NextRequest } from 'next/server'
 import { prisma } from '@souqstudio/db'
 import { z } from 'zod'
+import {
+  AMOUNT_PATTERN,
+  amountFitsCurrency,
+  minorUnits,
+  type Currency,
+} from '@souqstudio/types'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import type { OfferSnapshot } from '@/lib/offer-snapshot'
@@ -32,7 +38,13 @@ import type { OfferSnapshot } from '@/lib/offer-snapshot'
  * `12.50`, and has already been through a float. Not `z.coerce` either, for the
  * same reason.
  */
-const MONEY = /^\d{1,8}(\.\d{1,2})?$/
+/**
+ * The grammar only. **How many decimals are actually allowed depends on the
+ * offer's currency**, which this route has not read yet at parse time — a yen
+ * has no sen and a dinar has a thousand fils. `amountFitsCurrency` is checked
+ * below, once the offer is in hand.
+ */
+const MONEY = AMOUNT_PATTERN
 
 /** A rate, to the three decimals the column carries. */
 const RATE = /^\d{1,7}(\.\d{1,3})?$/
@@ -91,7 +103,7 @@ export async function PATCH(
       bookId: params.id,
       book: { shop: { organizationId: session.user.organizationId } },
     },
-    select: { id: true },
+    select: { id: true, currency: true },
   })
   if (offer === null) {
     return fail('not_found', 'That offer does not exist.', 404)
@@ -120,6 +132,30 @@ export async function PATCH(
     unitPriceUnit,
     legalLines,
   } = parsed.data
+
+  /**
+   * **The decimals the offer's own currency allows**, which the schema could
+   * not check because the currency is on the row rather than in the body.
+   *
+   * A yen has no sen; a dinar has a thousand fils. Letting `12.75` into a KWD
+   * offer stores twelve dinars and seven hundred *fifty* fils — a different
+   * price, rounded silently, printed on a flyer somebody carries to a till.
+   * Refusing it names the currency rather than repeating the generic hint.
+   */
+  const currency = offer.currency as Currency
+  const allowed = minorUnits(currency)
+  const misfit = [price, comparePrice].find(
+    (value) => typeof value === 'string' && !amountFitsCurrency(value, currency)
+  )
+  if (misfit !== undefined && misfit !== null) {
+    return fail(
+      'invalid_request',
+      allowed === 0
+        ? `${currency} prices are whole numbers — enter ${misfit.split('.')[0] ?? ''}.`
+        : `${currency} prices carry ${allowed} decimal places. Enter a price like ${(1.5).toFixed(allowed)}.`,
+      422
+    )
+  }
 
   const updated = await prisma.offer.update({
     where: { id: offer.id },

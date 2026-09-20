@@ -33,6 +33,7 @@ export {
   // How wide a currency string is, by script. Exported so a renderer holding
   // real font metrics can compare against it before deciding to override.
   currencyAdvance,
+  PREFIX_TEXT,
   CAP_RATIO,
   MAX_ROTATION,
   // The interior arrangement. `markRecipe` is what a renderer calls; the record

@@ -34,6 +34,7 @@
 import type {
   Currency,
   LogicalAlign,
+  MarkCurrency,
   MarkCurrencyPlace,
   MarkMinorTreatment,
   MarkPlace,
@@ -43,10 +44,12 @@ import type {
   PriceMarkStyle,
 } from '@souqstudio/types'
 import {
+  MARK_CURRENCY_GAP,
+  MARK_CURRENCY_SCALE,
   MARK_MINOR_SCALE,
   MARK_NUDGE,
   MARK_SATELLITE_SCALE,
-  THREE_DECIMAL_CURRENCIES,
+  minorUnits,
 } from '@souqstudio/types'
 import type { Rect } from './geometry'
 import { MARK_FIT, type PathShape } from './shapes'
@@ -262,9 +265,18 @@ export interface PriceMarkLayout {
   rotation: number
 }
 
-/** How many minor digits a currency carries. */
+/**
+ * How many minor digits a currency carries.
+ *
+ * **Read off the register, not guessed at from a list of three.** This asked
+ * `THREE_DECIMAL_CURRENCIES.includes(...)` and answered `2` for everything
+ * else, which was right while the product knew six currencies and wrong the
+ * moment it knew the rest: sixteen carry **no** decimal part at all, and a yen
+ * price rendered as `1200.00` is not a formatting slip — it is a price with two
+ * digits that do not exist appended to it.
+ */
 export function minorDigits(currency: Currency): number {
-  return THREE_DECIMAL_CURRENCIES.includes(currency) ? 3 : 2
+  return minorUnits(currency)
 }
 
 /**
@@ -274,6 +286,11 @@ export function minorDigits(currency: Currency): number {
  * 12.750 KWD is twelve dinars and seven hundred fifty fils, and showing "12.75"
  * is a different number. Building the branch now is one line; discovering it the
  * week Kuwait signs up is a reprint.
+ *
+ * **A zero-decimal currency gets no minor part at all**, not an empty one that
+ * draws as a point with nothing after it. `toFixed(0)` yields no separator, so
+ * the split leaves `minor` empty and every renderer already treats that as *no
+ * fils* — the same path a whole-currency price has always taken.
  */
 export function splitAmount(
   amount: string | number,
@@ -313,7 +330,7 @@ export function toPriceMark(
 
 /** Every field settled, so the solver never branches on `undefined`. */
 export interface ResolvedRecipe {
-  currency: MarkCurrencyPlace
+  currency: ResolvedCurrency
   minor: MarkMinorTreatment
   minorScale: number
   compare: ResolvedSatellite
@@ -329,6 +346,19 @@ export interface ResolvedRecipe {
  * recipe that never mentions them lays out exactly as it did before they
  * existed — which is what the byte-identity test asserts.
  */
+/**
+ * The currency code's placement, size, gap and alignment, every field settled.
+ *
+ * `align` is resolved here rather than left to the solver, so the `super-`
+ * prefix's implied cap alignment is worked out in exactly one place.
+ */
+export interface ResolvedCurrency {
+  place: MarkCurrencyPlace
+  scale: number
+  gap: number
+  align: 'top' | 'middle' | 'baseline'
+}
+
 export interface ResolvedSatellite {
   place: MarkPlace
   scale: number
@@ -491,6 +521,9 @@ export const PRICE_MARK_RECIPES: Record<PriceMarkPreset, ResolvedRecipe> =
         preset,
         {
           ...base,
+          // The preset writes a bare placement; the resolver fills in the size,
+          // the gap and the alignment `super-` used to imply.
+          currency: currencyOf(base.currency, undefined),
           compare: { ...base.compare, dx: 0, dy: 0 },
           prefix: { ...base.prefix, dx: 0, dy: 0 },
           tier: { ...base.tier, dx: 0, dy: 0 },
@@ -500,6 +533,42 @@ export const PRICE_MARK_RECIPES: Record<PriceMarkPreset, ResolvedRecipe> =
     // `Object.fromEntries` widens to `{ [k: string]: ResolvedRecipe }`; the keys
     // are `PriceMarkPreset` by construction one line above.
   ) as Record<PriceMarkPreset, ResolvedRecipe>
+
+/**
+ * The currency code, preset and override merged.
+ *
+ * **A bare placement string is still a legal override**, because documents
+ * carry them and the schema is strict — the same compatibility bargain `frame`
+ * and `tab` make. It means that placement with everything else defaulted.
+ */
+// A declaration rather than a `const` arrow: `PRICE_MARK_RECIPES` is built
+// eagerly at module scope and calls this, which a `const` declared below it
+// cannot serve — the table would throw on import before anything ran.
+function currencyOf(
+  base: MarkCurrencyPlace,
+  over: MarkCurrencyPlace | MarkCurrency | undefined
+): ResolvedCurrency {
+  const spec: MarkCurrency = typeof over === 'string' ? { place: over } : (over ?? {})
+  const place = spec.place ?? base
+
+  return {
+    place,
+    scale:
+      spec.scale === undefined
+        ? CURRENCY_RATIO
+        : clamp(spec.scale, MARK_CURRENCY_SCALE.min, MARK_CURRENCY_SCALE.max),
+    gap:
+      spec.gap === undefined
+        ? GAP_RATIO
+        : clamp(spec.gap, MARK_CURRENCY_GAP.min, MARK_CURRENCY_GAP.max),
+    // **The `super-` prefix, decoded once.** It only ever meant "ride the cap
+    // line" — the size was the same either way — so an absent `align` reads it
+    // back out and every existing document keeps its baseline or its cap.
+    align:
+      spec.align ??
+      (place === 'super-before' || place === 'super-after' ? 'top' : 'baseline'),
+  }
+}
 
 const satellite = (
   base: { place: MarkPlace; scale: number },
@@ -538,7 +607,7 @@ export function markRecipe(style: PriceMarkStyle | undefined): ResolvedRecipe {
   const tier = satellite(base.tier, over?.tier)
 
   return {
-    currency: over?.currency ?? base.currency,
+    currency: currencyOf(base.currency, over?.currency),
     minor: over?.minor ?? base.minor,
     minorScale:
       over?.minorScale === undefined
@@ -756,11 +825,13 @@ export function layoutPriceMark(
   }
 
   // The currency takes a line of its own only when the recipe stacks it.
-  const stackedCurrency = recipe.currency === 'above' || recipe.currency === 'below'
+  const hiddenCurrency = recipe.currency.place === 'hidden'
+  const stackedCurrency =
+    recipe.currency.place === 'above' || recipe.currency.place === 'below'
   const currencyStrip = stackedCurrency ? amount.height * CURRENCY_LINE : 0
   const cluster: Rect = {
     x: amount.x,
-    y: amount.y + (recipe.currency === 'above' ? currencyStrip : 0),
+    y: amount.y + (recipe.currency.place === 'above' ? currencyStrip : 0),
     width: amount.width,
     height: Math.max(0, amount.height - currencyStrip),
   }
@@ -773,7 +844,17 @@ export function layoutPriceMark(
    * is not reading this — it reads `price.currency`, so a symbol never moves a
    * decimal point.
    */
-  const currencyText = price.currencyLabel ?? price.currency
+  /**
+   * **Empty when the recipe switched the code off**, rather than the layout
+   * carrying a string no renderer draws. Its advance is then zero, so it
+   * reserves no room and every painter — four of them share `draw.tsx`, and the
+   * harness is a fifth — draws nothing without needing to learn a new rule.
+   *
+   * `currency` stays a `MarkPiece` rather than becoming nullable: it is read
+   * unconditionally in five places, and an empty string is the one change that
+   * is correct in all of them.
+   */
+  const currencyText = hiddenCurrency ? '' : (price.currencyLabel ?? price.currency)
   /**
    * Its advance, measured once and used by all three of the solver, the fit and
    * the final placement. Three call sites reading `text.length * LETTER_WIDTH`
@@ -807,9 +888,9 @@ export function layoutPriceMark(
         ? `.${rawMinor}`
         : rawMinor
 
-  const inlineCurrency = !stackedCurrency
+  const inlineCurrency = !stackedCurrency && !hiddenCurrency
   const currencyUnits = inlineCurrency
-    ? currencyUnitAdvance * CURRENCY_RATIO + GAP_RATIO
+    ? currencyUnitAdvance * recipe.currency.scale + recipe.currency.gap
     : 0
   const majorUnits = price.major.length * DIGIT_WIDTH
   const minorUnits = minorText.length * recipe.minorScale * DIGIT_WIDTH
@@ -822,7 +903,7 @@ export function layoutPriceMark(
     (cluster.width * AMOUNT_FILL_WIDTH) / Math.max(demand, 0.0001)
   )
   const minorSize = majorSize * recipe.minorScale
-  const currencySize = majorSize * CURRENCY_RATIO
+  const currencySize = majorSize * recipe.currency.scale
 
   const baseline =
     recipe.align.block === 'top'
@@ -839,14 +920,14 @@ export function layoutPriceMark(
    * shadow the other.
    */
   const currencySpan = inlineCurrency
-    ? currencyUnitAdvance * currencySize + majorSize * GAP_RATIO
+    ? currencyUnitAdvance * currencySize + majorSize * recipe.currency.gap
     : 0
   const majorWidth = price.major.length * majorSize * DIGIT_WIDTH
   const minorWidth = minorText.length * minorSize * DIGIT_WIDTH
   const total = currencySpan + majorWidth + minorWidth
 
   // Laid out start-to-end. This ordering is fixed: the mark does not mirror.
-  const leading = recipe.currency === 'before' || recipe.currency === 'super-before'
+  const leading = recipe.currency.place === 'before' || recipe.currency.place === 'super-before'
   const groupStart =
     recipe.align.inline === 'start'
       ? cluster.x
@@ -864,12 +945,21 @@ export function layoutPriceMark(
    * of the number rather than as a word next to one.
    */
   const currencyBaseline = stackedCurrency
-    ? recipe.currency === 'above'
+    ? recipe.currency.place === 'above'
       ? amount.y + currencyStrip * 0.86
       : amount.y + amount.height - currencyStrip * 0.14
-    : recipe.currency === 'super-before' || recipe.currency === 'super-after'
-      ? capTop + currencySize * capRatio
-      : baseline
+    : recipe.currency.align === 'top'
+      ? // Riding the major's cap line — the same construction the raised minor
+        // uses, and for the same reason: it reads as part of the number rather
+        // than as a word beside one.
+        capTop + currencySize * capRatio
+      : recipe.currency.align === 'middle'
+        ? // Cap boxes centred on each other. It falls out as the baseline lifted
+          // by half the difference between the two cap heights — which is zero
+          // when they are the same size, so a full-size code centres to exactly
+          // the baseline rather than drifting off it.
+          baseline - (majorSize - currencySize) * capRatio * 0.5
+        : baseline
 
   const currencyGlyphWidth = currencyUnitAdvance * currencySize
   const currencyX = stackedCurrency
@@ -881,7 +971,7 @@ export function layoutPriceMark(
     : leading
       ? groupStart
       : // Trailing: the gap goes before the code, not after it.
-        digitsStart + majorWidth + minorWidth + majorSize * GAP_RATIO
+        digitsStart + majorWidth + minorWidth + majorSize * recipe.currency.gap
 
   const currency: MarkPiece = {
     text: currencyText,
@@ -1137,7 +1227,14 @@ function clampRotation(degrees: number): number {
   return Math.max(-MAX_ROTATION, Math.min(MAX_ROTATION, degrees))
 }
 
-const PREFIX_TEXT: Record<NonNullable<PriceMark['prefixLabel']>, string> = {
+/**
+ * What FROM / EACH / PER_KG print.
+ *
+ * Exported since the prefix can be placed as its own text layer: the element
+ * and the price mark have to say the same words, and a second table is how they
+ * stop doing that.
+ */
+export const PREFIX_TEXT: Record<NonNullable<PriceMark['prefixLabel']>, string> = {
   FROM: 'FROM',
   EACH: 'EACH',
   PER_KG: 'PER KG',

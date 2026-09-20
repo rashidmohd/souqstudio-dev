@@ -1337,10 +1337,23 @@ model Offer {
   /// changes it by dragging in the offer tray.
   position Int
 
-  price        Decimal   @db.Decimal(10, 2)
+  /// **Three decimals, not two.** Seven ISO 4217 currencies carry three minor
+  /// units and three of them — Kuwait, Bahrain, Oman — are core market. A
+  /// two-decimal column rounds 12.755 KWD to 12.75, which is not a display
+  /// slip: it is a different price, printed on a flyer a customer takes to a
+  /// till. How many of the three a given offer may use is decided by its own
+  /// `currency` through `minorUnits()`, and refused at the route rather than
+  /// rounded here — a zero-decimal currency like JPY gets none of them.
+  ///
+  /// Twelve total, so nine integer digits survive: a price in dong or rupiah
+  /// runs to millions, and `Decimal(10,3)` would have left seven.
+  price        Decimal   @db.Decimal(12, 3)
   priceMode    PriceMode @default(FIXED)
   /// Strikethrough was-price. Null when there is nothing to compare against.
-  comparePrice Decimal?  @db.Decimal(10, 2)
+  /// Same precision as `price`, necessarily — the two are compared and printed
+  /// side by side, and a was-price that could not hold what a price can would
+  /// round only on the struck-through half.
+  comparePrice Decimal?  @db.Decimal(12, 3)
   currency     String    @default("AED") // AED | SAR | QAR | KWD | OMR | BHD
   promoTierId  String
 

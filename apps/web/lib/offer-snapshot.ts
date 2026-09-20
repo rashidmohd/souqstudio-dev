@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AMOUNT_PATTERN } from '@souqstudio/types'
 
 /**
  * Everything needed to put a removed offer back exactly as it was.
@@ -30,7 +31,13 @@ import { z } from 'zod'
  */
 
 /** Up to two decimals, at least one digit before the point. Same as PATCH. */
-const MONEY = /^\d{1,8}(\.\d{1,2})?$/
+/**
+ * **The snapshot records what was stored, so its grammar is the column's.**
+ * Widened alongside `offers.price`: a KWD offer carries three decimals, and a
+ * snapshot that refused them would make undo fail on exactly the currencies
+ * whose prices are hardest to retype.
+ */
+const MONEY = AMOUNT_PATTERN
 /** A rate, to the three decimals the column carries. */
 const RATE = /^\d{1,7}(\.\d{1,3})?$/
 

@@ -56,7 +56,7 @@ describe('resolvePrices', () => {
     // The trap. A till calls the shelf price "price" and the promotion "offer
     // price"; an offer calls the promotion `price`. Backwards, and the wrong
     // number is printed in the biggest type on the page.
-    expect(resolvePrices({ before: '32.00', now: '24.50', percent: null })).toEqual({
+    expect(resolvePrices({ before: '32.00', now: '24.50', percent: null, currency: 'AED' })).toEqual({
       price: '24.50',
       comparePrice: '32.00',
       mismatch: false,
@@ -65,17 +65,17 @@ describe('resolvePrices', () => {
 
   it('refuses a strikethrough that is not higher than the price', () => {
     // Equal is a lie on a flyer; lower is worse.
-    expect(resolvePrices({ before: '24.50', now: '24.50', percent: null })).toMatchObject({
+    expect(resolvePrices({ before: '24.50', now: '24.50', percent: null, currency: 'AED' })).toMatchObject({
       price: '24.50',
       comparePrice: null,
     })
-    expect(resolvePrices({ before: '20.00', now: '24.50', percent: null })).toMatchObject({
+    expect(resolvePrices({ before: '20.00', now: '24.50', percent: null, currency: 'AED' })).toMatchObject({
       comparePrice: null,
     })
   })
 
   it('derives the promotion from a shelf price and a percentage', () => {
-    expect(resolvePrices({ before: '32.00', now: null, percent: '25' })).toEqual({
+    expect(resolvePrices({ before: '32.00', now: null, percent: '25', currency: 'AED' })).toEqual({
       price: '24.00',
       comparePrice: '32.00',
       mismatch: false,
@@ -85,28 +85,28 @@ describe('resolvePrices', () => {
   it('computes in minor units, never through a float', () => {
     // 9.95 less 10% is 8.955. Through a float it is 8.954999999999998, and the
     // rounding that follows is the one place a printed price could be wrong.
-    expect(resolvePrices({ before: '9.95', now: null, percent: '10' }).price).toBe('8.96')
+    expect(resolvePrices({ before: '9.95', now: null, percent: '10', currency: 'AED' }).price).toBe('8.96')
   })
 
   it('reports a percentage that disagrees with the two prices', () => {
     // A stale export: the prices were updated and the percentage column was not.
     expect(
-      resolvePrices({ before: '32.00', now: '24.00', percent: '50' }).mismatch
+      resolvePrices({ before: '32.00', now: '24.00', percent: '50', currency: 'AED' }).mismatch
     ).toBe(true)
   })
 
   it('tolerates a percentage rounded to whole numbers', () => {
     // 33.33% of 30.00 is 9.999. A sheet saying "33" is not a disagreement.
-    expect(resolvePrices({ before: '30.00', now: '20.00', percent: '33' }).mismatch).toBe(false)
+    expect(resolvePrices({ before: '30.00', now: '20.00', percent: '33', currency: 'AED' }).mismatch).toBe(false)
   })
 
   it('takes one price as the price, and invents no discount', () => {
-    expect(resolvePrices({ before: null, now: '12.90', percent: null })).toEqual({
+    expect(resolvePrices({ before: null, now: '12.90', percent: null, currency: 'AED' })).toEqual({
       price: '12.90',
       comparePrice: null,
       mismatch: false,
     })
-    expect(resolvePrices({ before: '12.90', now: null, percent: null })).toEqual({
+    expect(resolvePrices({ before: '12.90', now: null, percent: null, currency: 'AED' })).toEqual({
       price: '12.90',
       comparePrice: null,
       mismatch: false,
@@ -114,7 +114,7 @@ describe('resolvePrices', () => {
   })
 
   it('has no price when the sheet gave nothing', () => {
-    expect(resolvePrices({ before: null, now: null, percent: null }).price).toBeNull()
+    expect(resolvePrices({ before: null, now: null, percent: null, currency: 'AED' }).price).toBeNull()
   })
 })
 

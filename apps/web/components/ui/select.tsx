@@ -24,6 +24,21 @@ export type SelectOption = {
   value: string
   label: string
   disabled?: boolean | undefined
+  /**
+   * A heading this option sits under.
+   *
+   * **`optgroup`, which is why this is a string on the option rather than a
+   * nested shape.** Consecutive options naming the same group are rendered
+   * inside one — so a caller builds a flat list in the order it wants and the
+   * grouping falls out, and a caller that names no group gets exactly the
+   * markup it got before.
+   *
+   * It exists because a list can be long enough that "everything, alphabetical"
+   * stops being a list anyone reads: the currency picker carries every ISO 4217
+   * code, and the six a shop in this market actually wants should not be found
+   * by scrolling past a hundred and fifty others.
+   */
+  group?: string | undefined
 }
 
 type SelectProps = {
@@ -35,6 +50,30 @@ type SelectProps = {
   /** Shown as a non-selectable first option when the value is empty. */
   placeholder?: string | undefined
 } & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'children' | 'size'>
+
+/**
+ * Consecutive options sharing a group, in the order they were given.
+ *
+ * Runs rather than a map keyed by group name: the caller decides the order, and
+ * collecting by name would silently reorder a list to match whichever group
+ * appeared first.
+ */
+function groupRuns(
+  options: SelectOption[]
+): { key: string; group: string | undefined; options: SelectOption[] }[] {
+  const runs: { key: string; group: string | undefined; options: SelectOption[] }[] = []
+
+  for (const option of options) {
+    const last = runs[runs.length - 1]
+    if (last !== undefined && last.group === option.group) {
+      last.options.push(option)
+      continue
+    }
+    runs.push({ key: `${option.group ?? ''}:${option.value}`, group: option.group, options: [option] })
+  }
+
+  return runs
+}
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function Select(
   { label, options, hint, error, required, placeholder, className, id, ...props },
@@ -80,11 +119,23 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function 
               {placeholder}
             </option>
           ) : null}
-          {options.map((option) => (
-            <option key={option.value} value={option.value} disabled={option.disabled}>
-              {option.label}
-            </option>
-          ))}
+          {groupRuns(options).map((run) =>
+            run.group === undefined ? (
+              run.options.map((option) => (
+                <option key={option.value} value={option.value} disabled={option.disabled}>
+                  {option.label}
+                </option>
+              ))
+            ) : (
+              <optgroup key={run.key} label={run.group}>
+                {run.options.map((option) => (
+                  <option key={option.value} value={option.value} disabled={option.disabled}>
+                    {option.label}
+                  </option>
+                ))}
+              </optgroup>
+            )
+          )}
         </select>
 
         <ChevronDown

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import type { PriceMark } from '@souqstudio/types'
 import {
+  MARK_CURRENCY_GAP,
+  MARK_CURRENCY_SCALE,
   MARK_MINOR_SCALE,
   MARK_NUDGE,
   MARK_SATELLITE_SCALE,
@@ -333,7 +335,10 @@ describe('markRecipe', () => {
     // re-authoring.
     const r = markRecipe({ preset: 'shelf-ticket', recipe: { compare: { place: 'above' } } })
     expect(r.compare.place).toBe('above')
-    expect(r.currency).toBe(PRICE_MARK_RECIPES['shelf-ticket'].currency)
+    // `toEqual` rather than `toBe`: the currency is a resolved object now — a
+    // place, a size, a gap and an alignment — where it used to be a bare
+    // placement string. Identity was never the property under test.
+    expect(r.currency).toEqual(PRICE_MARK_RECIPES['shelf-ticket'].currency)
     expect(r.align).toEqual(PRICE_MARK_RECIPES['shelf-ticket'].align)
   })
 
@@ -824,5 +829,162 @@ describe('the currency label', () => {
       { tierLabel: 'DEAL' }
     )
     expect(labelled).toEqual(plain)
+  })
+})
+
+// ─── The currency as a part ───────────────────────────────────────────────────
+//
+// Its size, its gap to the digits and how it sits against them were three
+// constants in this module with no way to reach any of them. These assert the
+// controls do what they say and that a recipe naming only a place is unchanged.
+
+describe('the currency code as a part', () => {
+  const priced = mark({ major: '24', minor: '50' })
+
+  it('lays out identically when the recipe names only a place', () => {
+    const bare = layoutPriceMark(priced, BOX, { recipe: markRecipe({ recipe: { currency: 'before' } }) })
+    const spelt = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { place: 'before' } } }),
+    })
+    expect(spelt).toEqual(bare)
+  })
+
+  it('reads the old bare string and the object form the same way', () => {
+    expect(markRecipe({ recipe: { currency: 'super-after' } }).currency).toEqual(
+      markRecipe({ recipe: { currency: { place: 'super-after' } } }).currency
+    )
+  })
+
+  it('decodes `super-` as cap alignment, once', () => {
+    expect(markRecipe({ recipe: { currency: 'super-before' } }).currency.align).toBe('top')
+    expect(markRecipe({ recipe: { currency: 'before' } }).currency.align).toBe('baseline')
+    // An explicit alignment wins over the one the prefix implies.
+    expect(
+      markRecipe({ recipe: { currency: { place: 'super-before', align: 'baseline' } } }).currency
+        .align
+    ).toBe('baseline')
+  })
+
+  it('sizes the code against the major', () => {
+    const small = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { place: 'before', scale: 0.15 } } }),
+    })
+    const large = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { place: 'before', scale: 0.5 } } }),
+    })
+    expect(small.currency.fontSize).toBeLessThan(large.currency.fontSize)
+    expect(small.currency.fontSize / small.major.fontSize).toBeCloseTo(0.15, 6)
+    expect(large.currency.fontSize / large.major.fontSize).toBeCloseTo(0.5, 6)
+  })
+
+  it('opens and closes the gap to the digits', () => {
+    const tight = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { place: 'before', gap: 0 } } }),
+    })
+    const airy = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { place: 'before', gap: 0.5 } } }),
+    })
+    const air = (l: PriceMarkLayout) =>
+      l.major.x - (l.currency.x + l.currency.fontSize * currencyAdvance(l.currency.text))
+
+    expect(air(tight)).toBeCloseTo(0, 4)
+    expect(air(airy)).toBeGreaterThan(air(tight))
+  })
+
+  /**
+   * The treatment that had no name at all.
+   *
+   * `top` and `baseline` were reachable by picking a place with or without
+   * `super-` in front of it; centring a small code against a large number — the
+   * commonest Gulf shelf treatment after the raised one — could not be expressed
+   * at any setting.
+   */
+  it('centres the code against the digits, which nothing could say before', () => {
+    const spec = { place: 'before' as const, scale: 0.3 }
+    const top = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { ...spec, align: 'top' } } }),
+    })
+    const middle = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { ...spec, align: 'middle' } } }),
+    })
+    const bottom = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: { ...spec, align: 'baseline' } } }),
+    })
+
+    expect(top.currency.baseline).toBeLessThan(middle.currency.baseline)
+    expect(middle.currency.baseline).toBeLessThan(bottom.currency.baseline)
+
+    // Centred means the two cap boxes share a centre line.
+    const centre = (baseline: number, size: number) => baseline - size * CAP_RATIO * 0.5
+    expect(centre(middle.currency.baseline, middle.currency.fontSize)).toBeCloseTo(
+      centre(middle.major.baseline, middle.major.fontSize),
+      6
+    )
+  })
+
+  it('collapses to nothing when the shop places the code itself', () => {
+    const shown = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: 'before' } }),
+    })
+    const gone = layoutPriceMark(priced, BOX, {
+      recipe: markRecipe({ recipe: { currency: 'hidden' } }),
+    })
+
+    expect(gone.currency.text).toBe('')
+    expect(gone.currency.width).toBe(0)
+    // The room it took goes back to the digits rather than being left empty —
+    // otherwise hiding the code would set the price smaller than showing it.
+    expect(gone.major.x).toBeLessThan(shown.major.x)
+  })
+
+  it('clamps size and gap rather than refusing them', () => {
+    const r = markRecipe({ recipe: { currency: { place: 'before', scale: 99, gap: -99 } } })
+    expect(r.currency.scale).toBe(MARK_CURRENCY_SCALE.max)
+    expect(r.currency.gap).toBe(MARK_CURRENCY_GAP.min)
+  })
+})
+
+// ─── Currencies beyond the Gulf ───────────────────────────────────────────────
+//
+// `minorDigits` answered "three if it is one of three, else two" while the
+// product knew six currencies. It knows a hundred and fifty-five now, sixteen of
+// which carry no decimal part at all.
+
+describe('a price in any currency', () => {
+  it('gives a zero-decimal currency no fils, rather than an empty pair', () => {
+    expect(minorDigits('JPY')).toBe(0)
+    const { major, minor } = splitAmount('1200', 'JPY')
+    expect({ major, minor }).toEqual({ major: '1200', minor: '' })
+
+    const l = layoutPriceMark(toPriceMark('1200', 'JPY', 't'), BOX, {})
+    // No minor piece at all — not a piece holding an empty string, which would
+    // still reserve width and, on a `baseline` minor, draw a lone decimal point.
+    expect(l.minor).toBeNull()
+    expect(l.major.text).toBe('1200')
+  })
+
+  it('keeps the third digit on every three-decimal currency, not only the Gulf three', () => {
+    // JOD, TND, IQD and LYD were absent from the old hand-written list, so a
+    // Jordanian price would have rendered a tenth of what it costs.
+    for (const code of ['KWD', 'OMR', 'BHD', 'JOD', 'TND', 'IQD', 'LYD'] as const) {
+      expect(minorDigits(code)).toBe(3)
+      expect(splitAmount('7.125', code)).toEqual({ major: '7', minor: '125' })
+    }
+  })
+
+  it('still gives two to everything else', () => {
+    for (const code of ['AED', 'USD', 'EUR', 'GBP', 'INR'] as const) {
+      expect(minorDigits(code)).toBe(2)
+      expect(splitAmount('24.5', code)).toEqual({ major: '24', minor: '50' })
+    }
+  })
+
+  it('draws a whole-number currency without a stray separator', () => {
+    const l = layoutPriceMark(toPriceMark('250000', 'VND', 't'), BOX, {
+      recipe: markRecipe({ recipe: { minor: 'baseline' } }),
+    })
+    // `baseline` brings a decimal point with it — but only when there are fils
+    // for it to separate.
+    expect(l.minor).toBeNull()
   })
 })

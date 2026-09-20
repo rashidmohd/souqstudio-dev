@@ -19,6 +19,7 @@ import {
   type ResolvedRow,
 } from '@/components/offer-book/match-types'
 import { parsePercent, readOfferType, resolvePrices } from '@/lib/offer-import'
+import type { Currency } from '@souqstudio/types'
 
 /**
  * Starting a book from a price list. E6 — `docs/E6-create-flow.md` §2.3.
@@ -107,6 +108,15 @@ type Props = {
   /** Called whenever there is something new worth saving. */
   onDraftChange: (draft: MatcherDraft | null) => void
   max: number
+  /**
+   * What the book will be priced in.
+   *
+   * **The sheet is read to this currency's precision**, not to two decimals.
+   * `resolvePrices` computes in whole minor units and there are a thousand of
+   * them in a dinar and one in a yen, so a cell reading `12.755` keeps its
+   * third digit in KWD and is refused in JPY rather than silently rounded.
+   */
+  currency: Currency
 }
 
 type Sheet = { headers: string[]; rows: string[][] }
@@ -147,7 +157,7 @@ type Picks = Record<number, string | null>
  */
 const BATCH = 20
 
-export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Props) {
+export function PriceListMatcher({ onResolved, initial, onDraftChange, max, currency }: Props) {
   const [sheet, setSheet] = React.useState<Sheet | null>(initial?.sheet ?? null)
   const [nameColumn, setNameColumn] = React.useState(initial?.columns.name ?? '')
   const [barcodeColumn, setBarcodeColumn] = React.useState(initial?.columns.barcode ?? '')
@@ -248,6 +258,7 @@ export function PriceListMatcher({ onResolved, initial, onDraftChange, max }: Pr
           before: wasAt === -1 ? null : parsePrice(row[wasAt] ?? ''),
           now: priceAt === -1 ? null : parsePrice(row[priceAt] ?? ''),
           percent: percentAt === -1 ? null : parsePercent(row[percentAt] ?? ''),
+          currency,
         })
 
         const type = typeAt === -1 ? { kind: 'none' as const } : readOfferType(row[typeAt] ?? '')

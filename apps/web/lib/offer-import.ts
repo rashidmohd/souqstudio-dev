@@ -1,3 +1,4 @@
+import { fromMinorUnits, toMinorUnits, type Currency } from '@souqstudio/types'
 import { OFFER_TYPES, type OfferTypeKey } from '@/lib/offer-types'
 
 /**
@@ -89,22 +90,16 @@ export function readOfferType(raw: string): OfferType {
 /**
  * Decimal money as an integer number of minor units.
  *
- * **Never `Number(price)` for arithmetic.** `parsePrice` already hands back a
- * two-decimal string and the column is `Decimal(10,2)`; taking a percentage off
- * a float is how 9.95 becomes 9.949999999999999 in a number a customer reads off
- * a flyer. Everything below computes in whole fils and formats once at the end.
+ * **Never `Number(price)` for arithmetic.** Taking a percentage off a float is
+ * how 9.95 becomes 9.949999999999999 in a number a customer reads off a flyer,
+ * so everything below computes in whole minor units and formats once at the end.
+ *
+ * **The multiplier is the currency's, not a hundred.** This hard-coded `×100`
+ * and a two-decimal regex, which was right for a dirham, threw away the third
+ * digit of a dinar and invented two on a yen. `toMinorUnits` reads the register.
  */
-function toMinor(value: string): number | null {
-  const parts = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value)
-  if (parts === null) return null
-  const major = Number(parts[1])
-  const minor = Number((parts[2] ?? '0').padEnd(2, '0'))
-  return major * 100 + minor
-}
-
-function fromMinor(value: number): string {
-  return (value / 100).toFixed(2)
-}
+const toMinor = toMinorUnits
+const fromMinor = fromMinorUnits
 
 /**
  * What a row's price columns resolve to: the mark, and the strikethrough.
@@ -137,9 +132,18 @@ export function resolvePrices(input: {
   now: string | null
   /** A percentage as text, already extracted from the cell. */
   percent: string | null
+  /**
+   * What the book is priced in.
+   *
+   * **Required, because the arithmetic below is in minor units and how many of
+   * those there are is the currency's business.** Every figure this returns is
+   * formatted to that currency's own precision, so a sheet of dinars keeps its
+   * third digit and a sheet of yen grows no decimals it never had.
+   */
+  currency: Currency
 }): ResolvedPrices {
-  const before = input.before === null ? null : toMinor(input.before)
-  const now = input.now === null ? null : toMinor(input.now)
+  const before = input.before === null ? null : toMinor(input.before, input.currency)
+  const now = input.now === null ? null : toMinor(input.now, input.currency)
   const percent = input.percent === null ? null : Number(input.percent)
   const hasPercent = percent !== null && Number.isFinite(percent) && percent > 0 && percent < 100
 
@@ -160,10 +164,10 @@ export function resolvePrices(input: {
       Math.abs(before - Math.round(before * (1 - percent / 100)) - (before - now)) > tolerance
 
     return {
-      price: fromMinor(now),
+      price: fromMinor(now, input.currency),
       // **Only when it is genuinely higher.** A strikethrough equal to the
       // price is a lie on a flyer, and a strikethrough *below* it is worse.
-      comparePrice: before > now ? fromMinor(before) : null,
+      comparePrice: before > now ? fromMinor(before, input.currency) : null,
       mismatch,
     }
   }
@@ -172,8 +176,8 @@ export function resolvePrices(input: {
   if (before !== null && hasPercent) {
     const derived = Math.round(before * (1 - percent / 100))
     return {
-      price: fromMinor(derived),
-      comparePrice: derived < before ? fromMinor(before) : null,
+      price: fromMinor(derived, input.currency),
+      comparePrice: derived < before ? fromMinor(before, input.currency) : null,
       mismatch: false,
     }
   }
@@ -181,7 +185,7 @@ export function resolvePrices(input: {
   // One price and nothing else. It is the price; there is no promotion to show,
   // and inventing a was-price would be inventing a discount.
   const only = now ?? before
-  return { price: only === null ? null : fromMinor(only), comparePrice: null, mismatch: false }
+  return { price: only === null ? null : fromMinor(only, input.currency), comparePrice: null, mismatch: false }
 }
 
 /**

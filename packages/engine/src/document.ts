@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import {
+  MARK_CURRENCY_GAP,
+  MARK_CURRENCY_SCALE,
   MARK_MINOR_SCALE,
   MARK_NUDGE,
   MARK_SATELLITE_SCALE,
@@ -143,7 +145,13 @@ const textSourceSchema = z.discriminatedUnion('from', [
   z.object({ from: z.literal('shop'), field: z.enum(['name', 'phone', 'address']) }),
   // The offer's own words. A separate source from `product` because a product
   // has no tier until it is put in a book at one.
-  z.object({ from: z.literal('offer'), field: z.literal('tier') }),
+  // The offer's own words, and now the parts of the price that sit beside the
+  // number rather than inside it. Not the price and not the fils — see the note
+  // on `TextSource` in @souqstudio/types for why those two cannot leave.
+  z.object({
+    from: z.literal('offer'),
+    field: z.enum(['tier', 'currency', 'compare', 'prefix', 'unitPrice']),
+  }),
   z.object({
     from: z.literal('static'),
     // Both languages, always. A static line with only an English value is a
@@ -220,6 +228,37 @@ const satelliteSchema = z.strictObject({
   dy: z.number().min(MARK_NUDGE.min).max(MARK_NUDGE.max).optional(),
 })
 
+/**
+ * Where the currency code sits, and now also how big it is, how far off the
+ * digits, and how it sits against them.
+ *
+ * **A union, because the bare string is what documents already carry.** Every
+ * seeded block and every organization block written before the code had a size
+ * spells this as `'before'`, and this object is strict — narrowing it to the
+ * object form would refuse a shop's saved work and every block in the library.
+ * The string means that placement with everything else defaulted, which is
+ * exactly what it meant when it was the only thing that could be said.
+ */
+const currencyPlaceSchema = z.enum([
+  'hidden',
+  'before',
+  'after',
+  'super-before',
+  'super-after',
+  'above',
+  'below',
+])
+
+const currencySchema = z.union([
+  currencyPlaceSchema,
+  z.strictObject({
+    place: currencyPlaceSchema.optional(),
+    scale: z.number().min(MARK_CURRENCY_SCALE.min).max(MARK_CURRENCY_SCALE.max).optional(),
+    gap: z.number().min(MARK_CURRENCY_GAP.min).max(MARK_CURRENCY_GAP.max).optional(),
+    align: z.enum(['top', 'middle', 'baseline']).optional(),
+  }),
+])
+
 const priceMarkStyleSchema = z.strictObject({
   tint: flatColorSchema.optional(),
   ink: flatColorSchema.optional(),
@@ -267,9 +306,7 @@ const priceMarkStyleSchema = z.strictObject({
   preset: z.enum(PRICE_MARK_PRESETS).optional(),
   recipe: z
     .strictObject({
-      currency: z
-        .enum(['before', 'after', 'super-before', 'super-after', 'above', 'below'])
-        .optional(),
+      currency: currencySchema.optional(),
       minor: z.enum(['raised', 'baseline', 'hidden']).optional(),
       minorScale: z.number().min(MARK_MINOR_SCALE.min).max(MARK_MINOR_SCALE.max).optional(),
       compare: satelliteSchema.optional(),
@@ -314,6 +351,9 @@ const elementSchema = z.discriminatedUnion('kind', [
     italic: z.boolean().optional(),
     letterSpacing: z.number().min(-0.2).max(1).optional(),
     transform: z.enum(['none', 'uppercase']).optional(),
+    // A rule through the text. Absent means the source decides — struck for a
+    // was-price, plain for everything else.
+    decoration: z.enum(['none', 'line-through']).optional(),
     family: familySchema.optional(),
     color: flatColorSchema.optional(),
   }),
