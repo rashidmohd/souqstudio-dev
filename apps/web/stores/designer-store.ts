@@ -93,6 +93,8 @@ type DesignerState = {
   duplicateSelected: () => void
   copySelected: () => void
   paste: () => void
+  /** Swap one element for several, keeping its place in the z-order. */
+  replaceElement: (id: string, replacements: BlockElement[]) => void
   groupSelected: () => void
   ungroupSelected: () => void
 
@@ -252,6 +254,27 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
    * ancestors' transforms for no expressive gain, in a renderer that has to
    * agree with a PDF worker.
    */
+  /**
+   * Replace one element with several, in its place in the z-order.
+   *
+   * **In its place, not appended.** Splitting a price mark produces the pieces
+   * it was already drawing; dropping them at the top of the stack would put a
+   * was-price over artwork that had been sitting above the price, and the split
+   * is supposed to change nothing until something is moved.
+   *
+   * The replacements are selected afterwards, so the first thing an owner can
+   * do is drag them — which, since a split groups them, moves the price as one.
+   */
+  replaceElement: (id, replacements) => {
+    const state = get()
+    const elements = elementsOf(state)
+    const at = elements.findIndex((element) => element.id === id)
+    if (at === -1) return
+
+    state.setElements([...elements.slice(0, at), ...replacements, ...elements.slice(at + 1)])
+    set({ selectedIds: replacements.map((element) => element.id) })
+  },
+
   groupSelected: () => {
     const state = get()
     if (state.selectedIds.length < 2) return

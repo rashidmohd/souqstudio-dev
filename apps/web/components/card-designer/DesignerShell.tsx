@@ -24,6 +24,7 @@ import {
   useCanvasDrawer,
 } from '@/components/shared/canvas-drawer'
 import { ElementProperties } from '@/components/card-designer/ElementProperties'
+import { splitPriceMark } from '@/lib/split-price-mark'
 import { LayerList } from '@/components/card-designer/LayerList'
 import { StressPreview } from '@/components/card-designer/StressPreview'
 import { toArtboardOffer } from '@/lib/preview-offer'
@@ -651,6 +652,18 @@ export function DesignerShell({
               palette={palette}
               token={token}
               onChange={(element) => store.setElement(element.id, element)}
+              {...(selectedElement?.kind === 'priceMark'
+                ? {
+                    onSplit: () => {
+                      // Computed against the artboard's own size: a split places
+                      // each piece where the solver had just drawn it, and the
+                      // solver works in the units the canvas draws in.
+                      const split = splitPriceMark(selectedElement, offer, width, height)
+                      if (split === null) return
+                      store.replaceElement(selectedElement.id, [split.mark, ...split.parts])
+                    },
+                  }
+                : {})}
             />
           )}
         </CanvasDrawer>

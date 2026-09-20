@@ -40,6 +40,7 @@ import {
   type Rect,
   type ResolvedSatellite,
 } from '@souqstudio/engine'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
@@ -79,7 +80,14 @@ type Props = {
   disabled: boolean
   palette: readonly BrandColor[]
   token: (ref: TokenRef) => string
-  onChange: (element: BlockElement) => void
+  onChange: (element: BlockElement) => void  /**
+   * Take the selected price mark apart into layers.
+   *
+   * Supplied by the shell, because the split is computed against the artboard's
+   * real size — a piece's position is a fraction of the block, and the solver
+   * that knows where the pieces are works in the units the canvas draws in.
+   */
+  onSplit?: (() => void) | undefined
 }
 
 const LEVEL_LABEL: Record<TypeLevel, string> = {
@@ -100,6 +108,7 @@ export function ElementProperties({
   palette,
   token,
   onChange,
+  onSplit,
 }: Props) {
   if (element === null) {
     return (
@@ -248,7 +257,13 @@ export function ElementProperties({
       ) : null}
 
       {element.kind === 'priceMark' ? (
-        <PriceMarkFields element={element} disabled={disabled} color={color} onChange={onChange} />
+        <PriceMarkFields
+          element={element}
+          disabled={disabled}
+          color={color}
+          onChange={onChange}
+          {...(onSplit === undefined ? {} : { onSplit })}
+        />
       ) : null}
 
       <Appearance element={element} disabled={disabled} onChange={onChange} />
@@ -445,11 +460,14 @@ function PriceMarkFields({
   disabled,
   color,
   onChange,
+  onSplit,
 }: {
   element: Extract<BlockElement, { kind: 'priceMark' }>
   disabled: boolean
   color: ColorProps
   onChange: (element: BlockElement) => void
+  /** Absent when the caller cannot say how big the artboard is. */
+  onSplit?: (() => void) | undefined
 }) {
   const style = element.style ?? {}
   const set = (patch: Partial<typeof style>) =>
@@ -559,6 +577,31 @@ function PriceMarkFields({
         around it by hand-placing a disc behind the price. Drawn through the same
         path function the card uses.
       */}
+      {/*
+        **The one click that hands the parts over.**
+
+        The bindings to place a currency or a was-price by hand landed before
+        this did, and on their own they asked an owner to add a text element,
+        find the right source in a dropdown, switch the matching part off inside
+        the mark, and position it back where it already was. That is not a
+        feature, it is a procedure. This does all four and puts the pieces
+        exactly where they already were.
+
+        It is offered rather than automatic, and there is no button back: the
+        mark is still the quicker way to set a price and most owners will never
+        press this. Undo is what reverses it.
+      */}
+      {onSplit === undefined ? null : (
+        <Field
+          label="Separate parts"
+          hint="Puts the currency and the was-price on their own layers, where they are, grouped with the price. The digits stay together."
+        >
+          <Button type="button" variant="secondary" disabled={disabled} onClick={onSplit}>
+            Split into layers
+          </Button>
+        </Field>
+      )}
+
       <Field label="Ground" hint="The shape behind the digits.">
         <Segmented
           label="Ground"
