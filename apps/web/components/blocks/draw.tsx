@@ -896,22 +896,16 @@ function Text({
   const onTint = element.source.from === 'static' || element.source.from === 'shop'
 
   /**
-   * A rule through the text.
+   * A rule through the text — whatever the owner set, and nothing else.
    *
-   * **The default is the source's, and for the was-price that default is not
-   * cosmetic.** A text element bound to `offer.compare` carries the old price;
-   * printed plain it reads as the price the customer pays. Inside `priceMark`
-   * the painter knew which piece it was drawing and struck it; a free-placed
-   * layer is just text, so the binding has to carry the rule with it.
-   *
-   * An owner who genuinely wants it unstruck says `decoration: 'none'` and gets
-   * it — the default is what happens when nobody has thought about it, which is
-   * exactly when a card would otherwise misprice itself.
+   * **It does not read the binding.** It briefly did: a layer showing the
+   * was-price struck itself because the painter recognised the source. That is
+   * the system making a design decision the owner is looking straight at on the
+   * canvas, and worse, one they had no control to reverse. Strikethrough is a
+   * formatting option like bold — it belongs to the layer, not to what the
+   * layer happens to be bound to.
    */
-  const struck =
-    element.decoration === undefined
-      ? element.source.from === 'offer' && element.source.field === 'compare'
-      : element.decoration === 'line-through'
+  const struck = element.decoration === 'line-through'
   const fill =
     element.color !== undefined
       ? paint(ctx, element.color)

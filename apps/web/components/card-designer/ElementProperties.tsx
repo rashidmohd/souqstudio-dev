@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { AlignCenter, AlignLeft, AlignRight, Italic, Lock } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, Italic, Lock, Strikethrough } from 'lucide-react'
 import type {
   BlockElement,
   BrandColor,
@@ -1345,11 +1345,19 @@ function SizeFields({
       />
 
       {/* One group, because they are one thing an owner is deciding about this
-          text — two separately bordered squares read as two unrelated controls.
+          text — separately bordered squares read as unrelated controls.
           Italics are offered and warned about, never blocked: it is the shop's
           brand, and most Arabic-capable families ship no true italic.
           Uppercase draws as `TT` rather than as an icon, because in every design
-          tool the mark for case *is* type. */}
+          tool the mark for case *is* type.
+
+          **Strikethrough sits here and nowhere else.** It is a formatting
+          option, the same kind of thing as bold — not a property of what a layer
+          is bound to. It briefly worked the other way: a layer showing the
+          was-price struck itself, and no control could stop it. That is the
+          system deciding a design question the owner is looking straight at on
+          the canvas, and it left them with a rule they could see and not
+          change. */}
       <Field label="Style">
         <ToggleBar
           label="Style"
@@ -1362,10 +1370,18 @@ function SizeFields({
               glyph: 'TT',
               pressed: element.transform === 'uppercase',
             },
+            {
+              value: 'strike',
+              label: 'Strikethrough',
+              icon: Strikethrough,
+              pressed: element.decoration === 'line-through',
+            },
           ]}
           onToggle={(value, pressed) => {
             if (value === 'italic') onChange({ ...element, italic: pressed })
-            else onChange({ ...element, transform: pressed ? 'uppercase' : 'none' })
+            else if (value === 'strike') {
+              onChange({ ...element, decoration: pressed ? 'line-through' : 'none' })
+            } else onChange({ ...element, transform: pressed ? 'uppercase' : 'none' })
           }}
         />
       </Field>
@@ -1580,7 +1596,7 @@ const OFFER_PURPOSE: Record<
 > = {
   tier: 'The offer’s tier. It changes with every product, and it is what a badge says.',
   currency: 'The currency, as its own layer. Set the price mark’s currency to “somewhere else” so it is not drawn twice.',
-  compare: 'The was-price, struck through. Hide it on the price mark so it is not drawn twice.',
+  compare: 'The was-price. Strike it through with the Style buttons. Hide it on the price mark so it is not drawn twice.',
   prefix: 'Reads FROM, EACH or PER KG, depending on how the offer is priced.',
   unitPrice: 'The “(1 kg = 1.76)” line. Empty when the pack cannot answer.',
 }

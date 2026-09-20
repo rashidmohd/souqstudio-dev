@@ -457,18 +457,18 @@ export type BlockElement =
       letterSpacing?: number | undefined
       transform?: 'none' | 'uppercase' | undefined
       /**
-       * A rule through the text.
+       * A rule through the text. Absent is plain.
        *
-       * **Here because the was-price left the price mark.** Inside `priceMark`
-       * the strike was drawn by the painter, which knew the piece it was drawing
-       * was a compare price; a text element bound to `offer.compare` is just a
-       * line of text, and without this it would print the old price as though it
-       * were the current one. That is not a styling gap, it is a card that
-       * misprices itself.
+       * **A formatting option, in the same class as `italic` and `transform`,
+       * and deliberately not clever.** It exists because the was-price can now
+       * be its own layer, and inside `priceMark` the strike was drawn by a
+       * painter that knew which piece it was holding. The obvious next move was
+       * to have the layer strike itself when bound to the was-price — which was
+       * built, and was wrong: it decided a design question the owner is looking
+       * straight at on the canvas, and gave them no control to reverse it.
        *
-       * Absent means the source's own default — struck for `offer.compare`,
-       * plain for everything else — so binding a was-price does the right thing
-       * without the owner having to know that it should.
+       * So it is a button, like bold. A layer is struck because somebody struck
+       * it.
        */
       decoration?: 'none' | 'line-through' | undefined
       /** Overrides the face the level binds to. */
