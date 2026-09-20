@@ -11,12 +11,17 @@ const offer = (over: Partial<ArtboardOffer['priceMark']> = {}): ArtboardOffer =>
   name: 'Basmati rice 5 kg',
   spec: null,
   brand: 'Al Wadi',
+  origin: null,
+  packSize: null,
   imageUrl: null,
   priceMark: toPriceMark('24.50', 'AED', 'tier', { comparePrice: '31.00', ...over }),
   tierLabel: 'Save 20%',
   tierToken: '',
   chips: [],
   unitPrice: null,
+  // 31.00 − 24.50 = 6.50, which is 21% of 31.00.
+  saveAmount: '6.50',
+  savePercent: '21%',
 })
 
 const mark = (style?: Extract<BlockElement, { kind: 'priceMark' }>['style']) =>

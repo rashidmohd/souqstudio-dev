@@ -40,6 +40,7 @@ import {
   type Rect,
   type ResolvedSatellite,
 } from '@souqstudio/engine'
+import type { OfferField } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -1620,7 +1621,7 @@ function parseSource(
   if (from === 'offer' && field !== undefined) {
     return {
       from: 'offer',
-      field: field as 'tier' | 'currency' | 'compare' | 'prefix' | 'unitPrice',
+      field: field as OfferField,
     }
   }
   return current
@@ -1637,11 +1638,16 @@ const OFFER_PURPOSE: Record<
   Extract<Extract<BlockElement, { kind: 'text' }>['source'], { from: 'offer' }>['field'],
   string
 > = {
+  price: 'The price itself, as its own layer. Hide the price mark so it is not drawn twice.',
   tier: 'The offer’s tier. It changes with every product, and it is what a badge says.',
   currency: 'The currency, as its own layer. Set the price mark’s currency to “somewhere else” so it is not drawn twice.',
   compare: 'The was-price. Strike it through with the Style buttons. Hide it on the price mark so it is not drawn twice.',
   prefix: 'Reads FROM, EACH or PER KG, depending on how the offer is priced.',
   unitPrice: 'The “(1 kg = 1.76)” line. Empty when the pack cannot answer.',
+  // Empty when there is no was-price, which is what makes a "SAVE" flash
+  // appear on the cards that earned one and nowhere else — E14 §3.7.
+  saveAmount: 'What the shop saved, in money. Empty when there is no was-price.',
+  savePercent: 'What the shop saved, as a percentage. Empty when there is no was-price.',
 }
 
 /** One line on what this element is for, in the owner's terms. */

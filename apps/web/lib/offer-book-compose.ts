@@ -9,8 +9,9 @@ import type {
   PageGrid,
   PriceMark,
   Region,
+  SellBy,
 } from '@souqstudio/types'
-import { currencyLabelFor, deriveUnitPrice, unitPriceLabel } from '@souqstudio/types'
+import { currencyLabelFor, deriveUnitPrice, packLabel, unitPriceLabel } from '@souqstudio/types'
 import type { CurrencyDisplay } from '@souqstudio/types'
 import { minorDigits, toPriceMark } from '@souqstudio/engine'
 import type { FlowPage } from '@souqstudio/engine'
@@ -78,6 +79,28 @@ export interface ComposedOffer {
    * `docs/E6-pending.md` §6.
    */
   tierToken: string
+  /**
+   * The country of origin — "Product of Spain" — and the pack line, "8 × 25 g".
+   *
+   * **Both bindings existed and drew nothing**, in `draw.tsx` and in
+   * `harness/svg.ts` alike, for as long as `TextSource` had carried them. They
+   * are not on E14's Phase 1 task list either; the test that walks the
+   * vocabulary found them. §3.5.
+   */
+  origin: string | null
+  packSize: string | null
+  /**
+   * What the shop saved, as words — "4.50" and "20%". Null when there is no
+   * was-price.
+   *
+   * **Computed here rather than decided in the engine, and that is the whole
+   * mechanism behind conditional content.** "SAVE 20%" is not a predicate a
+   * block evaluates; it is a field the composer resolves, empty when it does
+   * not apply, and collapsed by the frame that holds it — E14 §3.3 and §3.7.
+   * The engine gains no arithmetic and no notion of a discount.
+   */
+  saveAmount: string | null
+  savePercent: string | null
   /**
    * `(1 kg = 1.760)`, already formatted, or null when the offer hides it or the
    * pack cannot answer. E5 §4 — a null reads as *no line*, never as zero.
@@ -190,6 +213,9 @@ export interface ProductRow {
   specAr: string | null
   brandEn: string | null
   brandAr: string | null
+  /** The country of origin — `product.origin` in the vocabulary. E14 §3.3. */
+  originEn: string | null
+  originAr: string | null
   imageUrl: string | null
   /** True when the image is an ORIGINAL standing in for a missing CUTOUT. */
   imageIsFallback: boolean
@@ -197,6 +223,8 @@ export interface ProductRow {
   packSize: string | null
   packUnit: PackUnit | null
   packCount: number | null
+  /** `packLabel` reads it: a loose product has no pack line. */
+  sellBy: SellBy | null
 }
 
 /** The subset of `offer_items`, in `position` order. */
@@ -383,6 +411,9 @@ export function composeOffer(
             ),
           }),
     }),
+    origin: pick(lead.product.originAr, lead.product.originEn, edition),
+    packSize: packLabel(lead.product),
+    ...savings(offer.price, offer.comparePrice, offer.currency as Currency),
     tierLabel: pick(tier.labelAr, tier.labelEn, edition) ?? tier.labelEn,
     tierToken: tier.tokenRef,
     unitPrice: unitPriceFor(offer, lead),
@@ -435,6 +466,38 @@ export function composeOffer(
  *
  * `minorDigits` rather than a constant 2: KWD, OMR and BHD carry three.
  */
+/**
+ * What the shop saved, in money and in percent.
+ *
+ * **Both null together.** An offer with no was-price has saved nothing, and a
+ * "SAVE 0%" flash is worse than no flash — so this returns nulls rather than
+ * zeros, and §3.7 collapses the element that was bound to it along with the gap
+ * beside it.
+ *
+ * **Null also when the was-price is not higher.** A comparison price at or below
+ * the offer price is a data error, not a saving, and printing "SAVE -2.00" on a
+ * flyer is the kind of thing a shop hears about from a customer.
+ *
+ * The amount carries the currency's own precision, because it is money. The
+ * percent is rounded to a whole number, because nobody prints "SAVE 17.4%".
+ */
+function savings(
+  price: string,
+  comparePrice: string | null,
+  currency: Currency
+): { saveAmount: string | null; savePercent: string | null } {
+  if (comparePrice === null) return { saveAmount: null, savePercent: null }
+  const was = Number(comparePrice)
+  const now = Number(price)
+  if (!Number.isFinite(was) || !Number.isFinite(now) || was <= now) {
+    return { saveAmount: null, savePercent: null }
+  }
+  return {
+    saveAmount: (was - now).toFixed(minorDigits(currency)),
+    savePercent: `${Math.round(((was - now) / was) * 100)}%`,
+  }
+}
+
 function formatMoney(value: string, currency: Currency): string {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed.toFixed(minorDigits(currency)) : value

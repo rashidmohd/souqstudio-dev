@@ -9,6 +9,7 @@ import { listBlocks } from '@/lib/blocks'
 import { loadBook } from '@/lib/offer-book'
 import { env } from '@/lib/env'
 import { EditorShell } from '@/components/editor/EditorShell'
+import { artboardIdentity } from '@/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Offer book · SouqStudio' }
 
@@ -109,6 +110,7 @@ export default async function EditorPage({ params }: { params: { id: string } })
     <EditorShell
       bookId={book.id}
       title={book.title}
+      period={book.period}
       status={book.status}
       edition={book.edition}
       page={book.page}
@@ -116,7 +118,11 @@ export default async function EditorPage({ params }: { params: { id: string } })
       offers={book.offers}
       blocks={book.blocks}
       kit={brand.brandKit}
-      shopName={shop.name}
+      identity={artboardIdentity({
+        shop,
+        brand: { logoUrl: brand.logoUrl, inheritsIdentity: brand.source.logo === 'org' },
+        book: { title: book.title, validFrom: book.validFrom, validTo: book.validTo },
+      })}
       tiers={tiers}
       // Every offer in a book shares a currency — it is the shop's, not the
       // offer's, and the per-offer column is what a multi-country group will

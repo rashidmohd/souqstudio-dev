@@ -54,6 +54,26 @@ export interface ComposedBook {
   format: string
   status: string
   edition: Edition
+  /**
+   * The offer period, already words — "1 October", "7 October".
+   *
+   * **Strings, resolved here.** §8's rule, and the same one `comparePrice`
+   * follows: the composer decides once and the engine never learns a locale, a
+   * calendar or a format. Empty when the book has not set a period, which
+   * §3.7 collapses rather than printing a hole.
+   */
+  validFrom: string
+  validTo: string
+  /**
+   * The same two dates as `YYYY-MM-DD`, for the control that edits them.
+   *
+   * **Both shapes, because they are two facts.** The card prints words in the
+   * edition's language; the editor's date input takes an ISO day and would have
+   * to parse "1 October" back out of a string this file formatted. Deriving one
+   * from the other in a component is how a Ramadan date comes back as an
+   * October one.
+   */
+  period: { from: string | null; to: string | null }
   page: { width: number; height: number }
   offers: ComposedOffer[]
   /** Keyed by id, because a placement names its block and the renderer resolves
@@ -151,6 +171,11 @@ export async function loadBook(
       format: true,
       status: true,
       language: true,
+      // The offer period the header prints. Dates in the column, strings on the
+      // card — resolved below rather than in the engine, which has no calendar
+      // and no locale. E14 §3.4 and §8.
+      validFrom: true,
+      validTo: true,
       // How this shop writes its currency. The *code* is on each offer, frozen
       // with the book; whether a card prints that code or a symbol is a shop
       // setting and is read live, because it is presentation rather than price.
@@ -228,10 +253,16 @@ export async function loadBook(
                   specAr: true,
                   brandEn: true,
                   brandAr: true,
-                  // The three pack columns, for the derived unit price. E5 §4.
+                  // The country of origin — `product.origin`, which was in the
+                  // vocabulary and drew nothing until E14 §3.5's test asked.
+                  originEn: true,
+                  originAr: true,
+                  // The pack columns, for the derived unit price and for
+                  // `product.packSize`. E5 §4 and E14 §3.3.
                   packSize: true,
                   packUnit: true,
                   packCount: true,
+                  sellBy: true,
                   images: {
                     /**
                      * Every candidate; `pickImage` decides. Same precedence as
@@ -341,9 +372,12 @@ export async function loadBook(
               specAr: item.product.specAr,
               brandEn: item.product.brandEn,
               brandAr: item.product.brandAr,
+              originEn: item.product.originEn,
+              originAr: item.product.originAr,
               packSize: item.product.packSize === null ? null : item.product.packSize.toString(),
               packUnit: item.product.packUnit,
               packCount: item.product.packCount,
+              sellBy: item.product.sellBy,
               imageUrl: image ? publicUrl(image.r2Key) : null,
               imageIsFallback: image !== undefined && image.kind !== 'CUTOUT',
             },
@@ -457,6 +491,14 @@ export async function loadBook(
     format: book.format,
     status: book.status,
     edition,
+    ...offerPeriod(book.validFrom, book.validTo, edition),
+    period: {
+      // `toISOString().slice(0, 10)` and not a locale format: the column is a
+      // `date` stored at UTC midnight, and any local formatting here can move
+      // it a day either way depending on where the server is.
+      from: book.validFrom === null ? null : book.validFrom.toISOString().slice(0, 10),
+      to: book.validTo === null ? null : book.validTo.toISOString().slice(0, 10),
+    },
     page,
     offers,
     blocks,
@@ -1201,6 +1243,36 @@ export async function renameBook(
 }
 
 /**
+ * Set the offer period the book prints. E14 §3.4.
+ *
+ * **Its own writer, not a field on the rename.** `apps/web/CLAUDE.md` is
+ * explicit that saving is per resource, because a partial write of a whole-book
+ * patch is a book half in each version. The period is a property of the book in
+ * the same way the title is, and it gets the same treatment.
+ *
+ * **Deliberately not `expiresAt`.** That is when the share *link* stops working
+ * — a fact about a URL, set for different reasons and to different days. A
+ * header claiming "Offers valid 1–7 October" is making a promise about prices,
+ * and a book whose link outlives its prices is ordinary rather than wrong.
+ *
+ * Either end may be null. A shop that knows when its offers start and not when
+ * they end is a real case, and §3.7 collapses the element bound to the missing
+ * one rather than printing a hole.
+ */
+export async function setBookPeriod(
+  bookId: string,
+  organizationId: string,
+  period: { validFrom: Date | null; validTo: Date | null }
+): Promise<{ id: string; validFrom: Date | null; validTo: Date | null } | null> {
+  const changed = await prisma.offerBook.updateMany({
+    where: { id: bookId, shop: { organizationId } },
+    data: { validFrom: period.validFrom, validTo: period.validTo },
+  })
+
+  return changed.count === 0 ? null : { id: bookId, ...period }
+}
+
+/**
  * Discard a draft. E6 — `docs/E6-create-flow.md` §2.4.
  *
  * **Draft only, and that bound is the whole safety argument.** A published book
@@ -1589,4 +1661,37 @@ export function pickImage<
   }
 
   return images.find((image) => image.kind === 'CUTOUT') ?? images[0]
+}
+
+/**
+ * The offer period, as the two strings a header prints.
+ *
+ * **Resolved here, never in the engine.** §8's decision, and the same rule
+ * `comparePrice` already follows: a date the engine formats is a locale
+ * decision inside a package that has no locale — and `packages/engine` runs in
+ * a browser, in a worker and in a test, three places with three different
+ * defaults. The composer decides once.
+ *
+ * Day and month, without a year. A weekly flyer is read the week it is printed,
+ * and "1 October 2026" on a leaflet reads like a legal notice rather than an
+ * offer. The year is in the book's own dates if anyone needs it.
+ *
+ * Empty when the book has no period set, which is not an error: §3.7 collapses
+ * the element bound to it, and the gap beside it goes too.
+ */
+function offerPeriod(
+  from: Date | null,
+  to: Date | null,
+  edition: Edition
+): { validFrom: string; validTo: string } {
+  // `ar-AE` rather than `ar`: the Gregorian calendar with Arabic month names,
+  // which is what a UAE flyer prints. Plain `ar` resolves to the Islamic
+  // calendar in some runtimes, and a shop advertising offers for Rabi' al-Awwal
+  // when it meant October is a defect nobody would catch in review.
+  const locale = edition === 'ar' ? 'ar-AE' : 'en-GB'
+  const format = (value: Date | null): string =>
+    value === null
+      ? ''
+      : new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(value)
+  return { validFrom: format(from), validTo: format(to) }
 }

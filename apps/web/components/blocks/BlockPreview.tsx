@@ -6,6 +6,7 @@ import { resolveBlock } from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
 import { resolveScale } from '@/lib/brand-fonts'
 import { toArtboardOffer } from '@/lib/preview-offer'
+import { PREVIEW_IDENTITY } from '@/lib/artboard-identity'
 import { PREVIEW_PRODUCT } from '@/lib/preview-product'
 import {
   drawElement,
@@ -94,7 +95,9 @@ export function BlockPreview({
     // artboard draws — the designer's canvas and its stress panel use the same
     // function, so three previews cannot disagree about what a card shows.
     offer: toArtboardOffer(PREVIEW_PRODUCT, direction === 'rtl'),
-    shopName: 'Al Nakheel Market',
+    // Populated, so a footer preview shows a footer rather than three empty
+    // boxes. See the note on `PREVIEW_IDENTITY`.
+    ...PREVIEW_IDENTITY,
   }
 
   return (

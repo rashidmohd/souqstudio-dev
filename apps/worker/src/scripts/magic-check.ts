@@ -21,6 +21,7 @@ import type { MagicCategory } from '@souqstudio/engine'
 import { SEED_BLOCKS } from '@souqstudio/engine/src/library'
 import type { Block } from '@souqstudio/types'
 import { renderPage, type RenderContext } from '@souqstudio/engine/harness/svg'
+import { identityFor } from '@souqstudio/engine/harness/shop'
 import { FRIENDLY } from '@souqstudio/engine/harness/dummy'
 import { env } from '../lib/env'
 import { readCardDesign } from '../lib/vision'
@@ -45,7 +46,7 @@ const context: RenderContext = {
   blocks,
   products: { [product.id]: product },
   direction: 'ltr',
-  shopName: 'Al Nakheel Market',
+  ...identityFor('ltr'),
 }
 
 console.log(`provider: ${env.MAGIC_BLOCK_PROVIDER}\n`)

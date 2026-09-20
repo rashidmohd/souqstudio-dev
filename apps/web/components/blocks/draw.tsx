@@ -23,8 +23,12 @@ import {
   placeText,
   PREFIX_TEXT,
   resolveColor,
+  resolveImageBinding,
   resolvePaint,
+  resolveTextBinding,
   shapePath,
+  type BindingSubjects,
+  type OfferField,
   type PathShape,
   type Rect,
   type TextMeasurer,
@@ -63,10 +67,19 @@ export type ArtboardOffer = Pick<
   | 'name'
   | 'spec'
   | 'brand'
+  // The country line and the pack line — two bindings that were declared and
+  // drew nothing until E14 §3.5's test walked the vocabulary.
+  | 'origin'
+  | 'packSize'
   | 'imageUrl'
   | 'priceMark'
   | 'tierLabel'
   | 'tierToken'
+  // What the shop saved. Resolved by the composer, empty when there is no
+  // was-price, which is what makes "SAVE 20%" conditional content without a
+  // predicate in the engine — §3.3 and §3.7.
+  | 'saveAmount'
+  | 'savePercent'
   | 'chips'
   // The `(1 kg = 1.76)` line, so it can be placed as its own layer rather than
   // only drawn under the card by whatever renders it.
@@ -103,7 +116,26 @@ export type DrawContext = {
   /** Absent on a static block — a hero band or a footer has no product in scope,
    *  which is what `Block.repeats` means. */
   offer: ArtboardOffer | undefined
-  shopName: string
+  /**
+   * The shop this book is for, and the identity it carries.
+   *
+   * **This was one `shopName: string`**, which is exactly as much of the
+   * vocabulary as this painter could answer. `shop.address` and `shop.phone`
+   * were declared in `TextSource`, fell through to `''` here *and* in
+   * `harness/svg.ts`, and agreed with each other and with nothing else — a
+   * footer bound to the shop's phone number drew an empty box and said nothing
+   * about why. E14 §3.4.
+   *
+   * `brand` is §3.2's single identity source: *the identity this book should
+   * carry*, already resolved through `readEffectiveBrand` and `brandOverride`
+   * by the surface, exactly as the artboard's colours are. There is no
+   * `organization` entry and there must not be one — an owner asked to choose
+   * between two logos picks wrong for half their branches.
+   */
+  shop: { name: string; address: string; phone: string }
+  brand: { name: string; logo: string | null }
+  /** The book's own facts. Dates are strings the composer resolved — §8. */
+  book: { title: string; validFrom: string; validTo: string }
 }
 
 /** A colour the element named, in whichever of the three ways it named it. */
@@ -384,10 +416,17 @@ function Packshot({
   // the 12% breathing room that keeps a packshot off its card's border would
   // read as a mistake on both.
   const source = element.source
-  const artwork = source.from === 'asset'
-  const url = artwork
-    ? (ctx.asset?.(source.assetId) ?? null)
-    : (ctx.offer?.imageUrl ?? null)
+  const url = resolveImageBinding(source, {
+    product: ctx.offer?.imageUrl ?? null,
+    brandLogo: ctx.brand.logo,
+    ...(ctx.asset === undefined ? {} : { asset: ctx.asset }),
+  })
+  // **A logo is artwork, not a packshot.** It reaches its box like an upload
+  // does: a mark inset by 12% inside a header that was already sized for it
+  // reads as a mark that did not fit. E14 §3.1 — the whole reason `logo`
+  // stopped being its own kind is that every image property now applies to it,
+  // and this is one of them.
+  const artwork = source.from !== 'product'
   const inset = artwork ? 0 : Math.min(box.width, box.height) * 0.12
   const cover = element.fit === 'cover'
 
@@ -960,36 +999,65 @@ function Text({
  * arriving in the app rather than in a renderer.
  */
 /**
- * One part of the offer, as a string.
+ * The subjects this artboard's vocabulary resolves against.
  *
- * Its own function rather than a nested switch: exhaustiveness is what makes
- * adding a binding safe, and a `switch` inside a `switch` satisfies the compiler
- * while reading to ESLint as a fallthrough.
+ * **The adapter, and it is where this surface's fallbacks live** — the
+ * currency label the shop chose, the empty-rather-than-zero was-price. The
+ * resolver in `@souqstudio/engine` takes strings and knows nothing about a
+ * `ComposedOffer`, which is what stops this file and `harness/svg.ts` being two
+ * readings of one vocabulary. E14 §3.5.
  */
-function offerText(
-  field: Extract<Extract<BlockElement, { kind: 'text' }>['source'], { from: 'offer' }>['field'],
-  offer: ArtboardOffer | undefined
-): string {
-  if (offer === undefined) return ''
+function subjectsFor(ctx: DrawContext): BindingSubjects {
+  const offer = ctx.offer
+  return {
+    product:
+      offer === undefined
+        ? undefined
+        : {
+            name: offer.name,
+            spec: offer.spec ?? '',
+            brand: offer.brand ?? '',
+            origin: offer.origin ?? '',
+            packSize: offer.packSize ?? '',
+          },
+    offer: offer === undefined ? undefined : offerSubjects(offer),
+    shop: ctx.shop,
+    brand: { name: ctx.brand.name },
+    book: ctx.book,
+    ar: ctx.ar,
+  }
+}
 
-  switch (field) {
-    case 'tier':
-      return offer.tierLabel
+/**
+ * The offer's own words, as strings.
+ *
+ * Its own function rather than a nested literal: exhaustiveness over
+ * `OfferField` is what makes adding a binding safe, and the compiler names the
+ * missing key here rather than letting it resolve to `undefined` at runtime.
+ */
+function offerSubjects(offer: ArtboardOffer): Record<OfferField, string> {
+  return {
+    // The digits, joined the way a single bound run holds them. The fils is
+    // raised against the glyphs at paint — it is kerning, not layout, so it
+    // never becomes a second element. E14 §4.
+    price: offer.priceMark.minor
+      ? `${offer.priceMark.major}.${offer.priceMark.minor}`
+      : offer.priceMark.major,
     // The label the shop chose — its symbol, or the ISO code. Resolved by the
     // composer, so this and the price mark cannot disagree about it.
-    case 'currency':
-      return offer.priceMark.currencyLabel ?? offer.priceMark.currency
+    currency: offer.priceMark.currencyLabel ?? offer.priceMark.currency,
     // **Empty rather than a zero when there is no was-price**, and the
     // difference matters: a card with nothing to compare against draws no line
     // at all, where "0.00" struck through is a claim about a price.
-    case 'compare':
-      return offer.priceMark.comparePrice ?? ''
-    case 'prefix':
-      return offer.priceMark.prefixLabel === undefined
-        ? ''
-        : PREFIX_TEXT[offer.priceMark.prefixLabel]
-    case 'unitPrice':
-      return offer.unitPrice ?? ''
+    compare: offer.priceMark.comparePrice ?? '',
+    prefix:
+      offer.priceMark.prefixLabel === undefined ? '' : PREFIX_TEXT[offer.priceMark.prefixLabel],
+    tier: offer.tierLabel,
+    unitPrice: offer.unitPrice ?? '',
+    // Computed by the composer, empty when there is no was-price. This is what
+    // makes "SAVE 20%" conditional content without a predicate in the engine.
+    saveAmount: offer.saveAmount ?? '',
+    savePercent: offer.savePercent ?? '',
   }
 }
 
@@ -997,24 +1065,7 @@ export function contentFor(
   element: Extract<BlockElement, { kind: 'text' }>,
   ctx: DrawContext
 ): string {
-  switch (element.source.from) {
-    // The offer's own words rather than the product's — see `TextSource`. This
-    // is what puts a live tier on artwork the owner uploaded, and what lets the
-    // currency, the was-price and the FROM line be placed as their own layers.
-    case 'offer':
-      return offerText(element.source.field, ctx.offer)
-    case 'static':
-      return ctx.ar ? element.source.textAr : element.source.textEn
-    case 'shop':
-      return element.source.field === 'name' ? ctx.shopName : ''
-    case 'product': {
-      if (ctx.offer === undefined) return ''
-      if (element.source.field === 'name') return ctx.offer.name
-      if (element.source.field === 'spec') return ctx.offer.spec ?? ''
-      if (element.source.field === 'brand') return ctx.offer.brand ?? ''
-      return ''
-    }
-  }
+  return resolveTextBinding(element.source, subjectsFor(ctx))
 }
 
 // ─── Measuring ────────────────────────────────────────────────────────────────

@@ -41,11 +41,39 @@ export interface HarnessProduct {
   comparePrice?: string
   tier: HarnessTier
   /**
+   * The country of origin — "Product of Spain". `catalog_products.originEn` and
+   * `originAr`, and a real column with a real binding behind it.
+   *
+   * **Added when `product.origin` turned out to draw nothing.** It had been in
+   * the vocabulary since the vocabulary existed and resolved to `''` in both
+   * painters, which is the defect E14 §3.5 is about. It was not on the plan's
+   * Phase 1 list either — the test that walks the vocabulary found it.
+   */
+  originEn?: string | null
+  originAr?: string | null
+  /** `packLabel`'s answer — "8 × 25 g". `catalog_products` pack columns. */
+  packLabel?: string | null
+  /**
+   * FROM / EACH / PER KG, and the derived `(1 kg = 1.76)` line.
+   *
+   * **Both were `''` here until the vocabulary walk asked for them.** The
+   * comment they replace said an empty string was "the honest answer" because
+   * the harness's rows carry no price mode — which was true of the rows and
+   * false of the fixture, and a fixture that cannot answer a binding cannot
+   * tell an unwired painter from a thin row. E14 §3.5.
+   */
+  prefixLabel?: 'FROM' | 'EACH' | 'PER_KG' | null
+  unitPrice?: string | null
+  /**
    * Where the row came from — `dummy` for the hand-written sets, otherwise the
    * `catalog_products.source` value. On screen it is a caption; in a finding it
    * is the difference between "the block is wrong" and "the data is thin".
+   *
+   * **Called `origin` until the vocabulary needed that word for the country.**
+   * The schema's names are `source` for provenance and `originEn` for the
+   * country, and the harness had them crossed.
    */
-  origin?: string
+  source?: string
 }
 
 /** Falls back to English. An Arabic screen showing an English product name is
@@ -64,4 +92,14 @@ export function specFor(product: HarnessProduct, rtl: boolean): string {
  *  a handful of rows, and a brand lockup is not built yet either way. */
 export function brandFor(product: HarnessProduct): string {
   return product.brandEn ?? ''
+}
+
+/** The country line, either direction, falling back the way `specFor` does. */
+export function originFor(product: HarnessProduct, rtl: boolean): string {
+  return (rtl ? (product.originAr ?? product.originEn) : (product.originEn ?? product.originAr)) ?? ''
+}
+
+/** The pack line. One string in both editions — `8 × 25 g` does not translate. */
+export function packFor(product: HarnessProduct): string {
+  return product.packLabel ?? ''
 }

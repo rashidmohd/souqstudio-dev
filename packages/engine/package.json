@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "harness": "tsx harness/main.ts",
     "gallery": "tsx harness/gallery.ts",
+    "export:check": "tsx harness/export-check.ts",
     "blocks:publish": "tsx --env-file-if-exists=../../apps/web/.env.local scripts/publish-library.ts"
   },
   "dependencies": {

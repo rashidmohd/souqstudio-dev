@@ -64,6 +64,15 @@ direction for a step that already sits between a new user and their first result
 > the specification and stands as the intent; that file maps the built system and
 > carries everything added after this was written — the offer-tier binding,
 > gradients, the shape kit, badge shapes, and the asset table.
+>
+> **The flat element list below is superseded by `docs/E14-layout-frames.md`,
+> which is proposed and unbuilt.** Elements are positioned absolutely here and
+> have no way to say that two of them sit beside each other and reflow — which is
+> why the price mark grew a compass, a nudge and its own shape kit, and why
+> recolouring the star behind a price means opening a different element's panel.
+> E14 replaces `groupId` with a frame that lays its children out, and deletes
+> most of that machinery rather than adding to it. Read it before extending
+> anything in §3.1.
 
 A block is a small artboard holding typed elements in **relative** coordinates —
 fractions of block width and height, never pixels. That is what lets one offer card render

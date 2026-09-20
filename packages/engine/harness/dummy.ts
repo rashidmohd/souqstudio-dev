@@ -108,7 +108,7 @@ function p(
     minor,
     currency,
     tier,
-    origin: 'dummy',
+    source: 'dummy',
   }
   return comparePrice === undefined ? base : { ...base, comparePrice }
 }

@@ -22,6 +22,10 @@ const offer = (id: string, over: Partial<ComposedOffer> = {}): ComposedOffer => 
   missingImageProductId: null,
   spec: null,
   brand: null,
+  origin: null,
+  packSize: null,
+  saveAmount: null,
+  savePercent: null,
   imageUrl: null,
   priceMark: {
     tierId: 'tier_deal',

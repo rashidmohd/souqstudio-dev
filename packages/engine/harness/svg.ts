@@ -37,13 +37,29 @@ import {
   type Rect,
 } from '../src/index'
 import { KIT, PAGE_GROUND, SAMPLE_SCALE } from './dummy'
-import { brandFor, nameFor, specFor, type HarnessProduct } from './product'
+import { brandFor, nameFor, originFor, packFor, specFor, type HarnessProduct } from './product'
+import { resolveTextBinding, type BindingSubjects } from '../src/bindings'
+import { PREFIX_TEXT } from '../src/price-mark'
 
 export interface RenderContext {
   blocks: Record<string, Block>
   products: Record<string, HarnessProduct>
   direction: 'ltr' | 'rtl'
-  shopName: string
+  /**
+   * The shop the page is for, and the identity it carries.
+   *
+   * **This used to be one `shopName: string`**, which is exactly as much of the
+   * vocabulary as this file could answer: `shop.address` and `shop.phone` were
+   * declared, fell through to `''` here and in `draw.tsx`, and agreed with each
+   * other and with nothing else. E14 §3.4.
+   *
+   * `brand` is the identity this book carries — one source, resolved through
+   * `brandOverride` in the app. The harness has no override to read, so it
+   * carries the resolved answer, which is what the app hands the painter too.
+   */
+  shop: { name: string; address: string; phone: string }
+  brand: { name: string; logo: string | null }
+  book: { title: string; validFrom: string; validTo: string }
   /** How a card reclaims the height its content did not use. Defaults to the
    *  pre-compaction behaviour so the dummy pages are unchanged. */
   compaction?: CompactionPolicy
@@ -164,9 +180,19 @@ function paintElement(
     case 'shape':
       return shape(element, rect, blockEdge)
     case 'image':
-      return imagePlaceholder(rect, product, element.fit ?? 'contain')
+      // **A mark and a packshot get different treatments, and the gallery is
+      // what said so.** Folding `logo` into `image` (E14 §3.1) put every mark
+      // into the packshot's grey box — and a mark sits on a footer's ink band
+      // or a hero's tint, where a light grey rectangle reads as a broken image
+      // rather than as a reserved space. Same box, same geometry, different
+      // palette, because the ground underneath is different.
+      return element.source.from === 'brand'
+        ? logoPlaceholder(rect, placeholderLabel(element.source, product, ctx))
+        : imagePlaceholder(rect, element.source, product, ctx, element.fit ?? 'contain')
+    // Still renderable, and deleted in the release after the one that converts
+    // — a block published to R2 is read by every shop. E14 §6 and Phase 8.
     case 'logo':
-      return logoPlaceholder(rect)
+      return logoPlaceholder(rect, 'logo')
     case 'chip':
       return product === undefined ? '' : chip(element, rect, product, ctx)
     case 'priceMark':
@@ -250,7 +276,9 @@ function shape(
 
 function imagePlaceholder(
   rect: Rect,
+  source: Extract<BlockElement, { kind: 'image' }>['source'],
   product: HarnessProduct | undefined,
+  ctx: RenderContext,
   fit: 'contain' | 'cover'
 ): string {
   // A `cover` box is filled edge to edge, because that is what `cover` means and
@@ -264,10 +292,11 @@ function imagePlaceholder(
     width: rect.width - inset * 2,
     height: rect.height - inset * 2,
   }
-  // The brand, when there is one. Two thirds of a real catalog row set has a
-  // brand string and none has an image, so this box is what most of a real page
-  // is made of — see the note in `real.ts`.
-  const label = product === undefined || product.brandEn === null ? 'image' : product.brandEn
+  // **What the box is standing in for, not just "image".** A brand logo and a
+  // product packshot are different bindings and a placeholder that called both
+  // "image" is one a reader cannot use to tell a mis-bound element from an
+  // absent photograph — E14 §3.1, which is why `logo` stopped being a kind.
+  const label = placeholderLabel(source, product, ctx)
   const size = Math.min(inner.width * 0.22, inner.height * 0.16, 22)
 
   return [
@@ -278,12 +307,47 @@ function imagePlaceholder(
   ].join('')
 }
 
-function logoPlaceholder(rect: Rect): string {
-  const size = Math.min(rect.height * 0.4, 20)
+/**
+ * What an image box says it is holding.
+ *
+ * `brand.logo` resolves through the identity fixture, so a header pinned to the
+ * parent mark says so rather than saying "logo" either way.
+ */
+function placeholderLabel(
+  source: Extract<BlockElement, { kind: 'image' }>['source'],
+  product: HarnessProduct | undefined,
+  ctx: RenderContext
+): string {
+  switch (source.from) {
+    case 'brand':
+      // The name, not "<name> logo": the box's own treatment already says it is
+      // a mark, and the only thing a reviewer cannot see is *whose* — which is
+      // the question an identity pin exists to answer. E14 §3.2.
+      return ctx.brand.logo ?? ctx.brand.name
+    case 'asset':
+      return `asset ${source.assetId}`
+    case 'product':
+      // Two thirds of a real catalog row set has a brand string and none has an
+      // image, so this box is what most of a real page is made of — `real.ts`.
+      return product === undefined || product.brandEn === null ? 'image' : product.brandEn
+  }
+}
+
+/**
+ * The shop's mark, reserved.
+ *
+ * Translucent white rather than the packshot's grey: a mark is drawn on a
+ * footer's ink band or a hero's tint almost every time, and an opaque light box
+ * there reads as a broken image instead of as a space held for something.
+ */
+function logoPlaceholder(rect: Rect, label: string): string {
+  // Bounded against the box's width as well as its height, because a wide
+  // lockup in a short band would otherwise set its label wider than its box.
+  const size = Math.min(rect.height * 0.4, rect.width / Math.max(label.length, 1) * 1.6, 20)
   return [
     rounded(rect, '#FFFFFF22', 3),
     `<text x="${mid(rect.x, rect.width)}" y="${mid(rect.y, rect.height)}" font-size="${size}"`,
-    ` fill="#FFFFFFAA" text-anchor="middle" dominant-baseline="middle">logo</text>`,
+    ` fill="#FFFFFFAA" text-anchor="middle" dominant-baseline="middle">${esc(label)}</text>`,
   ].join('')
 }
 
@@ -556,49 +620,77 @@ const estimateWidth = (content: string, fontSize: number) => content.length * fo
 /** An escalated card is visible, not silent. */
 const ESCALATED = '#B3261E'
 
+/**
+ * The subjects this page's vocabulary resolves against.
+ *
+ * **The adapter, and it is where the harness's fallbacks live** — `nameAr ??
+ * nameEn`, the invented price, the absent columns. The resolver in
+ * `src/bindings.ts` takes strings and knows nothing about a catalog row, which
+ * is what stops this file and `draw.tsx` being two readings of one vocabulary.
+ */
+function subjectsFor(
+  product: HarnessProduct | undefined,
+  ctx: RenderContext
+): BindingSubjects {
+  const ar = ctx.direction === 'rtl'
+  return {
+    product:
+      product === undefined
+        ? undefined
+        : {
+            name: nameFor(product, ar),
+            spec: specFor(product, ar),
+            brand: brandFor(product),
+            origin: originFor(product, ar),
+            packSize: packFor(product),
+          },
+    offer:
+      product === undefined
+        ? undefined
+        : {
+            // The harness's rows carry invented prices. The major and the minor
+            // are what the price mark would draw, joined the way a single bound
+            // text run holds them — the fils is raised at paint, not here.
+            price: product.minor ? `${product.major}.${product.minor}` : product.major,
+            currency: product.currency,
+            compare: product.comparePrice ?? '',
+            tier: ar ? product.tier.labelAr : product.tier.labelEn,
+            prefix: product.prefixLabel ? PREFIX_TEXT[product.prefixLabel] : '',
+            unitPrice: product.unitPrice ?? '',
+            ...saved(product),
+          },
+    shop: ctx.shop,
+    brand: { name: ctx.brand.name },
+    book: ctx.book,
+    ar,
+  }
+}
+
+/**
+ * What the shop saved, computed the way the composer computes it.
+ *
+ * **Both empty when there is no was-price**, which is what makes "SAVE 20%"
+ * conditional content without a predicate in the engine — §3.3. The frame
+ * holding it collapses, and the gap beside it goes too.
+ */
+function saved(product: HarnessProduct): { saveAmount: string; savePercent: string } {
+  const was = product.comparePrice === undefined ? NaN : Number(product.comparePrice)
+  const now = Number(`${product.major}.${product.minor || '0'}`)
+  if (!Number.isFinite(was) || !Number.isFinite(now) || was <= now) {
+    return { saveAmount: '', savePercent: '' }
+  }
+  return {
+    saveAmount: (was - now).toFixed(2),
+    savePercent: `${Math.round(((was - now) / was) * 100)}%`,
+  }
+}
+
 function resolveText(
   element: Extract<BlockElement, { kind: 'text' }>,
   product: HarnessProduct | undefined,
   ctx: RenderContext
 ): string {
-  const ar = ctx.direction === 'rtl'
-  switch (element.source.from) {
-    case 'offer': {
-      // The harness paints what the product paints, or it is checking a picture
-      // nobody sees. The parts of the price that can be placed as their own
-      // layers have to resolve here too.
-      if (product === undefined) return ''
-      switch (element.source.field) {
-        case 'tier':
-          return ar ? product.tier.labelAr : product.tier.labelEn
-        case 'currency':
-          return product.currency
-        case 'compare':
-          return product.comparePrice ?? ''
-        // The harness's rows carry no price mode and no pack columns — they are
-        // invented prices against real catalog names. An empty string is the
-        // honest answer, and it is also what a real offer with neither produces.
-        case 'prefix':
-        case 'unitPrice':
-          return ''
-      }
-    }
-    case 'static':
-      return ar ? element.source.textAr : element.source.textEn
-    case 'shop':
-      return element.source.field === 'name' ? ctx.shopName : ''
-    case 'product': {
-      if (product === undefined) return ''
-      // The app's fallbacks, not the harness's own: an Arabic page over rows
-      // with no `nameAr` draws the English name, which is what the product
-      // does today. Drawing a blank or a placeholder here would invent a
-      // different failure from the real one.
-      if (element.source.field === 'name') return nameFor(product, ar)
-      if (element.source.field === 'spec') return specFor(product, ar)
-      if (element.source.field === 'brand') return brandFor(product)
-      return ''
-    }
-  }
+  return resolveTextBinding(element.source, subjectsFor(product, ctx))
 }
 
 /**

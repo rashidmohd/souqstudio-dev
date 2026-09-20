@@ -10,6 +10,7 @@ import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { assetResolver } from '@/lib/block-assets'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
 
 /**
  * The book, drawn, with the two things you can do about it.
@@ -38,7 +39,7 @@ type Props = {
   offers: Record<string, ComposedOffer>
   blocks: Record<string, Block>
   kit: BrandKit
-  shopName: string
+  identity: ArtboardIdentity
   /** The **book's** language, never the interface's. */
   direction: 'ltr' | 'rtl'
   /** The paper behind every card, for pages that have not been given their own.
@@ -81,7 +82,7 @@ export function BookPreview({
   offers,
   blocks,
   kit,
-  shopName,
+  identity,
   direction,
   background,
   pageBackgrounds = {},
@@ -162,7 +163,7 @@ export function BookPreview({
                 offers={offers}
                 blocks={blocks}
                 kit={kit}
-                shopName={shopName}
+                identity={identity}
                 direction={direction}
                 /* `?? background` would be wrong: a page set to `null` is
                    deliberately plain paper, and nullish-coalescing would hand it

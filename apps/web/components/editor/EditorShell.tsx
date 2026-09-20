@@ -54,6 +54,8 @@ import {
 } from '@/components/shared/canvas-drawer'
 import { useEditorStore } from '@/stores/editor-store'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
+import { OfferPeriod } from './OfferPeriod'
 
 /**
  * The editor's client shell. E6-01.
@@ -70,6 +72,8 @@ import type { ComposedOffer } from '@/lib/offer-book-compose'
 type Props = {
   bookId: string
   title: string
+  /** `YYYY-MM-DD` or null, as the date input takes them. E14 §3.4. */
+  period: { from: string | null; to: string | null }
   status: string
   edition: 'en' | 'ar'
   page: { width: number; height: number }
@@ -77,7 +81,7 @@ type Props = {
   offers: ComposedOffer[]
   blocks: Record<string, Block>
   kit: BrandKit
-  shopName: string
+  identity: ArtboardIdentity
   tiers: { id: string; labelEn: string }[]
   currency: string
   /** Bounded nudges by page index, as stored. E6-04. */
@@ -155,6 +159,7 @@ type BackgroundScope = 'book' | number
 export function EditorShell({
   bookId,
   title,
+  period,
   status,
   edition,
   page,
@@ -162,7 +167,7 @@ export function EditorShell({
   offers,
   blocks,
   kit,
-  shopName,
+  identity,
   tiers,
   currency,
   overrides,
@@ -620,6 +625,11 @@ export function EditorShell({
           <BookTitle bookId={bookId} title={title} />
         </h1>
 
+        {/* Beside the title because it is the same kind of fact about the book,
+            and because `book.validFrom` and `book.validTo` draw on the header
+            the owner is looking at. E14 §3.4. */}
+        <OfferPeriod bookId={bookId} validFrom={period.from} validTo={period.to} />
+
         <span className="rounded-pill bg-sand px-2 py-px font-ui text-eyebrow uppercase text-secondary">
           {status}
         </span>
@@ -885,7 +895,7 @@ export function EditorShell({
                   offers={drawn}
                   blocks={blocks}
                   kit={kit}
-                  shopName={shopName}
+                  identity={identity}
                   // The artboard follows the *book's* language, never the
                   // interface's.
                   direction={edition === 'ar' ? 'rtl' : 'ltr'}
@@ -987,7 +997,7 @@ export function EditorShell({
           onClose={() => setEditingBlock(null)}
           canDesign={canDesign}
           kit={kit}
-          shopName={shopName}
+          identity={identity}
           assetBaseUrl={assetBaseUrl}
         />
 

@@ -17,7 +17,8 @@
     "catalog:import-off": "tsx scripts/import-off.ts",
     "catalog:import-unioncoop": "tsx scripts/import-unioncoop.ts",
     "catalog:seed-demo": "tsx scripts/seed-catalog-demo.ts",
-    "catalog:harness-export": "tsx scripts/export-harness-products.ts"
+    "catalog:harness-export": "tsx scripts/export-harness-products.ts",
+    "blocks:convert-logo": "tsx --env-file-if-exists=../../apps/web/.env.local scripts/convert-logo-elements.ts"
   },
   "dependencies": {
     "@souqstudio/types": "workspace:*",

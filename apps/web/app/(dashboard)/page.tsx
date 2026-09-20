@@ -10,6 +10,7 @@ import { OfferBooksList } from '@/components/offer-book/OfferBooksList'
 import { composeCover } from '@/lib/offer-book'
 import { env } from '@/lib/env'
 import type { BookCover } from '@/lib/offer-book-compose'
+import { artboardIdentity } from '@/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Offer books · SouqStudio' }
 
@@ -118,7 +119,7 @@ export default async function HomePage() {
         }))}
         covers={Object.fromEntries(covers.filter((entry) => entry !== null))}
         kit={brand?.brandKit ?? {}}
-        shopName={shop?.name ?? ''}
+        identity={artboardIdentity({ shop: shop ?? { name: '' } })}
         assetBaseUrl={env.R2_PUBLIC_URL}
       />
     </div>

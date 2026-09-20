@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "stylelint": "stylelint \"styles/**/*.css\"",
     "check:classes": "node scripts/check-classes.mjs",
-    "r2:cors": "node --env-file=.env.local scripts/r2-cors.mjs"
+    "r2:cors": "node --env-file=.env.local scripts/r2-cors.mjs",
+    "fonts:mirror": "node --env-file-if-exists=.env.local scripts/mirror-fonts.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3",

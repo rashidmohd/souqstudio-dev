@@ -7,6 +7,7 @@ import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { loadBlock } from '@/lib/blocks'
 import { DesignerShell } from '@/components/card-designer/DesignerShell'
+import { artboardIdentity } from '@/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Block designer · SouqStudio' }
 
@@ -68,7 +69,12 @@ export default async function CardDesignerPage({ params }: { params: { blockId: 
       editable={canEdit && block.organizationId !== null}
       arrangements={block.arrangements}
       kit={brand.brandKit}
-      shopName={shop.name}
+      identity={artboardIdentity({
+        shop,
+        // The identity this book carries, resolved through `brandOverride` —
+        // `source.logo` is where that decision already landed. E14 §3.2.
+        brand: { logoUrl: brand.logoUrl, inheritsIdentity: brand.source.logo === 'org' },
+      })}
       // Passed down rather than made public: `R2_PUBLIC_URL` is a server
       // variable, and making it public to save a prop would put a deployment
       // detail into the browser bundle for the life of the app.

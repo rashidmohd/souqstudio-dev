@@ -92,6 +92,45 @@ export {
   type ChipShape,
   type PathShape,
 } from './shapes'
+// `logo` stops being an element kind — it is a picture, and making it a kind of
+// its own meant every image property had to be added to it separately. The
+// converter runs over the seeded generators and over stored documents alike,
+// because one that ran differently over the two would render two ways. E14 §3.1.
+export { countLogoElements, foldLogoElement, foldLogoElements } from './convert-logo'
+// The binding vocabulary, and the one place it is resolved. Two painters each
+// had their own switch and they agreed with each other and with nothing else —
+// which is why `shop.phone` drew nothing for as long as it existed. E14 §3.5.
+export {
+  BOOK_FIELDS,
+  BRAND_TEXT_FIELDS,
+  IMAGE_BINDINGS,
+  OFFER_FIELDS,
+  PRODUCT_FIELDS,
+  SHOP_FIELDS,
+  TEXT_BINDINGS,
+  bindingInScope,
+  resolveImageBinding,
+  resolveTextBinding,
+  type BindingSubjects,
+  type BookField,
+  type BrandTextField,
+  type ImageSubjects,
+  type OfferField,
+  type ProductField,
+  type ShopField,
+} from './bindings'
+// Soft shadows as concentric vector rings, because every filter Chromium offers
+// rasterizes at a resolution nothing in the document can set. Measured, not
+// reasoned about — `harness/export-check.ts` is the measurement. E14 §2.4.
+export {
+  SHADOW_PEAK,
+  SHADOW_SPREAD,
+  ringAlpha,
+  ringCount,
+  shadowRings,
+  type Shadow,
+  type ShadowRing,
+} from './shadow'
 // When a seasonal block is in season — computed rather than stored, because
 // Ramadan and both Eids move against the Gregorian calendar. E7-03.
 export {

@@ -23,11 +23,14 @@ const RICE: ProductRow = {
   specAr: 'معتق سنتين',
   brandEn: 'Abu Kass',
   brandAr: 'أبو كاس',
+  originEn: 'India',
+  originAr: 'الهند',
   imageUrl: 'https://cdn.example/rice-cutout.png',
   imageIsFallback: false,
   packSize: '5.000',
   packUnit: 'KG',
   packCount: null,
+  sellBy: 'PACK',
 }
 
 const CREPES: ProductRow = {
@@ -38,6 +41,8 @@ const CREPES: ProductRow = {
   specAr: null,
   brandEn: null,
   brandAr: null,
+  originEn: null,
+  originAr: null,
   imageUrl: null,
   imageIsFallback: false,
   // 4.2% of the catalog carries a pack size, so the ordinary row has none and
@@ -45,6 +50,7 @@ const CREPES: ProductRow = {
   packSize: null,
   packUnit: null,
   packCount: null,
+  sellBy: 'PACK',
 }
 
 const TIER: TierRow = { id: 'tier_deal', labelEn: 'Deal', labelAr: 'عرض', tokenRef: 'accent' }

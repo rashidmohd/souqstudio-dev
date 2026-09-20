@@ -421,9 +421,26 @@ export const chip = (
   ...(options.ink === undefined ? {} : { ink: role(options.ink) }),
 })
 
+/**
+ * The shop's mark, as an image bound to the brand's logo.
+ *
+ * **It was `{ kind: 'logo' }` and that was the price mark's mistake one size
+ * down** — a kind of its own, with no source and no options, so it could not be
+ * cropped, could not take a radius, and every property added to images had to
+ * be added to it separately or silently not exist. E14 §3.1.
+ *
+ * The helper keeps its name and its signature. Twenty-five blocks call it and
+ * none of them had an opinion about how a logo was represented.
+ */
 export const logo = (b: Box, options: { opacity?: number } = {}): BlockElement => ({
   id: 'logo',
-  kind: 'logo',
+  kind: 'image',
+  // One identity source, resolved through `brandOverride` — §3.2. A block that
+  // must always show the parent mark says so with an identity pin, not by
+  // binding somewhere else.
+  source: { from: 'brand', field: 'logo' },
+  // A mark letterboxes. Cropping one cuts its edges off.
+  fit: 'contain',
   box: b,
   ...(options.opacity === undefined ? {} : { opacity: options.opacity }),
 })

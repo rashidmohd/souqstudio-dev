@@ -289,7 +289,28 @@ export interface Box {
   height: number
 }
 
-export type ImageSource = { from: 'product' } | { from: 'asset'; assetId: string }
+/**
+ * Where an image element's picture comes from.
+ *
+ * **`brand.logo` is here rather than being its own element kind**, and folding
+ * it in is E14 §3.1. `{ kind: 'logo' }` carried no source and no options: it
+ * drew *the* logo, so it could not be cropped, could not take a stroke or a
+ * radius, could not be the child a frame hugs, and every property ever added to
+ * images had to be added to it separately or silently not exist. A logo is a
+ * picture. Making it a kind of its own was the price mark's mistake, one size
+ * down.
+ *
+ * **There is one identity source and the owner does not pick between two**
+ * — §3.2. `brand` means *the identity this book should carry*, resolved through
+ * `brandOverride` exactly as the artboard's colours already are. A group footer
+ * that must always show the parent mark says so with an identity pin on the
+ * block, not by binding to a second source that half its branches would get
+ * wrong.
+ */
+export type ImageSource =
+  | { from: 'product' }
+  | { from: 'asset'; assetId: string }
+  | { from: 'brand'; field: 'logo' }
 
 /**
  * Where a text element's content comes from.
@@ -345,8 +366,59 @@ export type TextSource =
        * stand aside. `recipe.currency.place: 'hidden'` and the satellites'
        * `'hidden'` are how it stands aside, so nothing is ever drawn twice.
        */
-      field: 'tier' | 'currency' | 'compare' | 'prefix' | 'unitPrice'
+      field:
+        | 'tier'
+        | 'currency'
+        | 'compare'
+        | 'prefix'
+        | 'unitPrice'
+        /**
+         * The number itself, and it is here because a frame can hold it.
+         *
+         * The note above says what is "deliberately absent", and that argument
+         * was about *placement*: pinned to a fraction of the block, a price is
+         * correct only for the price it was designed against. A frame removes
+         * the premise — a hugging row measures the digits and grows — so the
+         * price becomes an ordinary bound line and `priceMark` stops being the
+         * only way to draw one. E14 §4.
+         *
+         * **The fils still cannot leave.** It is positioned against the glyphs,
+         * on the major's cap line, which is kerning rather than layout. It is a
+         * formatting option on this text, in the same class as bold, and never
+         * a second element.
+         */
+        | 'price'
+        /**
+         * What the shop saved, as words — `4.50` and `20%`.
+         *
+         * **This is what makes conditional content work without a predicate in
+         * the engine.** "SAVE 20%" is not a rule a block evaluates; it is a
+         * field the composer resolves, empty when there is no was-price, and
+         * collapsed by the frame that holds it. E14 §3.3 and §3.7.
+         */
+        | 'saveAmount'
+        | 'savePercent'
     }
+  /**
+   * The identity this book carries — §3.2, and the *only* identity entry.
+   *
+   * Resolved through `readEffectiveBrand` and `brandOverride`, so a shop that
+   * inherits its organization's mark gets the organization's name here without
+   * anyone choosing. `organization` is deliberately not a parallel source: an
+   * owner designing a header must not be asked to pick between two names,
+   * because whichever they pick is wrong for half their branches.
+   */
+  | { from: 'brand'; field: 'name' }
+  /**
+   * Facts about the book rather than about what is in it.
+   *
+   * **The dates are strings, resolved by the composer**, never dates the engine
+   * formats — the same rule `comparePrice` already follows. A flyer header
+   * almost always reads "Offers valid 1–7 October", and `OfferBook.expiresAt`
+   * is when the *share link* stops working, which is a different fact that
+   * would print a wrong date if borrowed.
+   */
+  | { from: 'book'; field: 'title' | 'validFrom' | 'validTo' }
   | { from: 'static'; textEn: string; textAr: string }
 
 /**

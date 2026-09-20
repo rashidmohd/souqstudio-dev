@@ -30,6 +30,7 @@ import { loadLibrary } from '../src/library-load'
 const SEED_BLOCKS = await loadLibrary()
 import { FRIENDLY, WORST_CASE } from './dummy'
 import type { HarnessProduct } from './product'
+import { identityFor } from './shop'
 import { renderPage, type RenderContext } from './svg'
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'out')
@@ -74,7 +75,7 @@ function context(products: HarnessProduct[], direction: 'ltr' | 'rtl'): RenderCo
     blocks,
     products: Object.fromEntries(products.map((product) => [product.id, product])),
     direction,
-    shopName: direction === 'rtl' ? 'أسواق النخيل' : 'Al Nakheel Market',
+    ...identityFor(direction),
   }
 }
 

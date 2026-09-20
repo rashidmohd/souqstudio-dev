@@ -15,6 +15,7 @@ import { BookPage } from '@/components/editor/BookPage'
 import { assetResolver } from '@/lib/block-assets'
 import type { BookCover } from '@/lib/offer-book-compose'
 import { BOOK_CREATION_BUILT, EDITOR_BUILT } from '@/lib/features'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
 
 /**
  * The offer books list — home. E1-05 needs this route to exist; E6 fills it in.
@@ -51,14 +52,14 @@ export function OfferBooksList({
   books,
   covers,
   kit,
-  shopName,
+  identity,
   assetBaseUrl,
 }: {
   books: OfferBookSummary[]
   /** Keyed by book id. Present only for the ones with a drawn cover. */
   covers: Record<string, BookCover>
   kit: BrandKit
-  shopName: string
+  identity: ArtboardIdentity
   assetBaseUrl: string
 }) {
   const router = useRouter()
@@ -219,7 +220,7 @@ export function OfferBooksList({
               book={book}
               cover={covers[book.id]}
               kit={kit}
-              shopName={shopName}
+              identity={identity}
               asset={asset}
             />
           </li>
@@ -259,7 +260,7 @@ export function OfferBooksList({
                      on its way is a small lie they will notice. */
                   pending={loadingCovers && pastCovers[book.id] === undefined}
                   kit={kit}
-                  shopName={shopName}
+                  identity={identity}
                   asset={asset}
                 />
               </li>
@@ -308,7 +309,7 @@ function BookTile({
   cover,
   pending = false,
   kit,
-  shopName,
+  identity,
   asset,
 }: {
   book: OfferBookSummary
@@ -316,7 +317,7 @@ function BookTile({
   /** Its cover is on its way. A skeleton rather than the no-picture glyph. */
   pending?: boolean
   kit: BrandKit
-  shopName: string
+  identity: ArtboardIdentity
   asset: (assetId: string) => string | null
 }) {
   const body = (
@@ -347,7 +348,7 @@ function BookTile({
             offers={cover.offers}
             blocks={cover.blocks}
             kit={kit}
-            shopName={shopName}
+            identity={identity}
             // The **book's** language, never the interface's.
             direction={cover.direction}
             background={cover.background}

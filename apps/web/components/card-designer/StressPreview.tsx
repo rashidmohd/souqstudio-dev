@@ -7,6 +7,7 @@ import { Figure } from '@/components/ui/figure'
 import { BlockArtboard } from '@/components/card-designer/BlockArtboard'
 import { toArtboardOffer } from '@/lib/preview-offer'
 import { PREVIEW_PRODUCT } from '@/lib/preview-product'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
 
 /**
  * The stress preview. E7, and a requirement rather than a nicety.
@@ -32,7 +33,7 @@ type Props = {
   width: number
   height: number
   direction: 'ltr' | 'rtl'
-  shopName: string
+  identity: ArtboardIdentity
   asset?: ((assetId: string) => string | null) | undefined
   /** Text elements the fit ladder could not place. Counted by the caller, which
    *  already runs the ladder to draw. */
@@ -45,7 +46,7 @@ export function StressPreview({
   width,
   height,
   direction,
-  shopName,
+  identity,
   asset,
   escalated = 0,
 }: Props) {
@@ -78,7 +79,7 @@ export function StressPreview({
         height={height}
         direction={direction}
         offer={offer}
-        shopName={shopName}
+        identity={identity}
         asset={asset}
         ariaLabel="The same card under the longest product in the catalog"
         className="rounded-artboard"

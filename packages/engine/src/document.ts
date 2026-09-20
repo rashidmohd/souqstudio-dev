@@ -8,6 +8,7 @@ import {
   PRICE_MARK_PRESETS,
   TYPE_LEVELS,
   type Arrangement,
+  type TextSource,
   type TypeLevel,
 } from '@souqstudio/types'
 
@@ -150,8 +151,27 @@ const textSourceSchema = z.discriminatedUnion('from', [
   // on `TextSource` in @souqstudio/types for why those two cannot leave.
   z.object({
     from: z.literal('offer'),
-    field: z.enum(['tier', 'currency', 'compare', 'prefix', 'unitPrice']),
+    field: z.enum([
+      'tier',
+      'currency',
+      'compare',
+      'prefix',
+      'unitPrice',
+      // The number itself, because a frame can hold it — E14 §4. The fils stays
+      // inside this one run; it is kerning, not layout.
+      'price',
+      // Conditional content without a predicate in the engine: empty when there
+      // is no was-price, and collapsed by the frame. E14 §3.7.
+      'saveAmount',
+      'savePercent',
+    ]),
   }),
+  // One identity source, resolved through `brandOverride`. There is no
+  // `organization` entry and there must not be one — E14 §3.2.
+  z.object({ from: z.literal('brand'), field: z.literal('name') }),
+  // The dates are strings the composer resolved, never dates the engine
+  // formats. Same rule as `comparePrice`.
+  z.object({ from: z.literal('book'), field: z.enum(['title', 'validFrom', 'validTo']) }),
   z.object({
     from: z.literal('static'),
     // Both languages, always. A static line with only an English value is a
@@ -329,6 +349,9 @@ const elementSchema = z.discriminatedUnion('kind', [
     source: z.discriminatedUnion('from', [
       z.object({ from: z.literal('product') }),
       z.object({ from: z.literal('asset'), assetId: z.string().min(1).max(64) }),
+      // `logo` stopped being an element kind — E14 §3.1. It is a picture, so
+      // every image property applies to it, `aspect` most of all.
+      z.object({ from: z.literal('brand'), field: z.literal('logo') }),
     ]),
     fit: z.enum(['contain', 'cover']).optional(),
     radius: z.number().min(0).max(64).optional(),
@@ -461,3 +484,19 @@ const _schemaMatchesTypes: Extends<z.infer<typeof arrangementsSchema>, Arrangeme
 const _typesMatchSchema: Extends<Arrangement[], z.infer<typeof arrangementsSchema>> = true
 void _schemaMatchesTypes
 void _typesMatchSchema
+
+/**
+ * The same check over the binding vocabulary, and it is the compiler's half of
+ * E14 §3.5.
+ *
+ * A binding is *declared* in `@souqstudio/types` and *resolved* in a painter,
+ * and until now nothing checked that the two lists matched — which is why
+ * `shop.phone` was in the vocabulary and absent from every renderer for as long
+ * as both existed. This line catches a schema that has fallen behind the type.
+ * `bindings.test.ts` catches a painter that has, which is the half a type system
+ * cannot see.
+ */
+const _textSourceMatchesType: Extends<z.infer<typeof textSourceSchema>, TextSource> = true
+const _textSourceCoversType: Extends<TextSource, z.infer<typeof textSourceSchema>> = true
+void _textSourceMatchesType
+void _textSourceCoversType

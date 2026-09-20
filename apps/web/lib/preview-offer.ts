@@ -1,5 +1,5 @@
 import type { Currency } from '@souqstudio/types'
-import { toPriceMark } from '@souqstudio/engine'
+import { minorDigits, toPriceMark } from '@souqstudio/engine'
 import type { ArtboardOffer } from '@/components/blocks/draw'
 
 /**
@@ -22,6 +22,10 @@ export interface SampleProduct {
   specEn: string | null
   specAr: string | null
   brandEn: string | null
+  /** The country line and the pack line, as a real catalog row carries them. */
+  originEn?: string | null
+  originAr?: string | null
+  packLabel?: string | null
   /**
    * A stand-in packshot, or null for the surfaces where its absence is the
    * point. Same field a real row has, so the adapter below stays one mapping.
@@ -49,12 +53,19 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     name: (ar ? product.nameAr : product.nameEn) ?? product.nameEn,
     spec: (ar ? product.specAr : product.specEn) ?? null,
     brand: product.brandEn,
+    origin: (ar ? product.originAr : product.originEn) ?? product.originEn ?? null,
+    packSize: product.packLabel ?? null,
     imageUrl: product.imageUrl,
     priceMark: toPriceMark(product.amount, product.currency, 'preview', {
       ...(product.comparePrice === null ? {} : { comparePrice: product.comparePrice }),
     }),
     tierLabel: ar ? product.tierLabelAr : product.tierLabelEn,
     tierToken: '',
+    // The same arithmetic the composer does, so a preview of a card with a
+    // was-price shows the same "SAVE" line the book will print. Both null
+    // together when there is nothing to compare against — §3.7 collapses the
+    // element rather than drawing a zero.
+    ...previewSavings(product),
     // A sample has no pack columns behind it, and a rate invented for a preview
     // is a number an owner could read as real. Null is *no line*, which is what
     // `composeOffer` produces for an offer whose pack cannot answer.
@@ -63,5 +74,29 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     // inventing a "Limit 2" beside it would show a block preview that no real
     // offer produces until an owner asks for it.
     chips: [],
+  }
+}
+
+/**
+ * A preview's save figures.
+ *
+ * A second copy of `savings` in the composer, and deliberately a small one: the
+ * composer reads a `Decimal` off an offer row and this reads a number off a
+ * literal, so there is no shared input to factor over. The rule they share —
+ * **both null unless the was-price is strictly higher** — is asserted in both
+ * places rather than assumed in one.
+ */
+function previewSavings(product: SampleProduct): {
+  saveAmount: string | null
+  savePercent: string | null
+} {
+  if (product.comparePrice === null) return { saveAmount: null, savePercent: null }
+  const was = Number(product.comparePrice)
+  if (!Number.isFinite(was) || was <= product.amount) {
+    return { saveAmount: null, savePercent: null }
+  }
+  return {
+    saveAmount: (was - product.amount).toFixed(minorDigits(product.currency)),
+    savePercent: `${Math.round(((was - product.amount) / was) * 100)}%`,
   }
 }

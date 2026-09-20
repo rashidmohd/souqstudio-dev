@@ -176,8 +176,23 @@ export function isBound(element: BlockElement): boolean {
       // gets the dashed canvas outline, the layer-list mark and the refusal to
       // sit on a block that is placed once. Leaving it out would give an owner
       // a live badge on a static panel that silently draws nothing.
+      //
+      // **`brand` and `book` are live data and deliberately not "bound" here**,
+      // and the distinction is load-bearing. This function answers "does this
+      // need a product in scope", which is what `product-binding-on-static-block`
+      // is about; a shop's name and a book's dates are available everywhere, so
+      // a header carrying them is correct rather than broken. E14 §3.6, and
+      // `bindingInScope` in `bindings.ts` is the general form.
+      //
+      // Widening it would put a warning on every seeded header and footer — and
+      // the loader refuses a shipped block that draws any warning, which is what
+      // took the dev deploy down on 10 September. `docs/block-library-from-r2.md`
+      // §12.
       return element.source.from === 'product' || element.source.from === 'offer'
     case 'image':
+      // Same rule: a `brand.logo` image is the shop's mark, which every block
+      // has in scope. It was `kind: 'logo'` and answered `false` here too, so
+      // folding it in changed nothing about what the canvas marks. E14 §3.1.
       return element.source.from === 'product'
     case 'priceMark':
     case 'chip':

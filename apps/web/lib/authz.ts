@@ -142,6 +142,17 @@ export type ShopAccess = {
     currency: string
     currencyDisplay: string
     currencySymbol: string | null
+    /**
+     * The organization this shop belongs to.
+     *
+     * **The name is what `brand.name` returns when a block's identity is pinned
+     * to the parent** — E14 §3.2. A group footer that must always show the
+     * parent mark is one identity pin rather than a second binding source, and
+     * the pin needs something to resolve to. Loaded here for the reason the
+     * note above gives about `location` and `phone`: a surface that renders
+     * without it draws a blank and says nothing about why.
+     */
+    organization: { name: string }
   }
   role: Role
 }
@@ -179,6 +190,9 @@ const SHOP_SELECT = {
   currency: true,
   currencyDisplay: true,
   currencySymbol: true,
+  // One join, and the vocabulary needs it: an identity pinned to the parent
+  // resolves `brand.name` to this. E14 §3.2.
+  organization: { select: { name: true } },
 } satisfies Prisma.ShopSelect
 
 /**

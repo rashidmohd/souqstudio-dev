@@ -31,6 +31,7 @@ import { toArtboardOffer } from '@/lib/preview-offer'
 import { TYPICAL_PRODUCT } from '@/lib/preview-product'
 import { useDesignerStore, useElements, useSelectedElement } from '@/stores/designer-store'
 import { useDesignerKeys } from '@/components/card-designer/useDesignerKeys'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
 
 /**
  * The block designer. E7, and layout family 3 in the design skill.
@@ -77,7 +78,7 @@ type Props = {
   editable: boolean
   arrangements: Arrangement[]
   kit: BrandKit
-  shopName: string
+  identity: ArtboardIdentity
   /** Where uploaded artwork is served from. A prop rather than a public env
    *  variable — see `lib/block-assets.ts`. */
   assetBaseUrl: string
@@ -130,7 +131,7 @@ export function DesignerShell({
   editable,
   arrangements: initialArrangements,
   kit,
-  shopName,
+  identity,
   assetBaseUrl,
 }: Props) {
   const hydrate = useDesignerStore((state) => state.hydrate)
@@ -579,7 +580,7 @@ export function DesignerShell({
               height={height}
               direction={direction}
               offer={offer}
-              shopName={shopName}
+              identity={identity}
               asset={asset}
               markBound
               selectedIds={store.selectedIds}
@@ -617,7 +618,7 @@ export function DesignerShell({
                 width={width}
                 height={height}
                 direction={direction}
-                shopName={shopName}
+                identity={identity}
                 asset={asset}
               />
             </div>

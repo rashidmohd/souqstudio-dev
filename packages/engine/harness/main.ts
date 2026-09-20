@@ -19,6 +19,7 @@ import { bookletGrid, flowBook, type CompactionPolicy } from '../src/index'
 import { BLOCKS, BRAND_AD, FOOTER, HERO_BAND, MESSAGE_POST, OFFER_CARD } from './blocks'
 import { FRIENDLY, WORST_CASE } from './dummy'
 import type { HarnessProduct } from './product'
+import { identityFor } from './shop'
 import { censusLine, loadRealCatalog, SET_NOTES } from './real'
 import { renderPage, type RenderContext } from './svg'
 
@@ -145,7 +146,7 @@ function shoot(
     blocks: BLOCKS,
     products: Object.fromEntries(opts.products.map((p) => [p.id, p])),
     direction,
-    shopName: direction === 'rtl' ? 'أسواق النخيل' : 'Al Nakheel Market',
+    ...identityFor(direction),
     ...(opts.compaction === undefined ? {} : { compaction: opts.compaction }),
   }
 

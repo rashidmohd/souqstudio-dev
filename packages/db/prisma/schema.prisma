@@ -125,15 +125,15 @@ model Shop {
   /// The code is the pricing authority — `THREE_DECIMAL_CURRENCIES` reads it to
   /// decide two fils or three. `currencyDisplay` and `currencySymbol` below only
   /// decide what a card prints.
-  currency       String  @default("AED")
+  currency        String  @default("AED")
   /// Whether cards print the ISO code (`AED`) or the symbol (`د.إ`). CODE | SYMBOL.
   /// A Gulf grocery prints the symbol far more often than it prints the code.
-  currencyDisplay String @default("CODE")
+  currencyDisplay String  @default("CODE")
   /// The shop's own symbol, overriding the market default for its currency.
   /// Null uses `CURRENCY_SYMBOLS`. Bounded at `MAX_CURRENCY_SYMBOL` — it lands
   /// in the largest type on the page, and the solver sizes the price around it,
   /// so a long one does not overflow, it shrinks the price.
-  currencySymbol String?
+  currencySymbol  String?
 
   /// E8-01. What the shop sells, from `SHOP_TRADES` in @souqstudio/engine —
   /// grocery | electronics | pharmacy | butcher | bakery | restaurant |
@@ -855,7 +855,7 @@ model CatalogProduct {
   /// `SellBy`. Defaulted rather than nullable: every row that existed before
   /// this column is a pack, and a null would make every reader decide what
   /// absence meant.
-  sellBy    SellBy    @default(PACK)
+  sellBy SellBy @default(PACK)
 
   /// The shop's own item code, as their till and their price list spell it.
   ///
@@ -979,8 +979,8 @@ enum ReviewState {
 }
 
 model ImageAsset {
-  id          String         @id @default(cuid())
-  productId   String
+  id            String         @id @default(cuid())
+  productId     String
   /// The organization that supplied this photo, when a shop contributed one to
   /// a product it does not own. Null on everything seeded, imported or
   /// generated, which is almost every row.
@@ -993,24 +993,24 @@ model ImageAsset {
   /// to see their own flyer. `imageVisibility` in `lib/catalog.ts` is the one
   /// place that reads it.
   contributedBy String?
-  kind        ImageKind
+  kind          ImageKind
   /// The ImageAsset this was derived from. Set on CUTOUT and THUMB, null on
   /// ORIGINAL. Keeping the original is what makes a bad matte recoverable.
-  derivedFrom String?
-  r2Key       String
-  width       Int
-  height      Int
+  derivedFrom   String?
+  r2Key         String
+  width         Int
+  height        Int
   /// The trimmed content box within the canvas, `{ x, y, w, h }` in pixels.
   /// The layout engine scales cards to optical weight, not to raw file
   /// dimensions — without this a cutout carrying 30% transparent padding
   /// renders visibly smaller than its neighbours on the same row.
-  bboxTight   Json?
+  bboxTight     Json?
   /// Matting confidence, 0..1. Low scores route to review rather than shipping
   /// a haloed cutout onto a printed page.
-  quality     Float?
-  reviewState ReviewState    @default(PENDING)
-  product     CatalogProduct @relation(fields: [productId], references: [id])
-  createdAt   DateTime       @default(now())
+  quality       Float?
+  reviewState   ReviewState    @default(PENDING)
+  product       CatalogProduct @relation(fields: [productId], references: [id])
+  createdAt     DateTime       @default(now())
 
   @@index([productId, kind])
   @@index([reviewState])
@@ -1242,6 +1242,18 @@ model OfferBook {
   /// renders from the same rows; it is a render target, not a copy.
   language String @default("en") // en | ar
 
+  /// The offer period the book prints — "Offers valid 1–7 October".
+  ///
+  /// **Not `expiresAt`, and borrowing it would print a wrong date.** That one
+  /// is when the *share link* stops working, which is a fact about a URL. A
+  /// flyer header is making a claim about when the prices hold, and the two
+  /// are set for different reasons and to different days. E14 §3.4.
+  ///
+  /// Dates in the column, strings on the card: the composer resolves them and
+  /// the engine never learns a locale or a calendar — §8, the same rule
+  /// `comparePrice` already follows.
+  validFrom     DateTime?       @db.Date
+  validTo       DateTime?       @db.Date
   shortCode     String          @unique
   shareableLink String?
   expiresAt     DateTime?
@@ -1297,7 +1309,7 @@ model OfferBookPage {
   ///
   /// The flow does not restart at a merge: a page holding a merged hero holds
   /// one card fewer and the products carry on onto the next page.
-  merges       Json?
+  merges        Json?
   /// This page's own paper, as `{ background: PageBackground | null }`.
   ///
   /// **Three states, which is why it is wrapped.** The column being NULL means
@@ -1309,7 +1321,7 @@ model OfferBookPage {
   /// read — `DbNull` and `JsonNull` both come back as `null` — so "inherit" and
   /// "explicitly none" would be the same value. Nesting one level makes the
   /// distinction survive the round trip.
-  background   Json?
+  background    Json?
   /// Blocks an owner put in particular cells of this page, as
   /// `{ [regionId]: blockId }`.
   ///
@@ -1323,7 +1335,7 @@ model OfferBookPage {
   /// Keyed by region id — `r{row}c{col}`, the merged region's start cell — which
   /// is the same key `slotOverrides` uses and orphans the same way when the
   /// track count changes.
-  regionBlocks Json?
+  regionBlocks  Json?
   book          OfferBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, index])
@@ -1516,9 +1528,22 @@ model Block {
   /// pixel.
   arrangements Json
 
+  /// Whose mark this block carries — `inherit` or `organization`.
+  ///
+  /// **A mode, not a second binding source.** `brandOverride` already decides
+  /// whether a shop shows its own logo or its organization's, and an owner
+  /// designing a header must not be asked to choose between two, because
+  /// whichever they pick is wrong for half their branches. So there is one
+  /// `brand` entry in the vocabulary, and the one deliberate case — a group
+  /// footer that always shows the group — is this pin. E14 §3.2.
+  ///
+  /// The same shape as Figma Buzz's variable modes: a template carries brand
+  /// modes the user switches, rather than duplicate fields they choose between.
+  identityPin String @default("inherit") // inherit | organization
+
   thumbnailUrl String?
-  status       String         @default("draft") // draft | published | archived
-  planTier     String         @default("starter")
+  status       String  @default("draft") // draft | published | archived
+  planTier     String  @default("starter")
 
   /// Which group of the shipped library this block is — `offer-card`, `header`,
   /// `panel`, `footer`, `seasonal`. Null on a block an owner authored, and it
@@ -1536,7 +1561,7 @@ model Block {
   /// Only the seed ever writes it, which is the objection that kept it out of
   /// the schema for a week — and is exactly what a seed is for. Same argument
   /// that put `occasion` below it a day earlier.
-  category     String?
+  category String?
 
   isSeasonal   Boolean        @default(false)
   /// Which occasion, for a block whose window is computed rather than stored —
@@ -1583,11 +1608,11 @@ model Block {
 /// Day motifs — on the same seeded/authored split `blocks` already uses, so one
 /// picker shows both and neither is a special case.
 model BlockAsset {
-  id             String  @id @default(cuid())
+  id             String        @id @default(cuid())
   /// Null for the motifs we ship. Set for artwork an owner uploaded.
   organizationId String?
   /// The R2 object key. What a block document stores, and the join to it.
-  key            String  @unique
+  key            String        @unique
   /// What the owner sees in the picker. Their filename, less the extension.
   name           String
   /// Of the stored PNG. A picker draws each asset at its own proportion, and a
@@ -1771,9 +1796,9 @@ model CoverPrompt {
 
   /// Off rather than deleted. A prompt that produced bad covers is worth keeping
   /// to compare against the one that replaced it, and a `covers` row may name it.
-  isActive Boolean @default(true)
+  isActive  Boolean @default(true)
   /// Ascending. Ties break on `label`.
-  sortOrder Int    @default(100)
+  sortOrder Int     @default(100)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1801,7 +1826,7 @@ model Cover {
   /// The R2 object key, never a URL — the same rule `image_assets` and
   /// `product_brands.logoKey` follow, so this survives the bucket moving behind
   /// a different public origin.
-  r2Key  String
+  r2Key String
 
   /// What it was generated from, kept so the library can label itself and an
   /// owner can tell two Ramadan covers apart. Strings rather than enums: they
@@ -1863,7 +1888,6 @@ model AiJob {
 
   /// The unfinished-work query: this organization's jobs, newest first.
   @@index([organizationId, status, createdAt])
-
   @@map("ai_jobs")
 }
 

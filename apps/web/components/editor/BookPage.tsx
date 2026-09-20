@@ -26,6 +26,7 @@ import {
   type DrawContext,
 } from '@/components/blocks/draw'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
 
 /**
  * One page of an offer book, drawn.
@@ -57,7 +58,7 @@ type Props = {
   /** The shop's name, for a block binding `shop.name` — a footer, a hero band.
    *  Not on the brand kit: the kit is identity, and which shop is printing this
    *  book is a property of the book. */
-  shopName: string
+  identity: ArtboardIdentity
   /** The **book's** language, never the interface's. */
   direction: 'ltr' | 'rtl'
   /**
@@ -134,7 +135,7 @@ export function BookPage({
   offers,
   blocks,
   kit,
-  shopName,
+  identity,
   direction,
   background = null,
   asset,
@@ -232,7 +233,7 @@ export function BookPage({
           direction,
           measure,
           offer,
-          shopName,
+          ...identity,
         }
 
         const resolved = resolveBlock(block, placement.rect, direction)

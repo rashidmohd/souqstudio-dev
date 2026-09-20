@@ -6,6 +6,7 @@ import { readEffectiveBrand } from '@/lib/brand-kit'
 import { loadBook } from '@/lib/offer-book'
 import { env } from '@/lib/env'
 import { BookPreview } from '@/components/offer-book/BookPreview'
+import { artboardIdentity } from '@/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Preview · SouqStudio' }
 
@@ -68,7 +69,11 @@ export default async function BookPreviewPage({ params }: { params: { id: string
         offers={Object.fromEntries(book.offers.map((offer) => [offer.id, offer]))}
         blocks={book.blocks}
         kit={brand.brandKit}
-        shopName={shop.name}
+        identity={artboardIdentity({
+          shop,
+          brand: { logoUrl: brand.logoUrl, inheritsIdentity: brand.source.logo === 'org' },
+          book: { title: book.title, validFrom: book.validFrom, validTo: book.validTo },
+        })}
         // The **book's** language, never the interface's. An owner working in an
         // Arabic UI who is producing an English flyer must see an English flyer.
         direction={book.edition === 'ar' ? 'rtl' : 'ltr'}

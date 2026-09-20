@@ -3,7 +3,24 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 19 September 2026.
+Last updated 20 September 2026.
+
+**E14 is proposed and unbuilt, and it is where the block designer is going.**
+`docs/E14-layout-frames.md` replaces `groupId` with frames that lay their children
+out, folds the price mark's compass, presets, shape kit and colour slots into
+ordinary frame properties, and makes the data map cover headers and footers rather
+than only offer cards. `docs/E14-implementation-plan.md` is the phased work, with
+two gates before anything large is committed to.
+
+Two things in it are already actionable and do not wait on the rest. **Two
+bindings in the vocabulary draw nothing** — `shop.address` and `shop.phone` are
+declared in `@souqstudio/types` and fall through to `''` in both painters, so a
+footer bound to a shop's number renders an empty box. And **soft shadows are
+available and fully vector**, measured rather than assumed: `feDropShadow`
+rasterizes its element at a resolution nothing in this codebase can set, a
+drop-shadow on text destroys the font, and a gradient carrying alpha stops
+rasterizes the entire page at 72 dpi — while concentric vector rings cost nothing
+and match it. `E14` §2.4 carries the measurements.
 
 **Home is a shelf of book covers.** The six most recent draw their own first page — the
 real `BookPage` at thumbnail size, not a stored image, so a cover cannot disagree with the

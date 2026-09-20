@@ -7,6 +7,7 @@ import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
 
 /**
  * The block designer, as a window over the offer book editor.
@@ -79,7 +80,7 @@ type Props = {
    */
   canDesign: boolean
   kit: BrandKit
-  shopName: string
+  identity: ArtboardIdentity
   assetBaseUrl: string
 }
 
@@ -88,7 +89,7 @@ export function BlockEditorWindow({
   onClose,
   canDesign,
   kit,
-  shopName,
+  identity,
   assetBaseUrl,
 }: Props) {
   const router = useRouter()
@@ -203,7 +204,7 @@ export function BlockEditorWindow({
           editable={canDesign && block.organizationId !== null}
           arrangements={block.arrangements}
           kit={kit}
-          shopName={shopName}
+          identity={identity}
           assetBaseUrl={assetBaseUrl}
         />
       )}

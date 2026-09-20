@@ -22,6 +22,7 @@ import {
   type DrawContext,
 } from '@/components/blocks/draw'
 import type { BrandKit } from '@souqstudio/types'
+import type { ArtboardIdentity } from '@/lib/artboard-identity'
 
 /**
  * The block designer's canvas. E7.
@@ -55,7 +56,7 @@ type Props = {
   /** The **block's** direction, never the interface's. */
   direction: 'ltr' | 'rtl'
   offer: ArtboardOffer | undefined
-  shopName: string
+  identity: ArtboardIdentity
   /** Artwork the owner uploaded, by asset id. */
   asset?: ((assetId: string) => string | null) | undefined
   selectedIds?: readonly string[]
@@ -93,7 +94,7 @@ export function BlockArtboard({
   height,
   direction,
   offer,
-  shopName,
+  identity,
   asset,
   selectedIds = [],
   onSelect,
@@ -130,7 +131,7 @@ export function BlockArtboard({
     direction,
     measure: mounted ? measureText : estimateWidth,
     offer,
-    shopName,
+    ...identity,
     asset,
   }
 
