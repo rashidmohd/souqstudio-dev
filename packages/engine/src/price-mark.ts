@@ -44,6 +44,7 @@ import type {
 } from '@souqstudio/types'
 import {
   MARK_MINOR_SCALE,
+  MARK_NUDGE,
   MARK_SATELLITE_SCALE,
   THREE_DECIMAL_CURRENCIES,
 } from '@souqstudio/types'
@@ -71,6 +72,52 @@ const DIGIT_WIDTH = 0.6
  * not, and W is the widest glyph in every currency code this ships with.
  */
 const LETTER_WIDTH = 0.74
+
+/**
+ * Advance for an Arabic letter, and for the dots between them.
+ *
+ * **The currency stopped being three Latin capitals.** A shop may print `د.إ`
+ * rather than `AED`, and measuring that at `LETTER_WIDTH` makes it half again
+ * as wide as it is — which does not overflow, because the solver sizes the
+ * amount around the currency, it *shrinks the price* to make room for space
+ * nothing occupies. The mark comes out small and nothing says why.
+ *
+ * Arabic letterforms are narrower than Latin capitals and the abbreviating dot
+ * is narrower still, which is the whole of the rule.
+ *
+ * **Approximations, like `CAP_RATIO` above, and for the same reason**: the
+ * layout has to be correct before any font has loaded. A renderer holding real
+ * metrics should pass `measureCurrency`.
+ */
+const ARABIC_WIDTH = 0.45
+const DOT_WIDTH = 0.26
+
+/**
+ * How wide a currency string is, in fractions of its own font size.
+ *
+ * **Per character and by script, rather than a table of six symbols.** A table
+ * would answer for the six defaults and have nothing to say about the shop that
+ * typed `Dhs.` — and that shop's card is exactly where a wrong width shows,
+ * because the solver would have sized its price against a string it measured as
+ * something else.
+ *
+ * An all-Latin string measures exactly as it always did, which is what keeps
+ * every existing mark byte-identical: the six ISO codes are uppercase A–Z.
+ */
+export function currencyAdvance(text: string): number {
+  let total = 0
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    // Arabic, Arabic Supplement, Extended-A, and the presentation forms.
+    const arabic =
+      (code >= 0x0600 && code <= 0x06ff) ||
+      (code >= 0x0750 && code <= 0x077f) ||
+      (code >= 0x08a0 && code <= 0x08ff) ||
+      (code >= 0xfb50 && code <= 0xfeff)
+    total += arabic ? ARABIC_WIDTH : char === '.' || char === ',' ? DOT_WIDTH : LETTER_WIDTH
+  }
+  return total
+}
 
 // ─── Anatomy ──────────────────────────────────────────────────────────────────
 //
@@ -120,6 +167,19 @@ const TAB_OVERLAP = 0.14
 export interface PriceMarkOptions {
   /** Override the cap-height ratio when real font metrics are available. */
   capRatio?: number | undefined
+  /**
+   * Override the currency string's advance, when real font metrics are
+   * available. Returns a fraction of the font size, as `currencyAdvance` does.
+   *
+   * **The escape hatch the symbol work made necessary.** `currencyAdvance`
+   * classifies by script and is right to within a few percent for the six
+   * defaults; a shop that types its own, in a face whose Arabic is unusually
+   * wide, is exactly the case a built-in table cannot answer for. E9's export
+   * has the font files loaded and can measure the string properly — and the
+   * price is the one element where being a few percent out is visible, because
+   * the solver sizes the digits against it.
+   */
+  measureCurrency?: ((text: string) => number) | undefined
   /** Tier label for the attached tab. Omitted renders no tab. */
   tierLabel?: string | undefined
   /** The shape behind the digits. Defaults to the rounded box. */
@@ -256,10 +316,24 @@ export interface ResolvedRecipe {
   currency: MarkCurrencyPlace
   minor: MarkMinorTreatment
   minorScale: number
-  compare: { place: MarkPlace; scale: number }
-  prefix: { place: MarkPlace; scale: number }
-  tier: { place: MarkPlace; scale: number }
+  compare: ResolvedSatellite
+  prefix: ResolvedSatellite
+  tier: ResolvedSatellite
   align: { inline: LogicalAlign; block: 'top' | 'middle' | 'bottom' }
+}
+
+/**
+ * One part's placement, every field settled and every bound applied.
+ *
+ * `dx` and `dy` are fractions of the major's size and default to zero, so a
+ * recipe that never mentions them lays out exactly as it did before they
+ * existed — which is what the byte-identity test asserts.
+ */
+export interface ResolvedSatellite {
+  place: MarkPlace
+  scale: number
+  dx: number
+  dy: number
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -279,7 +353,30 @@ const clamp = (value: number, min: number, max: number): number =>
  * existed**, and that is asserted rather than intended: `price-mark.test.ts`
  * pins the numbers this module produced beforehand.
  */
-export const PRICE_MARK_RECIPES: Record<PriceMarkPreset, ResolvedRecipe> = {
+interface RecipeBase {
+  currency: MarkCurrencyPlace
+  minor: MarkMinorTreatment
+  minorScale: number
+  compare: { place: MarkPlace; scale: number }
+  prefix: { place: MarkPlace; scale: number }
+  tier: { place: MarkPlace; scale: number }
+  align: { inline: LogicalAlign; block: 'top' | 'middle' | 'bottom' }
+}
+
+/**
+ * The presets as they are written, without the nudge.
+ *
+ * **A preset never nudges, and that is what makes the nudge legible as the
+ * owner's.** These eight are arrangements we drew, expressed entirely in the
+ * compass; `dx`/`dy` exist so a shop can say something the compass cannot, and
+ * seeding a preset with a non-zero one would make "reset" ambiguous — back to
+ * our offset, or back to none?
+ *
+ * So the table is written narrow and `PRICE_MARK_RECIPES` fills the two fields
+ * with zero. Writing `dx: 0, dy: 0` twenty-four times would say the same thing
+ * and invite the next preset to say something else by accident.
+ */
+const PRESET_BASE: Record<PriceMarkPreset, RecipeBase> = {
   /** What the mark always drew. The default, and the compatibility anchor. */
   'classic-tag': {
     currency: 'before',
@@ -382,15 +479,43 @@ export const PRICE_MARK_RECIPES: Record<PriceMarkPreset, ResolvedRecipe> = {
   },
 }
 
+/**
+ * The eight presets, fully resolved — what a gallery thumbnail lays out from
+ * and what `markRecipe` returns when a style names a preset and nothing else.
+ */
+export const PRICE_MARK_RECIPES: Record<PriceMarkPreset, ResolvedRecipe> =
+  Object.fromEntries(
+    (Object.keys(PRESET_BASE) as PriceMarkPreset[]).map((preset) => {
+      const base = PRESET_BASE[preset]
+      return [
+        preset,
+        {
+          ...base,
+          compare: { ...base.compare, dx: 0, dy: 0 },
+          prefix: { ...base.prefix, dx: 0, dy: 0 },
+          tier: { ...base.tier, dx: 0, dy: 0 },
+        },
+      ]
+    })
+    // `Object.fromEntries` widens to `{ [k: string]: ResolvedRecipe }`; the keys
+    // are `PriceMarkPreset` by construction one line above.
+  ) as Record<PriceMarkPreset, ResolvedRecipe>
+
 const satellite = (
   base: { place: MarkPlace; scale: number },
   over: MarkSatellite | undefined
-): { place: MarkPlace; scale: number } => ({
+): ResolvedSatellite => ({
   place: over?.place ?? base.place,
   scale:
     over?.scale === undefined
       ? base.scale
       : clamp(over.scale, MARK_SATELLITE_SCALE.min, MARK_SATELLITE_SCALE.max),
+  // **Clamped here rather than trusted from the document**, the same bargain
+  // `scale` makes: the schema refuses an out-of-range value at the boundary and
+  // this one keeps a card readable when something reaches the solver anyway —
+  // a block synced from R2 arrives in every shop with no compiler in between.
+  dx: over?.dx === undefined ? 0 : clamp(over.dx, MARK_NUDGE.min, MARK_NUDGE.max),
+  dy: over?.dy === undefined ? 0 : clamp(over.dy, MARK_NUDGE.min, MARK_NUDGE.max),
 })
 
 /**
@@ -407,7 +532,7 @@ const satellite = (
  * would refuse a shop's saved work.
  */
 export function markRecipe(style: PriceMarkStyle | undefined): ResolvedRecipe {
-  const base = PRICE_MARK_RECIPES[style?.preset ?? 'classic-tag']
+  const base = PRESET_BASE[style?.preset ?? 'classic-tag']
   const over = style?.recipe
 
   const tier = satellite(base.tier, over?.tier)
@@ -513,6 +638,26 @@ function hugOf(place: MarkPlace): Hug {
 }
 
 /**
+ * Move a placed piece off its compass point, by the recipe's nudge.
+ *
+ * **Measured in major sizes, not in pixels and not in fractions of the box.**
+ * The mark shrinks as one thing — that is the whole reason it is a component —
+ * so an offset expressed against the price itself survives the fit ladder at
+ * every size, and one expressed in either of the other two does not: a nudge
+ * authored on a hero card would be a different nudge on a dense one.
+ *
+ * `width` is unchanged. The piece moved; it did not resize.
+ */
+function nudge(spec: ResolvedSatellite, piece: MarkPiece, majorSize: number): MarkPiece {
+  if (spec.dx === 0 && spec.dy === 0) return piece
+  return {
+    ...piece,
+    x: piece.x + spec.dx * majorSize,
+    baseline: piece.baseline + spec.dy * majorSize,
+  }
+}
+
+/**
  * Lay the mark out inside the rectangle its block element gave it.
  *
  * **Bands are reserved by the recipe, never by the content**, and that is the
@@ -557,6 +702,7 @@ export function layoutPriceMark(
   options: PriceMarkOptions = {}
 ): PriceMarkLayout {
   const capRatio = options.capRatio ?? CAP_RATIO
+  const measure = options.measureCurrency ?? currencyAdvance
   const label = options.tierLabel
   const recipe = options.recipe ?? PRICE_MARK_RECIPES['classic-tag']
 
@@ -620,7 +766,20 @@ export function layoutPriceMark(
   }
 
   // ── Solve the amount ────────────────────────────────────────────────────────
-  const currencyText = price.currency
+  /**
+   * **What the card prints, which is no longer always the ISO code.** A shop
+   * that set its currency to a symbol writes it onto the mark as
+   * `currencyLabel`; absent, this is the code and nothing changes. `minorDigits`
+   * is not reading this — it reads `price.currency`, so a symbol never moves a
+   * decimal point.
+   */
+  const currencyText = price.currencyLabel ?? price.currency
+  /**
+   * Its advance, measured once and used by all three of the solver, the fit and
+   * the final placement. Three call sites reading `text.length * LETTER_WIDTH`
+   * is how a symbol ends up sized as a code in one of them.
+   */
+  const currencyUnitAdvance = measure(currencyText)
   const rawMinor = price.minor ?? ''
 
   /**
@@ -650,7 +809,7 @@ export function layoutPriceMark(
 
   const inlineCurrency = !stackedCurrency
   const currencyUnits = inlineCurrency
-    ? currencyText.length * CURRENCY_RATIO * LETTER_WIDTH + GAP_RATIO
+    ? currencyUnitAdvance * CURRENCY_RATIO + GAP_RATIO
     : 0
   const majorUnits = price.major.length * DIGIT_WIDTH
   const minorUnits = minorText.length * recipe.minorScale * DIGIT_WIDTH
@@ -673,12 +832,18 @@ export function layoutPriceMark(
         : cluster.y + cluster.height * AMOUNT_BASELINE
   const capTop = baseline - majorSize * capRatio
 
-  const currencyAdvance = inlineCurrency
-    ? currencyText.length * currencySize * LETTER_WIDTH + majorSize * GAP_RATIO
+  /**
+   * The space the currency takes in the cluster, gap included — in px, where
+   * `currencyUnitAdvance` is in em. Named apart from the module's
+   * `currencyAdvance` because they are different quantities and one used to
+   * shadow the other.
+   */
+  const currencySpan = inlineCurrency
+    ? currencyUnitAdvance * currencySize + majorSize * GAP_RATIO
     : 0
   const majorWidth = price.major.length * majorSize * DIGIT_WIDTH
   const minorWidth = minorText.length * minorSize * DIGIT_WIDTH
-  const total = currencyAdvance + majorWidth + minorWidth
+  const total = currencySpan + majorWidth + minorWidth
 
   // Laid out start-to-end. This ordering is fixed: the mark does not mirror.
   const leading = recipe.currency === 'before' || recipe.currency === 'super-before'
@@ -689,7 +854,7 @@ export function layoutPriceMark(
         ? cluster.x + cluster.width - total
         : cluster.x + (cluster.width - total) / 2
 
-  const digitsStart = groupStart + (leading ? currencyAdvance : 0)
+  const digitsStart = groupStart + (leading ? currencySpan : 0)
 
   /**
    * The code's own baseline.
@@ -706,7 +871,7 @@ export function layoutPriceMark(
       ? capTop + currencySize * capRatio
       : baseline
 
-  const currencyGlyphWidth = currencyText.length * currencySize * LETTER_WIDTH
+  const currencyGlyphWidth = currencyUnitAdvance * currencySize
   const currencyX = stackedCurrency
     ? recipe.align.inline === 'start'
       ? amount.x
@@ -724,7 +889,7 @@ export function layoutPriceMark(
     baseline: currencyBaseline,
     // The advance carries the gap for a leading code, so the pieces after it
     // start clear of the D in "KWD". A trailing code has already been offset.
-    width: leading ? currencyAdvance : currencyGlyphWidth,
+    width: leading ? currencySpan : currencyGlyphWidth,
     fontSize: currencySize,
   }
 
@@ -832,13 +997,13 @@ export function layoutPriceMark(
           hugOf(s.spec.place) === 'start'
             ? digits.x + digits.width * SATELLITE_INSET
             : digits.x + digits.width * (1 - SATELLITE_INSET) - s.width
-        placed.set(s.role, {
+        placed.set(s.role, nudge(s.spec, {
           text: s.text,
           x,
           baseline: lineBaseline,
           fontSize: s.size,
           width: s.width,
-        })
+        }, majorSize))
       }
       continue
     }
@@ -857,13 +1022,17 @@ export function layoutPriceMark(
           : innerStart + (room - rowWidth) / 2
 
     for (const s of sized) {
-      placed.set(s.role, {
+      // **The cursor advances by the unnudged width.** Two pieces sharing a
+      // band are a row, and a nudge moves one piece rather than repacking the
+      // row around it — otherwise nudging the FROM line would silently shift
+      // the was-price beside it, which is not what the owner dragged.
+      placed.set(s.role, nudge(s.spec, {
         text: s.text,
         x: cursor,
         baseline: lineBaseline,
         fontSize: s.size,
         width: s.width,
-      })
+      }, majorSize))
       cursor += s.width + gap
     }
   }
@@ -902,8 +1071,45 @@ export function layoutPriceMark(
 
           const room = horizontal ? container.width * TAB_TEXT_WIDTH : width * 0.86
 
+          /**
+           * The tab moves with the same nudge as any other part, and then is
+           * put back far enough to still touch the mark.
+           *
+           * **This is the one part whose nudge is clamped twice**, and the
+           * second clamp is not tidiness. "The tab and the mark never separate"
+           * is E6 §3's rule and `price-mark.test.ts` asserts it at every size
+           * for every place — a tab floating clear of the price is two objects
+           * where the design has one. `MARK_NUDGE` alone cannot guarantee it:
+           * the tab's own extent is a fraction of the *container*, so at a small
+           * scale half a major size is further than the whole tab is wide.
+           *
+           * So the nudge is applied and the rect is then slid back until it
+           * keeps `overlap` of intersection with the mark on both axes. Inside
+           * that region the owner has the whole range; outside it, the rule
+           * wins. The clamp is what lets the control be offered at all.
+           */
+          const keep = (
+            start: number,
+            extent: number,
+            markStart: number,
+            markExtent: number
+          ): number => {
+            const ov = Math.min(overlap, extent, markExtent)
+            return clamp(start, markStart + ov - extent, markStart + markExtent - ov)
+          }
+
+          const rect: Rect =
+            recipe.tier.dx === 0 && recipe.tier.dy === 0
+              ? { x, y, width, height }
+              : {
+                  x: keep(x + recipe.tier.dx * majorSize, width, mark.x, mark.width),
+                  y: keep(y + recipe.tier.dy * majorSize, height, mark.y, mark.height),
+                  width,
+                  height,
+                }
+
           return {
-            rect: { x, y, width, height },
+            rect,
             fontSize: Math.min(height * 0.5, room / (label.length * 0.62)),
             text: label,
           }

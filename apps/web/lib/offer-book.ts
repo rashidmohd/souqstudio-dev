@@ -17,6 +17,7 @@ import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { autoTitle } from '@/lib/book-title'
 import {
   composeOffer,
+  type CurrencyPresentation,
   pageSizeFor,
   toMasterGrid,
   type ComposedOffer,
@@ -150,6 +151,10 @@ export async function loadBook(
       format: true,
       status: true,
       language: true,
+      // How this shop writes its currency. The *code* is on each offer, frozen
+      // with the book; whether a card prints that code or a symbol is a shop
+      // setting and is read live, because it is presentation rather than price.
+      shop: { select: { currencyDisplay: true, currencySymbol: true } },
       grids: {
         where: { role: 'master' },
         select: { cols: true, rows: true, gap: true, margin: true, background: true, regions: true },
@@ -293,6 +298,11 @@ export async function loadBook(
   const choice = readGridChoice(book.format, master)
   const page = pageSizeFor(book.format)
 
+  const currency: CurrencyPresentation = {
+    display: book.shop.currencyDisplay === 'SYMBOL' ? 'SYMBOL' : 'CODE',
+    symbol: book.shop.currencySymbol,
+  }
+
   const offers = book.offers.map((offer) =>
     composeOffer(
       {
@@ -341,7 +351,8 @@ export async function loadBook(
         }),
       },
       offer.promoTier,
-      edition
+      edition,
+      currency
     )
   )
 

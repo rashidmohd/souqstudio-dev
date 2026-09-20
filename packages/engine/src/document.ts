@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   MARK_MINOR_SCALE,
+  MARK_NUDGE,
   MARK_SATELLITE_SCALE,
   PRICE_MARK_PRESETS,
   TYPE_LEVELS,
@@ -208,12 +209,38 @@ const satelliteSchema = z.strictObject({
     ])
     .optional(),
   scale: z.number().min(MARK_SATELLITE_SCALE.min).max(MARK_SATELLITE_SCALE.max).optional(),
+  /**
+   * The nudge off the compass point, in major sizes.
+   *
+   * Bounded here as well as in `markRecipe`, for the reason the comment on
+   * `recipe` gives: the solver's clamp keeps a card readable, and this one keeps
+   * the out-of-range value from being written into every shop by the next sync.
+   */
+  dx: z.number().min(MARK_NUDGE.min).max(MARK_NUDGE.max).optional(),
+  dy: z.number().min(MARK_NUDGE.min).max(MARK_NUDGE.max).optional(),
 })
 
 const priceMarkStyleSchema = z.strictObject({
   tint: flatColorSchema.optional(),
   ink: flatColorSchema.optional(),
   surface: flatColorSchema.optional(),
+  /**
+   * The seven parts, coloured one at a time.
+   *
+   * Every one is optional and every one falls back to a broad slot above or to
+   * what the painter already hard-coded, so a document written before these
+   * existed draws identically — which is the same compatibility bargain `frame`
+   * and `tab` make, and the reason this strict object can grow at all.
+   */
+  majorInk: flatColorSchema.optional(),
+  minorInk: flatColorSchema.optional(),
+  currencyInk: flatColorSchema.optional(),
+  compareInk: flatColorSchema.optional(),
+  prefixInk: flatColorSchema.optional(),
+  groundFill: flatColorSchema.optional(),
+  groundStroke: flatColorSchema.optional(),
+  tabFill: flatColorSchema.optional(),
+  tabInk: flatColorSchema.optional(),
   /**
    * The shape behind the digits — the same kit a badge draws from.
    *

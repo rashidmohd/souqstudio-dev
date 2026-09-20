@@ -372,7 +372,26 @@ export interface PriceMark {
   /** Raised minor digits. Raised to the major's cap height, never baseline
    *  aligned. Three digits on a three-decimal currency. */
   minor?: string | undefined
+  /**
+   * The ISO code, and the pricing authority.
+   *
+   * `minorDigits` reads this and nothing else: it decides two fils or three,
+   * so it is what a price *is*. What the card prints is `currencyLabel`.
+   */
   currency: Currency
+  /**
+   * What the mark draws where the currency goes. Absent draws the code, which
+   * is what every mark drew before a shop could choose.
+   *
+   * **Resolved before it gets here, by `currencyLabelFor`.** A shop picks a
+   * currency, a display mode and optionally its own symbol; that is three
+   * fields on a shop and one string on a mark, because the engine has no shop
+   * and the renderer must not be making this decision twice.
+   *
+   * It changes nothing about the arithmetic. A KWD price carries three fils
+   * whether the card says `KWD` or `د.ك`.
+   */
+  currencyLabel?: string | undefined
   currencyPlacement: 'PREFIX' | 'SUFFIX' | 'SUPERSCRIPT'
   prefixLabel?: 'FROM' | 'EACH' | 'PER_KG' | undefined
   /** Strikethrough was-price, already formatted. */
@@ -526,3 +545,9 @@ export interface CatalogSearchHit extends CatalogProductSummary {
 }
 
 export * from './promo-tier'
+/**
+ * The currency vocabulary — symbols, display mode, and the one function that
+ * decides what a card prints. The ISO code stays the pricing authority; see the
+ * module's own note.
+ */
+export * from './currency'

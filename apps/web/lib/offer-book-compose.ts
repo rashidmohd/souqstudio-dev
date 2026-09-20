@@ -10,7 +10,8 @@ import type {
   PriceMark,
   Region,
 } from '@souqstudio/types'
-import { deriveUnitPrice, unitPriceLabel } from '@souqstudio/types'
+import { currencyLabelFor, deriveUnitPrice, unitPriceLabel } from '@souqstudio/types'
+import type { CurrencyDisplay } from '@souqstudio/types'
 import { minorDigits, toPriceMark } from '@souqstudio/engine'
 import type { FlowPage } from '@souqstudio/engine'
 import { OFFER_TYPE_CHIP_KIND } from '@/lib/offer-types'
@@ -296,10 +297,30 @@ const CONNECTOR_LABEL: Record<Connector, Record<Edition, string>> = {
  * brand lockup, not two cards sharing a price. Later items contribute their name
  * and spec, joined by the connector.
  */
+/**
+ * How this shop writes its currency.
+ *
+ * **The shop's, not the offer's, which is why it is a separate argument.** The
+ * offer carries the *code* — frozen with the book, so a reprint reproduces the
+ * currency it was priced in — and the shop decides whether a card prints that
+ * code or a symbol. Merging the two onto `OfferRow` would put a shop setting on
+ * a shape whose comment says "the subset of `offers`", and the next reader would
+ * reasonably expect changing it to change one offer.
+ *
+ * Omitted means the code, which is what every card drew before a shop could
+ * choose and what the column defaults to.
+ */
+export interface CurrencyPresentation {
+  display: CurrencyDisplay
+  /** The shop's own symbol, overriding the market default. */
+  symbol: string | null
+}
+
 export function composeOffer(
   offer: OfferRow,
   tier: TierRow,
-  edition: Edition
+  edition: Edition,
+  currency?: CurrencyPresentation
 ): ComposedOffer {
   const items = [...offer.items].sort((a, b) => a.position - b.position)
   const lead = items[0]
@@ -339,6 +360,28 @@ export function composeOffer(
       ...(offer.comparePrice === null
         ? {}
         : { comparePrice: formatMoney(offer.comparePrice, offer.currency as Currency) }),
+      /**
+       * What the card prints where the currency goes.
+       *
+       * **Resolved here and not in the painter**, so the four surfaces that
+       * share `draw.tsx` cannot answer it four ways — and so the engine, which
+       * has no shop, never has to. `currencyLabelFor` is the one place the
+       * precedence lives: the shop's own symbol, then the market default, then
+       * the code.
+       *
+       * Set only when the shop asked for a symbol. Left absent, the mark draws
+       * `offer.currency`, which is what it always drew — and that is what keeps
+       * every existing book unchanged.
+       */
+      ...(currency === undefined || currency.display === 'CODE'
+        ? {}
+        : {
+            currencyLabel: currencyLabelFor(
+              offer.currency as Currency,
+              currency.display,
+              currency.symbol
+            ),
+          }),
     }),
     tierLabel: pick(tier.labelAr, tier.labelEn, edition) ?? tier.labelEn,
     tierToken: tier.tokenRef,

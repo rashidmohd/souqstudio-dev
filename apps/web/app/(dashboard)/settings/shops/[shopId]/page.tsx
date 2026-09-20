@@ -12,6 +12,7 @@ import { ShopForm } from '@/components/shop/ShopForm'
 import { BrandOverrideField } from '@/components/shop/BrandOverrideField'
 import { ShopAccessField } from '@/components/shop/ShopAccessField'
 import { ShopProfileField } from '@/components/shop/ShopProfileField'
+import { ShopCurrencyField } from '@/components/shop/ShopCurrencyField'
 import type { ShopMemberCandidate } from '@/components/shop/ShopAccessField'
 import { PageContainer } from '@/components/shared/page-container'
 
@@ -147,6 +148,20 @@ export default async function ShopSettingsPage({
             bio={shop.bio}
             storePhotoKeys={storePhotoKeys}
             storePhotoUrls={storePhotoKeys.map(publicUrl)}
+            canEdit={canManage}
+          />
+
+          {/*
+           * Above Brand, below the profile, and the order is the order an owner
+           * fills this in: what the shop is, then what it charges in, then what
+           * it looks like. Currency is also the one of the three that used to
+           * have no control at all — every offer was created `'AED'`.
+           */}
+          <ShopCurrencyField
+            shopId={shop.id}
+            currency={shop.currency}
+            currencyDisplay={shop.currencyDisplay}
+            currencySymbol={shop.currencySymbol}
             canEdit={canManage}
           />
 

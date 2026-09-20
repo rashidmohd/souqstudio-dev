@@ -6,14 +6,21 @@ import type {
   BlockElement,
   BrandColor,
   MarkPlace,
+  MarkSatellite,
   PriceMark,
   PriceMarkPreset,
   PriceMarkRecipe,
+  PriceMarkStyle,
   TextOverflow,
   TokenRef,
   TypeLevel,
 } from '@souqstudio/types'
-import { TYPE_LEVELS } from '@souqstudio/types'
+import {
+  MARK_MINOR_SCALE,
+  MARK_NUDGE,
+  MARK_SATELLITE_SCALE,
+  TYPE_LEVELS,
+} from '@souqstudio/types'
 import {
   chipPathShape,
   layoutPriceMark,
@@ -21,11 +28,13 @@ import {
   markRecipe,
   needsEvenOdd,
   PRICE_MARK_RECIPES,
+  resolveColor,
   shapePath,
   type ChipShape,
   type MarkGround,
   type MarkPiece,
   type Rect,
+  type ResolvedSatellite,
 } from '@souqstudio/engine'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -278,6 +287,135 @@ type ColorProps = {
 }
 
 /**
+ * A named run of controls inside one element's panel.
+ *
+ * **Local, and not a new entry in the component inventory.** It is a heading and
+ * a hairline over a column — the panel's own `Field` is the same kind of thing —
+ * and the inventory exists to stop two sessions producing two APIs for a shared
+ * component, not to adjudicate a `<div>`. If a second panel needs it, it moves
+ * and gets an entry then.
+ *
+ * It earns its place because the mark now carries nine colour slots. Nine
+ * unlabelled swatches in a column is a list nobody reads; nine under "Colour
+ * each part", after the three that most owners will actually touch, is a group
+ * they can skip.
+ */
+function Group({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="flex flex-col gap-3 border-t border-hairline pt-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-ui text-label font-medium text-primary">{label}</h3>
+        {hint === undefined ? null : (
+          <p className="font-ui text-body-sm text-muted">{hint}</p>
+        )}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/**
+ * One orbiting part of the price mark: where it sits, how big it is, how far it
+ * is nudged off the compass point.
+ *
+ * **One component for three parts, because the was-price, the FROM line and the
+ * tier badge are the same kind of thing to the engine** — `ResolvedSatellite`,
+ * with a place, a scale and a nudge. Three hand-written copies is how the
+ * badge quietly ends up with a control the was-price does not have.
+ *
+ * **The nudge is in percent of the big number, not pixels.** That is the unit
+ * the engine stores, and it is the one that survives the fit ladder: the mark
+ * shrinks as one thing, so an offset measured against the price itself means
+ * the same on a hero card and a dense one. A pixel offset would not, and is
+ * also a number nobody can pick by eye — which is what `Slider` is for and
+ * `Input` is not.
+ */
+function PartFields({
+  label,
+  part,
+  hint,
+  style,
+  resolved,
+  disabled,
+  setRecipe,
+}: {
+  label: string
+  part: 'compare' | 'prefix' | 'tier'
+  hint?: string
+  style: PriceMarkStyle
+  resolved: ResolvedSatellite
+  disabled: boolean
+  setRecipe: (patch: Partial<PriceMarkRecipe>) => void
+}) {
+  // A partial over a partial, the same rule the preset follows: setting the
+  // scale must not clear a place the owner chose two controls ago.
+  const patch = (next: Partial<MarkSatellite>) =>
+    setRecipe({ [part]: { ...(style.recipe?.[part] ?? {}), ...next } })
+
+  const hidden = resolved.place === 'hidden'
+
+  return (
+    <Group label={label} {...(hint === undefined ? {} : { hint })}>
+      <Select
+        label="Position"
+        disabled={disabled}
+        value={resolved.place}
+        options={PLACE_OPTIONS}
+        onChange={(event) => patch({ place: event.target.value as MarkPlace })}
+      />
+      {/*
+        Hidden is a position, and a size and a nudge for something that is not
+        drawn are two controls that do nothing — which is worse than two
+        controls that are absent.
+      */}
+      {hidden ? null : (
+        <>
+          <Slider
+            label="Size"
+            unit="%"
+            hint="Against the big number. Nothing here may rival the price — that ceiling is ours."
+            disabled={disabled}
+            min={Math.round(MARK_SATELLITE_SCALE.min * 100)}
+            max={Math.round(MARK_SATELLITE_SCALE.max * 100)}
+            step={1}
+            value={Math.round(resolved.scale * 100)}
+            onValueChange={(next) => patch({ scale: next / 100 })}
+          />
+          <Slider
+            label="Nudge across"
+            unit="%"
+            disabled={disabled}
+            min={Math.round(MARK_NUDGE.min * 100)}
+            max={Math.round(MARK_NUDGE.max * 100)}
+            step={1}
+            value={Math.round(resolved.dx * 100)}
+            onValueChange={(next) => patch({ dx: next / 100 })}
+          />
+          <Slider
+            label="Nudge down"
+            unit="%"
+            disabled={disabled}
+            min={Math.round(MARK_NUDGE.min * 100)}
+            max={Math.round(MARK_NUDGE.max * 100)}
+            step={1}
+            value={Math.round(resolved.dy * 100)}
+            onValueChange={(next) => patch({ dy: next / 100 })}
+          />
+        </>
+      )}
+    </Group>
+  )
+}
+
+/**
  * The price mark, opened as far as it goes.
  *
  * **The anatomy is ours and the arrangement is theirs.** E6 §3's rule — a price
@@ -319,6 +457,51 @@ function PriceMarkFields({
     set({ recipe: { ...(style.recipe ?? {}), ...patch } })
 
   const recipe = markRecipe(style)
+
+  /**
+   * What each narrow slot falls back to, resolved for the swatch only.
+   *
+   * **The painter is the authority and this mirrors it**, which is a duplication
+   * worth naming: `draw.tsx` resolves narrow → broad → the old hard-coded token,
+   * and a swatch showing anything else would be a control that lies about what
+   * it is changing. The alternative — exporting the resolution from the painter
+   * — would pull a client component's colour context into the panel for three
+   * strings. If the painter's chain changes, this changes with it.
+   *
+   * The tier's own colour is not reachable here: `tint` falls back to it on the
+   * card and the panel has no offer, so `accent` stands in — the same stand-in
+   * the tint control above already used.
+   */
+  const broad = {
+    tint: style.tint === undefined ? color.token('accent') : resolveColor(style.tint, color.token, color.palette),
+    ink: style.ink === undefined ? color.token('ink') : resolveColor(style.ink, color.token, color.palette),
+    surface:
+      style.groundFill !== undefined
+        ? resolveColor(style.groundFill, color.token, color.palette)
+        : style.surface === undefined
+          ? color.token('surface')
+          : resolveColor(style.surface, color.token, color.palette),
+    muted: color.token('inkMuted'),
+  }
+
+  /**
+   * The badge label drawn in the badge's own colour.
+   *
+   * **The default that produces it is kept, and this is why it is safe to
+   * keep.** A tab's label reads in the ground colour, which is right for a
+   * saturated badge on a pale ground and invisible once an owner tints both —
+   * and changing the default would redraw every block already published. So the
+   * case is detected and named instead, next to the control that fixes it.
+   */
+  const tabFillResolved =
+    style.tabFill !== undefined
+      ? resolveColor(style.tabFill, color.token, color.palette)
+      : broad.tint
+  const tabInkResolved =
+    style.tabInk !== undefined
+      ? resolveColor(style.tabInk, color.token, color.palette)
+      : broad.surface
+  const tabClash = tabFillResolved.toLowerCase() === tabInkResolved.toLowerCase()
 
   return (
     <>
@@ -373,6 +556,17 @@ function PriceMarkFields({
         />
       </Field>
 
+      {/*
+        **Three colours, then seven.** The broad slots stay first and stay the
+        quick path — most owners set the badge colour and stop. What follows is
+        the same mark with each part addressable, and it is here because three
+        slots were painting seven parts: the currency, the was-price and the
+        FROM line were welded to the muted ink in the painter and no price at
+        all would change them.
+
+        Every narrow slot falls back to the broad one it used to read, which is
+        why opening this group on an existing block shows it exactly as drawn.
+      */}
       <ColorControl
         label="Tag and badge colour"
         value={style.tint}
@@ -395,6 +589,77 @@ function PriceMarkFields({
         {...color}
         onChange={(surface) => set({ surface })}
       />
+
+      <Group
+        label="Colour each part"
+        hint="Left alone, each one follows the three above — which is how this mark is drawn today."
+      >
+        <ColorControl
+          label="Big number"
+          value={style.majorInk}
+          fallback={broad.ink}
+          {...color}
+          onChange={(majorInk) => set({ majorInk })}
+        />
+        <ColorControl
+          label="Fils"
+          value={style.minorInk}
+          fallback={broad.ink}
+          hint="Setting the fils back a step is the oldest trick on a shelf ticket."
+          {...color}
+          onChange={(minorInk) => set({ minorInk })}
+        />
+        <ColorControl
+          label="Currency"
+          value={style.currencyInk}
+          fallback={broad.muted}
+          {...color}
+          onChange={(currencyInk) => set({ currencyInk })}
+        />
+        <ColorControl
+          label="Was-price"
+          value={style.compareInk}
+          fallback={broad.muted}
+          {...color}
+          onChange={(compareInk) => set({ compareInk })}
+        />
+        <ColorControl
+          label="From / each / per kg"
+          value={style.prefixInk}
+          fallback={broad.muted}
+          {...color}
+          onChange={(prefixInk) => set({ prefixInk })}
+        />
+        <ColorControl
+          label="Ground fill"
+          value={style.groundFill}
+          fallback={broad.surface}
+          {...color}
+          onChange={(groundFill) => set({ groundFill })}
+        />
+        <ColorControl
+          label="Ground outline"
+          value={style.groundStroke}
+          fallback={broad.tint}
+          {...color}
+          onChange={(groundStroke) => set({ groundStroke })}
+        />
+        <ColorControl
+          label="Badge fill"
+          value={style.tabFill}
+          fallback={broad.tint}
+          {...color}
+          onChange={(tabFill) => set({ tabFill })}
+        />
+        <ColorControl
+          label="Badge label"
+          value={style.tabInk}
+          fallback={broad.surface}
+          {...(tabClash ? { hint: 'This reads the same colour as the badge behind it, so the label will not show.' } : {})}
+          {...color}
+          onChange={(tabInk) => set({ tabInk })}
+        />
+      </Group>
 
       {/*
         The knobs. Each one is a closed list, so the mark cannot leave the
@@ -429,39 +694,61 @@ function PriceMarkFields({
         ]}
         onChange={(event) => setRecipe({ minor: event.target.value as PriceMarkRecipe['minor'] })}
       />
-      <Select
+      {/*
+        **Typed and clamped since recipes shipped, and never once offered.** The
+        fils could be moved onto the baseline and hidden altogether but not
+        sized, which left the commonest shelf treatment of all — small fils
+        against a large price — reachable only by picking a different preset.
+      */}
+      {recipe.minor === 'hidden' ? null : (
+        <Slider
+          label="Fils size"
+          unit="%"
+          hint="Against the big number. 100% sets the whole price at one size, which is a real treatment."
+          disabled={disabled}
+          min={Math.round(MARK_MINOR_SCALE.min * 100)}
+          max={Math.round(MARK_MINOR_SCALE.max * 100)}
+          step={1}
+          value={Math.round(recipe.minorScale * 100)}
+          onValueChange={(next) => setRecipe({ minorScale: next / 100 })}
+        />
+      )}
+
+      {/*
+        **One group per part, and each says where, how big and how far off.**
+        The compass alone said which corner and could not say how far into it,
+        which is the gap an owner hits the moment the ground is a burst rather
+        than a box — the point that reads as a corner on a rectangle is a spike
+        on a circle. `scale` was typed and clamped from the day recipes shipped
+        and had no control at all.
+
+        Every one of the three is a closed list or a clamped number, and
+        `markRecipe` applies the bounds again on the way to the canvas.
+      */}
+      <PartFields
         label="Was-price"
+        part="compare"
+        style={style}
+        resolved={recipe.compare}
         disabled={disabled}
-        value={recipe.compare.place}
-        options={PLACE_OPTIONS}
-        onChange={(event) =>
-          setRecipe({
-            compare: { ...(style.recipe?.compare ?? {}), place: event.target.value as MarkPlace },
-          })
-        }
+        setRecipe={setRecipe}
       />
-      <Select
+      <PartFields
         label="From / each / per kg"
+        part="prefix"
+        style={style}
+        resolved={recipe.prefix}
         disabled={disabled}
-        value={recipe.prefix.place}
-        options={PLACE_OPTIONS}
-        onChange={(event) =>
-          setRecipe({
-            prefix: { ...(style.recipe?.prefix ?? {}), place: event.target.value as MarkPlace },
-          })
-        }
+        setRecipe={setRecipe}
       />
-      <Select
+      <PartFields
         label="Tier badge"
+        part="tier"
+        hint="The little tab reading “HALF PRICE”. Nudge it as far as you like — it stays joined to the price."
+        style={style}
+        resolved={recipe.tier}
         disabled={disabled}
-        hint="The little tab reading “HALF PRICE”. Wherever you put it, it stays joined to the price."
-        value={recipe.tier.place}
-        options={PLACE_OPTIONS}
-        onChange={(event) =>
-          setRecipe({
-            tier: { ...(style.recipe?.tier ?? {}), place: event.target.value as MarkPlace },
-          })
-        }
+        setRecipe={setRecipe}
       />
       <Field label="Sits">
         <Segmented
@@ -478,14 +765,36 @@ function PriceMarkFields({
         />
       </Field>
 
+      {/*
+        **The other half of `align`, which the recipe has always carried.** The
+        panel offered the inline axis alone, so a price could be set flush to
+        the start of a wide band and not to the top of a tall one — and a tall
+        mark is what every stacked arrangement is.
+      */}
+      <Field label="Sits vertically">
+        <Segmented
+          label="Sits vertically"
+          className="grid w-full grid-cols-3 rounded-control"
+          disabled={disabled}
+          value={recipe.align.block}
+          options={[
+            { value: 'top', label: 'Top' },
+            { value: 'middle', label: 'Middle' },
+            { value: 'bottom', label: 'Bottom' },
+          ]}
+          onChange={(block) => setRecipe({ align: { ...recipe.align, block } })}
+        />
+      </Field>
+
       <p className="flex items-start gap-2 rounded-control bg-sand-tint p-3 font-ui text-body-sm text-secondary">
         <Lock className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
         <span>
-          Where the parts go is yours. How the number is set stays ours — raised
-          fils land on the cap line, fils for Kuwait and Bahrain get three
-          digits, the price reads left to right in Arabic, and nothing in the
-          mark grows to rival the price itself. Arrange it any way you like and
-          it still reads as a price.
+          Every part’s colour, size and position is yours. How the number is
+          set stays ours — raised fils land on the cap line, fils for Kuwait and
+          Bahrain get three digits, the price reads left to right in Arabic, the
+          badge stays joined to the price however far you nudge it, and nothing
+          in the mark grows to rival the price itself. Arrange it any way you
+          like and it still reads as a price.
         </span>
       </p>
     </>

@@ -12,6 +12,7 @@ import {
   SHOP_TRADES,
   type ShopTrade,
 } from '@souqstudio/engine'
+import { CURRENCIES, MAX_CURRENCY_SYMBOL } from '@souqstudio/types'
 import { BRAND_OVERRIDES } from '@/lib/brand-inheritance'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 
@@ -48,6 +49,25 @@ const patchSchema = z
      * and an unchecked one is a read of another tenant's object.
      */
     storePhotoKeys: z.array(z.string().min(1).max(200)).max(MAX_STORE_PHOTOS),
+    /**
+     * What this shop prices in, and how its cards write it.
+     *
+     * **The code is validated against the closed set and the symbol is not.**
+     * `currency` decides whether a price carries two fils or three, so an
+     * unknown one is a pricing bug — `CURRENCIES` is the enum. `currencySymbol`
+     * decides what a card prints and nothing else, so a shop typing `Dhs.` or a
+     * mark this list has never heard of is a shop that knows its own market. It
+     * is bounded rather than checked: it lands in the largest type on the page,
+     * and the solver sizes the price *around* it, so a long one does not
+     * overflow — it shrinks the price.
+     *
+     * Changing this changes what a *new* offer is created in. Books already
+     * priced keep their own currency, because `offers.currency` is frozen with
+     * them; a reprint of week 33 must reproduce week 33.
+     */
+    currency: z.enum(CURRENCIES),
+    currencyDisplay: z.enum(['CODE', 'SYMBOL']),
+    currencySymbol: z.string().trim().max(MAX_CURRENCY_SYMBOL).nullable(),
   })
   .partial()
 
@@ -79,6 +99,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       isActive: shop.isActive,
       archivedAt: shop.archivedAt?.toISOString() ?? null,
       brandOverride: shop.brandOverride,
+      currency: shop.currency,
+      currencyDisplay: shop.currencyDisplay,
+      currencySymbol: shop.currencySymbol,
     },
     brand,
     role: access.value.role,
@@ -115,7 +138,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Built key by key rather than spread wholesale: `exactOptionalPropertyTypes`
   // makes an explicit `undefined` different from an absent key, and Prisma's
   // update input accepts the second but not the first.
-  const { name, location, phone, brandOverride, trades, bio, storePhotoKeys } = parsed.data
+  const {
+    name,
+    location,
+    phone,
+    brandOverride,
+    trades,
+    bio,
+    storePhotoKeys,
+    currency,
+    currencyDisplay,
+    currencySymbol,
+  } = parsed.data
 
   /**
    * **Every store photo key must be this organization's.** A key is a read
@@ -144,6 +178,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       ...(trades !== undefined ? { trades } : {}),
       ...(bio !== undefined ? { bio } : {}),
       ...(storePhotoKeys !== undefined ? { storePhotoKeys } : {}),
+      ...(currency !== undefined ? { currency } : {}),
+      ...(currencyDisplay !== undefined ? { currencyDisplay } : {}),
+      // An empty string is "no symbol of my own", which is the same answer as
+      // null — and storing it would make the fallback in `currencyLabelFor`
+      // depend on which of the two arrived.
+      ...(currencySymbol !== undefined
+        ? { currencySymbol: currencySymbol === '' ? null : currencySymbol }
+        : {}),
     },
     select: {
       id: true,
@@ -155,6 +197,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       trades: true,
       bio: true,
       storePhotoKeys: true,
+      currency: true,
+      currencyDisplay: true,
+      currencySymbol: true,
     },
   })
 

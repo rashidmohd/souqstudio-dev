@@ -610,6 +610,17 @@ function PriceMark({
   if (ctx.offer === undefined) return null
 
   const style = element.style ?? {}
+
+  /**
+   * The mark's palette, resolved slot by slot.
+   *
+   * **Narrow slot, then broad slot, then what the painter used to hard-code.**
+   * Three colours were drawing seven parts and three of the seven — the
+   * currency, the was-price and the FROM line — had no control at any price;
+   * `PriceMarkStyle` now carries one field each, and every one of them resolves
+   * through the value it replaced. So a block authored before today draws the
+   * same pixels, and a shop that wants a red was-price sets one field.
+   */
   const tint =
     style.tint !== undefined
       ? paint(ctx, style.tint)
@@ -618,6 +629,26 @@ function PriceMark({
         : ctx.token('accent')
   const ink = style.ink === undefined ? ctx.token('ink') : paint(ctx, style.ink)
   const ground = style.surface === undefined ? ctx.token('surface') : paint(ctx, style.surface)
+
+  /** A slot, or the colour that slot used to be welded to. */
+  const slot = (value: FlatColor | undefined, fallback: string): string =>
+    value === undefined ? fallback : paint(ctx, value)
+
+  const muted = ctx.token('inkMuted')
+  const majorInk = slot(style.majorInk, ink)
+  const minorInk = slot(style.minorInk, ink)
+  const currencyInk = slot(style.currencyInk, muted)
+  const compareInk = slot(style.compareInk, muted)
+  const prefixInk = slot(style.prefixInk, muted)
+  const groundFill = slot(style.groundFill, ground)
+  const groundStroke = slot(style.groundStroke, tint)
+  const tabFill = slot(style.tabFill, tint)
+  // **The old default, deliberately.** A tab's label reading in the ground
+  // colour is right for a saturated tab on a pale ground and invisible when the
+  // two are the same — which is why the slot exists. Changing the *default*
+  // would redraw every block already published, so the fix is offered rather
+  // than imposed; `ElementProperties` warns when the two resolve alike.
+  const tabInk = slot(style.tabInk, groundFill)
   const family = fontStack(ctx.scale.families.price)
 
   const l = layoutPriceMark(ctx.offer.priceMark, box, {
@@ -636,13 +667,13 @@ function PriceMark({
     <>
       {l.tab && style.tab !== 'none' ? (
         <>
-          <rect {...xywh(l.tab.rect)} rx={l.tab.rect.height / 2} fill={tint} />
+          <rect {...xywh(l.tab.rect)} rx={l.tab.rect.height / 2} fill={tabFill} />
           <text
             x={l.tab.rect.x + l.tab.rect.width / 2}
             y={l.tab.rect.y + l.tab.rect.height / 2}
             fontSize={l.tab.fontSize}
             fontWeight={700}
-            fill={ground}
+            fill={tabInk}
             textAnchor="middle"
             dominantBaseline="middle"
           >
@@ -666,22 +697,22 @@ function PriceMark({
         */}
       {l.groundShape === 'none' ? null : l.groundShape === 'box' ? (
         <>
-          <rect {...xywh(l.mark)} rx={3} fill={ground} />
+          <rect {...xywh(l.mark)} rx={3} fill={groundFill} />
           <rect
             {...xywh(l.mark)}
             rx={3}
             fill="none"
-            stroke={tint}
+            stroke={groundStroke}
             strokeWidth={Math.max(1, l.mark.height * 0.035)}
           />
         </>
       ) : (
         <>
-          <path d={shapePath(l.groundShape, l.mark, 'ltr')} fill={ground} />
+          <path d={shapePath(l.groundShape, l.mark, 'ltr')} fill={groundFill} />
           <path
             d={shapePath(l.groundShape, l.mark, 'ltr')}
             fill="none"
-            stroke={tint}
+            stroke={groundStroke}
             strokeWidth={Math.max(1, l.mark.height * 0.035)}
           />
         </>
@@ -694,7 +725,7 @@ function PriceMark({
         fontSize={l.currency.fontSize}
         fontWeight={700}
         fontFamily={family}
-        fill={ctx.token('inkMuted')}
+        fill={currencyInk}
         direction="ltr"
       >
         {l.currency.text}
@@ -705,7 +736,7 @@ function PriceMark({
         fontSize={l.major.fontSize}
         fontWeight={800}
         fontFamily={family}
-        fill={ink}
+        fill={majorInk}
         direction="ltr"
       >
         {l.major.text}
@@ -717,7 +748,7 @@ function PriceMark({
           fontSize={l.minor.fontSize}
           fontWeight={800}
           fontFamily={family}
-          fill={ink}
+          fill={minorInk}
           direction="ltr"
         >
           {l.minor.text}
@@ -729,7 +760,7 @@ function PriceMark({
           y={l.compare.baseline}
           fontSize={l.compare.fontSize}
           fontFamily={family}
-          fill={ctx.token('inkMuted')}
+          fill={compareInk}
           textDecoration="line-through"
           direction="ltr"
         >
@@ -753,7 +784,7 @@ function PriceMark({
           fontSize={l.prefix.fontSize}
           fontWeight={700}
           fontFamily={family}
-          fill={ctx.token('inkMuted')}
+          fill={prefixInk}
           direction="ltr"
         >
           {l.prefix.text}

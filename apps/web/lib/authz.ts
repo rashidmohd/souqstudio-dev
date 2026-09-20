@@ -128,6 +128,20 @@ export type ShopAccess = {
     trades: string[]
     bio: string | null
     storePhotoKeys: Prisma.JsonValue
+    /**
+     * The shop's currency and how its cards write it — the settings screen
+     * edits all three.
+     *
+     * `currency` is an ISO code from `CURRENCIES` and is the pricing authority:
+     * it decides two fils or three. The other two decide only what a card
+     * prints. Typed as `string` here to match the column, the way
+     * `brandOverride` does not — that one has a narrowed union because it has
+     * exactly four values and every one of them branches; these are validated at
+     * the route boundary and never branched on here.
+     */
+    currency: string
+    currencyDisplay: string
+    currencySymbol: string | null
   }
   role: Role
 }
@@ -158,6 +172,13 @@ const SHOP_SELECT = {
   trades: true,
   bio: true,
   storePhotoKeys: true,
+  // The shop's currency and how its cards write it. Same rule again, and this
+  // one would have bitten the same way: a settings form seeded without them
+  // would post `currency: 'AED'` back over a Saudi shop's `SAR` on the first
+  // save of an unrelated field.
+  currency: true,
+  currencyDisplay: true,
+  currencySymbol: true,
 } satisfies Prisma.ShopSelect
 
 /**

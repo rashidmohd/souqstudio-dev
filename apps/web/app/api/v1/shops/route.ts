@@ -68,12 +68,28 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  /**
+   * The organization's default currency, which a new shop starts in.
+   *
+   * **Seeded, not inherited.** `brandOverride` below is a live inheritance —
+   * the organization changes its brand and every inheriting shop follows. This
+   * is a copy taken once: a group that adds a Riyadh branch changes that shop's
+   * currency and must not have the change reach back, and a group that later
+   * changes its own default must not restate an existing branch. Currency is a
+   * fact about a shop, not a look it borrows.
+   */
+  const organization = await prisma.organization.findUnique({
+    where: { id: session.user.organizationId },
+    select: { defaultCurrency: true },
+  })
+
   const shop = await prisma.shop.create({
     data: {
       organizationId: session.user.organizationId,
       name: parsed.data.name,
       location: parsed.data.location ?? null,
       phone: parsed.data.phone ?? null,
+      ...(organization === null ? {} : { currency: organization.defaultCurrency }),
       // Inheritance is free — nothing is copied, and `brandKit` is left unset
       // rather than seeded. A new branch shows the organization's brand
       // immediately and keeps showing it as the organization's changes, which

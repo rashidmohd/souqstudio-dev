@@ -80,6 +80,59 @@ const offer = (items: ItemRow[], overrides: Partial<OfferRow> = {}): OfferRow =>
 })
 
 describe('composeOffer', () => {
+  /**
+   * The shop decides what a card prints where the currency goes; the offer
+   * decides what the price *is*. These are the two halves of keeping that
+   * separation honest.
+   */
+  describe('the currency a shop chose', () => {
+    it('prints the ISO code when the shop has not chosen otherwise', () => {
+      const out = composeOffer(offer([item(RICE)]), TIER, 'en')
+      expect(out.priceMark.currencyLabel).toBeUndefined()
+      expect(out.priceMark.currency).toBe('AED')
+    })
+
+    it('prints the market symbol when the shop asked for one', () => {
+      const out = composeOffer(offer([item(RICE)]), TIER, 'en', {
+        display: 'SYMBOL',
+        symbol: null,
+      })
+      expect(out.priceMark.currencyLabel).toBe('د.إ')
+    })
+
+    it('prefers the shop’s own symbol over the market one', () => {
+      const out = composeOffer(offer([item(RICE)]), TIER, 'en', {
+        display: 'SYMBOL',
+        symbol: 'Dhs',
+      })
+      expect(out.priceMark.currencyLabel).toBe('Dhs')
+    })
+
+    it('ignores a symbol while the shop is printing the code', () => {
+      const out = composeOffer(offer([item(RICE)]), TIER, 'en', {
+        display: 'CODE',
+        symbol: 'Dhs',
+      })
+      expect(out.priceMark.currencyLabel).toBeUndefined()
+    })
+
+    /**
+     * The one that matters. A symbol is typography; the code is arithmetic.
+     * A Kuwaiti price carries three fils whichever the card prints, and the
+     * failure this prevents is a flyer understating a price at a till.
+     */
+    it('never lets the symbol change how many fils a price has', () => {
+      const kuwaiti = offer([item(RICE)], { currency: 'KWD', price: '12.75' })
+      const asCode = composeOffer(kuwaiti, TIER, 'en')
+      const asSymbol = composeOffer(kuwaiti, TIER, 'en', { display: 'SYMBOL', symbol: null })
+
+      expect(asCode.priceMark.minor).toBe('750')
+      expect(asSymbol.priceMark.minor).toBe('750')
+      expect(asSymbol.priceMark.currency).toBe('KWD')
+      expect(asSymbol.priceMark.currencyLabel).toBe('د.ك')
+    })
+  })
+
   describe('the edition picks the strings, and falls back', () => {
     it('draws the Arabic edition from the Arabic columns', () => {
       const out = composeOffer(offer([item(RICE)]), TIER, 'ar')

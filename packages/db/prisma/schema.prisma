@@ -15,6 +15,10 @@ model Organization {
   vatNumber            String?
   country              String  @default("AE")
   timezone             String  @default("Asia/Dubai")
+  /// What a newly created shop starts its currency at. A group operating in one
+  /// country sets it once; a shop may still differ, which is why the real column
+  /// is on `Shop` and this only seeds it.
+  defaultCurrency      String  @default("AED")
   stripeCustomerId     String? @unique
   stripeSubscriptionId String? @unique
   planId               String?
@@ -106,6 +110,30 @@ model Shop {
   brandKit       Json?
   brandOverride  String  @default("inherit") // inherit | logo | colors | full
   isActive       Boolean @default(true)
+
+  /// The currency this shop prices in — AED | SAR | QAR | KWD | OMR | BHD, from
+  /// `CURRENCIES` in @souqstudio/types.
+  ///
+  /// **On the shop, because that is whose it is.** It was hard-coded `'AED'` at
+  /// offer creation with no control anywhere, and the editor read it back off
+  /// the first offer in the book under a comment saying it was the shop's and
+  /// not the offer's. `offers.currency` stays, and stays the thing a render
+  /// reads: it is frozen with the book, so a reprint of an old flyer reproduces
+  /// what was printed rather than what the shop prices in today. Same rule as
+  /// `unitPriceValue`. This column is the *default a new offer is created with*.
+  ///
+  /// The code is the pricing authority — `THREE_DECIMAL_CURRENCIES` reads it to
+  /// decide two fils or three. `currencyDisplay` and `currencySymbol` below only
+  /// decide what a card prints.
+  currency       String  @default("AED")
+  /// Whether cards print the ISO code (`AED`) or the symbol (`د.إ`). CODE | SYMBOL.
+  /// A Gulf grocery prints the symbol far more often than it prints the code.
+  currencyDisplay String @default("CODE")
+  /// The shop's own symbol, overriding the market default for its currency.
+  /// Null uses `CURRENCY_SYMBOLS`. Bounded at `MAX_CURRENCY_SYMBOL` — it lands
+  /// in the largest type on the page, and the solver sizes the price around it,
+  /// so a long one does not overflow, it shrinks the price.
+  currencySymbol String?
 
   /// E8-01. What the shop sells, from `SHOP_TRADES` in @souqstudio/engine —
   /// grocery | electronics | pharmacy | butcher | bakery | restaurant |

@@ -17,7 +17,12 @@ import { requireApiSession } from '@/lib/api-session'
 async function ownedBook(bookId: string, organizationId: string) {
   return prisma.offerBook.findFirst({
     where: { id: bookId, shop: { organizationId } },
-    select: { id: true },
+    // **The shop's currency comes along, because a new offer is created in it.**
+    // It was `'AED'` written into this file, with no control anywhere in the
+    // product to change it — and `editor/[id]/page.tsx` read the currency back
+    // off the first offer in the book under a comment saying it belonged to the
+    // shop. It does. `shops.currency` is now where it lives.
+    select: { id: true, shop: { select: { currency: true } } },
   })
 }
 
@@ -82,7 +87,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         bookId: book.id,
         position: start + index,
         price: 0,
-        currency: 'AED',
+        /**
+         * **Copied onto the offer, not read through to the shop at render
+         * time.** `offers.currency` is frozen with the book for the reason
+         * `unitPriceValue` is: a reprint of week 33 must reproduce what was
+         * printed, and a shop that changes currency in week 40 must not silently
+         * restate forty old flyers in it. The shop's column is the default a new
+         * offer starts at, and that is all it is.
+         */
+        currency: book.shop.currency,
         promoTierId: tier.id,
       })),
       select: { id: true, position: true },

@@ -30,6 +30,9 @@ export {
   toPriceMark,
   splitAmount,
   minorDigits,
+  // How wide a currency string is, by script. Exported so a renderer holding
+  // real font metrics can compare against it before deciding to override.
+  currencyAdvance,
   CAP_RATIO,
   MAX_ROTATION,
   // The interior arrangement. `markRecipe` is what a renderer calls; the record
@@ -38,6 +41,10 @@ export {
   markRecipe,
   PRICE_MARK_RECIPES,
   type ResolvedRecipe,
+  // One part's resolved placement. The designer's panel renders three of these
+  // from one component, which needs the shape the solver settled on rather than
+  // the partial a document carries.
+  type ResolvedSatellite,
   type PriceMarkLayout,
   type PriceMarkOptions,
   type MarkPiece,

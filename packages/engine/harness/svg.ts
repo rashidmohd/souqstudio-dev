@@ -10,7 +10,7 @@
  * the ladder will have to absorb.
  */
 
-import type { Block, BlockElement, Currency, TokenRef } from '@souqstudio/types'
+import type { Block, BlockElement, Currency, FlatColor, TokenRef } from '@souqstudio/types'
 import {
   CHIP_FIT,
   chipPathShape,
@@ -367,6 +367,30 @@ function priceMark(
   const tint = style.tint === undefined ? color(product.tier.token) : resolveColor(style.tint, color)
   const ink = style.ink === undefined ? KIT.ink : resolveColor(style.ink, color)
   const plate = style.surface === undefined ? KIT.surface : resolveColor(style.surface, color)
+
+  /**
+   * The narrow slots, each falling back to the broad one it replaced.
+   *
+   * **The harness paints what the product paints or it is checking a picture
+   * nobody sees** — the same rule the shape kit note below states. `draw.tsx`
+   * resolves narrow → broad → the old hard-coded value, and so does this.
+   *
+   * The harness has no `--sq-ui-ink-muted`: it drew the currency, the was-price
+   * and the FROM line as the ink at reduced opacity. So that is what an unset
+   * slot still does, and a set one paints at full strength.
+   */
+  const slot = (value: FlatColor | undefined): string | null =>
+    value === undefined ? null : resolveColor(value, color)
+
+  const majorInk = slot(style.majorInk) ?? ink
+  const minorInk = slot(style.minorInk) ?? ink
+  const currencyInk = slot(style.currencyInk)
+  const compareInk = slot(style.compareInk)
+  const prefixInk = slot(style.prefixInk)
+  const groundFill = slot(style.groundFill) ?? plate
+  const groundStroke = slot(style.groundStroke) ?? tint
+  const tabFill = slot(style.tabFill) ?? tint
+  const tabInk = slot(style.tabInk) ?? groundFill
   const l = layoutPriceMark(
     {
       tierId: 'harness',
@@ -392,9 +416,9 @@ function priceMark(
 
   const tab =
     l.tab && style.tab !== 'none'
-    ? rounded(l.tab.rect, tint, l.tab.rect.height / 2) +
+    ? rounded(l.tab.rect, tabFill, l.tab.rect.height / 2) +
       `<text x="${mid(l.tab.rect.x, l.tab.rect.width)}" y="${mid(l.tab.rect.y, l.tab.rect.height)}"` +
-      ` font-size="${l.tab.fontSize}" font-weight="700" fill="${KIT.surface}"` +
+      ` font-size="${l.tab.fontSize}" font-weight="700" fill="${tabInk}"` +
       ` text-anchor="middle" dominant-baseline="middle">${esc(l.tab.text)}</text>`
     : ''
 
@@ -406,22 +430,32 @@ function priceMark(
     l.groundShape === 'none'
       ? ''
       : l.groundShape === 'box'
-        ? rounded(l.mark, plate, 3) +
+        ? rounded(l.mark, groundFill, 3) +
           `<rect x="${l.mark.x}" y="${l.mark.y}" width="${l.mark.width}" height="${l.mark.height}"` +
-          ` rx="3" fill="none" stroke="${tint}" stroke-width="${stroke}"/>`
-        : `<path d="${shapePath(l.groundShape, l.mark, 'ltr')}" fill="${plate}"/>` +
+          ` rx="3" fill="none" stroke="${groundStroke}" stroke-width="${stroke}"/>`
+        : `<path d="${shapePath(l.groundShape, l.mark, 'ltr')}" fill="${groundFill}"/>` +
           `<path d="${shapePath(l.groundShape, l.mark, 'ltr')}" fill="none"` +
-          ` stroke="${tint}" stroke-width="${stroke}"/>`
+          ` stroke="${groundStroke}" stroke-width="${stroke}"/>`
 
   return [
     tab,
     frame,
     `<text x="${l.currency.x}" y="${l.currency.baseline}" font-size="${l.currency.fontSize}"`,
-    ` font-weight="700" fill="${ink}" opacity="0.7" direction="ltr">${esc(l.currency.text)}</text>`,
-    piece(l.major, ink),
-    l.minor ? piece(l.minor, ink) : '',
-    l.compare ? piece(l.compare, ink, 400, ' text-decoration="line-through" opacity="0.6"') : '',
-    l.prefix ? piece(l.prefix, ink, 700, ' opacity="0.7"') : '',
+    ` font-weight="700" fill="${currencyInk ?? ink}"${currencyInk === null ? ' opacity="0.7"' : ''}` +
+      ` direction="ltr">${esc(l.currency.text)}</text>`,
+    piece(l.major, majorInk),
+    l.minor ? piece(l.minor, minorInk) : '',
+    l.compare
+      ? piece(
+          l.compare,
+          compareInk ?? ink,
+          400,
+          ` text-decoration="line-through"${compareInk === null ? ' opacity="0.6"' : ''}`
+        )
+      : '',
+    l.prefix
+      ? piece(l.prefix, prefixInk ?? ink, 700, prefixInk === null ? ' opacity="0.7"' : '')
+      : '',
   ].join('')
 }
 

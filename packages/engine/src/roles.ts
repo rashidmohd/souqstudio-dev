@@ -33,7 +33,26 @@ export function usesOnlyRoles(arrangements: readonly Arrangement[]): boolean {
       if (element.kind === 'image') return ok(element.stroke?.color)
       if (element.kind === 'priceMark') {
         const style = element.style
-        return ok(style?.tint) && ok(style?.ink) && ok(style?.surface)
+        // **Every colour slot, not the three it shipped with.** A slot left out
+        // here is a hole in exactly the guarantee this function exists for: a
+        // seeded block could name one shop's palette entry in `compareInk` and
+        // the check would pass it. Listed rather than iterated because the
+        // object also holds `ground`, `frame`, `preset` and `recipe`, which are
+        // not colours — and a `Object.values` over it would have to know that.
+        return [
+          style?.tint,
+          style?.ink,
+          style?.surface,
+          style?.majorInk,
+          style?.minorInk,
+          style?.currencyInk,
+          style?.compareInk,
+          style?.prefixInk,
+          style?.groundFill,
+          style?.groundStroke,
+          style?.tabFill,
+          style?.tabInk,
+        ].every(ok)
       }
       return true
     })

@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest'
 import type { PriceMark } from '@souqstudio/types'
 import {
   MARK_MINOR_SCALE,
+  MARK_NUDGE,
   MARK_SATELLITE_SCALE,
   PRICE_MARK_PRESETS,
 } from '@souqstudio/types'
 import type { Rect } from './geometry'
 import {
   CAP_RATIO,
+  currencyAdvance,
   layoutPriceMark,
   markGround,
   markRecipe,
@@ -624,5 +626,203 @@ describe('a satellite in a side band', () => {
     // Both side bands reserved, so the cluster is narrower than the digit box.
     expect(l.amount.width).toBeLessThan(l.digits.width)
     expect(l.major.x).toBeGreaterThanOrEqual(l.amount.x - 0.5)
+  })
+})
+
+// ─── The nudge ────────────────────────────────────────────────────────────────
+//
+// `dx`/`dy` move a part off its compass point, in fractions of the major's size.
+// The compass decides which band a part belongs to; the nudge decides where in
+// that band it sits. What these assert is the pair of properties that made it
+// safe to offer at all: it changes nothing unless it is set, and it cannot break
+// the one rule the tab has.
+
+describe('the nudge', () => {
+  it('defaults to zero, so a recipe that never mentions it is unchanged', () => {
+    for (const preset of PRICE_MARK_PRESETS) {
+      const recipe = markRecipe({ preset })
+      expect({ preset, compare: recipe.compare.dx, tier: recipe.tier.dy }).toEqual({
+        preset,
+        compare: 0,
+        tier: 0,
+      })
+    }
+  })
+
+  it('leaves the layout byte-identical when set to zero explicitly', () => {
+    const price = mark({ comparePrice: '32.00', prefixLabel: 'FROM' })
+    const plain = layoutPriceMark(price, BOX, { tierLabel: 'DEAL' })
+    const zeroed = layoutPriceMark(price, BOX, {
+      tierLabel: 'DEAL',
+      recipe: markRecipe({ recipe: { compare: { dx: 0, dy: 0 }, prefix: { dx: 0, dy: 0 } } }),
+    })
+    expect(zeroed).toEqual(plain)
+  })
+
+  it('moves a satellite by the fraction of the major it was given', () => {
+    const price = mark({ comparePrice: '32.00' })
+    const before = layoutPriceMark(price, BOX, { tierLabel: 'DEAL' })
+    const after = layoutPriceMark(price, BOX, {
+      tierLabel: 'DEAL',
+      recipe: markRecipe({ recipe: { compare: { dx: 0.25, dy: -0.1 } } }),
+    })
+
+    const step = before.major.fontSize
+    expect(after.compare!.x - before.compare!.x).toBeCloseTo(0.25 * step, 6)
+    expect(after.compare!.baseline - before.compare!.baseline).toBeCloseTo(-0.1 * step, 6)
+    // It moved; it did not resize.
+    expect(after.compare!.fontSize).toBe(before.compare!.fontSize)
+    expect(after.compare!.width).toBe(before.compare!.width)
+  })
+
+  it('does not drag the other piece in the same band along with it', () => {
+    const price = mark({ comparePrice: '32.00', prefixLabel: 'FROM' })
+    // Both in the top band, hugging the same end, so they lay out as one row.
+    const style = { recipe: { compare: { place: 'above' as const }, prefix: { place: 'above' as const } } }
+    const before = layoutPriceMark(price, BOX, { tierLabel: 'DEAL', recipe: markRecipe(style) })
+    const after = layoutPriceMark(price, BOX, {
+      tierLabel: 'DEAL',
+      recipe: markRecipe({ recipe: { ...style.recipe, compare: { place: 'above', dy: 0.2 } } }),
+    })
+
+    expect(after.prefix).toEqual(before.prefix)
+    expect(after.compare!.baseline).toBeGreaterThan(before.compare!.baseline)
+  })
+
+  it('clamps to MARK_NUDGE rather than refusing an out-of-range value', () => {
+    const recipe = markRecipe({ recipe: { compare: { dx: 99, dy: -99 } } })
+    expect({ dx: recipe.compare.dx, dy: recipe.compare.dy }).toEqual({
+      dx: MARK_NUDGE.max,
+      dy: MARK_NUDGE.min,
+    })
+  })
+
+  /**
+   * The one that earns the feature.
+   *
+   * E6 §3's "the tab and the mark never separate" is asserted above for every
+   * compass point; a nudge that could carry the tab clear of the mark would
+   * have quietly repealed it. The solver slides the rect back until it keeps
+   * its overlap, so the invariant holds at the extremes of the range, at every
+   * size, in every position — which is what lets the slider exist.
+   */
+  it('never lets a nudged tab separate from the mark', () => {
+    const PLACES = [
+      'above-start',
+      'above',
+      'above-end',
+      'below-start',
+      'below',
+      'below-end',
+      'start',
+      'end',
+    ] as const
+
+    for (const place of PLACES) {
+      for (const height of [60, 160, 400]) {
+        for (const dx of [MARK_NUDGE.min, 0, MARK_NUDGE.max]) {
+          for (const dy of [MARK_NUDGE.min, 0, MARK_NUDGE.max]) {
+            const recipe = markRecipe({ recipe: { tier: { place, dx, dy } } })
+            const l = layoutPriceMark(mark(), { ...BOX, height }, { tierLabel: 'DEAL', recipe })
+            const tab = l.tab!.rect
+            const overlaps =
+              tab.x < l.mark.x + l.mark.width &&
+              l.mark.x < tab.x + tab.width &&
+              tab.y < l.mark.y + l.mark.height &&
+              l.mark.y < tab.y + tab.height
+            expect({ place, height, dx, dy, overlaps }).toEqual({
+              place,
+              height,
+              dx,
+              dy,
+              overlaps: true,
+            })
+          }
+        }
+      }
+    }
+  })
+})
+
+// ─── The currency a shop chose ────────────────────────────────────────────────
+//
+// A shop sets a currency, a display mode and optionally its own symbol; that
+// resolves to one string on the mark. The code still decides the arithmetic.
+
+describe('the currency label', () => {
+  it('draws the ISO code when the shop has not chosen otherwise', () => {
+    const l = layoutPriceMark(mark(), BOX, {})
+    expect(l.currency.text).toBe('AED')
+  })
+
+  it('draws the shop’s symbol when there is one', () => {
+    const l = layoutPriceMark(mark({ currencyLabel: 'د.إ' }), BOX, {})
+    expect(l.currency.text).toBe('د.إ')
+  })
+
+  /**
+   * The one that stops a symbol being a pricing change.
+   *
+   * `minorDigits` reads `currency`, never `currencyLabel` — so a Kuwaiti price
+   * carries three fils whether the card says `KWD` or `د.ك`. Getting this wrong
+   * would drop a digit off a price a customer takes to a till.
+   */
+  it('never lets the label change how many fils a price has', () => {
+    const withCode = layoutPriceMark(
+      mark({ currency: 'KWD', ...splitAmount('12.75', 'KWD') }),
+      BOX,
+      {}
+    )
+    const withSymbol = layoutPriceMark(
+      mark({ currency: 'KWD', currencyLabel: 'د.ك', ...splitAmount('12.75', 'KWD') }),
+      BOX,
+      {}
+    )
+    expect(withCode.minor!.text).toBe('750')
+    expect(withSymbol.minor!.text).toBe('750')
+  })
+
+  it('measures an Arabic symbol as narrower than three Latin capitals', () => {
+    // The failure this prevents is not overflow — the solver sizes the amount
+    // around the currency, so over-measuring shrinks the *price* and nothing
+    // says why.
+    expect(currencyAdvance('د.إ')).toBeLessThan(currencyAdvance('AED'))
+  })
+
+  it('measures every ISO code exactly as it did before symbols existed', () => {
+    for (const code of ['AED', 'SAR', 'QAR', 'KWD', 'OMR', 'BHD']) {
+      expect(currencyAdvance(code)).toBeCloseTo(code.length * 0.74, 10)
+    }
+  })
+
+  it('takes a renderer’s own metrics over its own guess', () => {
+    // **A tall, narrow box, so width is what binds.** The solver takes the
+    // smaller of what the width allows and what the height does; in a box where
+    // height binds, the currency's measurement changes the mark's *spacing* and
+    // not the price's size, and a test on the default box asserts nothing.
+    const narrowBox = { x: 0, y: 0, width: 120, height: 400 }
+    const wide = layoutPriceMark(mark({ currencyLabel: 'د.إ' }), narrowBox, {
+      measureCurrency: () => 4,
+    })
+    const narrow = layoutPriceMark(mark({ currencyLabel: 'د.إ' }), narrowBox, {
+      measureCurrency: () => 0.5,
+    })
+    // A currency measured wider leaves the digits less room, so the price is set
+    // smaller — which is the whole reason the measurement has to be right.
+    expect(wide.major.fontSize).toBeLessThan(narrow.major.fontSize)
+    // And it is the measurement that moved, on any box.
+    const onDefault = (advance: number) =>
+      layoutPriceMark(mark({ currencyLabel: 'د.إ' }), BOX, { measureCurrency: () => advance })
+    expect(onDefault(4).major.x).toBeGreaterThan(onDefault(0.5).major.x)
+  })
+
+  it('leaves a code-only mark byte-identical', () => {
+    const plain = layoutPriceMark(mark({ comparePrice: '32.00' }), BOX, { tierLabel: 'DEAL' })
+    const labelled = layoutPriceMark(
+      mark({ comparePrice: '32.00', currencyLabel: 'AED' }),
+      BOX,
+      { tierLabel: 'DEAL' }
+    )
+    expect(labelled).toEqual(plain)
   })
 })

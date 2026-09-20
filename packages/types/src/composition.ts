@@ -595,6 +595,31 @@ export interface MarkSatellite {
   place?: MarkPlace | undefined
   /** Fraction of the major's size. Clamped to `MARK_SATELLITE_SCALE`. */
   scale?: number | undefined
+  /**
+   * A nudge off the compass point, along the inline axis, as a fraction of the
+   * major's size. Clamped to `MARK_NUDGE`.
+   *
+   * **The compass decides the band and the nudge decides the position in it.**
+   * Nine positions turned out to be enough to say *which corner* and not enough
+   * to say *how far in* — the gap an owner hits the moment their ground is a
+   * burst rather than a box, because the point that reads as "above-end" on a
+   * rectangle is a spike on a circle.
+   *
+   * **Bounded rather than free, and this is the bound that matters.** The piece
+   * still belongs to the band the compass put it in: `layoutPriceMark` reserves
+   * that band whether or not anything fills it, which is what stops the price
+   * changing size between two neighbouring cards on one page. A nudge moves the
+   * piece inside the room already reserved for it. An unbounded offset would
+   * move it into another band's room, and the first page where one offer
+   * carries a was-price and its neighbour does not is where that shows.
+   *
+   * Positive is toward the inline end — which does not mirror, because the mark
+   * does not mirror. A nudge authored against an English edition sits in the
+   * same place in an Arabic one.
+   */
+  dx?: number | undefined
+  /** The same, along the block axis. Positive is downward. */
+  dy?: number | undefined
 }
 
 /**
@@ -676,6 +701,22 @@ export const MARK_SATELLITE_SCALE = { min: 0.14, max: 0.5 } as const
 export const MARK_MINOR_SCALE = { min: 0.3, max: 1 } as const
 
 /**
+ * How far a part may be nudged off its compass point, as a fraction of the
+ * major's size, on each axis.
+ *
+ * **Half the major, and the number is the whole argument.** A band is a fifth
+ * of the digit box (`BAND` in the engine) and a side band a quarter of its
+ * width, so half a major size is comfortably more than enough to cross the room
+ * a band actually has — an owner can put a part anywhere within its band and
+ * against either edge. What it will not do is carry a piece into the *next*
+ * band, which is the reservation that keeps two neighbouring cards setting
+ * their prices at the same size.
+ *
+ * Symmetric, so the clamp is one number rather than a range per axis.
+ */
+export const MARK_NUDGE = { min: -0.5, max: 0.5 } as const
+
+/**
  * What an owner may change about a price mark.
  *
  * **The anatomy is ours and the arrangement is theirs.** That line replaces
@@ -694,12 +735,70 @@ export const MARK_MINOR_SCALE = { min: 0.3, max: 1 } as const
  * — `preset` and `recipe` below.
  */
 export interface PriceMarkStyle {
-  /** The tier tab and the outline. Defaults to the tier's own colour. */
+  /**
+   * The tier tab and the outline. Defaults to the tier's own colour.
+   *
+   * One of the three broad slots the mark shipped with. They are still the
+   * controls most owners touch, and every narrow slot below falls back to one
+   * of them — see the note on `majorInk`.
+   */
   tint?: FlatColor | undefined
   /** The digits. */
   ink?: FlatColor | undefined
   /** The ground the mark sits on. */
   surface?: FlatColor | undefined
+
+  // ── The parts, coloured one at a time ───────────────────────────────────────
+  //
+  // **Three slots were painting seven parts, and three of those seven had no
+  // control at all.** `tint`, `ink` and `surface` covered the badge, the digits
+  // and the ground; the currency code, the was-price and the FROM line were
+  // welded to `--sq-ui-ink-muted` in the painter, so a shop could not colour
+  // them at any price, and the tab's *text* was welded to the ground colour,
+  // which is how a tinted badge on a tinted ground produces a tab with nothing
+  // legible on it.
+  //
+  // **Each of these falls back to what the painter already did**, which is why
+  // adding them changes nothing already drawn: an absent slot resolves through
+  // the broad one it used to read, and `price-mark.test.ts` pins that. A shop
+  // that wants a red was-price sets one field; a shop that wants what it had
+  // sets none.
+  //
+  // **This is arrangement, not anatomy.** E6 §3's rule is about how the number
+  // is *set* — cap alignment, the three-decimal branch, LTR in Arabic, shrinking
+  // as one thing. It was never about which colour the fils are, and using it to
+  // withhold that was the panel borrowing an argument that did not cover it.
+
+  /** The integer part. Falls back to `ink`. */
+  majorInk?: FlatColor | undefined
+  /**
+   * The fils. Falls back to `ink`, which is what welded it to the major.
+   *
+   * Worth its own slot rather than following the major: setting the fils back a
+   * step is one of the oldest tricks in shelf pricing, and it was unreachable.
+   */
+  minorInk?: FlatColor | undefined
+  /** The currency code or symbol. Falls back to the muted ink the painter used. */
+  currencyInk?: FlatColor | undefined
+  /** The struck-through was-price. Falls back to the same muted ink. */
+  compareInk?: FlatColor | undefined
+  /** FROM / EACH / PER KG. Falls back to the same muted ink. */
+  prefixInk?: FlatColor | undefined
+  /** The ground's fill. Falls back to `surface`. */
+  groundFill?: FlatColor | undefined
+  /** The ground's outline. Falls back to `tint`, and so to the tier's colour. */
+  groundStroke?: FlatColor | undefined
+  /** The tier tab's fill. Falls back to `tint`, and so to the tier's colour. */
+  tabFill?: FlatColor | undefined
+  /**
+   * The tier tab's label.
+   *
+   * Falls back to the resolved ground fill, which is what the painter did and
+   * is right for a saturated tab on a pale ground — and invisible when both are
+   * the same colour. That case is the reason this field exists; the default is
+   * unchanged because changing it would redraw every block already published.
+   */
+  tabInk?: FlatColor | undefined
   /**
    * The shape behind the digits.
    *
