@@ -27,10 +27,20 @@ export function usesOnlyRoles(arrangements: readonly Arrangement[]): boolean {
 
   return arrangements.every((arrangement) =>
     arrangement.elements.every((element) => {
-      if (element.kind === 'shape') return ok(element.fill) && ok(element.stroke?.color)
-      if (element.kind === 'text') return ok(element.color)
+      // **Every colour slot on the element, including the ones added last.**
+      // The note on the price mark's twelve says why: a slot left out here is a
+      // hole in the exact guarantee this function exists for. `fill` is
+      // optional on a shape now and `ok` already passes an absent value, which
+      // is right — an outline-only shape names no fill and that is not a
+      // violation. A shadow's colour is a colour like any other. E14 §2.4.
+      if (element.kind === 'shape') {
+        return ok(element.fill) && ok(element.stroke?.color) && ok(element.shadow?.color)
+      }
+      if (element.kind === 'text') {
+        return ok(element.color) && ok(element.stroke?.color) && ok(element.shadow?.color)
+      }
       if (element.kind === 'chip') return ok(element.fill)
-      if (element.kind === 'image') return ok(element.stroke?.color)
+      if (element.kind === 'image') return ok(element.stroke?.color) && ok(element.shadow?.color)
       if (element.kind === 'priceMark') {
         const style = element.style
         // **Every colour slot, not the three it shipped with.** A slot left out

@@ -138,6 +138,27 @@ const strokeSchema = z.object({
   width: z.number().min(0).max(0.2),
 })
 
+/**
+ * A cast shadow. E14 §2.4.
+ *
+ * **Bounded like every other size here, and for a sharper reason.** The ring
+ * count is derived from the blur and the output scale — roughly
+ * `blur × 2.5 × s × dpi/72` — so an unbounded blur is an unbounded number of
+ * paths on a page, decided by a document that came out of a bucket. A page of
+ * 24 ringed bursts at 300 dpi measured 1,992 paths and 274 kB, and this bound
+ * is what keeps a hostile or mistaken document from being the thing that finds
+ * the ceiling.
+ *
+ * The offsets may be negative: a shadow above and to the start of its element
+ * is unusual and not wrong.
+ */
+const shadowSchema = z.object({
+  x: z.number().min(-0.5).max(0.5),
+  y: z.number().min(-0.5).max(0.5),
+  blur: z.number().min(0).max(0.25),
+  color: flatColorSchema,
+})
+
 const textSourceSchema = z.discriminatedUnion('from', [
   z.object({
     from: z.literal('product'),
@@ -181,6 +202,37 @@ const textSourceSchema = z.discriminatedUnion('from', [
     textAr: z.string().max(280),
   }),
 ])
+
+/**
+ * A shadow on text, and it must be a hard one.
+ *
+ * **Measured, and it is the one place the ring model does not pay.** A shape's
+ * ring is one path; a glyph has no box to expand, so its ring is the string
+ * again under a wider stroke — and Chromium *outlines* stroked text into
+ * explicit path geometry on the way to a PDF. Rendered through headless Chrome
+ * and the objects counted:
+ *
+ *   rings   1      2      4      8     16     27
+ *   PDF    34kB   61kB  108kB  205kB  396kB  663kB      (26,385 curve ops)
+ *
+ * Linear, at roughly 24 kB a ring, for **one element**. A soft shadow on a
+ * price is 663 kB; a page of twenty-four of them is not a file anybody can
+ * send on WhatsApp. The same twenty-four ringed *bursts* come to 274 kB
+ * together, which is why the bound is here and not on `shadowSchema`.
+ *
+ * So `blur` must be 0 on text. A hard shadow is one copy, it is what a retail
+ * "SAVE 20%" actually wears, and it costs about 24 kB. A soft one cannot be
+ * drawn at an acceptable size by any vector means, and the non-vector means —
+ * `filter: drop-shadow()` — is the single disqualifying result in
+ * `harness/export-check.ts`: the font leaves the PDF and the price becomes a
+ * picture.
+ *
+ * **Refused rather than clamped**, because a block that asked for something it
+ * cannot have should say so at the boundary rather than render differently from
+ * what it stored. Widening this later is safe; no published block carries a
+ * text shadow, because the field did not exist until now.
+ */
+const textShadowSchema = shadowSchema.extend({ blur: z.literal(0) })
 
 const overflowSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('shrink'), floor: typeLevelSchema }),
@@ -356,6 +408,7 @@ const elementSchema = z.discriminatedUnion('kind', [
     fit: z.enum(['contain', 'cover']).optional(),
     radius: z.number().min(0).max(64).optional(),
     stroke: strokeSchema.optional(),
+    shadow: shadowSchema.optional(),
   }),
   z.strictObject({
     ...baseSchema,
@@ -379,6 +432,11 @@ const elementSchema = z.discriminatedUnion('kind', [
     decoration: z.enum(['none', 'line-through']).optional(),
     family: familySchema.optional(),
     color: flatColorSchema.optional(),
+    // An outline on the glyphs — "SAVE 20%" in white over red. The painter
+    // doubles this and orders the paint `stroke fill`, so the number here is
+    // the outline you see. E14 §2.4.
+    stroke: strokeSchema.optional(),
+    shadow: textShadowSchema.optional(),
   }),
   z.strictObject({
     ...baseSchema,
@@ -398,7 +456,11 @@ const elementSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     ...baseSchema,
     kind: z.literal('shape'),
-    fill: colorSchema,
+    // **Optional, so an outline-only shape can be expressed.** It was required,
+    // and a hairline rule box around a price — the commonest piece of furniture
+    // on a printed ticket — had to be faked with one filled rectangle on
+    // another. E14 §2.4.
+    fill: colorSchema.optional(),
     // The three primitives, then the six an offer card is actually made of.
     // `radius` applies to the rectangle alone; the paths compute their own
     // corners, and a document that sets both is not wrong, just ignored.
@@ -407,6 +469,7 @@ const elementSchema = z.discriminatedUnion('kind', [
       .optional(),
     radius: z.number().min(0).max(64),
     stroke: strokeSchema.optional(),
+    shadow: shadowSchema.optional(),
   }),
 ])
 

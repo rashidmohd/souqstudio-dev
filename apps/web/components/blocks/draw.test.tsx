@@ -172,3 +172,130 @@ describe('every image binding draws on the artboard', () => {
     expect(drawImage({ from: 'product' })).not.toContain(`width="${BOX.width}"`)
   })
 })
+
+/**
+ * Paint — E14 §2.4, Phase 3.
+ *
+ * Two of these are rules that are invisible until they are wrong: a stroke
+ * painted in the default order reads as "the bold prices look thin in the PDF",
+ * and a shadow drawn with a filter reads as nothing at all until somebody
+ * prints one.
+ */
+describe('paint', () => {
+  const box = { x: 0, y: 0, width: 300, height: 80 }
+  const ROLE = { from: 'role' as const, ref: 'primary' as const }
+
+  const draw = (element: BlockElement, ctx: DrawContext = CTX) =>
+    renderToStaticMarkup(<svg>{drawElement(element, box, ctx)}</svg>)
+
+  const shape = (over: Record<string, unknown>): BlockElement =>
+    ({ id: 's', kind: 'shape', box: { start: 0, top: 0, width: 1, height: 1 }, radius: 4, ...over }) as BlockElement
+
+  const text = (over: Record<string, unknown>): BlockElement =>
+    ({
+      id: 't',
+      kind: 'text',
+      box: { start: 0, top: 0, width: 1, height: 1 },
+      source: { from: 'static', textEn: 'SAVE 20%', textAr: 'SAVE 20%' },
+      level: 'h3',
+      align: 'start',
+      ...over,
+    }) as BlockElement
+
+  describe('an outline-only shape', () => {
+    it('draws no fill when the document names none', () => {
+      const out = draw(shape({ stroke: { color: ROLE, width: 0.01 } }))
+      expect(out).toContain('fill="none"')
+    })
+
+    it('still draws its stroke', () => {
+      // The whole point: `opacity` cannot express this, because it fades the
+      // stroke along with the fill.
+      expect(draw(shape({ stroke: { color: ROLE, width: 0.01 } }))).toContain('stroke=')
+    })
+
+    it('draws a fill when there is one', () => {
+      expect(draw(shape({ fill: ROLE }))).not.toContain('fill="none"')
+    })
+  })
+
+  describe('an outline on text', () => {
+    it('paints the stroke before the fill', () => {
+      // **The rule that is invisible until it is wrong.** SVG centres a stroke,
+      // so painted in the default order half of it falls inside the glyph and
+      // is lost into the counters — the digits come out thin and muddy at
+      // exactly the size a price is read.
+      expect(draw(text({ stroke: { color: ROLE, width: 0.01 } }))).toContain(
+        'paint-order="stroke fill"'
+      )
+    })
+
+    it('doubles the declared width, so the width is the outline you see', () => {
+      // Stroke-first, the fill covers the inner half and what survives is an
+      // outside outline of half the declared width. So `stroke.width` means the
+      // visible outline and the painter is what makes that true.
+      const out = draw(text({ stroke: { color: ROLE, width: 0.01 } }))
+      expect(out).toContain(`stroke-width="${0.01 * CTX.blockSize * 2}"`)
+    })
+
+    it('draws no stroke attributes when there is no outline', () => {
+      expect(draw(text({}))).not.toContain('paint-order')
+    })
+  })
+
+  describe('a shadow', () => {
+    const shadow = { x: 0.01, y: 0.015, blur: 0.02, color: ROLE }
+
+    it('draws as concentric copies rather than a filter', () => {
+      // Every filter Chromium offers rasterizes at a resolution nothing in the
+      // document can set, and one over text takes the font out of the PDF.
+      const out = draw(shape({ fill: ROLE, shadow }))
+      expect(out).not.toContain('feDropShadow')
+      expect(out).not.toContain('feGaussianBlur')
+      expect(out).not.toContain('drop-shadow')
+      expect((out.match(/fill-opacity=/g) ?? []).length).toBeGreaterThan(8)
+    })
+
+    it('paints underneath the element', () => {
+      const out = draw(shape({ fill: ROLE, shadow }))
+      expect(out.indexOf('fill-opacity=')).toBeLessThan(out.lastIndexOf('<rect'))
+    })
+
+    it('becomes more paths at print resolution, for the same document', () => {
+      const rings = (dpi: number) =>
+        (draw(shape({ fill: ROLE, shadow }), { ...CTX, dpi }).match(/fill-opacity=/g) ?? []).length
+      expect(rings(300)).toBeGreaterThan(rings(96))
+    })
+
+    it('is one copy when the blur is zero', () => {
+      const out = draw(shape({ fill: ROLE, shadow: { ...shadow, blur: 0 } }))
+      expect((out.match(/fill-opacity=/g) ?? []).length).toBe(1)
+    })
+
+    it('does not mirror its offset in an Arabic edition', () => {
+      // §5.5: paint order, images, rotation, text runs and shadow offsets never
+      // mirror. Bidi is the shaper's job; a shadow is light direction.
+      const ltr = draw(shape({ fill: ROLE, shadow: { ...shadow, blur: 0 } }))
+      const rtl = draw(shape({ fill: ROLE, shadow: { ...shadow, blur: 0 } }), {
+        ...CTX,
+        ar: true,
+        direction: 'rtl',
+      })
+      const offset = (out: string) => /<rect x="([-0-9.]+)"/.exec(out)?.[1]
+      expect(offset(rtl)).toBe(offset(ltr))
+    })
+
+    it('casts a text shadow as strokes on the string, keeping it text', () => {
+      // A glyph has no box to expand, so each ring is the string again under a
+      // wider stroke. It stays selectable and searchable in the PDF, which is
+      // the whole reason a filter is not used.
+      const out = draw(text({ shadow: { ...shadow, blur: 0 } }))
+      expect((out.match(/<text/g) ?? []).length).toBe(2)
+      expect(out).not.toContain('drop-shadow')
+    })
+
+    it('draws nothing extra when there is no shadow', () => {
+      expect(draw(shape({ fill: ROLE }))).not.toContain('fill-opacity=')
+    })
+  })
+})

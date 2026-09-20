@@ -39,6 +39,48 @@ const ITALIC = '(^|\\s)italic(\\s|$)'
 // Blue IS the primary action, but it must arrive through the semantic token.
 const BLUE_FILL = '(^|\\s)bg-blue(\\s|$)'
 
+/**
+ * Effects that rasterize on the export path. E14 §2.4.
+ *
+ * **This is not "no blur because blur is ugly".** Nine cases were rendered to
+ * PDF through headless Chrome and the objects counted; the harness is
+ * `pnpm --filter @souqstudio/engine export:check` and it still runs. What it
+ * found:
+ *
+ *   feDropShadow / feGaussianBlur   rasterize the element they are on, at a
+ *                                   resolution *Chromium* picks — about 220dpi
+ *                                   for a card on an A4 page, under the 300dpi
+ *                                   target and not reachable from anything in
+ *                                   the document.
+ *   filter: drop-shadow() on text   disqualifying on its own: the font leaves
+ *                                   the PDF and the price becomes a picture —
+ *                                   unselectable, unsearchable, resampled by
+ *                                   any printer that reprocesses it.
+ *
+ * Draw a shadow with `shadowRings` from @souqstudio/engine instead. It is n
+ * concentric vector copies of the shape at a constant alpha, it is vector at
+ * any size, and a page of 24 of them at 300dpi measured 1,992 paths and 274 kB.
+ *
+ * **A gradient with alpha stops is deliberately not here.** §2.4 banned it on a
+ * reading that the export harness later corrected: Chromium emits a vector
+ * shading pattern plus a page-sized soft mask, and the page's text survives. It
+ * is still resolution-limited by a mask nothing can size, so it stays measured
+ * rather than linted — `stop-opacity` is a documented feature of `GradientStop`
+ * and its value is a runtime number, so a lint rule here would flag correct
+ * code and still miss the case it was aimed at. `export-check.ts` is the guard.
+ */
+// Parenthesised, and that is not cosmetic: esquery's attribute-regex parser
+// does not survive a top-level `|`, so an unwrapped alternation compiles to a
+// selector that silently matches nothing. Every other pattern here that
+// alternates is wrapped for the same reason.
+const RASTERIZING_FILTER = '(drop-shadow\\(|feDropShadow|feGaussianBlur)'
+
+const FILTER_MESSAGE =
+  'This rasterizes on the export path at a resolution nothing in the document can set — ' +
+  'and a filter over text takes the font out of the PDF entirely, turning a price into a picture. ' +
+  'Draw it with `shadowRings` from @souqstudio/engine, which is vector at any size. ' +
+  'Measured in E14 §2.4; `pnpm --filter @souqstudio/engine export:check` is the harness.'
+
 const restrict = (pattern, message) => ({
   selector: `Literal[value=/${pattern}/]`,
   message,
@@ -48,6 +90,24 @@ const restrictTemplate = (pattern, message) => ({
   selector: `TemplateElement[value.raw=/${pattern}/]`,
   message,
 })
+
+/**
+ * The banned effects, as the three shapes they can take in source.
+ *
+ * **A named array because `no-restricted-syntax` is built twice.** The override
+ * below re-declares the whole rule rather than adding to it, so anything added
+ * to the base `rules` alone is silently inert for every file that override
+ * matches — which is most of them, `components/blocks/draw.tsx` included. That
+ * is how this rule shipped doing nothing the first time; it is spread into both
+ * arrays now, and anything added later must be too.
+ */
+const filterRules = () => [
+  // As CSS or SVG written into a string…
+  restrict(RASTERIZING_FILTER, FILTER_MESSAGE),
+  restrictTemplate(RASTERIZING_FILTER, FILTER_MESSAGE),
+  // …and as JSX, which is how a React painter would reach for them.
+  { selector: 'JSXIdentifier[name=/^fe(DropShadow|GaussianBlur)$/]', message: FILTER_MESSAGE },
+]
 
 const DESIGN_RULES = [
   [PHYSICAL_CLASS,
@@ -84,6 +144,7 @@ module.exports = {
     'no-restricted-syntax': [
       'error',
       ...DESIGN_RULES.flatMap(([p, m]) => [restrict(p, m), restrictTemplate(p, m)]),
+      ...filterRules(),
     ],
 
     // Import the validated env module, never process.env.
@@ -160,6 +221,7 @@ module.exports = {
         'no-restricted-syntax': [
           'error',
           ...DESIGN_RULES.flatMap(([p, m]) => [restrict(p, m), restrictTemplate(p, m)]),
+          ...filterRules(),
           restrict(
             '--sq-tpl-',
             'Template token used in application chrome. --sq-tpl-* is offer book content only. If you want the error red, that is --sq-critical-fg; they look similar deliberately and mean different things.'

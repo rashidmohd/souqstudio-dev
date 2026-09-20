@@ -191,6 +191,43 @@ const CASES: Case[] = [
     html: page(`${ringsFor(BOX, 8, 'rect')}<rect ${RECT} fill="#cc2222" rx="8"/>${PRICE()}`),
   },
   {
+    /**
+     * **A glyph has no box to expand**, so a text shadow is the string again
+     * under a stroke of twice the step, which grows the outline outward by the
+     * step. §2.4 specified the ring model for shapes and left text open; this
+     * is the case that says the answer keeps the text as text.
+     *
+     * It matters more than the shape cases do. `filter: drop-shadow()` over
+     * text is the one disqualifying result in this table — the font leaves the
+     * PDF and the price becomes a picture — so a text shadow that quietly did
+     * the same thing would be the defect this whole harness exists to catch.
+     *
+     * **It stays text, and it is still why `blur` is refused on text.** The
+     * size column is the finding: Chromium outlines every stroked copy into
+     * path geometry, so this case is 663 kB and 26,385 curve operators for one
+     * price, against 274 kB for the twenty-four ringed bursts below. Linear at
+     * about 24 kB a ring — 34/61/108/205/396/663 at 1/2/4/8/16/27. The document
+     * schema refuses a blurred text shadow because of this row; the row stays
+     * so that the number is measured rather than remembered.
+     */
+    name: 'rings-text',
+    what: 'concentric rings on text',
+    expect: 'vector',
+    expectText: true,
+    html: page(
+      shadowRings(SHADOW, { x: 40, y: 200, width: 220, height: 50 }, 0, OUTPUT)
+        .map((ring) => {
+          const grow = ring.rect.width - 220
+          return PRICE(
+            `fill="#000000" fill-opacity="${ring.alpha.toFixed(4)}"` +
+              ` stroke="#000000" stroke-opacity="${ring.alpha.toFixed(4)}"` +
+              ` stroke-width="${grow.toFixed(3)}" paint-order="stroke fill" stroke-linejoin="round"`
+          )
+        })
+        .join('') + PRICE('fill="#cc2222"')
+    ),
+  },
+  {
     name: 'rings-burst',
     what: 'concentric rings, 12-point burst',
     expect: 'vector',

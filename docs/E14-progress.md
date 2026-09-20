@@ -9,15 +9,15 @@ is `docs/E14-implementation-plan.md`; Phase 0's answers are
 | **0 — Prove the three risky things · GATE** | **Done. Gate passed.** |
 | **1 — The data map** | **Done. Ships alone.** |
 | 2 — Frames in the engine | Not started |
-| 3 — Paint | 3.3 partly landed with Phase 0.3 |
+| **3 — Paint** | **Done.** |
 | 4 — Three blocks by hand · GATE | Not started |
 | 5 — The converter | Not started |
 | 6 — Regenerate the seeded library | Not started |
 | 7 — Designer UI | Not started |
 | 8 — Delete the old path | Not started |
 
-`pnpm lint`, `pnpm typecheck` and `pnpm test` are green: **1,428 tests**, up from
-1,349. `pnpm build` and `check:classes` pass.
+`pnpm lint`, `pnpm typecheck` and `pnpm test` are green: **1,462 tests**, up from
+1,349. `pnpm build`, `check:classes`, the gallery diff and `export:check` pass.
 
 ---
 
@@ -148,3 +148,80 @@ refuses to rewrite a document it could not parse.
 - **A second copy of the savings arithmetic** lives in `lib/preview-offer.ts`.
   Deliberate — the composer reads a `Decimal` off a row and the preview reads a
   number off a literal — and the shared rule is asserted in both.
+
+---
+
+## Phase 3 — paint, and the one thing it could not afford
+
+Four parts, all four landed: an optional fill, an outline on text, a cast
+shadow, and a lint rule for the effects that rasterize.
+
+### What can now be expressed
+
+| | Before | Now |
+| --- | --- | --- |
+| Outline-only shape | impossible at any setting | `fill` is optional on `shape` |
+| Outline on text | impossible | `stroke` on the text element |
+| Cast shadow | impossible | `shadow` on shape, text and image |
+
+`Shadow` lives in `@souqstudio/types` beside `Stroke`; `shadowRings` in the
+engine is the expansion and **both painters call it**, which is the rule §2.4
+sets and the reason the file exists.
+
+**The gallery is 236/236 byte-identical.** Every change is additive and no
+seeded block carries any of it. One near-miss: refactoring the text painter
+moved `fill` after `text-anchor` in the emitted SVG — visually identical, not
+byte-identical, and the diff caught it.
+
+### The measured decision: a text shadow must be hard
+
+**A glyph has no box to expand.** A shape's ring is one path; text's ring is the
+string again under a wider stroke — and Chromium *outlines* stroked text into
+explicit path geometry on the way to a PDF.
+
+| rings | 1 | 2 | 4 | 8 | 16 | 27 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PDF | 34 kB | 61 kB | 108 kB | 205 kB | 396 kB | **663 kB** |
+
+Linear, ~24 kB a ring, **for one element** — 26,385 curve operators for a single
+softly-shadowed price. Twenty-four ringed *bursts* together come to 274 kB.
+
+So `text.shadow.blur` must be 0. A hard shadow is one copy, costs ~24 kB, and is
+what a retail "SAVE 20%" actually wears. A soft one is unavailable on text by
+any vector means, and the non-vector means is the single disqualifying result in
+`export-check.ts`. **Refused at the schema rather than clamped**, so a block
+cannot store one thing and render another; `HardShadow` says the same in the
+type, and the two-way mirror check is what caught them disagreeing.
+
+**§2.4 should absorb this.** It specified shadows on text without saying how a
+glyph expands, and the stroke-growth answer is the only vector one.
+
+### The lint rule, and why it shipped inert the first time
+
+`feGaussianBlur`, `feDropShadow` and `drop-shadow()` are refused as strings, as
+template literals and as JSX.
+
+**It caught nothing at first and the tests are why that is known.** Two traps,
+both worth recording:
+
+1. **`no-restricted-syntax` is declared twice.** An override for
+   `**/*.{ts,tsx}` *re-declares* the whole rule rather than adding to it, so
+   anything added to the base `rules` alone is inert for every file it matches
+   — `components/blocks/draw.tsx` included, which is the one file that matters.
+   The entries are spread into both arrays now.
+2. **esquery does not survive a top-level `|`** in an attribute regex. An
+   unwrapped alternation compiles to a selector that silently matches nothing.
+   Every alternation in that file is parenthesised for this reason.
+
+**Gradient alpha stops are deliberately not linted.** §2.4 banned them on a
+reading `export-check` later corrected, `stop-opacity` is a documented feature of
+`GradientStop`, and its value is a runtime number — a rule there would flag
+correct code and still miss the case. `export-check.ts` measures it instead.
+
+### Still owed
+
+- **No designer controls.** Phase 3 is the model and the painters; the paint
+  panel is Phase 7. An owner cannot yet *set* a shadow or an outline — a seeded
+  or API-authored block can carry one and both painters draw it.
+- **`packages/engine` is not linted at all**, so `harness/svg.ts` is covered by
+  `export:check` rather than by the rule.

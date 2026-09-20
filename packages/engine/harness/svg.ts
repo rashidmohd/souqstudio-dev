@@ -40,6 +40,7 @@ import { KIT, PAGE_GROUND, SAMPLE_SCALE } from './dummy'
 import { brandFor, nameFor, originFor, packFor, specFor, type HarnessProduct } from './product'
 import { resolveTextBinding, type BindingSubjects } from '../src/bindings'
 import { PREFIX_TEXT } from '../src/price-mark'
+import { shadowRings } from '../src/shadow'
 
 export interface RenderContext {
   blocks: Record<string, Block>
@@ -176,6 +177,88 @@ function paintElement(
   ctx: RenderContext,
   blockEdge: number
 ): string {
+  // **Painted here rather than inside each kind**, so one element cannot grow a
+  // second reading of the rule — the same arrangement `draw.tsx` makes. Text is
+  // the exception and casts its own: a glyph has no box to expand.
+  const shadow =
+    element.kind === 'shape' || element.kind === 'image' ? element.shadow : undefined
+  const cast = shadow === undefined ? '' : castShadow(shadow, element, rect, ctx, blockEdge)
+  return cast + paintBody(element, rect, product, ctx, blockEdge)
+}
+
+/**
+ * A soft shadow, as concentric vector copies of the element's own silhouette.
+ *
+ * Never a filter. `feDropShadow` and `feGaussianBlur` rasterize the element at a
+ * resolution Chromium picks and nothing in the document can set — about 220dpi
+ * for a card on an A4 page, under the 300dpi target. `harness/export-check.ts`
+ * is that measurement. E14 §2.4.
+ */
+function castShadow(
+  shadow: NonNullable<Extract<BlockElement, { kind: 'shape' }>['shadow']>,
+  element: BlockElement,
+  rect: Rect,
+  ctx: RenderContext,
+  blockEdge: number
+): string {
+  const ink = resolveColor(shadow.color, color)
+  const radius =
+    element.kind === 'shape'
+      ? element.variant === undefined
+        ? element.radius
+        : 0
+      : element.kind === 'image'
+        ? (element.radius ?? 0)
+        : 0
+  const rings = shadowRings(
+    {
+      ...shadow,
+      x: shadow.x * blockEdge,
+      y: shadow.y * blockEdge,
+      blur: shadow.blur * blockEdge,
+    },
+    rect,
+    radius,
+    { scale: 1, dpi: 96 }
+  )
+  const path =
+    element.kind === 'shape' && element.variant !== undefined && isPathShape(element.variant)
+      ? element.variant
+      : null
+
+  return rings
+    .map((ring) => {
+      const alpha = ` fill="${ink}" fill-opacity="${ring.alpha}"`
+      if (path !== null) {
+        // A twelve-point burst offsets by growing its radius and the shadow
+        // follows its points — which is what makes this work on any path.
+        return (
+          `<path d="${shapePath(path, ring.rect, ctx.direction)}"${alpha}` +
+          (needsEvenOdd(path) ? ' fill-rule="evenodd"' : '') +
+          '/>'
+        )
+      }
+      if (element.kind === 'shape' && element.variant === 'ellipse') {
+        return (
+          `<ellipse cx="${mid(ring.rect.x, ring.rect.width)}" cy="${mid(ring.rect.y, ring.rect.height)}"` +
+          ` rx="${ring.rect.width / 2}" ry="${ring.rect.height / 2}"${alpha}/>`
+        )
+      }
+      return rounded(ring.rect, ink, ring.radius, ring.alpha)
+    })
+    .join('')
+}
+
+const isPathShape = (variant: string): variant is PathShape =>
+  (PATH_SHAPES as readonly string[]).includes(variant)
+
+function paintBody(
+  element: BlockElement,
+  rect: Rect,
+  product: HarnessProduct | undefined,
+  ctx: RenderContext,
+  blockEdge: number
+): string {
   switch (element.kind) {
     case 'shape':
       return shape(element, rect, blockEdge)
@@ -218,20 +301,23 @@ function shape(
   // it, so the fill is two strings here rather than one. The id is the element's
   // own — the harness draws one block per file, so that is unique enough, and
   // `draw.tsx` carries a per-surface prefix because a page holds sixty previews.
-  const paint = resolvePaint(element.fill, color)
+  // **Absent is `none`.** A shape may be outline-only now — a hairline rule box
+  // around a price, which used to be faked with one filled rectangle sitting on
+  // another. E14 §2.4.
+  const paint = element.fill === undefined ? null : resolvePaint(element.fill, color)
   const defs =
-    paint.kind === 'flat'
+    paint === null || paint.kind === 'flat'
       ? ''
       : `<defs><linearGradient id="g-${element.id}"` +
         ` x1="${paint.x1}" y1="${paint.y1}" x2="${paint.x2}" y2="${paint.y2}">` +
-        paint.stops
+        (paint !== null && paint.kind === 'gradient' ? paint.stops : [])
           .map(
             (stop) =>
               `<stop offset="${stop.at}" stop-color="${stop.css}" stop-opacity="${stop.opacity}"/>`
           )
           .join('') +
         `</linearGradient></defs>`
-  const fill = paint.kind === 'flat' ? paint.css : `url(#g-${element.id})`
+  const fill = paint === null ? 'none' : paint.kind === 'flat' ? paint.css : `url(#g-${element.id})`
   const stroke = element.stroke
   const strokeAttrs =
     stroke === undefined
@@ -594,17 +680,75 @@ function text(
 
   const fill = fitted.escalated ? ESCALATED : inkFor(element, ctx)
 
+  /** Everything that positions a run, shared by the text, its outline and its
+   *  shadow — so three copies of a line cannot drift apart by a letter. */
+  // `paint` sits where `fill` always sat, so a run with no outline and no
+  // shadow is byte-for-byte the string this file emitted before any of this
+  // existed — which is what the gallery diff is for.
+  const run = (y: number, paint: string) =>
+    `x="${x}" y="${y}" font-size="${fitted.fontSize}"` +
+    ` font-weight="${element.weight ?? step.weight}"` +
+    (element.letterSpacing === undefined
+      ? ''
+      : ` letter-spacing="${element.letterSpacing * fitted.fontSize}"`) +
+    ` font-family="${family}" ${paint} text-anchor="${anchor}"` +
+    ` direction="${direction}" unicode-bidi="isolate"`
+
+  /**
+   * The outline, and the rule that makes it look like one.
+   *
+   * **`paint-order="stroke fill"`, and the width doubled.** SVG centres a
+   * stroke on the path, so half falls inside the glyph; painted in the default
+   * order it eats the counters and the digits come out thin at exactly the size
+   * a price is read. Stroke-first, the fill covers the inner half and what
+   * survives is an outside outline of half the declared width — so
+   * `stroke.width` means the outline you see. Line for line with `draw.tsx`,
+   * which is the point of this file. E14 §2.4.
+   */
+  const outline =
+    element.stroke === undefined
+      ? ''
+      : ` stroke="${resolveColor(element.stroke.color, color)}"` +
+        ` stroke-width="${element.stroke.width * blockEdge * 2}"` +
+        ` paint-order="stroke fill" stroke-linejoin="round"`
+
+  // A glyph has no box to expand, so each ring is the string again under a
+  // stroke of twice the step. Never a filter: `filter: drop-shadow()` over text
+  // takes the font out of the PDF entirely — `harness/export-check.ts`.
+  const shadow = element.shadow
+  const rings =
+    shadow === undefined
+      ? []
+      : shadowRings(
+          {
+            ...shadow,
+            x: shadow.x * blockEdge,
+            y: shadow.y * blockEdge,
+            blur: shadow.blur * blockEdge,
+          },
+          rect,
+          0,
+          { scale: 1, dpi: 96 }
+        )
+  const shadowInk = shadow === undefined ? '' : resolveColor(shadow.color, color)
+
   return fitted.lines
     .map((line, i) => {
       const y = rect.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)
+      const cast = rings
+        .map(
+          (ring) =>
+            `<text ${run(y + (shadow?.y ?? 0) * blockEdge, `fill="${shadowInk}"`)}` +
+            ` fill-opacity="${ring.alpha}"` +
+            ` stroke="${shadowInk}" stroke-opacity="${ring.alpha}"` +
+            ` stroke-width="${ring.rect.width - rect.width}"` +
+            ` paint-order="stroke fill" stroke-linejoin="round"` +
+            `>${esc(line)}</text>`
+        )
+        .join('')
       return (
-        `<text x="${x}" y="${y}" font-size="${fitted.fontSize}"` +
-        ` font-weight="${element.weight ?? step.weight}"` +
-        (element.letterSpacing === undefined
-          ? ''
-          : ` letter-spacing="${element.letterSpacing * fitted.fontSize}"`) +
-        ` font-family="${family}" fill="${fill}" text-anchor="${anchor}"` +
-        ` direction="${direction}" unicode-bidi="isolate">${esc(line)}</text>`
+        cast +
+        `<text ${run(y, `fill="${fill}"`)}${outline}>${esc(line)}</text>`
       )
     })
     .join('')
@@ -713,10 +857,12 @@ function inkFor(
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
-function rounded(rect: Rect, fill: string, radius: number): string {
+function rounded(rect: Rect, fill: string, radius: number, opacity?: number): string {
   return (
     `<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"` +
-    ` rx="${radius}" fill="${fill}"/>`
+    ` rx="${radius}" fill="${fill}"` +
+    (opacity === undefined ? '' : ` fill-opacity="${opacity}"`) +
+    '/>'
   )
 }
 

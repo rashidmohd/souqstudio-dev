@@ -24,30 +24,10 @@
  * both simpler and correct.
  */
 
+import type { Shadow } from '@souqstudio/types'
 import type { Rect } from './geometry'
 
-/**
- * One shadow per element, not a list. Stacked shadows are a design-tool feature
- * with no retail case behind them, and a list can arrive later.
- *
- * `x`, `y` and `blur` are design units — §2.2's rule, never a fraction. `blur: 0`
- * is a hard shadow and takes the same code path with one ring.
- *
- * **There is no alpha here, and that is a gap rather than a decision.**
- * `FlatColor` carries none, and `ElementBase.opacity` is the wrong control
- * because it fades the element along with its shadow. `SHADOW_PEAK` stands in
- * until somebody decides whether a shop may set it.
- */
-export interface Shadow {
-  x: number
-  y: number
-  /** Design units. 0 is a hard shadow. */
-  blur: number
-  color: FlatColorLike
-}
-
-/** What a shadow's colour has to be, without importing the whole palette. */
-export type FlatColorLike = { from: 'role'; ref: string } | { from: 'palette'; id: string } | { from: 'hex'; hex: string }
+export type { Shadow }
 
 /** How dark the shadow is where every ring overlaps. */
 export const SHADOW_PEAK = 0.3

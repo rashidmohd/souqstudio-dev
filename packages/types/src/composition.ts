@@ -273,6 +273,64 @@ export interface Stroke {
   width: number
 }
 
+/**
+ * A cast shadow. E14 §2.4.
+ *
+ * **Paint, never layout.** It happens after the solver has finished, it does
+ * not affect measurement, and it bleeds outside the element's box — which on a
+ * grid means into the gutter, or over a neighbouring card. The block's own
+ * boundary clips it; inside the block it is the author's problem.
+ *
+ * **One shadow per element, not a list.** Stacked shadows are a design-tool
+ * feature with no retail case behind them, and a list can arrive later.
+ *
+ * `x`, `y` and `blur` are fractions of the block's geometric mean, the same
+ * unit `Stroke.width` and `text.size` use, so a shadow means the same thing on
+ * a 1080px post and in an A4 column. (E14 §2.2 puts these in *design units*
+ * once frames land and a block stops being normalized; that is the same
+ * decision one coordinate system later, and the converter's problem.)
+ *
+ * `blur: 0` is a hard shadow, and it is the same code path with one ring.
+ *
+ * **There is no alpha here.** `FlatColor` carries none, and `opacity` on the
+ * element is the wrong control because it fades the element along with its
+ * shadow. `SHADOW_PEAK` in the engine stands in until somebody decides whether
+ * a shop may set it.
+ *
+ * **How it is drawn is not stored.** A soft shadow is n concentric copies of
+ * the shape at a constant alpha, and n is derived at paint from the blur and
+ * the output scale — about 16 on screen and about 48 at 300 dpi. Every filter
+ * Chromium offers instead rasterizes at a resolution nothing in the document
+ * can set, and `filter: drop-shadow()` over text takes the font out of the PDF
+ * entirely. `shadowRings` in `@souqstudio/engine` is the expansion and
+ * `harness/export-check.ts` is the measurement.
+ */
+export interface Shadow {
+  x: number
+  y: number
+  /** 0 is a hard shadow. */
+  blur: number
+  color: FlatColor
+}
+
+/**
+ * A shadow with no blur — the only kind text may carry, and it is measured.
+ *
+ * **A glyph has no box to expand.** A shape's ring is one path; text's ring is
+ * the string again under a wider stroke, and Chromium outlines stroked text
+ * into explicit path geometry on the way to a PDF. That is roughly 24 kB a
+ * ring, for one element: a soft shadow on a single price came to 663 kB and
+ * 26,385 curve operators, where twenty-four ringed *bursts* together came to
+ * 274 kB.
+ *
+ * So a price wears a hard shadow — which is what a retail "SAVE 20%" actually
+ * wears — and a soft one is not available on text at any price. The
+ * alternative, `filter: drop-shadow()`, is the one disqualifying result in
+ * `harness/export-check.ts`: the font leaves the PDF and the price becomes a
+ * picture.
+ */
+export type HardShadow = Shadow & { blur: 0 }
+
 // ─── Blocks ───────────────────────────────────────────────────────────────────
 
 /**
@@ -500,6 +558,7 @@ export type BlockElement =
       fit?: 'contain' | 'cover' | undefined
       radius?: number | undefined
       stroke?: Stroke | undefined
+      shadow?: Shadow | undefined
     })
   | (ElementBase & {
       kind: 'text'
@@ -547,6 +606,29 @@ export type BlockElement =
       family?: TypeFamily | undefined
       /** Overrides the automatic ink. */
       color?: FlatColor | undefined
+      /**
+       * An outline on the glyphs. E14 §2.4.
+       *
+       * **Retail typography, not decoration.** "SAVE 20%" in white with a red
+       * outline, or price digits outlined over a photograph, is how a flyer is
+       * set — and neither could be drawn at any setting, because a stroke lived
+       * only on shapes and images.
+       *
+       * **`width` is the outline you see**, and the painter is what makes that
+       * true. SVG centres a stroke on the path, so half of it falls *inside*
+       * the glyph and is painted over by the fill; the renderer therefore
+       * doubles this and orders the paint `stroke fill`. Without that ordering
+       * the stroke eats the counters and the digits come out thin and muddy at
+       * exactly the size a price is read — a defect that is invisible until it
+       * is wrong, at which point it reads as "the bold prices look thin in the
+       * PDF".
+       *
+       * Same unit as every other size here: a fraction of the block's
+       * geometric mean.
+       */
+      stroke?: Stroke | undefined
+      /** Hard only, and `HardShadow` says why. */
+      shadow?: HardShadow | undefined
     })
   | (ElementBase & { kind: 'priceMark'; style?: PriceMarkStyle | undefined })
   | (ElementBase & {
@@ -581,7 +663,18 @@ export type BlockElement =
   | (ElementBase & { kind: 'logo' })
   | (ElementBase & {
       kind: 'shape'
-      fill: ColorValue
+      /**
+       * Absent draws no fill, and the stroke is what draws. E14 §2.4.
+       *
+       * **It was required, so an outline-only shape could not be expressed at
+       * any setting** — and a hairline rule box around a price is the commonest
+       * piece of furniture on a printed ticket. It had to be faked with one
+       * filled rectangle sitting on another.
+       *
+       * `opacity` is not the answer to this: it fades the stroke along with the
+       * fill, so a "transparent" box loses its own outline.
+       */
+      fill?: ColorValue | undefined
       /**
        * Rectangle unless it says otherwise. A line draws its stroke only.
        *
@@ -605,6 +698,7 @@ export type BlockElement =
         | undefined
       radius: number
       stroke?: Stroke | undefined
+      shadow?: Shadow | undefined
     })
 
 // ─── The price mark's interior ────────────────────────────────────────────────

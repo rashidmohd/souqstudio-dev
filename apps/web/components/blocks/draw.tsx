@@ -6,6 +6,7 @@ import type {
   BrandColor,
   ColorValue,
   FlatColor,
+  Shadow,
   TokenRef,
   TypeStep,
 } from '@souqstudio/types'
@@ -26,6 +27,7 @@ import {
   resolveImageBinding,
   resolvePaint,
   resolveTextBinding,
+  shadowRings,
   shapePath,
   type BindingSubjects,
   type OfferField,
@@ -136,6 +138,15 @@ export type DrawContext = {
   brand: { name: string; logo: string | null }
   /** The book's own facts. Dates are strings the composer resolved — §8. */
   book: { title: string; validFrom: string; validTo: string }
+  /**
+   * The surface's resolution, for the one thing that depends on it.
+   *
+   * **Only a shadow reads this**, and it reads it to decide how many concentric
+   * rings it becomes: banding disappears once they are about a device pixel
+   * apart, so the same shadow is roughly 16 paths on screen and 48 at 300 dpi.
+   * Absent is a screen. E9's export sets 300. E14 §2.4.
+   */
+  dpi?: number | undefined
 }
 
 /** A colour the element named, in whichever of the three ways it named it. */
@@ -164,9 +175,14 @@ export const paint = (ctx: DrawContext, value: FlatColor): string =>
  */
 export function fillPaint(
   ctx: DrawContext,
-  value: ColorValue,
+  value: ColorValue | undefined,
   slot: string
 ): { fill: string; defs: React.ReactNode } {
+  // **Absent is `none`, not a colour.** A shape may be outline-only now — a
+  // hairline rule box around a price, which used to be faked with one filled
+  // rectangle sitting on another. `opacity` cannot express it, because it fades
+  // the stroke along with the fill. E14 §2.4.
+  if (value === undefined) return { fill: 'none', defs: null }
   return paintFill(value, {
     token: ctx.token,
     palette: ctx.palette ?? [],
@@ -277,7 +293,148 @@ export function drawElement(
   )
 }
 
+/**
+ * How many rings a shadow becomes on this surface, and how dark each one is.
+ *
+ * **Derived at paint, never stored.** The same shadow is about 16 paths on a
+ * screen and about 48 at 300 dpi, because banding disappears once the rings are
+ * roughly a device pixel apart. `dpi` is what an export surface raises; the box
+ * has already been scaled to output pixels by the time a painter has it, so `s`
+ * is 1 here. E14 §2.4.
+ */
+const outputFor = (ctx: DrawContext) => ({ scale: 1, dpi: ctx.dpi ?? 96 })
+
+/** The shadow's offsets and blur, as painted pixels rather than fractions. */
+const shadowPx = (shadow: Shadow, ctx: DrawContext): Shadow => ({
+  ...shadow,
+  x: shadow.x * ctx.blockSize,
+  y: shadow.y * ctx.blockSize,
+  blur: shadow.blur * ctx.blockSize,
+})
+
+/**
+ * A soft shadow, as concentric vector copies of the element's own silhouette.
+ *
+ * **Not a filter, and that is measured rather than preferred.** `feDropShadow`
+ * and `feGaussianBlur` rasterize the element they are applied to at a
+ * resolution Chromium picks and nothing in the document can set — about 220dpi
+ * for a card on an A4 page, under the 300dpi target. `filter: drop-shadow()`
+ * over text is worse: the font leaves the PDF and the price becomes a picture,
+ * unselectable and resampled by any printer that reprocesses it.
+ * `harness/export-check.ts` is that measurement and it still runs.
+ *
+ * Painted before the element, so it sits underneath.
+ */
+function ShadowLayer({
+  shadow,
+  box,
+  ctx,
+  element,
+}: {
+  shadow: Shadow
+  box: Rect
+  ctx: DrawContext
+  element: BlockElement
+}) {
+  const css = paint(ctx, shadow.color)
+  const rings = shadowRings(shadowPx(shadow, ctx), box, radiusOf(element), outputFor(ctx))
+  const path = element.kind === 'shape' ? asPathShape(element.variant) : null
+  const ellipse = element.kind === 'shape' && element.variant === 'ellipse'
+
+  return (
+    <>
+      {rings.map((ring, index) => {
+        const key = `${element.id}-shadow-${index}`
+        // A twelve-point burst offsets by growing its radius and the shadow
+        // follows its points, which is what makes this work on an arbitrary
+        // path rather than only on a box.
+        if (path !== null) {
+          return (
+            <path
+              key={key}
+              d={shapePath(path, ring.rect, ctx.direction)}
+              fill={css}
+              fillOpacity={ring.alpha}
+              {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
+            />
+          )
+        }
+        if (ellipse) {
+          return (
+            <ellipse
+              key={key}
+              cx={ring.rect.x + ring.rect.width / 2}
+              cy={ring.rect.y + ring.rect.height / 2}
+              rx={ring.rect.width / 2}
+              ry={ring.rect.height / 2}
+              fill={css}
+              fillOpacity={ring.alpha}
+            />
+          )
+        }
+        return (
+          <rect key={key} {...xywh(ring.rect)} rx={ring.radius} fill={css} fillOpacity={ring.alpha} />
+        )
+      })}
+    </>
+  )
+}
+
+/** What a shadow's corners have to follow. A path computes its own. */
+function radiusOf(element: BlockElement): number {
+  if (element.kind === 'shape') return element.variant === undefined ? element.radius : 0
+  if (element.kind === 'image') return element.radius ?? 0
+  return 0
+}
+
+/**
+ * A text shadow, as the same rings — grown with a stroke rather than a box.
+ *
+ * **A glyph has no rectangle to expand**, so each ring is the string again at a
+ * stroke twice the step width with `paint-order: stroke fill`, which grows the
+ * outline outward by the step. The text stays text in the PDF, which is the
+ * whole reason a filter is not used here.
+ */
+function textShadowRings(
+  shadow: Shadow,
+  box: Rect,
+  ctx: DrawContext
+): { dx: number; dy: number; width: number; alpha: number }[] {
+  const px = shadowPx(shadow, ctx)
+  return shadowRings(px, box, 0, outputFor(ctx)).map((ring) => ({
+    dx: px.x,
+    dy: px.y,
+    // `shadowRings` grew the box by `grow` on every side; the same growth on a
+    // glyph is a centred stroke of twice that.
+    width: (ring.rect.width - box.width),
+    alpha: ring.alpha,
+  }))
+}
+
 function drawInner(element: BlockElement, box: Rect, ctx: DrawContext): React.ReactNode {
+  /**
+   * **The shadow is painted here rather than inside each kind**, so one
+   * element cannot grow a second reading of the rule. Text is the exception and
+   * paints its own: a glyph has no box to expand, so its rings are strokes on
+   * the string rather than shapes behind it.
+   */
+  const shadow =
+    element.kind === 'shape' || element.kind === 'image'
+      ? element.shadow
+      : undefined
+
+  const body = drawBody(element, box, ctx)
+  if (shadow === undefined) return body
+
+  return (
+    <>
+      <ShadowLayer shadow={shadow} box={box} ctx={ctx} element={element} />
+      {body}
+    </>
+  )
+}
+
+function drawBody(element: BlockElement, box: Rect, ctx: DrawContext): React.ReactNode {
   switch (element.kind) {
     case 'shape':
       return <Shape element={element} box={box} ctx={ctx} />
@@ -954,24 +1111,81 @@ function Text({
           ? ctx.token('inkMuted')
           : ctx.token('ink')
 
+  /**
+   * Everything that positions a run, shared by the text, its outline and its
+   * shadow — so three copies of a line cannot drift apart by a letter.
+   */
+  const runProps = (i: number) => ({
+    x,
+    y: box.y + fitted.fontSize * (0.85 + i * fitted.lineHeight),
+    fontSize: fitted.fontSize,
+    fontWeight: step.weight,
+    fontFamily: family,
+    textAnchor: anchor,
+    direction,
+    ...(element.italic === true ? { fontStyle: 'italic' as const } : {}),
+    ...(step.letterSpacing === undefined
+      ? {}
+      : { letterSpacing: step.letterSpacing * fitted.fontSize }),
+  })
+
+  /**
+   * The outline, and the one rule that makes it look like one.
+   *
+   * **`paint-order: stroke fill`, and the width doubled.** SVG centres a stroke
+   * on the path, so half of it falls *inside* the glyph. Painted in the default
+   * order it eats the counters and the digits come out thin and muddy at
+   * exactly the size a price is read; painted stroke-first the fill covers the
+   * inner half and what survives is an outside outline of half the declared
+   * width — so the declared width is doubled here and `stroke.width` means the
+   * outline the owner sees. Chromium supports the property, so Playwright does,
+   * and `export-check.ts` proves the text stays text in the PDF. E14 §2.4.
+   */
+  const outline = element.stroke
+  const outlineProps =
+    outline === undefined
+      ? {}
+      : {
+          stroke: paint(ctx, outline.color),
+          strokeWidth: outline.width * ctx.blockSize * 2,
+          paintOrder: 'stroke fill',
+          strokeLinejoin: 'round' as const,
+        }
+
+  // A glyph has no box to expand, so each ring is the string again under a
+  // stroke of twice the step — which grows the outline outward by the step.
+  const shadow = element.shadow
+  const rings = shadow === undefined ? [] : textShadowRings(shadow, box, ctx)
+  const shadowInk = shadow === undefined ? '' : paint(ctx, shadow.color)
+
   return (
     <>
+      {fitted.lines.map((line, i) =>
+        rings.map((ring, r) => (
+          <text
+            key={`s-${i}-${r}`}
+            {...runProps(i)}
+            x={x + ring.dx}
+            y={box.y + fitted.fontSize * (0.85 + i * fitted.lineHeight) + ring.dy}
+            fill={shadowInk}
+            fillOpacity={ring.alpha}
+            stroke={shadowInk}
+            strokeOpacity={ring.alpha}
+            strokeWidth={ring.width}
+            paintOrder="stroke fill"
+            strokeLinejoin="round"
+          >
+            {line}
+          </text>
+        ))
+      )}
       {fitted.lines.map((line, i) => (
         <text
           key={i}
-          x={x}
-          y={box.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)}
-          fontSize={fitted.fontSize}
-          fontWeight={step.weight}
-          fontFamily={family}
+          {...runProps(i)}
           fill={fill}
-          textAnchor={anchor}
-          direction={direction}
-          {...(element.italic === true ? { fontStyle: 'italic' } : {})}
+          {...outlineProps}
           {...(struck ? { textDecoration: 'line-through' } : {})}
-          {...(step.letterSpacing === undefined
-            ? {}
-            : { letterSpacing: step.letterSpacing * fitted.fontSize })}
         >
           {line}
         </text>
