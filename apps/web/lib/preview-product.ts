@@ -129,11 +129,26 @@ export const TYPICAL_PRODUCT = {
   packLabel: '1 × 5 kg',
   prefixLabel: 'PER_KG' as const,
   unitPrice: '(1 kg = 4.90)',
-  // **Null, and it stays null.** 4.2% of the catalog carries an image, and an
-  // absent one draws a placeholder *box* — visible, sizeable, and the half of
-  // the card a designer has to see while laying one out. It is the one field
-  // whose emptiness costs them nothing.
-  imageUrl: null,
+  /**
+   * The stand-in packshot, same as the library preview draws.
+   *
+   * **This was null, on the argument that an absent photo draws a placeholder
+   * box — visible, sizeable, and therefore free.** That is true of *sizing* and
+   * false of *composition*: a photo-led card judged against a grey rectangle
+   * tells you where the picture goes and nothing about whether the card works,
+   * which is most of what a designer is deciding.
+   *
+   * **Nothing is lost by carrying one, because the stress panel is the surface
+   * that shows the hole.** It strips this deliberately — 95.8% of the catalog
+   * has no photograph, so a missing one is not an edge case there, it is the
+   * common card — and it sits beside the canvas rather than behind a tab. The
+   * two surfaces were always meant to answer different questions; this is the
+   * canvas answering its own.
+   *
+   * Category artwork rather than a photograph, which is the honest thing for a
+   * placeholder to be — see `SAMPLE_PACKSHOT`.
+   */
+  imageUrl: SAMPLE_PACKSHOT,
   amount: 24.5,
   currency: 'AED' as Currency,
   comparePrice: '31.00',
