@@ -3,6 +3,7 @@
 import type { BrandColor, FlatColor, Stroke, TokenRef } from '@souqstudio/types'
 import { Input } from '@/components/ui/input'
 import { ColorControl } from '@/components/card-designer/ColorControl'
+import { readPercent, showPercent } from '@/lib/percent-field'
 
 /**
  * A border: its colour and how thick it is.
@@ -42,24 +43,7 @@ const DEFAULT_WIDTH = 0.004
  * Percent of the card. Bounded well inside the schema's own 0–20%, because a
  * fifth of a card is not a border.
  */
-const MIN_PERCENT = 0.1
-const MAX_PERCENT = 5
-
-/**
- * The typed value as a stored fraction.
- *
- * **`Number('')` is 0 and `Number('abc')` is `NaN`**, and a number input hands
- * over both — an emptied field and a partially typed one. `NaN` survives
- * `Math.min`/`Math.max` unchanged, so it would reach the document as a width
- * the schema refuses, and the owner would find out at save time about a
- * keystroke. An unreadable value is the minimum, which is a border they can see
- * and correct.
- */
-export function readPercent(input: string): number {
-  const percent = Number(input)
-  if (!Number.isFinite(percent)) return MIN_PERCENT / 100
-  return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, percent)) / 100
-}
+const WIDTH = { min: 0.1, max: 5 }
 
 export function StrokeControl({
   label,
@@ -91,14 +75,14 @@ export function StrokeControl({
         <Input
           label="Border width"
           type="number"
-          min={MIN_PERCENT}
-          max={MAX_PERCENT}
+          min={WIDTH.min}
+          max={WIDTH.max}
           step={0.1}
           figure
           disabled={disabled}
-          value={Math.round(value.width * 1000) / 10}
+          value={showPercent(value.width)}
           hint="Percent of the card. Stays right at any page size."
-          onChange={(event) => onChange({ ...value, width: readPercent(event.target.value) })}
+          onChange={(event) => onChange({ ...value, width: readPercent(event.target.value, WIDTH) })}
         />
       )}
     </div>

@@ -341,10 +341,40 @@ function ShadowLayer({
   const path = element.kind === 'shape' ? asPathShape(element.variant) : null
   const ellipse = element.kind === 'shape' && element.variant === 'ellipse'
 
+  /**
+   * **An outline-only shape casts from its outline, not from its silhouette.**
+   *
+   * The rings are filled copies of the shape, which is right while the shape is
+   * filled — and visibly wrong the moment it is not: the shadow shows *through*
+   * the hole, so a hairline rule box comes out as a grey panel. What casts the
+   * shadow is whatever draws, and on an unfilled shape that is the border.
+   *
+   * So each ring becomes the grown path *stroked* rather than filled. Constant
+   * alpha accumulates the same way — the rule §2.4 derives — and a `blur: 0`
+   * shadow is one offset outline, which is what it should be.
+   */
+  const outlineOnly =
+    element.kind === 'shape' && element.fill === undefined && element.stroke !== undefined
+  const outlineWidth =
+    element.kind === 'shape' && element.stroke !== undefined
+      ? element.stroke.width * ctx.blockSize
+      : 0
+
+  // Nothing draws, so nothing casts. An element with neither a fill nor a
+  // border is not invisible-with-a-shadow, it is invisible.
+  if (element.kind === 'shape' && element.fill === undefined && element.stroke === undefined) {
+    return null
+  }
+
+  const ink = outlineOnly
+    ? { fill: 'none', stroke: css, strokeWidth: outlineWidth }
+    : { fill: css }
+
   return (
     <>
       {rings.map((ring, index) => {
         const key = `${element.id}-shadow-${index}`
+        const alpha = outlineOnly ? { strokeOpacity: ring.alpha } : { fillOpacity: ring.alpha }
         // A twelve-point burst offsets by growing its radius and the shadow
         // follows its points, which is what makes this work on an arbitrary
         // path rather than only on a box.
@@ -353,9 +383,9 @@ function ShadowLayer({
             <path
               key={key}
               d={shapePath(path, ring.rect, ctx.direction)}
-              fill={css}
-              fillOpacity={ring.alpha}
-              {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
+              {...ink}
+              {...alpha}
+              {...(needsEvenOdd(path) && !outlineOnly ? { fillRule: 'evenodd' as const } : {})}
             />
           )
         }
@@ -367,13 +397,13 @@ function ShadowLayer({
               cy={ring.rect.y + ring.rect.height / 2}
               rx={ring.rect.width / 2}
               ry={ring.rect.height / 2}
-              fill={css}
-              fillOpacity={ring.alpha}
+              {...ink}
+              {...alpha}
             />
           )
         }
         return (
-          <rect key={key} {...xywh(ring.rect)} rx={ring.radius} fill={css} fillOpacity={ring.alpha} />
+          <rect key={key} {...xywh(ring.rect)} rx={ring.radius} {...ink} {...alpha} />
         )
       })}
     </>

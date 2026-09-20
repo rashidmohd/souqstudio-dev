@@ -298,6 +298,31 @@ describe('paint', () => {
       expect(out).not.toContain('drop-shadow')
     })
 
+    it('casts an outline-only shape from its outline, not its silhouette', () => {
+      // **The rings are filled copies of the shape**, which is right while the
+      // shape is filled and visibly wrong the moment it is not: the shadow
+      // shows *through* the hole, so a hairline rule box comes out a grey
+      // panel. What casts a shadow is whatever draws.
+      const out = draw(shape({ stroke: { color: ROLE, width: 0.006 }, shadow }))
+      expect(out).toContain('stroke-opacity')
+      expect(out).not.toContain('fill-opacity')
+    })
+
+    it('still casts from the silhouette when there is a fill', () => {
+      const out = draw(shape({ fill: ROLE, shadow }))
+      expect(out).toContain('fill-opacity')
+      expect(out).not.toContain('stroke-opacity')
+    })
+
+    it('casts nothing from a shape that draws nothing', () => {
+      // An element with neither a fill nor a border is not
+      // invisible-with-a-shadow; it is invisible. (The shape itself still
+      // emits its own empty node, which draws nothing either.)
+      const out = draw(shape({ shadow }))
+      expect(out).not.toContain('fill-opacity')
+      expect(out).not.toContain('stroke-opacity')
+    })
+
     it('draws nothing extra when there is no shadow', () => {
       expect(draw(shape({ fill: ROLE }))).not.toContain('fill-opacity=')
     })

@@ -47,6 +47,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { StrokeControl } from '@/components/card-designer/StrokeControl'
+import { ShadowControl } from '@/components/card-designer/ShadowControl'
 import { Segmented, ToggleBar } from '@/components/ui/segmented'
 import { Slider } from '@/components/ui/slider'
 import { describe } from '@/components/card-designer/LayerList'
@@ -192,6 +193,12 @@ export function ElementProperties({
               onChange={(stroke) => onChange({ ...element, stroke })}
             />
           )}
+          <ShadowControl
+            value={element.shadow}
+            {...color}
+            allowBlur
+            onChange={(shadow) => onChange({ ...element, shadow })}
+          />
           {element.variant === 'line' ? null : (
             <Input
               label="Corner radius"
@@ -232,6 +239,12 @@ export function ElementProperties({
             value={element.stroke}
             {...color}
             onChange={(stroke) => onChange({ ...element, stroke })}
+          />
+          <ShadowControl
+            value={element.shadow}
+            {...color}
+            allowBlur
+            onChange={(shadow) => onChange({ ...element, shadow })}
           />
           <Select
           label="How it fills its box"
@@ -1315,6 +1328,36 @@ function TextFields({
         value={element.color}
         {...color}
         onChange={(next) => onChange({ ...element, color: next })}
+      />
+
+      {/* **An outline on the glyphs**, which is retail typography rather than
+          decoration — "SAVE 20%" in white with a red edge, or price digits over
+          a photograph. The width is the outline you see: the painter doubles it
+          and orders the paint `stroke fill`, because SVG centres a stroke and
+          half of it would otherwise be lost into the counters. E14 §2.4. */}
+      <StrokeControl
+        label="Outline"
+        value={element.stroke}
+        {...color}
+        onChange={(stroke) => onChange({ ...element, stroke })}
+      />
+
+      {/* Hard only — see `allowBlur`. A soft shadow on text is 663 kB for one
+          price, because Chromium outlines every stroked copy into path
+          geometry, and the schema refuses it rather than clamping it. */}
+      <ShadowControl
+        value={element.shadow}
+        {...color}
+        allowBlur={false}
+        onChange={(shadow) =>
+          onChange({
+            ...element,
+            // `HardShadow` is `Shadow & { blur: 0 }`, and the control never
+            // offers a softness field here — but the type is what makes that a
+            // guarantee rather than a habit of this call site.
+            ...(shadow === undefined ? { shadow: undefined } : { shadow: { ...shadow, blur: 0 } }),
+          })
+        }
       />
 
       <OverflowField element={element} disabled={disabled} onChange={onChange} />

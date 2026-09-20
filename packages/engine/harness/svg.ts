@@ -202,6 +202,21 @@ function castShadow(
   blockEdge: number
 ): string {
   const ink = resolveColor(shadow.color, color)
+  // **An outline-only shape casts from its outline, not its silhouette.** The
+  // rings are filled copies, which is right while the shape is filled and
+  // visibly wrong when it is not — the shadow shows through the hole and a
+  // hairline rule box comes out a grey panel. Line for line with `draw.tsx`,
+  // which is the point of this file.
+  const outlineOnly =
+    element.kind === 'shape' && element.fill === undefined && element.stroke !== undefined
+  if (element.kind === 'shape' && element.fill === undefined && element.stroke === undefined) {
+    return ''
+  }
+  const paintAttrs = (alpha: number): string =>
+    outlineOnly && element.kind === 'shape' && element.stroke !== undefined
+      ? ` fill="none" stroke="${ink}" stroke-opacity="${alpha}"` +
+        ` stroke-width="${element.stroke.width * blockEdge}"`
+      : ` fill="${ink}" fill-opacity="${alpha}"`
   const radius =
     element.kind === 'shape'
       ? element.variant === undefined
@@ -228,13 +243,13 @@ function castShadow(
 
   return rings
     .map((ring) => {
-      const alpha = ` fill="${ink}" fill-opacity="${ring.alpha}"`
+      const alpha = paintAttrs(ring.alpha)
       if (path !== null) {
         // A twelve-point burst offsets by growing its radius and the shadow
         // follows its points — which is what makes this work on any path.
         return (
           `<path d="${shapePath(path, ring.rect, ctx.direction)}"${alpha}` +
-          (needsEvenOdd(path) ? ' fill-rule="evenodd"' : '') +
+          (needsEvenOdd(path) && !outlineOnly ? ' fill-rule="evenodd"' : '') +
           '/>'
         )
       }
@@ -242,6 +257,12 @@ function castShadow(
         return (
           `<ellipse cx="${mid(ring.rect.x, ring.rect.width)}" cy="${mid(ring.rect.y, ring.rect.height)}"` +
           ` rx="${ring.rect.width / 2}" ry="${ring.rect.height / 2}"${alpha}/>`
+        )
+      }
+      if (outlineOnly) {
+        return (
+          `<rect x="${ring.rect.x}" y="${ring.rect.y}" width="${ring.rect.width}"` +
+          ` height="${ring.rect.height}" rx="${ring.radius}"${alpha}/>`
         )
       }
       return rounded(ring.rect, ink, ring.radius, ring.alpha)
