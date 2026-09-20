@@ -240,6 +240,76 @@ describe('composeOffer', () => {
     })
   })
 
+  /**
+   * **What an override box falls back to, which is not what the card draws.**
+   *
+   * The properties panel shows each override field's fallback as its
+   * placeholder — "leave this empty and you get *this*". It was using `name`
+   * for that, and `name` is the wrong value twice over: it is resolved for the
+   * *edition*, so an Arabic book offered the Arabic name as what the English
+   * box would revert to; and it already has the override folded in, so a box
+   * showed its own current value as the thing it would revert to.
+   *
+   * "Size or spec in this book" had no fallback shown at all, because there was
+   * nothing on the item to show. That is what these pin.
+   */
+  describe('the catalog values behind each override', () => {
+    it('carries the catalog’s own strings, unresolved and per language', () => {
+      const out = composeOffer(offer([item(RICE)]), TIER, 'en')
+      expect(out.items[0]?.catalog).toEqual({
+        nameEn: 'Sella Basmati Rice',
+        nameAr: 'أرز بسمتي سيلا',
+        specEn: 'Aged 2 years',
+        specAr: 'معتق سنتين',
+      })
+    })
+
+    it('does not change with the edition', () => {
+      // The bug this replaces: the English box's fallback was the Arabic name
+      // whenever the book was Arabic.
+      const en = composeOffer(offer([item(RICE)]), TIER, 'en')
+      const ar = composeOffer(offer([item(RICE)]), TIER, 'ar')
+      expect(ar.items[0]?.catalog).toEqual(en.items[0]?.catalog)
+      // …while the resolved name does, which is the distinction.
+      expect(ar.items[0]?.name).not.toBe(en.items[0]?.name)
+    })
+
+    it('is the catalog’s value even when the book overrides it', () => {
+      // A box that showed its own current value as what it would revert to
+      // says nothing at all.
+      const out = composeOffer(
+        offer([item(RICE, { nameOverrideEn: 'House basmati', specOverrideEn: '10 kg sack' })]),
+        TIER,
+        'en'
+      )
+      expect(out.items[0]?.name).toBe('House basmati')
+      expect(out.items[0]?.catalog.nameEn).toBe('Sella Basmati Rice')
+      expect(out.items[0]?.catalog.specEn).toBe('Aged 2 years')
+    })
+
+    it('reports a null rather than an empty string where the catalog is silent', () => {
+      // 96% of the catalog looks like CREPES. The panel branches on null to say
+      // "the catalog has no Arabic name" instead of promising one that is not
+      // there, so the difference has to survive composition.
+      const out = composeOffer(offer([item(CREPES)]), TIER, 'en')
+      expect(out.items[0]?.catalog).toEqual({
+        nameEn: 'Crepes',
+        nameAr: null,
+        specEn: null,
+        specAr: null,
+      })
+    })
+
+    it('carries one set per item, not the lead’s for all of them', () => {
+      const out = composeOffer(
+        offer([item(RICE), item(CREPES, { position: 1, connector: 'OR' })]),
+        TIER,
+        'en'
+      )
+      expect(out.items.map((i) => i.catalog.nameEn)).toEqual(['Sella Basmati Rice', 'Crepes'])
+    })
+  })
+
   describe('quality flags — E6-01', () => {
     it('flags a missing Arabic name on any item, not only the lead', () => {
       // Flagging only the item that supplies the image would pass a two-product

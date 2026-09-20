@@ -760,12 +760,22 @@ function ItemDetails({ bookId, offer }: Props) {
 
             {/* Keyed by item id so the boxes re-seed when the selection moves.
                 Uncontrolled otherwise: a controlled field that saves on blur
-                fights the owner mid-word on every keystroke. */}
+                fights the owner mid-word on every keystroke.
+
+                **Every box shows what it falls back to, and each shows its
+                own.** The name field did this from the start and the other
+                three did not, so "Size or spec in this book" was a blank box
+                that said nothing about what the card would print — which is the
+                one thing an override field exists to tell you. The name field's
+                placeholder was also the wrong value: `item.name` is resolved
+                for the *edition*, so an Arabic book offered the Arabic name as
+                what the English box would revert to. `item.catalog` is the
+                unresolved answer, per language. */}
             <Input
               key={`${item.id}-name-en`}
               label="Name in this book"
               defaultValue={item.nameOverrideEn ?? ''}
-              placeholder={item.name}
+              placeholder={item.catalog.nameEn}
               hint="Leave empty to use the catalog's own name."
               disabled={busy}
               onBlur={(event) =>
@@ -777,6 +787,15 @@ function ItemDetails({ bookId, offer }: Props) {
               label="Arabic name in this book"
               dir="rtl"
               defaultValue={item.nameOverrideAr ?? ''}
+              placeholder={item.catalog.nameAr ?? item.catalog.nameEn}
+              /* 96% of the catalog has no Arabic name, so the honest hint is
+                 the one that names the fallback the card actually makes rather
+                 than promising an Arabic name that is not there. E5 §2. */
+              hint={
+                item.catalog.nameAr === null
+                  ? 'The catalog has no Arabic name. Leave empty and the card shows the English one.'
+                  : "Leave empty to use the catalog's own Arabic name."
+              }
               disabled={busy}
               onBlur={(event) =>
                 void patch(item.id, { nameOverrideAr: event.target.value.trim() || null }, false)
@@ -786,9 +805,37 @@ function ItemDetails({ bookId, offer }: Props) {
               key={`${item.id}-spec-en`}
               label="Size or spec in this book"
               defaultValue={item.specOverrideEn ?? ''}
+              placeholder={item.catalog.specEn ?? ''}
+              hint={
+                item.catalog.specEn === null
+                  ? 'The catalog has no size for this product. Leave empty to print no line.'
+                  : "Leave empty to use the catalog's own size."
+              }
               disabled={busy}
               onBlur={(event) =>
                 void patch(item.id, { specOverrideEn: event.target.value.trim() || null }, false)
+              }
+            />
+            {/* **This box did not exist, and the column has always been
+                writable.** `specOverrideAr` is in the schema, in the PATCH
+                route, in the composer and in the publish snapshot, and no
+                component ever rendered an input for it — so an Arabic edition's
+                size line could not be corrected at any price. Same shape of hole
+                as `shop.phone`: declared everywhere, reachable from nowhere. */}
+            <Input
+              key={`${item.id}-spec-ar`}
+              label="Arabic size or spec in this book"
+              dir="rtl"
+              defaultValue={item.specOverrideAr ?? ''}
+              placeholder={item.catalog.specAr ?? item.catalog.specEn ?? ''}
+              hint={
+                item.catalog.specAr === null
+                  ? 'The catalog has no Arabic size. Leave empty and the card shows the English one.'
+                  : "Leave empty to use the catalog's own Arabic size."
+              }
+              disabled={busy}
+              onBlur={(event) =>
+                void patch(item.id, { specOverrideAr: event.target.value.trim() || null }, false)
               }
             />
           </li>

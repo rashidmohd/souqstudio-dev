@@ -196,6 +196,24 @@ export interface ComposedItem {
   nameOverrideAr: string | null
   specOverrideEn: string | null
   specOverrideAr: string | null
+  /**
+   * What the catalog says, per language and with no override applied.
+   *
+   * **Each override box needs its own "otherwise", and `name` cannot be it.**
+   * `name` is resolved for the *edition*, so in an Arabic book it holds the
+   * Arabic name — and the panel was using it as the placeholder under "Name in
+   * this book", which is the English field. An owner editing an Arabic edition
+   * saw the Arabic name offered as what the English box would fall back to.
+   *
+   * It also already has the override folded in, so a box showing its own
+   * current value as the thing it would revert to says nothing at all.
+   */
+  catalog: {
+    nameEn: string
+    nameAr: string | null
+    specEn: string | null
+    specAr: string | null
+  }
   /** Rendered before this item's name. Null on item 0 — there is nothing to
    *  join it to, which is what the schema's null means. */
   connector: Connector | null
@@ -449,6 +467,12 @@ export function composeOffer(
       nameOverrideAr: item.nameOverrideAr,
       specOverrideEn: item.specOverrideEn,
       specOverrideAr: item.specOverrideAr,
+      catalog: {
+        nameEn: item.product.nameEn,
+        nameAr: item.product.nameAr,
+        specEn: item.product.specEn,
+        specAr: item.product.specAr,
+      },
       connector: item.connector,
     })),
   }
