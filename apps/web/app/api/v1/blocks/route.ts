@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
-import { BLOCK_OCCASION } from '@souqstudio/engine'
+import { BLOCK_OCCASION, starterBlock } from '@souqstudio/engine'
+import type { MagicCategory } from '@souqstudio/engine'
 import { MAX_IMPORT, copyName, importName, listBlocks, loadBlock } from '@/lib/blocks'
 
 /**
@@ -15,10 +16,11 @@ import { MAX_IMPORT, copyName, importName, listBlocks, loadBlock } from '@/lib/b
  * seasonal header once and every shop in it uses that header, which is what
  * makes month six cheaper than month one. This is the route that lets one exist.
  *
- * Creating is deliberately *duplication*, never a blank artboard. §3.6: an empty
+ * Creating starts from something that already works — a copy of a seeded block,
+ * a copy of one the organization has, or a **starter** of a chosen kind. §3.6's
+ * *always seed* is what rules out the fourth option, a blank artboard: an empty
  * canvas produces something worse than the default and the owner blames the
- * product. A new block therefore starts as a copy of a seeded one, or of another
- * block the organization already has.
+ * product.
  */
 
 /**
@@ -34,13 +36,40 @@ import { MAX_IMPORT, copyName, importName, listBlocks, loadBlock } from '@/lib/b
  * block is not a copy of anything the owner can see, so it is "Ramadan band"
  * and not "Ramadan band copy". `importName` in `lib/blocks.ts`.
  *
- * There is no "blank" branch in either, and that is the design rather than a
- * gap: an empty artboard produces something worse than the default. §3.6.
+ * `kind` **starts one from nothing the owner has to undo**, and it is the
+ * branch §3.6 was read as forbidding. It forbids a *blank* artboard, which this
+ * is not: `starterBlock` returns the smallest block of that kind that already
+ * reads as one — a card with a picture, a name and a price; a footer with the
+ * shop's name and how to reach it. Every element is bound rather than typed.
+ *
+ * Without it, an owner who wanted a footer of their own had to take somebody
+ * else's, rename it and delete its contents — a worse first minute than a
+ * starting point, and the thing the absence of this branch actually produced.
+ *
+ * There is still no branch that creates an empty block, and there should not be.
  */
+/** Zod wants a non-empty tuple; `MAGIC_CATEGORIES` is the list it mirrors. */
+const MAGIC_CATEGORIES_TUPLE = [
+  'offer-card',
+  'header',
+  'panel',
+  'footer',
+  'social-post',
+] as const satisfies readonly MagicCategory[]
+
 const createSchema = z.union([
   z.object({
     name: z.string().trim().min(1).max(80),
     fromId: z.string().min(1).max(64),
+    description: z.string().trim().max(200).optional(),
+  }),
+  z.object({
+    name: z.string().trim().min(1).max(80),
+    // `seasonal` is absent, and `MagicCategory` is where that is argued: a
+    // seasonal block is a design plus an occasion, and nothing here can pick
+    // the occasion. An owner who wants one imports it from the library, where
+    // the occasion is named on the tile they are pointing at.
+    kind: z.enum(MAGIC_CATEGORIES_TUPLE),
     description: z.string().trim().max(200).optional(),
   }),
   z.object({
@@ -85,6 +114,28 @@ export async function POST(request: NextRequest) {
 
   if ('fromIds' in parsed.data) {
     return importBlocks(parsed.data.fromIds, session.user.organizationId, planId)
+  }
+
+  if ('kind' in parsed.data) {
+    const starter = starterBlock(parsed.data.kind)
+    const block = await prisma.block.create({
+      data: {
+        organizationId: session.user.organizationId,
+        name: parsed.data.name,
+        description: parsed.data.description ?? null,
+        repeats: starter.repeats,
+        // Same assertion as the copy branch below, for the same reason.
+        arrangements: starter.arrangements as unknown as Prisma.InputJsonValue,
+        // **Draft, where a copy starts published**, and the difference is the
+        // point: a copy is already a design that works, and this is a starting
+        // point the owner is expected to change before anyone sees it.
+        status: 'draft',
+        planTier: 'starter',
+        category: parsed.data.kind,
+      },
+      select: { id: true, name: true, repeats: true },
+    })
+    return ok(block, 201)
   }
 
   // **One source, and that is the change.** A seeded block used to be read from

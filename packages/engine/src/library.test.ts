@@ -6,6 +6,7 @@ import { usesOnlyRoles } from './roles'
 import { validateBlock } from './block-edit'
 import { validateGrid } from './validate'
 import { pickArrangement } from './arrangement'
+import { TEXT_BINDINGS, bindingInScope, bindingKey } from './bindings'
 
 /**
  * The seeded library, held to the rules it is the example of.
@@ -101,20 +102,29 @@ describe('SEED_BLOCKS', () => {
     }
   })
 
-  it('binds only the product fields both painters can resolve', () => {
-    // `origin` and `packSize` are in `TextSource` and neither renderer returns a
-    // value for them, so a seeded block naming one would print a blank where the
-    // design says there is a line. Owner-authored blocks are free to reach for
-    // them the day the painters do.
-    const drawable = new Set(['name', 'spec', 'brand'])
+  it('binds only what the vocabulary offers, and only where it is in scope', () => {
+    // **This used to say something narrower and the narrower thing was a bug
+    // written down as a rule.** It asserted that a seeded block could bind only
+    // `product.name`, `spec` and `brand` and `shop.name` — because `origin`,
+    // `packSize`, `phone` and `address` were declared in `TextSource` and drew
+    // nothing in either painter, so naming one printed a blank where the design
+    // said there was a line. One block worked around it with a static "Your
+    // phone number".
+    //
+    // E14 §3.4 fixed the painters and §3.5's walk is what keeps them fixed, so
+    // the bound this file should hold is the real one: a binding has to exist,
+    // and it has to be in scope for the block that carries it — a static panel
+    // has no product, which is what `repeats: false` means.
+    const known = new Set(TEXT_BINDINGS.map(bindingKey))
+
     for (const block of SEED_BLOCKS) {
       for (const element of block.arrangements.flatMap((a) => a.elements)) {
-        if (element.kind !== 'text') continue
-        if (element.source.from === 'product') {
-          expect(drawable.has(element.source.field)).toBe(true)
+        if (element.kind === 'text' && element.source.from !== 'static') {
+          expect(known.has(bindingKey(element.source))).toBe(true)
+          expect(bindingInScope(element.source, block.repeats)).toBe(true)
         }
-        if (element.source.from === 'shop') {
-          expect(element.source.field).toBe('name')
+        if (element.kind === 'image') {
+          expect(bindingInScope(element.source, block.repeats)).toBe(true)
         }
       }
     }

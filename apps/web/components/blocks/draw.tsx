@@ -613,10 +613,25 @@ function Packshot({
     )
   }
 
-  // Artwork that has not loaded draws nothing rather than a grey box: the
-  // placeholder below says "this product has no photograph", which is a fact
-  // about the catalog, and saying it about a background the owner chose would
-  // be wrong.
+  /**
+   * **A shop with no logo yet gets a reserved slot, not nothing.**
+   *
+   * It is the common case on day one, and §8 leaves "what a missing logo draws"
+   * open between collapsing and reserving. Reserving is what this answers,
+   * because the alternative is an element that cannot be seen and therefore
+   * cannot be positioned — a header designed around a hole the owner never
+   * sees. Translucent rather than the packshot's grey: a mark sits on a
+   * footer's ink band or a hero's tint almost every time, and an opaque light
+   * box there reads as a broken image. `harness/svg.ts` draws the same thing.
+   */
+  if (source.from === 'brand') {
+    return <rect {...xywh(box)} rx={element.radius ?? 3} fill={ARTBOARD_PLACEHOLDER.onTint} />
+  }
+
+  // Artwork the owner uploaded that has not loaded draws nothing rather than a
+  // grey box: the placeholder below says "this product has no photograph",
+  // which is a fact about the catalog, and saying it about a background the
+  // owner chose would be wrong.
   if (artwork) return null
 
   return (
@@ -1089,7 +1104,28 @@ function Text({
   // A colour the owner picked wins outright. Otherwise the old rule stands:
   // static and shop text sits on a tinted band and reads in the surface colour,
   // a caption is muted, everything else is ink.
-  const onTint = element.source.from === 'static' || element.source.from === 'shop'
+  /**
+   * Whether this line is drawn in the surface colour rather than the ink.
+   *
+   * **`shop` used to be in here and that was a guess about the ground.** A
+   * shop's name, address and phone were assumed to sit on a tinted band,
+   * because in the seeded library they usually do — so they were painted white
+   * whatever was behind them. The moment an owner drags a shop line onto a
+   * plain card in the designer it is white on white, and the library itself
+   * was already arguing with the rule: most `shopField` calls passed
+   * `color: 'ink'` explicitly to get out from under it, and the six that did
+   * not now say `color: 'surface'` instead of relying on it.
+   *
+   * `static` stays, for now, because eighty-one seeded lines depend on it and
+   * unpicking those is a library change rather than a painter one. It has the
+   * same defect and it is on the same list.
+   *
+   * The real answer is to decide the ink from what is *behind* the text —
+   * `readableInkOn` already exists — but the painter draws one element at a
+   * time and has no sibling in scope. Whoever resolves the block does; that is
+   * where it belongs.
+   */
+  const onTint = element.source.from === 'static'
 
   /**
    * A rule through the text — whatever the owner set, and nothing else.

@@ -244,7 +244,7 @@ export const SEASONAL_BLOCKS: SeasonalBlock[] = [
         'شكرًا لتسوقكم معنا',
         'h4'
       ),
-      shopField('name', box(0.06, 0.85, 0.6, 0.08), 'body'),
+      shopField('name', box(0.06, 0.85, 0.6, 0.08), 'body', { color: 'surface' }),
     ]),
   },
 ]

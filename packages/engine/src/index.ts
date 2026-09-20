@@ -97,6 +97,9 @@ export {
 // converter runs over the seeded generators and over stored documents alike,
 // because one that ran differently over the two would render two ways. E14 §3.1.
 export { countLogoElements, foldLogoElement, foldLogoElements } from './convert-logo'
+// A block to start from when the owner is not copying one. Not a blank
+// artboard — see the file for which half of "always seed" this keeps.
+export { starterBlock, type StarterBlock } from './starter'
 // The binding vocabulary, and the one place it is resolved. Two painters each
 // had their own switch and they agreed with each other and with nothing else —
 // which is why `shop.phone` drew nothing for as long as it existed. E14 §3.5.

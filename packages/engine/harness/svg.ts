@@ -851,7 +851,9 @@ function inkFor(
 ): string {
   void ctx
   if (element.color !== undefined) return resolveColor(element.color, color)
-  if (element.source.from === 'static' || element.source.from === 'shop') return KIT.surface
+  // `shop` is deliberately absent — see the note in `draw.tsx`. This file
+  // matches it line for line, which is the point of it.
+  if (element.source.from === 'static') return KIT.surface
   return element.level === 'caption' ? KIT.inkMuted : KIT.ink
 }
 

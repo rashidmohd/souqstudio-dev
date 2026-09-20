@@ -40,7 +40,7 @@ import {
   type Rect,
   type ResolvedSatellite,
 } from '@souqstudio/engine'
-import { TEXT_BINDINGS, bindingInScope, labelFor } from '@souqstudio/engine'
+import { IMAGE_BINDINGS, TEXT_BINDINGS, bindingInScope, bindingKey, labelFor } from '@souqstudio/engine'
 import type { OfferField } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -190,7 +190,23 @@ export function ElementProperties({
       ) : null}
 
       {element.kind === 'image' ? (
-        <Select
+        <>
+          {/* **Images had no "Shows" control and text did.** So an owner who
+              placed a logo could not tell what it was bound to, could not turn
+              a product image into their mark, and had no way back if they
+              picked the wrong one from the palette — the element was only ever
+              what the palette made it. Same picker, same words, built from the
+              same vocabulary. E14 §3.1 and §3.6. */}
+          <Select
+            label="Shows"
+            disabled={disabled}
+            value={bindingKey(element.source)}
+            options={imageOptions(repeats, element.source)}
+            onChange={(event) =>
+              onChange({ ...element, source: parseImageSource(event.target.value, element.source) })
+            }
+          />
+          <Select
           label="How it fills its box"
           disabled={disabled}
           value={element.fit ?? 'contain'}
@@ -202,7 +218,8 @@ export function ElementProperties({
           onChange={(event) =>
             onChange({ ...element, fit: event.target.value as 'contain' | 'cover' })
           }
-        />
+          />
+        </>
       ) : null}
 
       {element.kind === 'chip' ? (
@@ -1596,6 +1613,41 @@ function parseSource(
   // disagree with the list the picker was built from, and it needs no
   // assertion.
   return TEXT_BINDINGS.find((source) => sourceKey(source) === value) ?? current
+}
+
+/**
+ * What an image may show.
+ *
+ * **Artwork is not offered, and is not dropped either.** Switching *to* an
+ * upload means choosing a file, which is the artwork flow's job rather than a
+ * value in a dropdown — but an element that already is one has to have
+ * something for the control to display, or the select shows a blank and the
+ * first change silently rebinds it. So it appears only when it is already the
+ * answer.
+ */
+function imageOptions(
+  repeats: boolean,
+  current: Extract<BlockElement, { kind: 'image' }>['source']
+): { value: string; label: string }[] {
+  return [
+    ...IMAGE_BINDINGS.filter((source) => bindingInScope(source, repeats)).map((source) => ({
+      value: bindingKey(source),
+      label: labelFor(source),
+    })),
+    ...(current.from === 'asset'
+      ? [{ value: bindingKey(current), label: labelFor(current) }]
+      : []),
+  ]
+}
+
+function parseImageSource(
+  value: string,
+  current: Extract<BlockElement, { kind: 'image' }>['source']
+): Extract<BlockElement, { kind: 'image' }>['source'] {
+  // An upload keeps its id — there is nothing in the string to rebuild it from,
+  // and losing it would strand the file.
+  if (value === 'asset') return current
+  return IMAGE_BINDINGS.find((source) => bindingKey(source) === value) ?? current
 }
 
 /**

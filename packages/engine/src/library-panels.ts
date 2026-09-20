@@ -255,7 +255,7 @@ const MESSAGE_BLOCKS: PanelBlock[] = [
       words('headline', box(0.08, 0.32, 0.72, 0.18), 'Your headline', 'العنوان الرئيسي', 'h1'),
       words('support', box(0.08, 0.53, 0.72, 0.12), 'Supporting line', 'سطر داعم', 'h4'),
       rule('divider', box(0.08, 0.7, 0.3, 0.006), 'surface'),
-      shopField('name', box(0.08, 0.75, 0.6, 0.06), 'body'),
+      shopField('name', box(0.08, 0.75, 0.6, 0.06), 'body', { color: 'surface' }),
     ]),
   },
   {
@@ -407,13 +407,12 @@ const SOCIAL_BLOCKS: PanelBlock[] = [
       words('note', box(0.08, 0.76, 0.84, 0.07), 'A second line of detail', 'سطر ثانٍ من التفاصيل', 'body', {
         color: 'inkMuted',
       }),
-      // Static rather than `shopField('phone')`: neither painter resolves a shop's
-      // phone or address — `contentFor` returns an empty string for both — so a
-      // binding here is a blank where the design says there is a line.
-      // `library.test.ts` holds the whole seeded library to that.
-      words('phone', box(0.08, 0.85, 0.84, 0.07), 'Your phone number', 'رقم هاتفكم', 'h4', {
-        color: 'ink',
-      }),
+      // **Bound, now that it resolves.** This was a static "Your phone number"
+      // because neither painter answered `shop.phone` — declared in the
+      // vocabulary and returning an empty string in both, for as long as both
+      // had existed. E14 §3.4 fixed that, and a static line here would now be
+      // the block printing a placeholder over a real number the shop has.
+      shopField('phone', box(0.08, 0.85, 0.84, 0.07), 'h4', { color: 'ink' }),
     ]),
   },
   {
@@ -556,7 +555,7 @@ const FOOTER_BLOCKS: PanelBlock[] = [
     arrangements: still(STRIP, [
       ground('secondary'),
       logo(box(0.02, 0.2, 0.1, 0.6)),
-      shopField('name', box(0.14, 0.24, 0.3, 0.5), 'h4'),
+      shopField('name', box(0.14, 0.24, 0.3, 0.5), 'h4', { color: 'surface' }),
       words(
         'small-print',
         box(0.5, 0.3, 0.48, 0.4),
@@ -573,7 +572,7 @@ const FOOTER_BLOCKS: PanelBlock[] = [
     description: 'The shop name on the centre line with the small print beneath it.',
     arrangements: still(STRIP, [
       ground('primary'),
-      shopField('name', box(0.2, 0.2, 0.6, 0.34), 'h4', { align: 'center' }),
+      shopField('name', box(0.2, 0.2, 0.6, 0.34), 'h4', { align: 'center', color: 'surface' }),
       words(
         'small-print',
         box(0.2, 0.58, 0.6, 0.24),
@@ -591,7 +590,7 @@ const FOOTER_BLOCKS: PanelBlock[] = [
     arrangements: still(STRIP, [
       ground('ink'),
       logo(box(0.02, 0.22, 0.09, 0.56)),
-      shopField('name', box(0.13, 0.26, 0.34, 0.48), 'h4'),
+      shopField('name', box(0.13, 0.26, 0.34, 0.48), 'h4', { color: 'surface' }),
       words(
         'small-print',
         box(0.52, 0.3, 0.46, 0.4),
@@ -629,7 +628,7 @@ const FOOTER_BLOCKS: PanelBlock[] = [
     description: 'Your name at the start of a thin band and a line of your own at the end.',
     arrangements: still(STRIP, [
       ground('accent'),
-      shopField('name', box(0.04, 0.3, 0.42, 0.4), 'h4'),
+      shopField('name', box(0.04, 0.3, 0.42, 0.4), 'h4', { color: 'surface' }),
       words('detail', box(0.5, 0.32, 0.46, 0.36), 'Visit us in store', 'زوروا فرعنا', 'body', {
         align: 'end',
       }),

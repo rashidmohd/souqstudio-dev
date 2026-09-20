@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LibraryBig, Lock, Pencil, Sparkles, Trash2 } from 'lucide-react'
+import { LibraryBig, Lock, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 // Type only — erased at compile time, so the library does not follow it into the
 // browser. That it once did is why the category is on the summary at all.
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { BlockImportDialog } from '@/components/blocks/BlockImportDialog'
+import { NewBlockDialog } from '@/components/blocks/NewBlockDialog'
 import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
 
 /**
@@ -63,6 +64,7 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
   const router = useRouter()
   const [importing, setImporting] = React.useState(false)
   const [matching, setMatching] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
 
   const mine = blocks.filter((block) => block.organizationId !== null)
   const seeded = blocks.filter((block) => block.organizationId === null)
@@ -80,14 +82,19 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
         {/* One primary per region: when there is nothing here yet the empty
             state carries the action, so this button would be the second one
             saying the same thing. */}
-        {/* Two actions, one primary. Starting from the shipped library is the
-            move that always works and costs nothing; matching a picture is the
-            paid second-order one, so it is secondary in both senses. */}
+        {/* Three ways in, one primary. Starting from the shipped library is the
+            move that always works and costs nothing, so it keeps the primary;
+            a starter and a matched picture are both "I know what I want", and
+            one of them is paid. */}
         {canEdit ? (
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="secondary" onClick={() => setMatching(true)}>
               <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
               Match from a picture
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setCreating(true)}>
+              <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              New block
             </Button>
             {mine.length > 0 ? (
               <Button type="button" variant="primary" onClick={() => setImporting(true)}>
@@ -103,7 +110,7 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
         <EmptyState
           kind="empty"
           title="No blocks of your own yet"
-          body={`Start from one of the ${seeded.length} we ship: an offer card, a header, a footer, a seasonal band. Add the ones you want and change them from there.`}
+          body={`Start from one of the ${seeded.length} we ship: an offer card, a header, a footer, a seasonal band. Add the ones you want and change them from there`}
           action={{
             label: 'Add from library',
             ...(canEdit
@@ -129,6 +136,8 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
         credits={credits}
         onCreated={() => router.refresh()}
       />
+
+      <NewBlockDialog open={creating} onOpenChange={setCreating} />
 
       <BlockImportDialog
         open={importing}

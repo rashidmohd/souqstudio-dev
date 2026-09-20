@@ -114,9 +114,26 @@ export const FREE_ELEMENTS = {
     level: 'h4',
     align: 'start',
   }),
+  /**
+   * The shop's mark.
+   *
+   * **An image bound to `brand.logo`, not the `logo` kind** — E14 §3.1. The old
+   * kind carried no source and no options: it could not be cropped, could not
+   * take a radius or a stroke, and every property added to images had to be
+   * added to it separately or silently not exist. It is a picture.
+   *
+   * The converter took the seeded library and every stored block across; this
+   * is the third place, and the one that was missed — so every logo an owner
+   * added went on being the dead kind, drawing a blank box that no binding
+   * reached. The kind itself stays renderable until Phase 8, because a block
+   * published to R2 is read by every shop.
+   */
   logo: (): BlockElement => ({
     id: newElementId(),
-    kind: 'logo',
+    kind: 'image',
+    source: { from: 'brand', field: 'logo' },
+    // A mark letterboxes. Cropping one cuts its edges off.
+    fit: 'contain',
     box: { start: 0.04, top: 0.04, width: 0.18, height: 0.14 },
   }),
   rectangle: (): BlockElement => ({

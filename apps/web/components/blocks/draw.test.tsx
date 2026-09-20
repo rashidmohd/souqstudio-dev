@@ -26,6 +26,7 @@ import { resolveScale } from '@/lib/brand-fonts'
 import { artboardIdentity } from '@/lib/artboard-identity'
 import { toArtboardOffer } from '@/lib/preview-offer'
 import { TYPICAL_PRODUCT } from '@/lib/preview-product'
+import { FREE_ELEMENTS } from '@/lib/block-elements'
 import { drawElement, estimateWidth, type ArtboardOffer, type DrawContext } from './draw'
 
 const KIT: BrandKit = {
@@ -360,5 +361,51 @@ describe('the designer canvas', () => {
     expect(real.shop.address).toBe('')
     expect(real.shop.phone).toBe('')
     expect(real.book.validFrom).toBe('')
+  })
+})
+
+/**
+ * The palette makes what the painter draws.
+ *
+ * **Three places had to learn that `logo` is an image**, and only two did: the
+ * seeded library was regenerated and every stored block was converted, while
+ * the palette went on making the dead kind — so every logo an owner added drew
+ * a blank box that no binding reached and no control could rebind. E14 §3.1.
+ */
+describe('the elements the palette makes', () => {
+  it('makes a logo as an image bound to the brand', () => {
+    expect(FREE_ELEMENTS.logo()).toMatchObject({
+      kind: 'image',
+      source: { from: 'brand', field: 'logo' },
+      fit: 'contain',
+    })
+  })
+
+  it('draws the shop’s mark when there is one', () => {
+    const out = renderToStaticMarkup(<svg>{drawElement(FREE_ELEMENTS.logo(), BOX, CTX)}</svg>)
+    expect(out).toContain('FIXTURE-logo')
+  })
+
+  it('reserves a slot when the shop has no logo yet', () => {
+    // **The common case on day one**, and §8 left it open between collapsing
+    // and reserving. An element that draws nothing cannot be positioned, so a
+    // header would be designed around a hole the owner never sees.
+    const noLogo: DrawContext = { ...CTX, brand: { name: 'Al Nakheel', logo: null } }
+    const out = renderToStaticMarkup(<svg>{drawElement(FREE_ELEMENTS.logo(), BOX, noLogo)}</svg>)
+    expect(out).toContain('<rect')
+  })
+
+  it('does not draw a box for an upload that has not loaded', () => {
+    // The distinction that keeps the rule above honest: "no photograph" is a
+    // fact about the catalog, and saying it about a background the owner chose
+    // would be wrong.
+    const artwork: BlockElement = {
+      id: 'a',
+      kind: 'image',
+      source: { from: 'asset', assetId: 'missing' },
+      box: { start: 0, top: 0, width: 1, height: 1 },
+    }
+    const out = renderToStaticMarkup(<svg>{drawElement(artwork, BOX, CTX)}</svg>)
+    expect(out).toBe('<svg></svg>')
   })
 })
