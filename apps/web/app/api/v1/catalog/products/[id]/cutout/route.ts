@@ -51,6 +51,27 @@ import { cutoutKey, publicUrl } from '@/lib/r2'
  */
 
 export async function POST(_request: NextRequest, { params }: { params: { id: string } }) {
+  /**
+   * **Wrapped, and the reason is what the client sees.** An unhandled throw in
+   * a route handler is rendered by Next as an HTML error page, so the browser's
+   * `response.json()` fails on an angle bracket and the actual error reaches
+   * nobody — the same argument `products/[id]/image` makes, and the same
+   * wrapper. Here it went further than an ugly message: the panel read a
+   * missing `error` key as a queued job and told the owner their cutout was on
+   * its way, every time, while nothing was ever enqueued.
+   *
+   * Prisma being unreachable and the credit read failing are both real ways to
+   * get here. The envelope goes to the owner; the stack goes to the log.
+   */
+  try {
+    return await removeBackgroundFor(params.id)
+  } catch (problem) {
+    console.error('[cutout] queueing a manual background removal failed', problem)
+    return fail('unavailable', 'We could not start that just now. Try again in a moment.', 503)
+  }
+}
+
+async function removeBackgroundFor(productId: string) {
   const { session, response } = await requireApiSession({ requireVerifiedEmail: true })
   if (!session) return response
 
@@ -75,7 +96,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
    */
   const product = await prisma.catalogProduct.findFirst({
     where: {
-      id: params.id,
+      id: productId,
       OR: [{ organizationId: session.user.organizationId }, { organizationId: null }],
     },
     select: {

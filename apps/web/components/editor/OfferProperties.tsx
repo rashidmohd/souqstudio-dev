@@ -356,24 +356,33 @@ function RemoveBackground({
     setState('working')
     setError(null)
 
-    try {
-      const response = await fetch(`/api/v1/catalog/products/${productId}/cutout`, {
-        method: 'POST',
-      })
-      const body = (await response.json().catch(() => null)) as {
-        error: { message: string } | null
-      } | null
+    /**
+     * **`callApi`, because the hand-rolled version reported a failure as a
+     * success.** It read `body.error` off `response.json().catch(() => null)`
+     * and never looked at `response.ok` — so a route that threw, and was
+     * therefore rendered by Next as an HTML error page, parsed to `null`, found
+     * no `error` key, and took the silence for a queued job. The panel then
+     * said the cutout was on its way, nothing was enqueued, and pressing again
+     * did the same thing again.
+     *
+     * `lib/api-client.ts` was written for exactly this and `AddPhoto` below
+     * already used it. This is the copy that was missed.
+     */
+    const queued = await callApi<{ queued: boolean }>(
+      `/api/v1/catalog/products/${productId}/cutout`,
+      { method: 'POST', fallback: 'We could not start that background removal.' }
+    )
 
-      if (body?.error) throw new Error(body.error.message)
-
-      setState('idle')
-      // Handed over. The cutout lands as an `image_assets` row the page
-      // re-reads, and `CutoutWatch` is what goes back for it.
-      startCutout({ productId, name, shared, startedAt: Date.now() })
-    } catch (problem) {
+    if (queued.data === null) {
       setState('error')
-      setError(problem instanceof Error ? problem.message : 'That did not start. Try again.')
+      setError(queued.error)
+      return
     }
+
+    setState('idle')
+    // Handed over. The cutout lands as an `image_assets` row the page
+    // re-reads, and `CutoutWatch` is what goes back for it.
+    startCutout({ productId, name, shared, startedAt: Date.now() })
   }
 
   if (queued) {
