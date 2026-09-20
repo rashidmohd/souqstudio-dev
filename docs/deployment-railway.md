@@ -157,26 +157,35 @@ Two things differ from the three Node services, and both are load-bearing:
   say so. `REMBG_MODEL` is the only other variable it understands and the default is
   correct.
 
-**If the build log says `Railpack 0.39.0 … Detected Node … No start command detected`, the
-config file is not being read.** That message is Railway falling back to auto-detection:
-it inspected the repository root, found the pnpm workspace, and tried to build this Python
-service as Node. It is never a problem with `apps/rembg` and always a problem with the
-service's settings — most often that **Config-as-code → Path** is empty, was typed into a
-different service, or was set after the build had already started.
-
-Check it under **Settings → Config-as-code**, then **redeploy** — saving the path does not
-rebuild on its own. A build that is reading the file says `Using detected Dockerfile`
-rather than naming Railpack at all.
-
-If it still falls back, set the path *and* add a variable that says the same thing a
-second way:
+**Set `RAILWAY_DOCKERFILE_PATH` on this service as well as the config path**, which the
+other three do not need:
 
 ```bash
 RAILWAY_DOCKERFILE_PATH=apps/rembg/Dockerfile
 ```
 
-That is read before auto-detection, so it does not depend on the config file being found.
-Belt and braces; the config file stays the source of truth for everything else.
+**Because the cost of the config file not being read is different here.** On `web` or
+`worker`, an unread config means Railpack builds a Node service with defaults — wrong
+commands, but a recognisable build. On `rembg` it means Railpack inspects the repository
+root, finds `pnpm-workspace.yaml`, decides this Python service is Node, and stops at:
+
+```
+↳ Detected Node
+↳ Found workspace with 8 packages
+✖ No start command detected.
+```
+
+That message names Node and reads like a problem with the application. It is not — it is
+Railway never having read `railway/rembg.json`, and there is nothing in `apps/rembg` to
+fix. This variable is read *before* auto-detection, so the builder no longer depends on
+the setting being right.
+
+**Set the config path too.** The variable only decides the builder; the healthcheck,
+restart policy, replica count and watch patterns all still come from the file, and without
+it `rembg` rebuilds on every push to the repository instead of only its own changes.
+
+A build that is reading the file says `Using detected Dockerfile` and does not name
+Railpack at all. **Saving either setting does not rebuild on its own — redeploy.**
 
 **The first build is slow — five to ten minutes — and that is expected.** It installs
 onnxruntime and downloads the U^2-Net weights into the image, about 176MB. That is

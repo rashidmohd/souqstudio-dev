@@ -212,13 +212,24 @@ export async function DELETE(
 
   await prisma.$transaction([
     prisma.offerItem.delete({ where: { id: item.id } }),
-    // Close the gap, one statement. Every later item moves *down* into a slot
-    // the one before it has already vacated, so no parking pass is needed —
-    // Postgres checks `@@unique([offerId, position])` at statement end rather
-    // than per row. Same reasoning as removing an offer from a book.
+    /*
+     * **Parked, then brought back.** This carried the same claim the offer
+     * delete did — that Postgres checks `@@unique([offerId, position])` at
+     * statement end — and it was wrong in both places. A unique *index* is
+     * checked per row as the update runs, and nothing orders those rows by
+     * position, so `position - 1` in one pass collides whenever the plan
+     * returns them the other way round.
+     *
+     * Negative slots collide with nothing, so the second pass is free whatever
+     * order it takes. Same two statements as removing an offer from a book,
+     * which is where the reasoning now lives in full.
+     */
     prisma.$executeRaw`
-      UPDATE offer_items SET position = position - 1
+      UPDATE offer_items SET position = -position - 1
       WHERE "offerId" = ${item.offerId} AND position > ${item.position}`,
+    prisma.$executeRaw`
+      UPDATE offer_items SET position = -position - 2
+      WHERE "offerId" = ${item.offerId} AND position < 0`,
     // **The new item 0 must not carry a connector.** A connector is rendered
     // *before* its item, so a leading "or" would print at the head of the card.
     // This is the one thing that makes removing item 0 safe rather than merely

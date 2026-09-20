@@ -114,11 +114,15 @@ file does not follow Root Directory.
 
 **A build log naming Railpack is a settings problem, not a code one.** It means
 Railway never read `railway/rembg.json` and fell back to auto-detection; the
-symptom is `Detected Node` followed by `No start command detected`, because
-this directory has no `package.json` for it to find. Fix it at
-**Settings → Config-as-code → Path**, or force the builder with a
-`RAILWAY_DOCKERFILE_PATH=apps/rembg/Dockerfile` variable, which is read before
-auto-detection. `docs/deployment-railway.md` §2a.
+symptom is `Detected Node` followed by `No start command detected`, because this
+directory has no `package.json` for it to find. There is nothing in here to fix
+when that happens.
+
+So this service carries `RAILWAY_DOCKERFILE_PATH=apps/rembg/Dockerfile` as a
+variable *as well as* the config path — it is read before auto-detection, so the
+builder does not depend on the config file being found. The config path is still
+set, because the healthcheck, restart policy, replica count and watch patterns
+come from the file. `docs/deployment-railway.md` §2a.
 
 **No public domain.** The worker reaches it over Railway's private network. A
 background-removal endpoint on the open internet is free CPU for anyone who

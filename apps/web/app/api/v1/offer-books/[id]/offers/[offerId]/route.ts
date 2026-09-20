@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   AMOUNT_PATTERN,
   amountFitsCurrency,
+  isCurrency,
   minorUnits,
   type Currency,
 } from '@souqstudio/types'
@@ -84,6 +85,30 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string; offerId: string } }
 ) {
+  /**
+   * **Wrapped, because an unhandled throw here is a 500 nobody can read.** Next
+   * renders one as an HTML error page, so the browser's `response.json()` fails
+   * on an angle bracket, the client reports something generic, and the actual
+   * error exists only in a server log nobody thought to open. E8-05's manual
+   * cutout cost a whole session to that exact shape in September — see
+   * `products/[id]/cutout`, which now wraps for the same reason.
+   *
+   * **This route is the most-used write in the product.** The editor patches it
+   * as the owner leaves each field, so a fault here is a price that silently
+   * does not save, which is the worst thing a flyer tool can do quietly.
+   */
+  try {
+    return await patchOffer(request, params)
+  } catch (problem) {
+    console.error(`[offer-patch] ${params.id}/${params.offerId} failed`, problem)
+    return fail('unavailable', 'That change did not save. Try again in a moment.', 503)
+  }
+}
+
+async function patchOffer(
+  request: NextRequest,
+  params: { id: string; offerId: string }
+) {
   const { session, response } = await requireApiSession({ requireVerifiedEmail: true })
   if (!session) return response
 
@@ -142,7 +167,25 @@ export async function PATCH(
    * price, rounded silently, printed on a flyer somebody carries to a till.
    * Refusing it names the currency rather than repeating the generic hint.
    */
-  const currency = offer.currency as Currency
+  /**
+   * **Checked rather than asserted, because `offers.currency` is a `String`
+   * column.** It carries a comment naming six codes and no constraint enforcing
+   * them, so `as Currency` is a claim about data rather than a fact about it —
+   * and `minorUnits()` indexes `CURRENCY_INFO` unguarded, which turns a row
+   * holding anything else into `Cannot read properties of undefined` and an
+   * HTML 500. A price edit is the most-used write in the editor; it should not
+   * be the place a bad row is discovered by crashing.
+   */
+  if (!isCurrency(offer.currency)) {
+    console.error(`[offer-patch] offer ${offer.id} has an unknown currency: ${offer.currency}`)
+    return fail(
+      'unknown_currency',
+      'This offer is priced in a currency we no longer recognise. Contact support.',
+      409
+    )
+  }
+
+  const currency: Currency = offer.currency
   const allowed = minorUnits(currency)
   const misfit = [price, comparePrice].find(
     (value) => typeof value === 'string' && !amountFitsCurrency(value, currency)
@@ -223,6 +266,19 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: { id: string; offerId: string } }
 ) {
+  // Wrapped for the reason `PATCH` above is: an unhandled throw is an HTML 500
+  // the client cannot parse and nobody reads. It is how the position-shift bug
+  // below presented — a bare 500 on removing a card, with the duplicate-key
+  // error it actually was visible only in the server log.
+  try {
+    return await deleteOffer(params)
+  } catch (problem) {
+    console.error(`[offer-delete] ${params.id}/${params.offerId} failed`, problem)
+    return fail('unavailable', 'That card could not be removed. Try again in a moment.', 503)
+  }
+}
+
+async function deleteOffer(params: { id: string; offerId: string }) {
   const { session, response } = await requireApiSession({ requireVerifiedEmail: true })
   if (!session) return response
 
@@ -271,13 +327,34 @@ export async function DELETE(
 
   await prisma.$transaction([
     prisma.offer.delete({ where: { id: offer.id } }),
-    // One statement for the shift, not one per row. Safe against the unique
-    // index without parking: every row moves *down* into a slot the row before
-    // it has already vacated, and Postgres checks the constraint at statement
-    // end rather than per row.
+    /*
+     * **Parked, then brought back — the same two passes the reorder route
+     * makes, and for the same reason.**
+     *
+     * This used to be one statement, `position = position - 1`, under a comment
+     * claiming Postgres checks the constraint at statement end rather than per
+     * row. **It does not.** `offers_bookId_position_key` is a plain unique
+     * *index*, which is verified as each row is updated, and only a `UNIQUE`
+     * constraint declared `DEFERRABLE` can be checked any later — Prisma
+     * declares none. So the single statement was safe only if Postgres happened
+     * to update the rows in ascending position order, which nothing guarantees:
+     * the plan returns them in physical order, and physical order stops
+     * matching position order as soon as a book has been edited. When it came
+     * back the other way, row 5 moved into 4 while 4 was still there and the
+     * delete died on a duplicate key — a 500 on removing a card, reproducible
+     * on that book and absent on a fresh one.
+     *
+     * Negative slots cannot collide with positive ones, so after the first pass
+     * every positive slot above the hole is empty and the second pass cannot
+     * collide whatever order it runs in. `-position - 1` parks (3 → -4) and
+     * `-position - 2` returns one lower (-4 → 2).
+     */
     prisma.$executeRaw`
-      UPDATE offers SET position = position - 1
+      UPDATE offers SET position = -position - 1
       WHERE "bookId" = ${params.id} AND position > ${offer.position}`,
+    prisma.$executeRaw`
+      UPDATE offers SET position = -position - 2
+      WHERE "bookId" = ${params.id} AND position < 0`,
   ])
 
   // Decimals become strings on the way out, as everywhere else money crosses
