@@ -229,34 +229,33 @@ async function handleCatalogCutout(input: {
    * column that always held it, and it is what a reviewer reads.
    */
   /**
-   * **And a paid cutout of a photo the payer does not own is theirs, not
-   * everybody's.** E8-05's manual action reaches a *universal* product whose
-   * shared photo has no usable cutout — the shop presses the button, spends a
-   * credit, and what comes back must land on their own flyer without being
-   * published to every other tenant by the same motion. Inheritance alone
-   * cannot say that: the shared ORIGINAL has no contributor, so the result
-   * would be unattributed and a good matte would approve it for everyone.
+   * **And a cutout somebody paid for is theirs, whoever owns the product.**
+   * E8-05's manual action is the one path here that charges, so its result has
+   * to be visible to the payer the moment it is written — and `contributedBy`
+   * is the only column that says "this asset belongs to this organization
+   * before a reviewer has looked at it". Inheritance alone cannot reach it: the
+   * photo a manual run works from is usually the shared catalog's and carries
+   * no contributor, so the row would be unattributed.
    *
-   * So the biller stands in as the contributor when the product is not theirs,
-   * which puts the row on exactly the path a contributed photo already takes —
-   * visible to them at once, released to the rest by a reviewer. It is the same
-   * bargain `products/[id]/image` strikes for a photo supplied to a product
-   * that has none, and it is why refusing the shared case outright was the
-   * wrong half of that rule.
+   * **Unattributed is the trap, and it has two ends.** A good matte would
+   * publish to every tenant the second it landed. A matte below the approval
+   * threshold would land `PENDING` with nobody's name on it, which no query
+   * returns — so the card keeps its background, the flag stays, and the owner
+   * presses the button again and pays again for a picture they will never be
+   * shown. Attribution closes both: `PENDING` and theirs is visible to them at
+   * once, and to nobody else until a reviewer promotes it.
    *
-   * Their own product needs none of this: the row is already theirs, nobody
-   * else reads it, and `quality` should decide review as it always has.
+   * It is the bargain `products/[id]/image` already strikes for a photo
+   * supplied to a product that has none. Ingest is untouched — it sets no
+   * `billOrganizationId`, so `billed` is null and the score decides review
+   * exactly as it always has.
    */
   const sourceAsset = await prisma.imageAsset.findUnique({
     where: { id: input.sourceAssetId },
-    select: { contributedBy: true, product: { select: { organizationId: true } } },
+    select: { contributedBy: true },
   })
   const billed = input.billOrganizationId ?? null
-  // A source we cannot read is attributed to the payer rather than to nobody:
-  // private is the recoverable mistake here, and published is not.
-  const ownedByBiller = billed !== null && sourceAsset?.product.organizationId === billed
-  const contributedBy =
-    sourceAsset?.contributedBy ?? (billed !== null && !ownedByBiller ? billed : null)
+  const contributedBy = sourceAsset?.contributedBy ?? billed
 
   const reviewState =
     contributedBy !== null

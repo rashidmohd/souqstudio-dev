@@ -161,16 +161,41 @@ async function removeBackgroundFor(productId: string) {
    * Whose rejected attempt it was does not matter: the input decides the
    * output, not the payer.
    */
-  const rejected = product.images.some(
-    (image) =>
-      image.kind === 'CUTOUT' &&
-      image.derivedFrom === original.id &&
-      image.reviewState === 'REJECTED'
+  const cutouts = product.images.filter(
+    (image) => image.kind === 'CUTOUT' && image.derivedFrom === original.id
   )
-  if (rejected) {
+
+  if (cutouts.some((image) => image.reviewState === 'REJECTED')) {
     return fail(
       'matte_rejected',
       'We have already tried this photo and the cut-out was not good enough to print. Add a clearer photo instead.',
+      409
+    )
+  }
+
+  /**
+   * **Nor twice for the same picture.** A cutout of this photo that this
+   * organization can already see is one they have already got — `pickImage`
+   * draws it and the card carries no flag — so a second run buys a duplicate
+   * row and a second credit. The button is not offered in that state, but the
+   * route is what has to hold the line: it is reachable directly, and a
+   * repeated press is exactly what an owner does when they think nothing
+   * happened.
+   *
+   * Visibility is the test, not existence. An older cutout left `PENDING` with
+   * no contributor is visible to nobody, which is the state a manual run used
+   * to write and the one an owner has to be able to get out of — so it does not
+   * count, and pressing again is how they recover.
+   */
+  const alreadyVisible = cutouts.some(
+    (image) =>
+      image.reviewState === 'APPROVED' ||
+      (image.reviewState === 'PENDING' && image.contributedBy === session.user.organizationId)
+  )
+  if (alreadyVisible) {
+    return fail(
+      'already_cut_out',
+      'That photo already has its background removed. Reopen the book to see it.',
       409
     )
   }

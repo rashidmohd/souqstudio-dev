@@ -218,14 +218,22 @@ Four changes, and the shape to keep:
 - **The route takes a universal row** and refuses only another tenant's. It picks the
   photo by `pickImage`'s precedence — this shop's own contribution ahead of the shared one
   — so the credit is spent on the picture the card is actually drawing.
-- **The worker attributes a paid cutout to the payer** when the product is not theirs, in
-  `bg.job.ts`. Inheritance alone could not: the shared ORIGINAL has no contributor, so the
-  cutout would be unattributed and a good matte would approve it for every tenant within
-  seconds. Ingest is untouched — `billOrganizationId` is absent there, which is the same
-  field that keeps ingest free.
-- **A rejected matte is refused.** A CUTOUT derived from that exact photo and rejected
-  means a reviewer looked and said no, and Rembg on the same bytes returns the same halo.
-  The way out is a better photo, and the message says so.
+- **The worker attributes every paid cutout to the payer**, in `bg.job.ts`. Inheritance
+  alone could not: the shared ORIGINAL has no contributor, so the cutout would be
+  unattributed — and unattributed is a trap with two ends. A good matte publishes to every
+  tenant the second it lands; a matte below the approval threshold lands `PENDING` with
+  nobody's name on it, which no query returns, so the card keeps its background and the
+  owner pays again for a picture they will never be shown. **Attribution is not narrowed
+  to products the shop does not own**, and the first version of this change made that
+  mistake: on the shop's *own* product a low-scoring matte was charged and invisible.
+  Ingest is untouched — `billOrganizationId` is absent there, which is the same field that
+  keeps ingest free.
+- **A rejected matte is refused**, and so is a second run against a photo whose cutout
+  this shop can already see. A rejected CUTOUT means a reviewer looked and said no, and
+  Rembg on the same bytes returns the same halo; a visible one means they have already got
+  what they would be paying for. An older `PENDING` cutout with no contributor counts as
+  neither — nobody can see it, and pressing again is how an owner recovers from the state
+  the unattributed write left behind.
 - **The panel asks before it spends.** A shared photo gets a dialog naming both
   irreversible parts — the credit, and that other shops get the cutout once it is
   checked. The shop's own photo gets no dialog, because neither is true of it.
@@ -246,6 +254,14 @@ clears `fallback-image`, so no status route is needed and the route's decision t
 owner is usually looking at another one. After a minute per removal it says so and drops
 the entry, which puts the button back — nothing is charged for a cutout that did not
 happen, so a retry costs what the first attempt did.
+
+**What made this expensive to find.** The panel's own request handling read
+`body.error` off `response.json().catch(() => null)` and never looked at `response.ok`, so
+a route that threw — rendered by Next as an HTML error page — parsed to `null`, showed no
+error, and was taken for a queued job. `lib/api-client.ts` exists because that exact
+failure once printed *"Unexpected token '<'"* to a shop owner, and `AddPhoto` twelve lines
+below already used it; this was the copy that was missed. The route now wraps its own work
+and answers an envelope whatever happens, the way `products/[id]/image` does.
 
 **There was a straight bug underneath the design mistake.** A shop that contributed a
 packshot to a universal product, whose ingest cutout failed, was drawing *their own*
