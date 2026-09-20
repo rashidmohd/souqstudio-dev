@@ -62,14 +62,26 @@ export interface BlockSummary {
 }
 
 /**
- * The category as the picker will read it.
+ * The category as the picker and the library will read it.
  *
- * A block with an organization is theirs and has none: the picker never lists
- * those, and a default would be a claim about a design we did not draw.
+ * **An owner's block used to be forced to `null` here, and that has stopped
+ * being true of the data.** The rule was written when the only categories were
+ * ours: the import picker never lists a shop's own blocks, so giving one a
+ * category would have been a claim about a design we did not draw. Since then
+ * two writers put a real one on an owner's row — the magic route, where the
+ * owner *says* what is in the picture before it is matched, and the starter
+ * route, where they pick what they are making — and discarding it on the way
+ * out meant the library could not group or filter its own blocks at all.
+ *
+ * So a stored category is honoured whoever owns the row. **The `panel` fallback
+ * stays seeded-only**, because that is what it is for: a seeded row written
+ * before the column existed and not yet re-seeded. Guessing one for a shop's
+ * block would be the claim the original note objected to, and a block that
+ * genuinely has none reads as null and groups under "Other".
  */
 function toCategory(value: string | null, organizationId: string | null): BlockCategory | null {
-  if (organizationId !== null) return null
-  return CATEGORIES.has(value as BlockCategory) ? (value as BlockCategory) : 'panel'
+  if (CATEGORIES.has(value as BlockCategory)) return value as BlockCategory
+  return organizationId === null ? 'panel' : null
 }
 
 const CATEGORIES = new Set<BlockCategory>(BLOCK_CATEGORIES)

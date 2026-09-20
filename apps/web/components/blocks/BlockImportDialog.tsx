@@ -12,6 +12,7 @@ import {
 } from '@souqstudio/engine'
 import { Dialog } from '@/components/ui/dialog'
 import { Segmented } from '@/components/ui/segmented'
+import { CATEGORY_LABEL } from '@/lib/block-kinds'
 import { BlockTile } from '@/components/blocks/BlockTile'
 import type { LibraryBlock } from '@/components/blocks/BlockLibrary'
 
@@ -70,15 +71,6 @@ type Filter = BlockCategory | 'all'
  * owner is holding when they open this. Not "repeating" and "static", which is
  * how the schema thinks about it and how nobody else does.
  */
-const CATEGORY_LABEL: Record<BlockCategory, string> = {
-  'offer-card': 'Offer cards',
-  header: 'Headers',
-  panel: 'Panels',
-  footer: 'Footers',
-  'social-post': 'Square posts',
-  seasonal: 'Seasonal',
-}
-
 const CATEGORY_NOTE: Record<Filter, string> = {
   all: 'Everything we ship, in your own colours and typefaces.',
   'offer-card': 'One per product. Each reflows into whatever shape its region turns out to be.',

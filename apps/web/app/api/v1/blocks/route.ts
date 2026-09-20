@@ -186,6 +186,11 @@ export async function POST(request: NextRequest) {
       // teaches nothing.
       status: 'published',
       planTier: 'starter',
+      // **Carried, for the same reason the import branch carries the occasion.**
+      // A copy of an offer card is an offer card, and dropping it left every
+      // copied block uncategorised — which is most of a shop's library, and is
+      // why the library could not filter its own blocks by what they are for.
+      ...(source.category === null ? {} : { category: source.category }),
     },
     select: { id: true, name: true, repeats: true },
   })
@@ -259,6 +264,8 @@ async function importBlocks(fromIds: readonly string[], organizationId: string, 
         // nothing to promote in the week it matters.
         isSeasonal: 'isSeasonal' in source ? (source.isSeasonal ?? false) : false,
         occasion: occasionOf('occasion' in source ? source : {}, fromId),
+        // Carried, for the same reason the occasion is — see the copy branch.
+        ...(source.category === null ? {} : { category: source.category }),
       },
       select: { id: true, name: true },
     })

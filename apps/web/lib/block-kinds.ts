@@ -1,4 +1,4 @@
-import type { MagicCategory } from '@souqstudio/engine'
+import type { BlockCategory, MagicCategory } from '@souqstudio/engine'
 
 /**
  * What each kind of block is called, and what it is, in the owner's words.
@@ -47,4 +47,27 @@ export const KIND_STARTS_WITH: Readonly<Record<MagicCategory, string>> = {
   panel: 'A headline and a supporting line.',
   footer: 'Your shop’s name, address and phone, on a dark band.',
   'social-post': 'Your logo, a headline and your shop’s name, on a coloured square.',
+}
+
+/**
+ * The same five kinds, plural, for a filter.
+ *
+ * **Both tables exist because both readings are right**, not because one is a
+ * copy that drifted. `KIND_LABEL` answers *what are you making?* and names one
+ * thing — "Offer card". This answers *show me the…* and names a group —
+ * "Offer cards". A single table would put one of those two grammars in the
+ * wrong control, which reads as a typo either way.
+ *
+ * `seasonal` is here and absent from `KIND_LABEL`: a shop cannot *make* one,
+ * because a seasonal block is a design plus an occasion and nothing can pick
+ * the occasion — but they can import one, so their library can contain one and
+ * a filter has to be able to name it.
+ */
+export const CATEGORY_LABEL: Record<BlockCategory, string> = {
+  'offer-card': 'Offer cards',
+  header: 'Headers',
+  panel: 'Panels',
+  footer: 'Footers',
+  'social-post': 'Square posts',
+  seasonal: 'Seasonal',
 }

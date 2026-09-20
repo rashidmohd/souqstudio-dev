@@ -75,7 +75,20 @@ export function NewBlockDialog({ open, onOpenChange }: Props) {
         return
       }
 
-      // Straight into the designer. The block is a starting point and the whole
+      /**
+       * **Invalidate the list before leaving it.** The App Router serves
+       * `/blocks` from its client cache, so pushing straight to the designer
+       * leaves a rendered payload behind that does not contain the block that
+       * was just made — and an owner who presses back finds the library exactly
+       * as they left it. Nothing failed, so nothing says so.
+       *
+       * The import and magic dialogs both `router.refresh()` when they finish;
+       * they stay on the page, so it was doing the visible half of the job and
+       * this one needed the invisible half too.
+       */
+      router.refresh()
+
+      // Then into the designer. The block is a starting point and the whole
       // point of it is what the owner does next.
       router.push(`/card-designer/${body.data.id}`)
     } catch {

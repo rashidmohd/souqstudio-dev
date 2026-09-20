@@ -13,6 +13,9 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
 import { BlockImportDialog } from '@/components/blocks/BlockImportDialog'
 import { NewBlockDialog } from '@/components/blocks/NewBlockDialog'
+import { Segmented } from '@/components/ui/segmented'
+import { BLOCK_CATEGORIES } from '@souqstudio/engine'
+import { CATEGORY_LABEL } from '@/lib/block-kinds'
 import { MagicBlockDialog } from '@/components/blocks/MagicBlockDialog'
 
 /**
@@ -69,6 +72,31 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
   const mine = blocks.filter((block) => block.organizationId !== null)
   const seeded = blocks.filter((block) => block.organizationId === null)
 
+  /**
+   * What the shop's own blocks actually are, and how many of each.
+   *
+   * **Built from the blocks present, not from `BLOCK_CATEGORIES`.** A filter
+   * offering "Footers (0)" is a filter telling an owner about a shape of block
+   * they do not have; the question they are holding is *which of mine*.
+   *
+   * `other` is blocks with no category at all — copied or imported before
+   * either carried one. Named rather than hidden, because a filter that
+   * silently omits four blocks is worse than one that admits it cannot name
+   * them.
+   */
+  const [filter, setFilter] = React.useState<string>('all')
+
+  const counts = new Map<string, number>()
+  for (const block of mine) {
+    const key = block.category ?? 'other'
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  // In the order the picker uses, which is roughly the order a shop needs them.
+  const groups = [...BLOCK_CATEGORIES, 'other'].filter((group) => counts.has(group))
+
+  const shown =
+    filter === 'all' ? mine : mine.filter((block) => (block.category ?? 'other') === filter)
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -122,11 +150,34 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
           }}
         />
       ) : (
-        <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
-          {mine.map((block) => (
-            <BlockCard key={block.id} block={block} kit={kit} canEdit={canEdit} />
-          ))}
-        </ul>
+        <>
+          {/* **Only once there is something to filter.** One control over three
+              tiles is a control that costs more than it saves, and the row
+              scrolls rather than wrapping — six segments broken over two lines
+              stop reading as one control. The import dialog does the same. */}
+          {groups.length > 1 ? (
+            <div className="-mx-1 overflow-x-auto px-1 pb-1">
+              <Segmented
+                label="Filter your blocks by what they are for"
+                value={filter}
+                options={[
+                  { value: 'all', label: `All (${mine.length})` },
+                  ...groups.map((group) => ({
+                    value: group,
+                    label: `${groupLabel(group)} (${counts.get(group) ?? 0})`,
+                  })),
+                ]}
+                onChange={setFilter}
+              />
+            </div>
+          ) : null}
+
+          <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {shown.map((block) => (
+              <BlockCard key={block.id} block={block} kit={kit} canEdit={canEdit} />
+            ))}
+          </ul>
+        </>
       )}
 
       <MagicBlockDialog
@@ -151,13 +202,20 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
   )
 }
 
-const PREVIEW_WIDTH = 420
+/**
+ * **Smaller than it was, and the grid grew to match.** A tile was 420×540 in
+ * two columns, which is a preview rather than a library: a shop with a dozen
+ * blocks scrolled past three of them at a time and could not compare any two.
+ * A block is recognised by its shape and where its price sits, and both survive
+ * at this size — the designer is where it is read closely.
+ */
+const PREVIEW_WIDTH = 260
 
 function previewSize(block: LibraryBlock): { width: number; height: number } {
   const arrangement = block.arrangements[0]
   // A repeating card is shown in the shape a booklet cell actually is, always —
   // it carries four arrangements and the tall one is the one it was designed in.
-  if (block.repeats || arrangement === undefined) return { width: PREVIEW_WIDTH, height: 540 }
+  if (block.repeats || arrangement === undefined) return { width: PREVIEW_WIDTH, height: 334 }
 
   const middle = Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)
   const aspect = Math.min(6, Math.max(0.5, middle))
@@ -260,4 +318,11 @@ function BlockCard({
       {error ? <p className="font-ui text-body-sm text-critical-fg">{error}</p> : null}
     </li>
   )
+}
+
+/** A group's name. `other` is not a category, so it is not in the table. */
+function groupLabel(group: string): string {
+  return group === 'other'
+    ? 'Other'
+    : (CATEGORY_LABEL[group as keyof typeof CATEGORY_LABEL] ?? group)
 }
