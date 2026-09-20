@@ -230,6 +230,23 @@ Four changes, and the shape to keep:
   irreversible parts — the credit, and that other shops get the cutout once it is
   checked. The shop's own photo gets no dialog, because neither is true of it.
 
+**And the wait was not held anywhere it could survive.** `RemoveBackground` refreshed the
+page once on the 202 — a refresh of the page as it was *before* the worker had run — so
+"It appears here in a moment" was a promise nothing kept, and the cutout showed up only
+when the owner next opened the book. Holding the poll in the button would have been the
+same mistake one level up: it lives inside the selected offer's flag list, so clicking the
+next card unmounts it, and queueing a removal and carrying on pricing is the ordinary case.
+
+`components/editor/CutoutWatch.tsx` holds it for the book instead — mounted once in
+`EditorShell`, rendering nothing. `cutoutPending` on the editor store is what it watches,
+kept across a re-hydration of the same book and dropped on a different one. It refreshes
+every three seconds, and **the completion signal is the flag's absence**: a landed cutout
+clears `fallback-image`, so no status route is needed and the route's decision to write no
+`ai_jobs` row still holds. It reports with a toast naming the card, because by then the
+owner is usually looking at another one. After a minute per removal it says so and drops
+the entry, which puts the button back — nothing is charged for a cutout that did not
+happen, so a retry costs what the first attempt did.
+
 **There was a straight bug underneath the design mistake.** A shop that contributed a
 packshot to a universal product, whose ingest cutout failed, was drawing *their own*
 ORIGINAL — `pickImage` puts it first — and being told the product was not theirs. The

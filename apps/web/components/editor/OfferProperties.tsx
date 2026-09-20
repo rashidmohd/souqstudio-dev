@@ -95,6 +95,9 @@ export function OfferProperties({ bookId, tiers, currency, direction }: Props) {
                 {flag === 'fallback-image' && offer.fallbackImageProductId !== null ? (
                   <RemoveBackground
                     productId={offer.fallbackImageProductId}
+                    // What the toast calls it, captured now: the card may not
+                    // be selected by the time the cutout lands.
+                    name={offer.name}
                     shared={offer.fallbackImageIsShared}
                   />
                 ) : null}
@@ -307,12 +310,21 @@ function Items({ bookId, offer }: { bookId: string; offer: ComposedOffer }) {
  * label because this is the one paid action in the editor, and an owner who
  * clicks it is several screens away from the billing page.
  *
- * **It queues and says so; it does not wait.** Rembg takes seconds and may be
+ * **It queues and says so; it does not block.** Rembg takes seconds and may be
  * down entirely, in which case the product keeps its original photo and nothing
- * is charged — so there is no outcome worth holding the panel open for. The
- * refresh is what brings the new cutout in, and a card that still shows its
- * background after one is an owner pressing the button again rather than a
- * spinner that never resolves.
+ * is charged — so there is no outcome worth holding the panel open for.
+ *
+ * **But something has to go back and look, and it is not this.** A single
+ * `router.refresh()` on the 202 refreshed the page as it was *before* the
+ * worker had run, so the panel promised a cutout in a moment and nothing made
+ * it appear. Waiting here would have been just as wrong: this component lives
+ * in the selected offer's flag list, and an owner who queues a removal and
+ * clicks the next card unmounts the wait along with the button. `CutoutWatch`
+ * holds it for the whole book and raises the toast that reports it.
+ *
+ * What is left here is the press and what it looks like from the selected card:
+ * `cutoutPending` is the store's answer to "is one in flight for this product",
+ * so returning to the card mid-job says so rather than offering to pay again.
  *
  * **On a shared catalog photo it asks first, and this is the one case that
  * earns a dialog.** The design system prefers undo over confirm and reserves
@@ -322,9 +334,20 @@ function Items({ bookId, offer }: { bookId: string; offer: ComposedOffer }) {
  * somebody's photo on their behalf. On their *own* photo none of that is true
  * and the button simply runs.
  */
-function RemoveBackground({ productId, shared }: { productId: string; shared: boolean }) {
-  const router = useRouter()
-  const [state, setState] = React.useState<'idle' | 'working' | 'queued' | 'error'>('idle')
+function RemoveBackground({
+  productId,
+  name,
+  shared,
+}: {
+  productId: string
+  name: string
+  shared: boolean
+}) {
+  const startCutout = useEditorStore((state) => state.startCutout)
+  const queued = useEditorStore((state) =>
+    state.cutoutPending.some((pending) => pending.productId === productId)
+  )
+  const [state, setState] = React.useState<'idle' | 'working' | 'error'>('idle')
   const [error, setError] = React.useState<string | null>(null)
   const [asking, setAsking] = React.useState(false)
 
@@ -343,17 +366,17 @@ function RemoveBackground({ productId, shared }: { productId: string; shared: bo
 
       if (body?.error) throw new Error(body.error.message)
 
-      setState('queued')
-      // The cutout lands as a new `image_assets` row, which the server component
-      // above re-reads. Nothing here holds the answer.
-      router.refresh()
+      setState('idle')
+      // Handed over. The cutout lands as an `image_assets` row the page
+      // re-reads, and `CutoutWatch` is what goes back for it.
+      startCutout({ productId, name, shared, startedAt: Date.now() })
     } catch (problem) {
       setState('error')
       setError(problem instanceof Error ? problem.message : 'That did not start. Try again.')
     }
   }
 
-  if (state === 'queued') {
+  if (queued) {
     return (
       <span className="font-ui text-body-sm text-secondary">
         Removing the background. It appears here in a moment.

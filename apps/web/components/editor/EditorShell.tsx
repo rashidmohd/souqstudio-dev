@@ -18,6 +18,7 @@ import {
 } from '@souqstudio/engine'
 import { Figure } from '@/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
+import { CutoutWatch } from '@/components/editor/CutoutWatch'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PagePanel } from '@/components/editor/PagePanel'
 import { BlockPickerDialog } from '@/components/editor/BlockPickerDialog'
@@ -611,6 +612,11 @@ export function EditorShell({
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas-surround">
+      {/* Draws nothing. It waits on a queued background removal and reports it
+          in a toast — here rather than in the properties panel, because the
+          wait has to survive the owner selecting another card. */}
+      <CutoutWatch />
+
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
         <Link
           href="/"

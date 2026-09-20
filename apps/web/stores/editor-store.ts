@@ -27,6 +27,23 @@ import type { OfferSnapshot } from '@/lib/offer-snapshot'
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 /**
+ * A manual background removal the owner has paid for and is waiting on. E8-05.
+ *
+ * `name` is captured when the button is pressed rather than looked up when it
+ * finishes: the card it belonged to may not be selected by then, and a toast
+ * that says "Background removed" with no subject is a toast about nothing.
+ */
+export type CutoutPending = {
+  productId: string
+  /** What the card is called, for the toast that reports it. */
+  name: string
+  /** Whether the photo was the shared catalog's — it changes what is said. */
+  shared: boolean
+  /** `Date.now()` at the press. The watcher gives up a minute after it. */
+  startedAt: number
+}
+
+/**
  * One step on the undo stack. E6-06.
  *
  * **Logical operations, not object diffs** — the epic is explicit, and the
@@ -198,6 +215,23 @@ type EditorState = {
    * cannot act on.
    */
   markEscalated: (offerIds: readonly string[]) => void
+
+  /**
+   * Manual background removals in flight, by catalog product. E8-05.
+   *
+   * **Here rather than in the button, because the wait outlives the button.**
+   * `RemoveBackground` lives inside the selected offer's flag list, so
+   * selecting another card unmounts it — and with it the poll that brings the
+   * cutout in and the state that says one is coming. An owner who queues a
+   * removal and carries on pricing is the ordinary case, not the edge one.
+   *
+   * Keyed by product and not by offer: the cutout lands on a catalog row, and
+   * two cards in the same book can be built from it.
+   */
+  cutoutPending: CutoutPending[]
+  startCutout: (entry: CutoutPending) => void
+  endCutout: (productId: string) => void
+
   setSave: (state: SaveState) => void
   settle: (offerId: string, ok: boolean) => void
 
@@ -256,6 +290,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   save: 'idle',
   savedAt: null,
   failed: [],
+  cutoutPending: [],
   past: [],
   future: [],
   overrides: {},
@@ -291,6 +326,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         save: 'idle',
         savedAt: state.bookId === bookId ? state.savedAt : null,
         failed: state.bookId === bookId ? state.failed.filter((id) => next[id]) : [],
+        // **Kept across a re-render, dropped on a different book.** The
+        // re-render is usually the watcher's own refresh, and clearing the set
+        // there would end the wait on every tick. A different book is a
+        // different page: nothing here can report the result any more.
+        cutoutPending: state.bookId === bookId ? state.cutoutPending : [],
         // **The stack is cleared on navigation, not on a re-render.** E6-06 says
         // cleared on page navigation, and the editor re-hydrates whenever the
         // server component re-renders — after adding an offer, after a reorder.
@@ -335,6 +375,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (offer === undefined) return state
       return { offers: { ...state.offers, [offerId]: { ...offer, ...patch } } }
     }),
+
+  startCutout: (entry) =>
+    set((state) => ({
+      // Replaced rather than appended if it is already there: pressing again on
+      // a second card built from the same product is one job's worth of wait,
+      // and two entries would be two toasts for one cutout.
+      cutoutPending: [
+        ...state.cutoutPending.filter((pending) => pending.productId !== entry.productId),
+        entry,
+      ],
+    })),
+
+  endCutout: (productId) =>
+    set((state) => ({
+      cutoutPending: state.cutoutPending.filter((pending) => pending.productId !== productId),
+    })),
 
   markEscalated: (offerIds) =>
     set((state) => {

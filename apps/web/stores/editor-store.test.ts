@@ -106,6 +106,7 @@ beforeEach(() => {
     save: 'idle',
     savedAt: null,
     failed: [],
+    cutoutPending: [],
     past: [],
     future: [],
   })
@@ -416,5 +417,53 @@ describe('cell selection', () => {
     expect(cellAnchor).toBeNull()
     expect(cellFocus).toBeNull()
     expect(cellPage).toBeNull()
+  })
+})
+
+describe('a background removal in flight', () => {
+  const pending = (productId: string, startedAt = Date.now()) => ({
+    productId,
+    name: 'Basmati rice',
+    shared: true,
+    startedAt,
+  })
+
+  it('holds one entry per product, however many cards use it', () => {
+    // Two cards in a book can be built from the same catalog row, and a second
+    // press is one job's worth of wait — two entries would report it twice.
+    const store = useEditorStore.getState()
+    store.startCutout(pending('prod_1', 1000))
+    store.startCutout(pending('prod_1', 2000))
+
+    const held = useEditorStore.getState().cutoutPending
+    expect(held).toHaveLength(1)
+    expect(held[0]?.startedAt).toBe(2000)
+  })
+
+  it('ends only the one that finished', () => {
+    const store = useEditorStore.getState()
+    store.startCutout(pending('prod_1'))
+    store.startCutout(pending('prod_2'))
+    store.endCutout('prod_1')
+
+    expect(useEditorStore.getState().cutoutPending.map((entry) => entry.productId)).toEqual([
+      'prod_2',
+    ])
+  })
+
+  it('survives a re-hydration of the same book', () => {
+    // The watcher's own refresh re-hydrates the store every few seconds.
+    // Clearing the set there would end the wait on the first tick.
+    useEditorStore.getState().startCutout(pending('prod_1'))
+    useEditorStore.getState().hydrate({ bookId: 'book_1', offers: [offer('off_1')] })
+
+    expect(useEditorStore.getState().cutoutPending).toHaveLength(1)
+  })
+
+  it('goes on a different book, because nothing there can report it', () => {
+    useEditorStore.getState().startCutout(pending('prod_1'))
+    useEditorStore.getState().hydrate({ bookId: 'book_2', offers: [offer('off_1')] })
+
+    expect(useEditorStore.getState().cutoutPending).toEqual([])
   })
 })
