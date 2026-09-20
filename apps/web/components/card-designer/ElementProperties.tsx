@@ -46,6 +46,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
+import { StrokeControl } from '@/components/card-designer/StrokeControl'
 import { Segmented, ToggleBar } from '@/components/ui/segmented'
 import { Slider } from '@/components/ui/slider'
 import { describe } from '@/components/card-designer/LayerList'
@@ -164,13 +165,33 @@ export function ElementProperties({
               onChange={(variant) => onChange({ ...element, variant })}
             />
           </Field>
+          {/* **"None" is a real answer now**, and it is what makes an
+              outline-only shape possible — a hairline rule box around a price,
+              which used to be faked with one filled rectangle sitting on
+              another. `opacity` cannot express it: it fades the border along
+              with the fill. E14 §2.4. */}
           <ColorControl
-            label="Colour"
+            label="Fill"
             allowGradient
             value={element.fill}
             {...color}
+            {...(element.variant === 'line'
+              ? {}
+              : { onClear: () => onChange({ ...element, fill: undefined }) })}
             onChange={(fill) => onChange({ ...element, fill })}
           />
+          {/* A line has no interior — it draws its stroke along its own middle
+              and the fill *is* the line — so a border on one is a second line
+              nobody asked for. */}
+          {element.variant === 'line' ? null : (
+            <StrokeControl
+              label="Border"
+              value={element.stroke}
+              {...color}
+              hint="Turn the fill off for an outline on its own."
+              onChange={(stroke) => onChange({ ...element, stroke })}
+            />
+          )}
           {element.variant === 'line' ? null : (
             <Input
               label="Corner radius"
@@ -205,6 +226,12 @@ export function ElementProperties({
             onChange={(event) =>
               onChange({ ...element, source: parseImageSource(event.target.value, element.source) })
             }
+          />
+          <StrokeControl
+            label="Border"
+            value={element.stroke}
+            {...color}
+            onChange={(stroke) => onChange({ ...element, stroke })}
           />
           <Select
           label="How it fills its box"

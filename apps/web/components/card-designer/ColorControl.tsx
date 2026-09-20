@@ -62,6 +62,22 @@ type Base = {
   fallback?: string | undefined
   hint?: string | undefined
   disabled?: boolean
+  /**
+   * Offered as a "None" choice, and only where absent genuinely means *nothing
+   * drawn*.
+   *
+   * **`undefined` means two different things in this panel and the difference
+   * is load-bearing.** On a text colour it means *the automatic choice* — the
+   * ink the element would pick on its own — which is why `fallback` renders as
+   * the current swatch there. On a shape's fill it means *no fill*: E14 §2.4
+   * made that expressible so an outline-only shape could exist, because a
+   * hairline rule box around a price is the commonest piece of furniture on a
+   * printed ticket and it had to be faked with one filled rectangle on another.
+   *
+   * A caller passes this only in the second case, so the control cannot offer
+   * "None" where none would be a lie.
+   */
+  onClear?: (() => void) | undefined
 }
 
 type Props = Base &
@@ -137,36 +153,56 @@ export function ColorControl(props: Props) {
   const [custom, setCustom] = React.useState(false)
   const [activeStop, setActiveStop] = React.useState(0)
 
+  const onClear = props.onClear
   const isGradient = value !== undefined && value.from === 'gradient'
   const flat = isGradient ? undefined : (value as FlatColor | undefined)
   const current = flat === undefined ? (fallback ?? token('ink')) : resolveColor(flat, token, palette)
+
+  // Only ever "none" where the caller said none is a real answer. Elsewhere an
+  // absent value is the automatic choice and `fallback` is showing it.
+  const isNone = onClear !== undefined && value === undefined
+
+  /** The colour to come back to when the owner turns it on again. */
+  const [last, setLast] = React.useState<FlatColor>({ from: 'role', ref: 'primary' })
+  React.useEffect(() => {
+    if (flat !== undefined) setLast(flat)
+  }, [flat])
+
+  const mode = isNone ? 'none' : isGradient ? 'gradient' : 'solid'
+  const modes = [
+    ...(onClear === undefined ? [] : [{ value: 'none', label: 'None' }]),
+    { value: 'solid', label: 'Solid' },
+    ...(props.allowGradient === true ? [{ value: 'gradient', label: 'Gradient' }] : []),
+  ]
 
   return (
     <fieldset className="flex flex-col gap-2" disabled={disabled}>
       <legend className="font-ui text-label font-medium text-primary">{label}</legend>
 
-      {props.allowGradient ? (
+      {modes.length > 1 ? (
         <Segmented
-          label={`${label}, solid or gradient`}
-          value={isGradient ? 'gradient' : 'solid'}
-          options={[
-            { value: 'solid', label: 'Solid' },
-            { value: 'gradient', label: 'Gradient' },
-          ]}
+          label={`${label}, how it is filled`}
+          value={mode}
+          options={modes}
           onChange={(next) => {
+            if (next === 'none') {
+              onClear?.()
+              return
+            }
             if (next === 'gradient') {
               setActiveStop(0)
-              emit(seedGradient(flat))
+              emit(seedGradient(flat ?? last))
               return
             }
             // Back to the first stop, which is the colour the run started from
-            // and therefore the one the owner last chose deliberately.
-            emit(isGradient ? value.stops[0]!.color : (flat ?? { from: 'role', ref: 'primary' }))
+            // and therefore the one the owner last chose deliberately — or, from
+            // "None", the colour they had before they turned it off.
+            emit(isGradient ? value.stops[0]!.color : (flat ?? last))
           }}
         />
       ) : null}
 
-      {isGradient ? (
+      {isNone ? null : isGradient ? (
         <GradientEditor
           value={value}
           palette={palette}
