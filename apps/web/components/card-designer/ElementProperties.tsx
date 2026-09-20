@@ -40,6 +40,7 @@ import {
   type Rect,
   type ResolvedSatellite,
 } from '@souqstudio/engine'
+import { TEXT_BINDINGS, bindingInScope, labelFor } from '@souqstudio/engine'
 import type { OfferField } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1210,33 +1211,9 @@ function TextFields({
         disabled={disabled}
         value={sourceKey(source)}
         // A repeating block offers product fields because it renders once per
-        // offer and knows which one. A static block does not get them at all.
-        options={[
-          ...(repeats
-            ? [
-                { value: 'product:name', label: 'Product name' },
-                { value: 'product:spec', label: 'Size or spec' },
-                { value: 'product:brand', label: 'Brand' },
-                { value: 'product:origin', label: 'Country of origin' },
-                { value: 'product:packSize', label: 'Pack size' },
-                // The offer's own words, not the product's. It is what makes a
-                // badge out of artwork the owner uploaded — see `TextSource`.
-                { value: 'offer:tier', label: 'Offer tier' },
-                // The parts of the price that sit *beside* the number. Placed
-                // here, they are ordinary layers: own size, own colour, own
-                // place, groupable with anything. Switch the matching part off
-                // in the price mark or the card draws it twice.
-                { value: 'offer:currency', label: 'Currency' },
-                { value: 'offer:compare', label: 'Was-price' },
-                { value: 'offer:prefix', label: 'From / each / per kg' },
-                { value: 'offer:unitPrice', label: 'Unit price' },
-              ]
-            : []),
-          { value: 'shop:name', label: 'Shop name' },
-          { value: 'shop:phone', label: 'Shop phone' },
-          { value: 'shop:address', label: 'Shop address' },
-          { value: 'static', label: 'Text you type' },
-        ]}
+        // offer and knows which one. A static block does not get them at all —
+        // `bindingInScope` is that rule, and the options are built from it.
+        options={bindingOptions(repeats)}
         onChange={(event) => onChange({ ...element, source: parseSource(event.target.value, source) })}
       />
 
@@ -1611,20 +1588,43 @@ function parseSource(
     return current.from === 'static' ? current : { from: 'static', textEn: 'Your text', textAr: 'النص' }
   }
 
-  const [from, field] = value.split(':')
-  if (from === 'product' && field !== undefined) {
-    return { from: 'product', field: field as 'name' | 'spec' | 'brand' | 'origin' | 'packSize' }
-  }
-  if (from === 'shop' && field !== undefined) {
-    return { from: 'shop', field: field as 'name' | 'phone' | 'address' }
-  }
-  if (from === 'offer' && field !== undefined) {
-    return {
-      from: 'offer',
-      field: field as OfferField,
-    }
-  }
-  return current
+  // **Looked up in the vocabulary rather than reassembled from the string.**
+  // It used to parse `from:field` and cast the field to a union per source,
+  // which typechecks whatever the string says and silently returned the current
+  // source for anything it did not recognise — so `brand` and `book` would have
+  // been unselectable even once the picker offered them. A lookup cannot
+  // disagree with the list the picker was built from, and it needs no
+  // assertion.
+  return TEXT_BINDINGS.find((source) => sourceKey(source) === value) ?? current
+}
+
+/**
+ * Every binding this block may carry, as picker options.
+ *
+ * **Built from the vocabulary rather than written out.** It was a literal list,
+ * and a literal list falls behind silently: seven bindings were added to
+ * `TextSource`, resolved in both painters and drawn on a card while this picker
+ * went on offering the old eleven — so nothing could be bound to them at all.
+ * `bindingInScope` draws §3.6's line and `BINDING_LABEL` supplies the words, so
+ * a new field appears here the day it is added.
+ *
+ * **Grouped by subject, in the order an owner reaches for them.** The product
+ * and the offer first because a repeating card is mostly those; the shop, the
+ * brand and the book after, because a header or a footer is mostly those.
+ */
+function bindingOptions(repeats: boolean): { value: string; label: string }[] {
+  const inScope = TEXT_BINDINGS.filter((source) => bindingInScope(source, repeats))
+  const order: Record<string, number> = { product: 0, offer: 1, shop: 2, brand: 3, book: 4 }
+  return [
+    ...inScope
+      .slice()
+      .sort((a, b) => (order[a.from] ?? 9) - (order[b.from] ?? 9))
+      .map((source) => ({
+        value: sourceKey(source),
+        label: labelFor(source),
+      })),
+    { value: 'static', label: labelFor({ from: 'static', textEn: '', textAr: '' }) },
+  ]
 }
 
 /**

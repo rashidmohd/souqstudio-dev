@@ -28,6 +28,25 @@ export interface ArtboardIdentity {
 }
 
 /**
+ * The sample a preview draws against.
+ *
+ * **Populated rather than blank**, and that is the point of it: a block preview
+ * showing a footer with three empty boxes is a preview that says the block is
+ * broken when the fixture is. Same argument as `SampleProduct`'s nulls, in the
+ * other direction — a product's absences are real and a shop's are not, because
+ * every shop has a name and every book has dates by the time it prints.
+ */
+export const PREVIEW_IDENTITY: ArtboardIdentity = {
+  shop: {
+    name: 'Al Nakheel Market',
+    address: 'Shop 14, Al Wasl Road, Jumeirah 1, Dubai',
+    phone: '+971 4 398 7710',
+  },
+  brand: { name: 'Al Nakheel Group', logo: null },
+  book: { title: 'Weekly Offers', validFrom: '1 October', validTo: '7 October' },
+}
+
+/**
  * Whether this block carries its own shop's identity or its parent's.
  *
  * **A mode, not a source the owner picks — §3.2.** `brandOverride` already
@@ -58,8 +77,27 @@ export function artboardIdentity(input: {
   brand?: { logoUrl?: string | null; inheritsIdentity?: boolean } | undefined
   book?: { title?: string | null; validFrom?: string | null; validTo?: string | null } | undefined
   pin?: IdentityPin | undefined
+  /**
+   * Fill anything the real thing leaves empty with a sample. **The designer
+   * canvas only.**
+   *
+   * A block is designed before it meets a book, so `book.title` and the offer
+   * period have nothing behind them there — and a shop may carry no address or
+   * phone. Without this an element bound to any of those draws an empty box,
+   * and an owner cannot tell how tall it is, where it breaks, or how it sits
+   * against its neighbours. You cannot lay out what you cannot see, and
+   * `apps/web/CLAUDE.md` settles which way to fix it: *bound components render
+   * sample data, never field names*.
+   *
+   * **Never on the book editor or the public viewer**, where an invented
+   * address under a real shop's name is a lie a customer could act on.
+   */
+  samples?: boolean | undefined
 }): ArtboardIdentity {
   const orgName = input.shop.organization?.name ?? null
+  // Only ever consulted when `samples` is on, so an empty field on a real book
+  // stays empty.
+  const sample = input.samples === true ? PREVIEW_IDENTITY : null
   // Pinned to the parent, or inheriting it through `brandOverride`: either way
   // the identity this book carries is the organization's, and `brand.name` says
   // so. A shop on its own kit shows its own name.
@@ -69,8 +107,8 @@ export function artboardIdentity(input: {
       name: input.shop.name,
       // `shops.location` and `shops.phone` — columns that existed and that
       // nothing read. E14 §3.4.
-      address: input.shop.location ?? '',
-      phone: input.shop.phone ?? '',
+      address: input.shop.location ?? sample?.shop.address ?? '',
+      phone: input.shop.phone ?? sample?.shop.phone ?? '',
     },
     brand: {
       // Falls back to the shop's own name: a shop that inherits nothing still
@@ -79,30 +117,12 @@ export function artboardIdentity(input: {
       logo: input.brand?.logoUrl ?? null,
     },
     book: {
-      title: input.book?.title ?? '',
+      title: input.book?.title ?? sample?.book.title ?? '',
       // **Strings, resolved before they get here** — §8. A date the engine
       // formats is a locale decision in a package that has no locale.
-      validFrom: input.book?.validFrom ?? '',
-      validTo: input.book?.validTo ?? '',
+      validFrom: input.book?.validFrom ?? sample?.book.validFrom ?? '',
+      validTo: input.book?.validTo ?? sample?.book.validTo ?? '',
     },
   }
 }
 
-/**
- * The sample a preview draws against.
- *
- * **Populated rather than blank**, and that is the point of it: a block preview
- * showing a footer with three empty boxes is a preview that says the block is
- * broken when the fixture is. Same argument as `SampleProduct`'s nulls, in the
- * other direction — a product's absences are real and a shop's are not, because
- * every shop has a name and every book has dates by the time it prints.
- */
-export const PREVIEW_IDENTITY: ArtboardIdentity = {
-  shop: {
-    name: 'Al Nakheel Market',
-    address: 'Shop 14, Al Wasl Road, Jumeirah 1, Dubai',
-    phone: '+971 4 398 7710',
-  },
-  brand: { name: 'Al Nakheel Group', logo: null },
-  book: { title: 'Weekly Offers', validFrom: '1 October', validTo: '7 October' },
-}

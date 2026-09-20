@@ -34,6 +34,17 @@ export interface SampleProduct {
   amount: number
   currency: Currency
   comparePrice: string | null
+  /**
+   * The FROM / EACH / PER KG line and the derived `(1 kg = 1.76)` rate.
+   *
+   * **Present so the canvas has something to lay out.** Both resolved to an
+   * empty string, so an element bound to either drew nothing at all and could
+   * not be positioned — the same hole `product.origin` and `product.packSize`
+   * were in. A block is designed before it meets an offer, so the sample is
+   * where the words have to come from.
+   */
+  prefixLabel?: 'FROM' | 'EACH' | 'PER_KG' | null
+  unitPrice?: string | null
   tierLabelEn: string
   tierLabelAr: string
 }
@@ -58,6 +69,7 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     imageUrl: product.imageUrl,
     priceMark: toPriceMark(product.amount, product.currency, 'preview', {
       ...(product.comparePrice === null ? {} : { comparePrice: product.comparePrice }),
+      ...(product.prefixLabel ? { prefixLabel: product.prefixLabel } : {}),
     }),
     tierLabel: ar ? product.tierLabelAr : product.tierLabelEn,
     tierToken: '',
@@ -66,10 +78,13 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     // together when there is nothing to compare against — §3.7 collapses the
     // element rather than drawing a zero.
     ...previewSavings(product),
-    // A sample has no pack columns behind it, and a rate invented for a preview
-    // is a number an owner could read as real. Null is *no line*, which is what
-    // `composeOffer` produces for an offer whose pack cannot answer.
-    unitPrice: null,
+    // **A sample carries one now, and the reason it did not is worth keeping.**
+    // A rate invented for a preview is a number an owner could read as real —
+    // true, and the cost of the alternative turned out to be higher: an element
+    // bound to the unit price drew nothing on the designer canvas, so it could
+    // not be laid out at all. A visible sample on a surface that draws no real
+    // product beats an invisible element on the one surface for designing.
+    unitPrice: product.unitPrice ?? null,
     // A sample has no chips. The tier flash is the one every card carries, and
     // inventing a "Limit 2" beside it would show a block preview that no real
     // offer produces until an owner asks for it.

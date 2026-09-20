@@ -74,6 +74,11 @@ export default async function CardDesignerPage({ params }: { params: { blockId: 
         // The identity this book carries, resolved through `brandOverride` —
         // `source.logo` is where that decision already landed. E14 §3.2.
         brand: { logoUrl: brand.logoUrl, inheritsIdentity: brand.source.logo === 'org' },
+        // **The designer canvas, so empty fields get a sample.** A block is
+        // designed before it meets a book, and a shop may carry no address — an
+        // element bound to either would otherwise draw a box with nothing in it
+        // and nothing to lay out. Never on the book editor.
+        samples: true,
       })}
       // Passed down rather than made public: `R2_PUBLIC_URL` is a server
       // variable, and making it public to save a prop would put a deployment

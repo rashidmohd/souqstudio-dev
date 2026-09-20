@@ -20,9 +20,12 @@ import * as React from 'react'
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { BlockElement, BrandKit, TextSource } from '@souqstudio/types'
-import { TEXT_BINDINGS, IMAGE_BINDINGS } from '@souqstudio/engine'
+import { TEXT_BINDINGS, IMAGE_BINDINGS, labelFor } from '@souqstudio/engine'
 import { toPriceMark } from '@souqstudio/engine'
 import { resolveScale } from '@/lib/brand-fonts'
+import { artboardIdentity } from '@/lib/artboard-identity'
+import { toArtboardOffer } from '@/lib/preview-offer'
+import { TYPICAL_PRODUCT } from '@/lib/preview-product'
 import { drawElement, estimateWidth, type ArtboardOffer, type DrawContext } from './draw'
 
 const KIT: BrandKit = {
@@ -297,5 +300,65 @@ describe('paint', () => {
     it('draws nothing extra when there is no shadow', () => {
       expect(draw(shape({ fill: ROLE }))).not.toContain('fill-opacity=')
     })
+  })
+})
+
+/**
+ * The designer canvas has something to lay out for every binding.
+ *
+ * **You cannot position what you cannot see.** An element bound to a field the
+ * sample leaves empty draws nothing — the owner drags on a size line, gets an
+ * empty dashed box, and cannot tell how tall it is, where it breaks, or how it
+ * sits against its neighbours. Three bindings were in that state at once:
+ * `product.origin` and `product.packSize` had no sample value, and the whole
+ * `book` subject has nothing behind it because a block is designed before it
+ * meets a book.
+ *
+ * `apps/web/CLAUDE.md` settles which way to fix it — *bound components render
+ * sample data, never field names* — so this asserts a **value**, not a label.
+ */
+describe('the designer canvas', () => {
+  const ctx: DrawContext = {
+    ...CTX,
+    offer: toArtboardOffer(TYPICAL_PRODUCT, false),
+    ...artboardIdentity({
+      shop: { name: 'Al Nakheel Market', location: null, phone: null },
+      samples: true,
+    }),
+  }
+
+  for (const source of TEXT_BINDINGS) {
+    it(`${key(source)} has sample content to lay out`, () => {
+      const element: BlockElement = {
+        id: 't',
+        kind: 'text',
+        source,
+        level: 'body',
+        align: 'start',
+        box: { start: 0, top: 0, width: 1, height: 1 },
+      }
+      const out = renderToStaticMarkup(<svg>{drawElement(element, BOX, ctx)}</svg>)
+      // Something was drawn, and it is not the binding's name.
+      expect(out).toContain('<text')
+      expect(out).not.toContain(labelFor(source))
+    })
+  }
+
+  it('fills a shop’s empty address and phone from the sample', () => {
+    // A real shop may carry neither, and a header bound to one is still a
+    // header somebody has to lay out.
+    expect(ctx.shop.address).not.toBe('')
+    expect(ctx.shop.phone).not.toBe('')
+  })
+
+  it('does not invent them for a real book', () => {
+    // **The bound that makes the sample safe.** An invented address under a
+    // real shop's name is a lie a customer could act on.
+    const real = artboardIdentity({
+      shop: { name: 'Al Nakheel Market', location: null, phone: null },
+    })
+    expect(real.shop.address).toBe('')
+    expect(real.shop.phone).toBe('')
+    expect(real.book.validFrom).toBe('')
   })
 })

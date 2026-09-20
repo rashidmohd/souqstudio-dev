@@ -77,6 +77,60 @@ export const IMAGE_BINDINGS: readonly ImageSource[] = [
   { from: 'brand', field: 'logo' },
 ]
 
+/** `product.name`, `static` — one stable string per binding. */
+export const bindingKey = (source: TextSource | ImageSource): string =>
+  'field' in source ? `${source.from}.${source.field}` : source.from
+
+/**
+ * What each binding is called, in the owner's words.
+ *
+ * **One table, because there were three.** The designer's "Shows" picker, the
+ * layer list and the canvas each named these separately, and two names for one
+ * binding is how an owner loses track of which layer is which in a stack of
+ * five. Worse, a picker written as a literal list falls silently behind the
+ * vocabulary: seven bindings were added to `TextSource`, resolved in both
+ * painters and drawn on a card while the picker went on offering the old
+ * eleven, so nothing could be bound to them at all.
+ *
+ * `bindings.test.ts` walks `TEXT_BINDINGS` and asserts every one has an entry,
+ * which is what stops that happening again.
+ *
+ * These are the words on the control, so they are the owner's rather than the
+ * schema's: "Size or spec", not "spec".
+ */
+export const BINDING_LABEL: Record<string, string> = {
+  'product.name': 'Product name',
+  'product.spec': 'Size or spec',
+  'product.brand': 'Brand',
+  'product.origin': 'Country of origin',
+  'product.packSize': 'Pack size',
+  'offer.price': 'Price',
+  'offer.currency': 'Currency',
+  'offer.compare': 'Was-price',
+  'offer.prefix': 'From / each / per kg',
+  'offer.tier': 'Offer tier',
+  'offer.unitPrice': 'Unit price',
+  'offer.saveAmount': 'Amount saved',
+  'offer.savePercent': 'Percent saved',
+  'shop.name': 'Shop name',
+  'shop.address': 'Shop address',
+  'shop.phone': 'Shop phone',
+  'brand.name': 'Brand name',
+  'book.title': 'Book title',
+  'book.validFrom': 'Offers valid from',
+  'book.validTo': 'Offers valid to',
+  // Not in `TEXT_BINDINGS` — they name no subject — but the picker and the
+  // layer list still have to call them something.
+  static: 'Text you type',
+  product: 'Product image',
+  asset: 'Artwork',
+  'brand.logo': 'Logo',
+}
+
+/** The label, falling back to the key so a new binding is visible rather than blank. */
+export const labelFor = (source: TextSource | ImageSource): string =>
+  BINDING_LABEL[bindingKey(source)] ?? bindingKey(source)
+
 // ─── What a painter hands over ────────────────────────────────────────────────
 
 /**

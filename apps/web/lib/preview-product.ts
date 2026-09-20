@@ -62,6 +62,15 @@ export const PREVIEW_PRODUCT = {
   specEn: '1 litre, pack of 4, ultra heat treated',
   specAr: '١ لتر، عبوة من ٤، معالج بالحرارة العالية',
   brandEn: 'Al Rawabi',
+  // **Populated, because a preview is a shop window.** `product.origin` and
+  // `product.packSize` joined the vocabulary with E14's data map and were left
+  // empty here, so a block carrying either drew a blank box in the library —
+  // which reads as a broken block rather than as a thin sample.
+  originEn: 'Product of the UAE',
+  originAr: 'منتج الإمارات',
+  packLabel: '4 × 1 L',
+  prefixLabel: 'EACH' as const,
+  unitPrice: '(1 L = 3.188)',
   imageUrl: SAMPLE_PACKSHOT,
   amount: 12.75,
   currency: 'KWD' as Currency,
@@ -79,11 +88,30 @@ export const PREVIEW_PRODUCT = {
  * stress panel renders the worst case so they see the failure while they are
  * causing it.
  *
- * **This is the median real row, not a friendly one.** Of the 2,140 rows in the
- * catalog, 58% carry a brand, 33% a spec, 4.2% a pack size and 4.2% an image —
- * so a typical card is a short name, a placeholder and a good deal of space. A
- * "typical" sample with every field filled would be a third preview of the same
- * happy case, and the empty half is the part a designer has to see.
+ * **Every text binding carries a value, and that is a correction.** This was
+ * the median real row — of 2,140 rows, 58% carry a brand, 33% a spec, 4.2% a
+ * pack size — on the argument that the empty half is the part a designer has to
+ * see. The argument is good and it was applied to the wrong surface. An element
+ * bound to a field the sample leaves empty draws *nothing*: the owner drags on
+ * a size line, sees an empty dashed box, and cannot tell how tall it is, where
+ * it breaks or how it sits against its neighbours. You cannot lay out what you
+ * cannot see.
+ *
+ * `apps/web/CLAUDE.md` settles which way to fix it: **"bound components render
+ * sample data, never field names"** — so the answer is a value here, not the
+ * word "Pack size" drawn on the canvas. A card designed against placeholder
+ * tokens looks balanced and then collapses on real content.
+ *
+ * The thin row has two surfaces that still show it and neither is this one: the
+ * stress panel renders the worst case beside the canvas, and the book editor
+ * renders the shop's own catalog, holes and all.
+ *
+ * **Two stay null on purpose.** `nameAr` is null because 96% of the universal
+ * catalog has none and a card that has never been drawn without one is a card
+ * whose Arabic edition nobody has seen — and it still draws, because the
+ * composer falls back to the English name. `imageUrl` is null because a
+ * packshot's absence draws a *placeholder box*, which is visible and sizeable;
+ * it is the one field whose emptiness costs the designer nothing.
  */
 export const TYPICAL_PRODUCT = {
   nameEn: 'Basmati rice 5 kg',
@@ -91,14 +119,20 @@ export const TYPICAL_PRODUCT = {
   // name, and a card that has never been drawn without one is a card whose
   // Arabic edition nobody has seen.
   nameAr: null,
-  specEn: null,
-  specAr: null,
+  // Short, because a real spec is — but present, because an empty box is not
+  // something anyone can position.
+  specEn: '5 kg, aged 2 years',
+  specAr: '٥ كجم، معتق سنتين',
   brandEn: 'Al Wadi',
-  // **Null, and it stays null.** This is the median real row and 4.2% of the
-  // catalog carries an image, so a typical card is a placeholder and a good deal
-  // of space — which is the half of the card a designer has to see while they
-  // are laying one out. The library preview is a shop window and may be dressed;
-  // the canvas an owner designs on may not.
+  originEn: 'Product of India',
+  originAr: 'منتج الهند',
+  packLabel: '1 × 5 kg',
+  prefixLabel: 'PER_KG' as const,
+  unitPrice: '(1 kg = 4.90)',
+  // **Null, and it stays null.** 4.2% of the catalog carries an image, and an
+  // absent one draws a placeholder *box* — visible, sizeable, and the half of
+  // the card a designer has to see while laying one out. It is the one field
+  // whose emptiness costs them nothing.
   imageUrl: null,
   amount: 24.5,
   currency: 'AED' as Currency,

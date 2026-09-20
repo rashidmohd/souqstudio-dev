@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest'
 import type { Block, BlockElement } from '@souqstudio/types'
 import type { Placement } from './flow'
 import {
+  BINDING_LABEL,
   BOOK_FIELDS,
   BRAND_TEXT_FIELDS,
   IMAGE_BINDINGS,
@@ -31,6 +32,8 @@ import {
   SHOP_FIELDS,
   TEXT_BINDINGS,
   bindingInScope,
+  bindingKey,
+  labelFor,
   resolveTextBinding,
   type BindingSubjects,
 } from './bindings'
@@ -141,6 +144,27 @@ describe('the vocabulary is enumerable', () => {
   it('holds no duplicates', () => {
     const keys = TEXT_BINDINGS.map((b) => JSON.stringify(b))
     expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('has a label for every binding it offers', () => {
+    // **The guard that keeps the designer's picker from falling behind.** Seven
+    // bindings were added to `TextSource`, resolved in both painters and drawn
+    // on a card while the picker went on offering the old eleven — so nothing
+    // could be bound to them at all. A picker built from this list cannot
+    // repeat that; a picker written as a literal list did.
+    const missing = TEXT_BINDINGS.filter((b) => BINDING_LABEL[bindingKey(b)] === undefined)
+    expect(missing.map(bindingKey)).toEqual([])
+  })
+
+  it('has a label for every image binding too', () => {
+    const missing = IMAGE_BINDINGS.filter((b) => BINDING_LABEL[bindingKey(b)] === undefined)
+    expect(missing.map(bindingKey)).toEqual([])
+  })
+
+  it('names the owner’s word rather than the schema’s', () => {
+    // These are the words on the control. "spec" is a column name.
+    expect(labelFor({ from: 'product', field: 'spec' })).toBe('Size or spec')
+    expect(labelFor({ from: 'product', field: 'packSize' })).toBe('Pack size')
   })
 
   it('offers exactly one identity source', () => {

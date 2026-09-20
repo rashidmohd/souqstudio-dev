@@ -101,6 +101,7 @@ export { countLogoElements, foldLogoElement, foldLogoElements } from './convert-
 // had their own switch and they agreed with each other and with nothing else —
 // which is why `shop.phone` drew nothing for as long as it existed. E14 §3.5.
 export {
+  BINDING_LABEL,
   BOOK_FIELDS,
   BRAND_TEXT_FIELDS,
   IMAGE_BINDINGS,
@@ -109,6 +110,8 @@ export {
   SHOP_FIELDS,
   TEXT_BINDINGS,
   bindingInScope,
+  bindingKey,
+  labelFor,
   resolveImageBinding,
   resolveTextBinding,
   type BindingSubjects,
