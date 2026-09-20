@@ -49,9 +49,10 @@ string if the name does not match.
 
 ---
 
-## 2. Create the three app services
+## 2. Create the three Node services
 
-For each of `web`, `admin` and `worker`: **Create → GitHub Repo → souqstudio**. The first
+For each of `web`, `admin` and `worker`: **Create → GitHub Repo → souqstudio**. The
+fourth service, `rembg`, is Python and is §2a. The first
 one will ask you to install the Railway GitHub App and grant it access to the repository.
 Add all three from the same repo — Railway is happy to have several services watching one
 repository, which is the whole point of the watch patterns below.
@@ -125,6 +126,62 @@ reachable from the internet. Railway still runs its healthcheck over the interna
 
 ---
 
+## 2a. Create the `rembg` service
+
+**Create → GitHub Repo → souqstudio** again, rename it `rembg`, and leave **Root
+Directory** empty like the others. Then **Settings → Config-as-code → Path**:
+
+| Service | Path |
+| --- | --- |
+| `rembg` | `railway/rembg.json` |
+
+Two things differ from the three Node services, and both are load-bearing:
+
+- **Its builder is `DOCKERFILE`, not `RAILPACK`.** Railpack inspects the repository root,
+  finds `pnpm-workspace.yaml` and builds it as a Node service — it has no reason to guess
+  that this one service is Python. `railway/rembg.json` names `apps/rembg/Dockerfile`,
+  whose path is relative to the repository root, because the config file does not follow
+  Root Directory.
+- **It gets no public domain and almost no variables.** Not `DATABASE_URL`, not
+  `REDIS_URL`, not R2. It receives an image on the private network and returns one; it
+  reads nothing and writes nothing. Set exactly one:
+
+  ```bash
+  PORT=8000
+  ```
+
+  **Pinned rather than left to Railway**, which is the opposite of what the other three
+  services do — and the reason is that the worker has to name this port in a URL. Railway
+  assigns one otherwise, the private address becomes something you have to look up in the
+  dashboard, and a service recreated later comes back on a different one with nothing to
+  say so. `REMBG_MODEL` is the only other variable it understands and the default is
+  correct.
+
+**The first build is slow — five to ten minutes — and that is expected.** It installs
+onnxruntime and downloads the U^2-Net weights into the image, about 176MB. That is
+deliberate: the alternative is downloading them on the first request after every deploy,
+from GitHub, from inside Railway. `healthcheckTimeout` is 300 in the config for the same
+reason.
+
+Then point the worker at it. In the **worker** service:
+
+```bash
+REMBG_SERVICE_URL=http://rembg.railway.internal:8000
+```
+
+**`http`, not `https`, and the internal hostname.** Railway's private network terminates no
+TLS and the service has no public domain. The hostname is `SERVICE-NAME.railway.internal`,
+so it follows whatever you named the service — if you called it something other than
+`rembg`, this changes with it. The `:8000` is the `PORT` pinned above; the two are one
+setting in two places and they move together.
+
+**A wrong value here fails silently and looks exactly like success.** The worker refuses to
+boot on a missing `REMBG_SERVICE_URL` but cannot tell a wrong one from a service that is
+down — both raise `RembgUnavailableError`, which by design keeps the original photo, writes
+no row and charges nobody. So verify it (§6) rather than assuming it.
+
+---
+
 ## 3. Variables
 
 ### Shared references
@@ -165,7 +222,6 @@ RESEND_API_KEY=re_
 EMAIL_FROM=SouqStudio <send@updates.souqstudio.com>
 OPENAI_API_KEY=sk-
 ANTHROPIC_API_KEY=sk-ant-
-REMBG_SERVICE_URL=
 ```
 
 **`R2_ENDPOINT` must not contain the bucket, in either form it can hide.** Not
@@ -183,6 +239,12 @@ history.
 
 Same as `web` minus `NEXTAUTH_*`, `STRIPE_*` and the publishable key — the worker
 authenticates nobody and charges nobody. It reads `PORT` from Railway automatically.
+
+Plus the one variable only the worker has:
+
+```bash
+REMBG_SERVICE_URL=http://rembg.railway.internal:8000   # §2a — matches PORT pinned on that service
+```
 
 ### admin
 
@@ -316,17 +378,35 @@ Prisma's migration output there, and that is where a migration failure will be v
 where a bad environment variable names itself, since validation runs at start rather than at
 build.
 
+**Then check `rembg`, because nothing else will.** Its deploy log should end with
+uvicorn's startup line, and the first request is what actually proves it. From the
+**worker** service's shell (**Deployments → ⋮ → Shell**, so the request crosses the same
+private network the real one does):
+
+```bash
+curl -s $REMBG_SERVICE_URL/health
+# {"status":"ok","model":"u2net"}
+```
+
+If that answers, the wiring is right. If it hangs or refuses, the hostname or the port in
+`REMBG_SERVICE_URL` is wrong — and **no screen in the product will ever tell you**, because
+an unreachable Rembg is a cutout that silently does not happen.
+
 **Then upload something.** `/brand` → the logo field is the shortest path. Three independent
 faults on that path were each enough to break it and only one was visible from the code, so
 a green healthcheck says nothing about whether an owner can put an image in their book. If
 the picture does not render afterwards, the object went somewhere unaddressable: check
-`R2_ENDPOINT` first, then §5a.
+`R2_ENDPOINT` first, then §5a. If it renders **with its background still on**, the
+upload worked and the cutout did not: read the worker's log for `[bg]`. One of two lines is
+there — `Rembg is unavailable: …` names the wiring, and `cutout for … quality …` means it
+worked and the problem is downstream.
 
 ## 7. Ongoing deploys
 
 Push to `main`. Railway rebuilds whichever services have watch patterns matching the
 changed files — a change under `apps/web/` will not rebuild the worker, but a change under
-`packages/` rebuilds all three, because all three depend on it.
+`packages/` rebuilds all three Node services, because all three depend on it. **`rembg`
+watches only `apps/rembg/` and shares nothing**, so it sits out every deploy but its own.
 
 Deploy history, rollback to a previous deployment, and per-deploy logs are all in each
 service's **Deployments** tab.
@@ -345,10 +425,12 @@ root `CLAUDE.md` under Known gaps:
   test keys until you have exercised the order in `docs/E3-pending.md` §1.
 - **Three of five worker handlers are stubs that throw** — `pdf`, `ai` and `enrich`. The
   worker will start, accept those jobs, fail them, and exhaust retries.
-- **`REMBG_SERVICE_URL` needs a real service.** Background removal is implemented and calls
-  it. It is a separate Python/FastAPI deployment that does not exist yet; the worker will
-  not boot without the variable set to something URL-shaped, and `bg` jobs fail without
-  something real behind it.
+- ~~**`REMBG_SERVICE_URL` needs a real service.**~~ **Built 20 September** — `apps/rembg`,
+  deployed by §2a. It had never existed, so every `bg` job since the feature shipped
+  returned `kept_original`: logos kept their backgrounds, catalog cutouts never appeared,
+  and the manual background removal in the editor queued, completed and changed nothing,
+  charging nobody, with one `console.warn` in the worker log as the only trace. Nothing in
+  the product said so, which is the part worth remembering — see §6.
 - **The email logo is not on R2.** Every email renders with a broken image until
   `apps/web/public/brand/email/logo-dark.png` is uploaded to
   `https://assets.souqstudio.com/email/logo-dark.png`.

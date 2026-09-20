@@ -144,6 +144,12 @@ Two branches in one handler, told apart by the payload: `catalogProductId` plus
   the same result three times.
 - **An unavailable Rembg writes no row at all** — which is already the correct state,
   because no cutout means the fallback. Unlike the logo branch there is no status to undo.
+- **Rembg is `apps/rembg` and it is reached over Railway's private network.** It had never
+  been deployed until 20 September, so every `bg` job before that returned `kept_original`
+  and no cutout in this system had ever been produced. The failure is invisible from the
+  product by design — nothing is charged and the original is kept — so `[bg] Rembg is
+  unavailable: …` in this log is the only place it is ever reported. Read it first when a
+  photo keeps its background.
 
 ---
 

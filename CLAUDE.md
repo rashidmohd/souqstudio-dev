@@ -79,18 +79,24 @@ These apply everywhere and are not negotiable per-task.
 
 ---
 
-## The three deployable units
+## The four deployable units
 
 ```
 apps/web      Next.js 14   Railway    Shop owner UI + every API route
 apps/admin    Next.js 14   Railway    Internal team panel
 apps/worker   Node.js      Railway    BullMQ workers — NEVER Vercel
+apps/rembg    Python 3.11  Railway    Background removal — Docker, not Railpack
 ```
 
 The web app never does long-running work. It queues a job and returns a job ID. The
 worker does the work. The client polls.
 
-All three run on Railway, alongside Railway-managed Postgres and Redis. The original plan
+**`apps/rembg` is not in the pnpm workspace**, and it is the only service that builds from
+a Dockerfile — Railpack reads the repository root, finds a pnpm workspace and would build
+it as Node. It holds no database, Redis or R2 credentials: an image goes in over the
+private network and an image comes back.
+
+All four run on Railway, alongside Railway-managed Postgres and Redis. The original plan
 put the two Next.js apps on Vercel with Neon and Upstash behind them; consolidating on one
 platform was chosen over that. Nothing in the code depends on either choice. Procedure and
 per-service configuration: `docs/deployment-railway.md` and `railway/*.json`.

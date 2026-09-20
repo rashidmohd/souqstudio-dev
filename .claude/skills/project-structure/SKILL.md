@@ -30,7 +30,9 @@ souqstudio/
 ├── apps/
 │   ├── web/       CLAUDE.md           # Next.js — shop owner app + all API routes
 │   ├── admin/     CLAUDE.md           # Next.js — internal team panel
-│   └── worker/    CLAUDE.md           # Node.js — BullMQ workers
+│   ├── worker/    CLAUDE.md           # Node.js — BullMQ workers
+│   └── rembg/     CLAUDE.md           # Python/FastAPI — background removal.
+│                                      #   NOT in the pnpm workspace. Docker, not Railpack.
 │
 ├── packages/
 │   ├── db/        CLAUDE.md           # Prisma schema, client, queue producers

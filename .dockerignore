@@ -1,0 +1,29 @@
+# The Docker build context is the repository root — Railway's config-as-code
+# does not follow Root Directory, so every Dockerfile here builds from the root
+# and would otherwise upload the whole workspace to the builder.
+#
+# `apps/rembg` copies two files. Everything below is weight nothing needs, and
+# `node_modules` alone is several gigabytes of it.
+node_modules
+**/node_modules
+.pnpm-store
+.git
+.turbo
+**/.turbo
+**/.next
+**/dist
+**/build
+**/out
+**/*.tsbuildinfo
+
+# Never into an image, even one that does not read them.
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Large working artefacts that are not application code.
+packages/engine/harness/out
+products
+docs
+.claude

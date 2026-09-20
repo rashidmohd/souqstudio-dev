@@ -1,0 +1,18 @@
+# Pinned to compatible releases (`~=` allows patch updates, not minor ones).
+#
+# **`onnxruntime`, never `onnxruntime-gpu`.** Railway's containers have no GPU,
+# and the GPU wheel does not fall back — it fails to load CUDA at import and the
+# service never starts.
+#
+# `rembg` is installed without its `[cli]` or `[gpu]` extras: the CLI pulls
+# click, watchdog and aiohttp for a command line nothing here runs.
+rembg~=2.0.59
+onnxruntime~=1.20.0
+
+fastapi~=0.115.0
+uvicorn~=0.32.0
+# FastAPI parses multipart through this. Without it `UploadFile` raises at
+# import time with "Form data requires python-multipart", which looks like a
+# FastAPI bug and is a missing dependency.
+python-multipart~=0.0.12
+pillow~=11.0
