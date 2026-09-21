@@ -7,6 +7,7 @@ import type { CatalogSearchHit } from '@souqstudio/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Figure } from '@/components/ui/figure'
+import { ProductThumb } from '@/components/catalog/ProductThumb'
 import { moveOffer, removeOffer, reorderOffer } from '@/lib/editor-actions'
 import { useEditorStore } from '@/stores/editor-store'
 import { displayName, packLabel } from '@/lib/catalog-display'
@@ -359,13 +360,16 @@ function AddProduct({
                   type="button"
                   disabled={disabled}
                   onClick={() => onAdd(product.id)}
-                  className="flex min-h-row w-full items-center justify-between gap-2 rounded-control px-2 text-start hover:bg-stone-100 disabled:opacity-disabled"
+                  className="flex min-h-row w-full items-center justify-between gap-2 rounded-control p-1 text-start hover:bg-stone-100 disabled:opacity-disabled"
                 >
-                  <span className="flex min-w-0 flex-col">
-                    <span className="truncate font-ui text-body-sm text-primary">{name}</span>
-                    <span className="truncate font-ui text-body-sm text-muted">
-                      {[product.brandEn, packLabel(product)].filter(Boolean).join(' · ') ||
-                        'No brand'}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ProductThumb product={product} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-ui text-body-sm text-primary">{name}</span>
+                      <span className="truncate font-ui text-body-sm text-muted">
+                        {[product.brandEn, packLabel(product)].filter(Boolean).join(' · ') ||
+                          (product.imageUrl ? 'No brand' : 'No photo')}
+                      </span>
                     </span>
                   </span>
                   <Plus className="size-4 shrink-0" aria-hidden="true" strokeWidth={2} />

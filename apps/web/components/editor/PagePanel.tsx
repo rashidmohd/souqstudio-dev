@@ -42,6 +42,8 @@ type Props = {
   token: (ref: TokenRef) => string
   /** Width ÷ height of the page, for the shape a generated ground is drawn at. */
   aspect: number
+  /** Where an asset id becomes a URL. The blur control re-renders from it. */
+  assetBaseUrl: string
 
   selection: {
     /** Cells covered. Zero when nothing is selected. */
@@ -87,6 +89,7 @@ export function PagePanel({
   palette,
   token,
   aspect,
+  assetBaseUrl,
   selection,
   onMerge,
   onUnmerge,
@@ -133,6 +136,7 @@ export function PagePanel({
           palette={palette}
           token={token}
           aspect={aspect}
+          assetBaseUrl={assetBaseUrl}
           /*
             **Never disabled while a write is in flight.** A colour control emits
             continuously and the write is debounced, so there is nothing to

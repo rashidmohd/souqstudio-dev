@@ -824,6 +824,7 @@ export function EditorShell({
                 page={activePage}
                 pageCount={pages.length}
                 onPage={setActivePage}
+                assetBaseUrl={assetBaseUrl}
                 background={backgroundFor(activePage)}
                 inherits={pageInherits}
                 onBackground={(next) => {

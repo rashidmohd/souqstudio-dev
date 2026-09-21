@@ -219,7 +219,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
    */
   const background: PageBackground | null | undefined = parsed.data.background
   if (background !== undefined && background !== null && background.from === 'asset') {
-    if (!background.assetId.startsWith(`${session.user.organizationId}/`)) {
+    // Both keys: `blur.from` is the unblurred original the editor re-renders
+    // from, and it is as much a handle on an object as `assetId` is.
+    const keys = [background.assetId, ...(background.blur ? [background.blur.from] : [])]
+    if (keys.some((key) => !key.startsWith(`${session.user.organizationId}/`))) {
       return fail('asset_not_found', 'That image is not one of yours.', 404)
     }
   }

@@ -68,7 +68,12 @@ export async function PATCH(
   if ('background' in parsed.data) {
     const background = parsed.data.background
     if (background !== null && background.from === 'asset') {
-      if (!background.assetId.startsWith(`${session.user.organizationId}/`)) {
+      // **Both keys, because there are now two.** `blur.from` names the
+      // unblurred original the editor re-renders from, and a key that skipped
+      // this check would be another shop's photograph handed back to this one
+      // the moment they touched the blur slider.
+      const keys = [background.assetId, ...(background.blur ? [background.blur.from] : [])]
+      if (keys.some((key) => !key.startsWith(`${session.user.organizationId}/`))) {
         return fail('asset_not_found', 'That image is not one of yours.', 404)
       }
     }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Figure } from '@/components/ui/figure'
+import { ProductThumb } from '@/components/catalog/ProductThumb'
 import { displayName, packLabel } from '@/lib/catalog-display'
 
 /**
@@ -107,15 +108,18 @@ export function ProductSearch({ picked, onChange, max }: Props) {
                         type="button"
                         onClick={() => add(product)}
                         disabled={already || full}
-                        className="flex min-h-row w-full items-center justify-between gap-3 rounded-control px-2 text-start hover:bg-stone-100 disabled:opacity-disabled"
+                        className="flex min-h-row w-full items-center justify-between gap-3 rounded-control p-1 text-start hover:bg-stone-100 disabled:opacity-disabled"
                       >
-                        <span className="flex min-w-0 flex-col">
-                          <span className="truncate font-ui text-body text-primary">
-                            {displayName(product, 'en')}
-                          </span>
-                          <span className="truncate font-ui text-body-sm text-muted">
-                            {[product.brandEn, packLabel(product)].filter(Boolean).join(' · ') ||
-                              'No brand'}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ProductThumb product={product} />
+                          <span className="flex min-w-0 flex-col">
+                            <span className="truncate font-ui text-body text-primary">
+                              {displayName(product, 'en')}
+                            </span>
+                            <span className="truncate font-ui text-body-sm text-muted">
+                              {[product.brandEn, packLabel(product)].filter(Boolean).join(' · ') ||
+                                (product.imageUrl ? 'No brand' : 'No photo')}
+                            </span>
                           </span>
                         </span>
                         {already ? (

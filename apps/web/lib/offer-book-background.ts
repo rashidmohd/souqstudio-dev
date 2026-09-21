@@ -63,6 +63,20 @@ export const backgroundSchema = z.union([
     assetId: z.string().min(1).max(200),
     fit: z.enum(['cover', 'contain']).optional(),
     opacity: z.number().min(0).max(1).optional(),
+    /**
+     * Provenance for a blurred background — the original and the radius, never
+     * a filter. `assetId` above is already the blurred picture; this is what
+     * the editor reads to put the slider back and what it re-blurs from.
+     *
+     * **`radius` is bounded here as well as in the control**, because the
+     * control is not the writer — this schema is. It is a fraction of the
+     * image's shorter edge, and the ceiling is the point past which a
+     * background stops being a photograph and becomes a wash an owner could
+     * have got from the colour picker for free.
+     */
+    blur: z
+      .object({ from: z.string().min(1).max(200), radius: z.number().min(0).max(0.06) })
+      .optional(),
   }),
 ])
 

@@ -2,8 +2,8 @@
 
 import type { CatalogProductSummary } from '@souqstudio/types'
 import * as React from 'react'
-import Image from 'next/image'
-import { AlertTriangle, Check, HelpCircle, ImageOff, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Check, HelpCircle, RotateCcw } from 'lucide-react'
+import { ProductThumb } from '@/components/catalog/ProductThumb'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FileDropzone } from '@/components/ui/file-dropzone'
@@ -788,33 +788,7 @@ function CandidateTile({
           : 'border-border-subtle hover:bg-stone-100',
       ].join(' ')}
     >
-      {/* `relative`, because `fill` measures against the nearest positioned
-          ancestor. Square at the large control height: a cutout's aspect ratio
-          is whatever the packshot was, and a row of mixed widths reads as
-          broken rather than as varied. */}
-      <span className="relative flex size-control-lg shrink-0 items-center justify-center overflow-hidden rounded-control bg-sand-tint">
-        {product.imageUrl === null ? (
-          // A missing-asset marker inside a tile, not an illustration —
-          // `illustration-selection.md` bars decoration at this size. Same
-          // treatment `ProductCard` gives the same absence.
-          <ImageOff className="size-4 text-secondary" aria-hidden="true" strokeWidth={1.75} />
-        ) : (
-          <Image
-            src={product.imageUrl}
-            alt=""
-            aria-hidden="true"
-            fill
-            sizes="44px"
-            // `unoptimized`, for the reason `ProductCard` states: `R2_PUBLIC_URL`
-            // is per-environment while `remotePatterns` is a hardcoded pair of
-            // hosts, so the optimizer refuses any bucket that is not one of
-            // those two — and the failure is every picture in the picker, in
-            // exactly the environment nobody checked.
-            unoptimized
-            className="object-contain p-1"
-          />
-        )}
-      </span>
+      <ProductThumb product={product} />
 
       <span className="flex min-w-0 flex-col">
         <span className="truncate font-ui text-body-sm text-primary">

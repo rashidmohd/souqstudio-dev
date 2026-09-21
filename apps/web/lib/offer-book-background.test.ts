@@ -63,6 +63,31 @@ describe('backgroundSchema', () => {
     )
   })
 
+  it('carries a blurred background\'s provenance', () => {
+    // `assetId` is always what the page draws; `blur.from` is the unblurred
+    // original the editor re-renders from, so a second drag does not blur a
+    // blur. Absent means the picture is the original.
+    expect(
+      backgroundSchema.safeParse({
+        from: 'asset',
+        assetId: 'org_1/blocks/blurred',
+        blur: { from: 'org_1/blocks/original', radius: 0.02 },
+      }).success
+    ).toBe(true)
+  })
+
+  it('bounds the blur radius here, not only in the control', () => {
+    // The control is not the writer — this schema is. Past the ceiling a
+    // background stops being a photograph and becomes a wash.
+    expect(
+      backgroundSchema.safeParse({
+        from: 'asset',
+        assetId: 'org_1/blocks/x',
+        blur: { from: 'org_1/blocks/y', radius: 0.5 },
+      }).success
+    ).toBe(false)
+  })
+
   it('refuses a three-digit hex and a one-stop gradient', () => {
     expect(backgroundSchema.safeParse({ from: 'hex', hex: '#fff' }).success).toBe(false)
     expect(

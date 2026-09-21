@@ -1273,6 +1273,37 @@ export type PageBackground =
        * and the fix a designer reaches for is to knock the image back.
        */
       opacity?: number | undefined
+      /**
+       * Where a blurred background came from — **authoring provenance, never
+       * paint.**
+       *
+       * `assetId` above always names the picture as it is drawn, blurred or
+       * not, so no renderer learns what a blur is and nothing reaches the
+       * export path as a filter. That is the whole design: E14 §2.4 measured
+       * `feGaussianBlur` rasterising its own element at a resolution Chromium
+       * picks — about 220dpi, under the 300dpi target and not reachable from
+       * anything in the document — so blur is banned as paint and produced as
+       * pixels instead.
+       *
+       * This exists because the *editor* still has to answer two questions a
+       * flattened image cannot: what the slider should read when the page is
+       * reopened, and what to blur from when it moves. Re-blurring an already
+       * blurred picture compounds, so `from` keeps the original.
+       *
+       * Absent means the picture is the original and the slider is at zero.
+       */
+      blur?:
+        | {
+            /** The unblurred original's R2 key. Same org prefix as `assetId`. */
+            from: string
+            /**
+             * Blur radius as a fraction of the image's **shorter edge**, so it
+             * survives being scaled to whatever page it covers — the same
+             * reasoning that makes `gap` and `margin` fractions of the page.
+             */
+            radius: number
+          }
+        | undefined
     }
 
 export interface PageGrid {

@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { uploadArtwork } from '@/lib/upload-artwork'
+import { MAX_BLUR_RADIUS, renderBlurred } from '@/lib/blur-image'
 import { CoverPicker } from '@/components/editor/CoverPicker'
 
 /**
@@ -54,6 +55,16 @@ type Props = {
    * story-shaped ground onto an A4 page.
    */
   aspect?: number | undefined
+  /**
+   * Where an `assetId` becomes a URL, for the blur control alone.
+   *
+   * **Blurring needs the original's bytes**, because it re-renders from the
+   * unblurred picture every time rather than blurring what is already blurred —
+   * two passes of a Gaussian is a third, wider one, and the slider would stop
+   * meaning anything after the second drag. Omitted hides the blur slider; the
+   * rest of the control is unaffected.
+   */
+  assetBaseUrl?: string | undefined
 }
 
 type Mode = 'none' | 'color' | 'image'
@@ -71,10 +82,31 @@ export function PageBackgroundControl({
   token,
   disabled,
   aspect,
+  assetBaseUrl,
 }: Props) {
   const mode = modeOf(value)
   const [generating, setGenerating] = React.useState(false)
   const [uploading, setUploading] = React.useState(false)
+  const [blurring, setBlurring] = React.useState(false)
+
+  /**
+   * The blur slider's live position, in percent of the image's shorter edge.
+   *
+   * **Local, because the committed value and the thumb are not the same thing
+   * here.** Every other control in this panel writes on change and the write is
+   * debounced; this one re-renders an image and uploads it, so it writes on
+   * release. The thumb has to move in between or the control feels broken.
+   *
+   * Percent rather than the stored fraction so the readout says `3%` instead of
+   * `0.03` — `Slider` shows its value and a number nobody can act on is the
+   * defect its own comment describes.
+   */
+  const storedBlur =
+    value !== null && value.from === 'asset'
+      ? Math.round((value.blur?.radius ?? 0) * 1000) / 10
+      : 0
+  const [blurPercent, setBlurPercent] = React.useState(storedBlur)
+  React.useEffect(() => setBlurPercent(storedBlur), [storedBlur])
   const [error, setError] = React.useState<string | null>(null)
   const file = React.useRef<HTMLInputElement>(null)
 
@@ -88,6 +120,62 @@ export function PageBackgroundControl({
    */
   function toColor() {
     onChange({ from: 'role', ref: 'surface' })
+  }
+
+  /**
+   * Re-render the background at a new blur radius.
+   *
+   * **Always from the original, never from what is on screen.** Blurring an
+   * already blurred picture compounds — two passes at r are one pass at
+   * r√2 — so the slider would drift further with every drag and dragging it
+   * back to zero would leave a soft picture. `blur.from` is kept for exactly
+   * this.
+   *
+   * **Zero restores the original rather than rendering it.** There is nothing to
+   * draw and nothing to upload; the background simply points back at the picture
+   * the owner chose, and the blurred derivative is abandoned in the bucket. That
+   * is deliberate: an owner nudging a slider must not be able to destroy the
+   * only copy of their photograph, and an orphaned object costs less than a
+   * background nobody can un-blur.
+   */
+  async function setBlur(radius: number) {
+    if (value === null || value.from !== 'asset' || assetBaseUrl === undefined) return
+    // Releasing without having moved is not a change. Without this, every click
+    // on the track's thumb costs a render and an upload.
+    if (radius === (value.blur?.radius ?? 0)) return
+
+    const original = value.blur?.from ?? value.assetId
+    setError(null)
+
+    if (radius <= 0) {
+      const { blur: _dropped, ...rest } = value
+      onChange({ ...rest, assetId: original })
+      return
+    }
+
+    setBlurring(true)
+    try {
+      const base = assetBaseUrl.replace(/\/$/, '')
+      const rendered = await renderBlurred(`${base}/${original}`, radius)
+      if (rendered === null) {
+        setError('That image could not be blurred. Try again.')
+        // The thumb goes back to what is actually stored. Leaving it where the
+        // owner dropped it would claim a blur the page is not drawing.
+        setBlurPercent(storedBlur)
+        return
+      }
+
+      const assetId = await uploadArtwork(rendered)
+      if (assetId === null) {
+        setError('That blurred image could not be saved. Try again.')
+        setBlurPercent(storedBlur)
+        return
+      }
+
+      onChange({ ...value, assetId, blur: { from: original, radius } })
+    } finally {
+      setBlurring(false)
+    }
   }
 
   async function pick(chosen: File) {
@@ -213,6 +301,44 @@ export function PageBackgroundControl({
             onValueChange={(next) => onChange({ ...value, opacity: next })}
             hint="Fade it back so the cards stay readable."
           />
+
+          {/*
+            **Blur, and it is pixels rather than a filter.** E14 §2.4 measured
+            what `feGaussianBlur` costs on the export path — Chromium rasterises
+            the element at a resolution nothing in the document can set, about
+            220dpi against a 300dpi target — so the picture is re-rendered
+            blurred and stored, and the page draws an ordinary image.
+
+            **It commits on release, not while dragging.** Every step would be a
+            render, an upload and a write; `onCommit` is what the slider has for
+            gestures whose result is expensive. The number moves under the
+            thumb, the picture changes when the owner lets go.
+
+            Hidden without `assetBaseUrl`, because there is nowhere to read the
+            original from — see the prop's note.
+          */}
+          {assetBaseUrl === undefined ? null : (
+            <Slider
+              label="Blur"
+              min={0}
+              max={MAX_BLUR_RADIUS * 100}
+              step={0.5}
+              unit="%"
+              value={blurPercent}
+              disabled={disabled || blurring}
+              onValueChange={setBlurPercent}
+              // Release, not change: `onChange` fires per step and each one
+              // would be a render, an upload and a write. Both events, because
+              // a slider is a keyboard control as much as a pointer one.
+              onPointerUp={() => void setBlur(blurPercent / 100)}
+              onKeyUp={() => void setBlur(blurPercent / 100)}
+              hint={
+                blurring
+                  ? 'Blurring the image…'
+                  : 'Softens the photograph so the cards read against it.'
+              }
+            />
+          )}
 
           <div className="flex items-center gap-2">
             <Button
