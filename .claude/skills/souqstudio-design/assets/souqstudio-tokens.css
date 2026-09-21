@@ -5,7 +5,15 @@
 
 :root {
   /* ---------- Brand ---------- */
-  --sq-blue:            #143CD2;  /* 8.06:1 on white — ink-safe */
+  /* Olive carries every primary action, link, focus ring and selection. It was
+     blue; the swap is contrast-neutral by construction — white on olive is
+     8.05:1 against blue's 8.06:1, and the hover 10.03:1 against 10.05:1 — so no
+     pairing that cleared AA before falls below it now.
+     Blue stays defined below because it is still the MARK: the monogram, the
+     wordmark and the illustration accent are drawn with it and are not part of
+     this change. Chrome takes olive, artwork takes blue. */
+  --sq-olive:           #425719;  /* 8.05:1 on white — ink-safe */
+  --sq-blue:            #143CD2;  /* 8.06:1 on white — ink-safe — MARK ONLY */
   --sq-navy:            #052F72;  /* 12.68:1 — ink-safe */
   --sq-charcoal:        #323232;  /* 12.82:1 — ink-safe */
   /* Charcoal on sky is 4.25:1 — under the 4.5:1 AA floor for body text.
@@ -34,7 +42,14 @@
   --sq-stone-800:       #3E3D38;
   --sq-stone-900:       #323232;
 
-  /* ---------- Blue tints ---------- */
+  /* ---------- Olive tints ---------- */
+  --sq-olive-50:        #F4F6EC;  /* selection ground — charcoal on it 11.75:1 */
+  --sq-olive-100:       #E4EBD2;
+  --sq-olive-200:       #CFDCAE;
+  --sq-olive-600:       #364814;  /* action hover — white on it 10.03:1 */
+  --sq-olive-700:       #2A390F;
+
+  /* ---------- Blue tints — mark only, see the brand block ---------- */
   --sq-blue-50:         #F1F4FE;
   --sq-blue-100:        #DDE4FC;
   --sq-blue-200:        #B8C6F8;
@@ -54,6 +69,12 @@
   --sq-ui-page:              var(--sq-stone-50);
   --sq-ui-surface:           var(--sq-stone-0);
   --sq-ui-surface-sunken:    var(--sq-stone-100);
+  /* A sunken strip under the pointer. One step further from the surface it sits
+     on, never toward it: a hover that lands on the container's own tone makes
+     the element vanish under the cursor, which is what it did on the editor's
+     collapsible sections before this existed. Fill only — it takes the same ink
+     as the sunken tone, 12.1:1 for primary text. */
+  --sq-ui-surface-hover:     var(--sq-stone-200);
   --sq-ui-canvas-surround:   #2C2C2A;      /* editor artboard backdrop */
   --sq-ui-input:             var(--sq-stone-0);
 
@@ -61,27 +82,27 @@
   --sq-ui-text-secondary:    var(--sq-stone-700);
   --sq-ui-text-muted:        var(--sq-stone-600);
   --sq-ui-text-inverse:      var(--sq-stone-0);
-  --sq-ui-text-link:         var(--sq-blue);
+  --sq-ui-text-link:         var(--sq-olive);
 
   --sq-ui-border-subtle:     rgba(50, 50, 50, 0.14);
   --sq-ui-border-strong:     rgba(50, 50, 50, 0.25);
-  --sq-ui-border-focus:      var(--sq-blue);
+  --sq-ui-border-focus:      var(--sq-olive);
 
-  /* The brand blue carries the primary action. White on #143CD2 is 8.06:1 and
-     on the #1032AE hover 10.05:1 — both clear AA at any size. Charcoal is still
-     the ink, the illustration line and the meter fill; it is no longer the
-     button. Go through this token, never bg-blue: the raw utility pins the
-     light value and skips the dark-mode one below. */
-  --sq-ui-action-primary-bg:     var(--sq-blue);
+  /* Olive carries the primary action. White on #425719 is 8.05:1 and on the
+     #364814 hover 10.03:1 — both clear AA at any size. Charcoal is still the
+     ink, the illustration line and the meter fill; it is not the button. Go
+     through this token, never bg-olive: the raw utility pins the light value
+     and skips the dark-mode one below. */
+  --sq-ui-action-primary-bg:     var(--sq-olive);
   --sq-ui-action-primary-fg:     var(--sq-stone-0);
-  --sq-ui-action-primary-hover:  var(--sq-blue-600);
+  --sq-ui-action-primary-hover:  var(--sq-olive-600);
   --sq-ui-action-secondary-bg:   transparent;
   --sq-ui-action-secondary-fg:   var(--sq-stone-900);
   --sq-ui-action-danger-fg:      var(--sq-critical-fg);
 
-  --sq-ui-selected-bg:       var(--sq-blue-50);
-  --sq-ui-selected-fg:       var(--sq-blue);
-  --sq-ui-selected-ring:     var(--sq-blue);
+  --sq-ui-selected-bg:       var(--sq-olive-50);
+  --sq-ui-selected-fg:       var(--sq-olive);
+  --sq-ui-selected-ring:     var(--sq-olive);
 
   /* ---------- Machine output (AI-generated content marker) ---------- */
   /* The rule was --sq-sky, which is 2.76:1 on the fill — under the 3:1 non-text
@@ -240,8 +261,8 @@ em, i, .italic { font-style: normal; font-weight: 500; }
   --secondary-foreground: var(--sq-ui-text-primary);
   --muted:               var(--sq-stone-100);
   --muted-foreground:    var(--sq-ui-text-muted);
-  --accent:              var(--sq-blue-50);
-  --accent-foreground:   var(--sq-blue);
+  --accent:              var(--sq-olive-50);
+  --accent-foreground:   var(--sq-olive);
   --destructive:         var(--sq-critical-fg);
   --destructive-foreground: var(--sq-stone-0);
   --border:              var(--sq-ui-border-subtle);
@@ -259,6 +280,11 @@ em, i, .italic { font-style: normal; font-weight: 500; }
   --sq-ui-page:            #1E1E1C;
   --sq-ui-surface:         #262622;
   --sq-ui-surface-sunken:  #191917;
+  /* Dark runs the ramp the other way: the sunken tone is the darkest of the
+     three, so its hover lifts rather than deepens. #212120 is between the
+     sunken strip and the page, and stays clear of the surface above it — the
+     point is that it never becomes the tone of whatever it sits on. */
+  --sq-ui-surface-hover:   #212120;
   --sq-ui-input:           #2E2E29;
 
   --sq-ui-text-primary:    #EFEEE8;
@@ -269,18 +295,19 @@ em, i, .italic { font-style: normal; font-weight: 500; }
   --sq-ui-border-subtle:   rgba(239, 238, 232, 0.12);
   --sq-ui-border-strong:   rgba(239, 238, 232, 0.24);
 
-  /* Dark keeps the action blue, but not --sq-blue: #143CD2 on the #1E1E1C page
-     is 2.07:1, under the 3:1 non-text floor, so the button's shape would barely
-     separate from the ground. #8AA1F1 is already the dark link and focus value;
-     it is 6.72:1 on the page and takes #1E1E1C ink at the same 6.72:1. */
-  --sq-ui-action-primary-bg:    #8AA1F1;
+  /* Dark keeps the action olive, but not --sq-olive: #425719 on the #1E1E1C
+     page is 2.07:1, under the 3:1 non-text floor, so the button's shape would
+     barely separate from the ground. #95AE5D is the dark link and focus value;
+     it is 6.75:1 on the page and takes #1E1E1C ink at the same 6.75:1 — the
+     same pair of numbers the blue it replaces held (6.72:1). */
+  --sq-ui-action-primary-bg:    #95AE5D;
   --sq-ui-action-primary-fg:    #1E1E1C;
-  --sq-ui-action-primary-hover: #A5B8F5;
+  --sq-ui-action-primary-hover: #A9C079;
 
-  --sq-ui-text-link:       #8AA1F1;  /* sq-blue is unreadable on a dark ground */
-  --sq-ui-border-focus:    #8AA1F1;
-  --sq-ui-selected-bg:     #232838;
-  --sq-ui-selected-fg:     #8AA1F1;
+  --sq-ui-text-link:       #95AE5D;  /* sq-olive is unreadable on a dark ground */
+  --sq-ui-border-focus:    #95AE5D;
+  --sq-ui-selected-bg:     #29301E;
+  --sq-ui-selected-fg:     #95AE5D;
 }
 
 /* Illustrations keep their light palette in both themes and sit on this panel.

@@ -51,7 +51,7 @@ const links: React.CSSProperties = {
 }
 
 const link: React.CSSProperties = {
-  color: '#143CD2',
+  color: '#425719',   // --sq-olive, in step with --sq-ui-text-link
   textDecoration: 'none',
 }
 

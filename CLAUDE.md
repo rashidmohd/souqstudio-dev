@@ -60,9 +60,11 @@ These apply everywhere and are not negotiable per-task.
   shadcn ships shadows on cards, popovers, dropdowns and dialogs — strip them.
 - **Every button is a full pill.** Cards and dialogs 12px, inputs and chips 8px, tinted
   blocks 16px, artboard elements 3px.
-- **Blue is the button colour.** `--sq-ui-action-primary-bg` is `--sq-blue`, alongside
-  selection, focus, links and active nav. Always `bg-action-primary`, never `bg-blue` —
-  the raw utility skips the dark-mode value. One primary per screen region.
+- **Olive is the button colour.** `--sq-ui-action-primary-bg` is `--sq-olive` `#425719`,
+  alongside selection, focus, links and active nav. Always `bg-action-primary`, never
+  `bg-olive` — the raw utility skips the dark-mode value. One primary per screen region.
+  Blue is now the **mark only**: monogram, wordmark and illustration accent. `bg-blue` is
+  lint-blocked in chrome.
 - **Logical CSS properties only.** `ms-` `me-` `ps-` `pe-` `border-inline-start`. Never
   `ml-` `mr-` `pl-` `pr-` `left-` `right-`. The app ships in Arabic.
 - **Every figure gets `[data-figure]`** — prices, counts, percentages, dates. Mono,

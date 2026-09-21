@@ -5,9 +5,9 @@ import '@/styles/globals.css'
 export const viewport = {
   // Emitted as <meta name="theme-color">, which the browser reads to tint its
   // own chrome before any stylesheet is parsed — a CSS variable cannot resolve
-  // there. The literal must track --sq-blue by hand.
+  // there. The literal must track --sq-olive by hand.
   // eslint-disable-next-line no-restricted-syntax
-  themeColor: '#143CD2',   // --sq-blue
+  themeColor: '#425719',   // --sq-olive
 }
 
 export const metadata: Metadata = {

@@ -192,9 +192,9 @@ These are the safe values to use in templates:
 | Primary text | `#323232` |
 | Secondary text | `#55534D` |
 | Muted text | `#6E6C64` |
-| CTA button bg | `#143CD2` |
+| CTA button bg | `#425719` |
 | CTA button text | `#FFFFFF` |
-| Link colour | `#143CD2` |
+| Link colour | `#425719` |
 | Border | `rgba(50,50,50,0.14)` |
 | Success bg | `#EFFAD4` |
 | Success text | `#3F6212` |

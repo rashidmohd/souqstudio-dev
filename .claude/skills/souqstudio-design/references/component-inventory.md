@@ -1165,7 +1165,7 @@ type NavItemProps = {
 }
 ```
 
-The active background is the pale `--sq-blue-50`, never the solid blue the primary
+The active background is the pale `--sq-olive-50`, never the solid olive the primary
 button carries. The label becomes the `aria-label` — it does not disappear.
 
 **`collapsed` is the owner's choice, not the breakpoint's.** The rail's toggle

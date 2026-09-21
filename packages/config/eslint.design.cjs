@@ -36,8 +36,9 @@ const FILL_ONLY_AS_INK =
 // Plex Sans Arabic has no true italic. Emphasis is weight.
 const ITALIC = '(^|\\s)italic(\\s|$)'
 
-// Blue IS the primary action, but it must arrive through the semantic token.
-const BLUE_FILL = '(^|\\s)bg-blue(\\s|$)'
+// Olive IS the primary action, but it must arrive through the semantic token.
+// bg-blue stays listed: blue is the mark's colour, never a chrome fill.
+const BRAND_FILL = '(^|\\s)bg-(olive|blue)(\\s|$)'
 
 /**
  * Effects that rasterize on the export path. E14 §2.4.
@@ -131,8 +132,8 @@ const DESIGN_RULES = [
   [ITALIC,
    'No italics. IBM Plex Sans Arabic has no true italic and mixed-script screens must not emphasise differently by language. Use font-medium.'],
 
-  [BLUE_FILL,
-   'Raw blue fill. The primary action is bg-action-primary, which resolves to the brand blue — going direct pins the light value and skips the dark-mode #8AA1F1. Blue is still never a page background, card fill or large tinted panel.'],
+  [BRAND_FILL,
+   'Raw brand fill. The primary action is bg-action-primary, which resolves to the brand olive — going direct pins the light value and skips the dark-mode #95AE5D. bg-blue is worse: blue is the mark only, not a chrome colour. Neither is ever a page background, card fill or large tinted panel.'],
 ]
 
 module.exports = {

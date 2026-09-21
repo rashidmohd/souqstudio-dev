@@ -64,7 +64,8 @@ This is the constraint broken most often. Three of the seven brand colours canno
 
 | Token | Value | On white |
 | --- | --- | --- |
-| `--sq-blue` | `#143CD2` | 8.06:1 |
+| `--sq-olive` | `#425719` | 8.05:1 |
+| `--sq-blue` | `#143CD2` | 8.06:1 — the mark, not chrome |
 | `--sq-navy` | `#052F72` | 12.68:1 |
 | `--sq-charcoal` | `#323232` | 12.82:1 |
 
@@ -84,15 +85,17 @@ and it appears in the consistency checklist instead.
 
 `--sq-stone-300` and `--sq-stone-400` are **borders only, never text**. The lightest value permitted for body copy is `--sq-stone-600` (4.91:1 on the page).
 
-### Where the brand blue goes
+### Where the brand olive goes
 
-**Blue is the primary action.** `--sq-ui-action-primary-bg` resolves to `--sq-blue` — the mark's own colour, on the one button per region that matters. Blue also carries selection, focus rings, links, and active nav.
+**Olive is the primary action.** `--sq-ui-action-primary-bg` resolves to `--sq-olive` `#425719`, on the one button per region that matters. Olive also carries selection, focus rings, links, and active nav.
 
-Charcoal held the CTA until it was measured: blue reached roughly 5% of pixels and every surface with visual weight was grey, so the logged-in product read as a greyscale app wearing a blue logo. The restraint that justified charcoal did not disappear, it moved — **one primary per screen region**. Blue earns its weight by being the single most important action on a screen, never by being sprinkled across it.
+Blue held this role until the swap and is now the **mark only** — the monogram, the wordmark and the illustration accent. Chrome takes olive, artwork takes blue; they no longer have to be the same colour, and `bg-blue` is lint-blocked in chrome for that reason.
 
-Reach for it through `bg-action-primary`, never `bg-blue`. The raw utility pins the light value and skips the dark-mode `#8AA1F1`, and lint blocks it.
+Charcoal held the CTA until it was measured: the action colour reached roughly 5% of pixels and every surface with visual weight was grey, so the logged-in product read as a greyscale app wearing a coloured logo. The restraint that justified charcoal did not disappear, it moved — **one primary per screen region**. Olive earns its weight by being the single most important action on a screen, never by being sprinkled across it.
 
-Never: blue as a page background, a card fill, a large tinted panel, or a chart series adjacent to a status colour. The button is where blue goes solid — nothing larger.
+Reach for it through `bg-action-primary`, never `bg-olive`. The raw utility pins the light value and skips the dark-mode `#95AE5D`, and lint blocks it.
+
+Never: olive as a page background, a card fill, a large tinted panel, or a chart series adjacent to a status colour. The button is where olive goes solid — nothing larger.
 
 ### Gold, and the colour that is not in the brand
 
@@ -268,7 +271,7 @@ Every recurring element is specified here. Do not invent a variant — if a scre
 | Danger | transparent | `--sq-ui-action-danger-fg` | 1px `--sq-critical-fg` | Destructive, outside dialogs |
 | Danger solid | `--sq-critical-fg` | white | none | Destructive, **only** as the confirm inside a dialog |
 
-- **Primary is blue, through the token.** `bg-action-primary`, never `bg-blue` — the raw utility pins the light value and skips the dark-mode `#8AA1F1`. Lint blocks it.
+- **Primary is olive, through the token.** `bg-action-primary`, never `bg-olive` — the raw utility pins the light value and skips the dark-mode `#95AE5D`. Lint blocks it.
 - **One primary per screen region.** Two primaries means the screen asks two questions and should be split.
 - Height 32px, 44px on coarse pointers — from the token file, never hardcoded. Inline padding 12px at 32, 16px at 44.
 - Icon-only buttons are circular at the full control height — a 20px glyph padded to 32 or 44, never a 20px target. Always an `aria-label`, and see Icons for where icon-only is permitted at all.
@@ -360,7 +363,7 @@ Single line, icon plus text, no illustration, anchored bottom inline-start so RT
 
 ### Navigation items
 
-Active: `--sq-ui-selected-bg` with `--sq-ui-selected-fg`. Hover: `--sq-stone-100`. Rest: `--sq-ui-text-secondary`. The background here is the pale `--sq-blue-50`, not the solid blue of the primary button, so an active nav item and a CTA never read as the same object.
+Active: `--sq-ui-selected-bg` with `--sq-ui-selected-fg`. Hover: `--sq-stone-100`. Rest: `--sq-ui-text-secondary`. The background here is the pale `--sq-olive-50`, not the solid olive of the primary button, so an active nav item and a CTA never read as the same object.
 
 ## States
 
@@ -531,7 +534,7 @@ What makes a collected set look commissioned is constraint, not craft:
 
 - **One line colour: `--sq-charcoal`.** No exceptions, no lighter greys for secondary strokes.
 - **One stroke weight**, consistent at the size it ships. Do not scale artwork and inherit a different apparent weight.
-- **Maximum two hues per illustration: the sand ramp, plus one accent.** Sand dominates and carries form — its three steps (`--sq-sand-tint`, `--sq-sand`, and the deeper `#DCD5B4`) are one hue, not three fills. The accent is `--sq-blue` by default, `--sq-sky` where blue would fight something nearby. Skin tones on figures are preserved and do not count against this.
+- **Maximum two hues per illustration: the sand ramp, plus one accent.** Sand dominates and carries form — its three steps (`--sq-sand-tint`, `--sq-sand`, and the deeper `#DCD5B4`) are one hue, not three fills. The accent is `--sq-blue` by default, `--sq-sky` where blue would fight something nearby. Illustrations keep the blue accent: the swap to olive is a chrome change and does not touch artwork. Skin tones on figures are preserved and do not count against this.
 - **No gradients, no shadows, no textures.** Any inherited piece carrying these needs flattening before it can sit alongside the rest.
 - **Never `--sq-gold`** — it does not appear in the application.
 - **Brand blue is the default accent.** Illustrations are interface furniture — welcome screens, empty states, onboarding — and are where brand expression belongs. The one restriction: no blue shape at control scale *and* control shape, so an illustration never contains something that reads as a tappable pill.

@@ -95,18 +95,21 @@ export function PanelSection({ title, summary, defaultOpen = true, rememberAs, c
         uses for a recessed strip. Separation by surface tone rather than by a
         box is the design system's own rule.
 
-        **Both tones are `--sq-ui-*` rather than the stone ramp.** Dark mode
-        redefines the UI surfaces and leaves the ramp where it is, so a raw
-        `stone-200` hover would go light on a dark rail — the same trap
-        `CLAUDE.md` records for `bg-blue`. A sunken row lifting to the surface
-        tone reads as rising under the pointer, and it is right in both themes.
+        **The hover moves away from the pane, never toward it.** The first
+        attempt lifted the row to `surface` on hover, which is the settings
+        pane's own fill — so the background *disappeared* under the pointer,
+        which is the opposite of what a hover is for. `surface-hover` is one
+        step further from the surface the strip sits on: darker in light, lighter
+        in dark, because the ramp runs the other way there. Both are `--sq-ui-*`
+        rather than raw stone, since dark mode redefines the UI roles and leaves
+        the ramp alone — the same trap `CLAUDE.md` records for `bg-olive`.
 
         `list-none` and the `::-webkit-details-marker` reset both: the first
         covers every engine honouring the modern property, the second is Safari,
         which still draws its own triangle without it.
       */}
       <summary
-        className="flex cursor-pointer list-none items-center gap-2 rounded-control bg-sunken px-2 py-2 hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus [&::-webkit-details-marker]:hidden"
+        className="flex cursor-pointer list-none items-center gap-2 rounded-control bg-sunken px-2 py-2 hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus [&::-webkit-details-marker]:hidden"
       >
         <ChevronRight
           className={`size-4 shrink-0 text-secondary transition-transform duration-fast ease-sq rtl:-scale-x-100 ${

@@ -29,6 +29,9 @@ const config: Config = {
       page: 'var(--sq-ui-page)',
       surface: 'var(--sq-ui-surface)',
       sunken: 'var(--sq-ui-surface-sunken)',
+      // A sunken strip under the pointer — see the token. Always paired with
+      // `sunken`, never used as a resting fill.
+      'surface-hover': 'var(--sq-ui-surface-hover)',
       'canvas-surround': 'var(--sq-ui-canvas-surround)',
       input: 'var(--sq-ui-input)',
 
@@ -79,6 +82,7 @@ const config: Config = {
       'illus-panel': 'var(--sq-illus-panel)',
 
       // Ink-safe brand
+      olive: 'var(--sq-olive)',
       blue: 'var(--sq-blue)',
       navy: 'var(--sq-navy)',
       charcoal: 'var(--sq-charcoal)',

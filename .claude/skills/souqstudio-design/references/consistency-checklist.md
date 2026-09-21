@@ -35,13 +35,13 @@ map to a stated rule in this skill:
 | Caught | Rule it enforces |
 | --- | --- |
 | `ml-` `pr-` `text-left` `border-l` … | Logical properties only — the app ships in Arabic |
-| `#143CD2` in a component | Tokens only, never a raw hex |
+| `#425719` `#143CD2` in a component | Tokens only, never a raw hex |
 | `p-[13px]` | The spacing scale is 4/8/12/16/24/32/48 |
 | `rounded-md` `rounded-lg` | shadcn defaults contradict the radius scale |
 | `shadow-sm` `shadow` | There is no elevation in this system |
 | `text-sand` `border-sky` `text-stone-300` | Fill-only tier used as ink |
 | `italic` | Plex Sans Arabic has no true italic |
-| `bg-blue` | Primary is `bg-action-primary`; the raw utility skips the dark-mode value |
+| `bg-olive` `bg-blue` | Primary is `bg-action-primary`; the raw utility skips the dark-mode value. Blue is the mark only — never a chrome fill |
 | `--sq-tpl-*` in a chrome component | Template tokens are offer book content only |
 | `process.env` | Import the validated env module |
 | `@prisma/client` | Import `prisma` from `@souqstudio/db` |
