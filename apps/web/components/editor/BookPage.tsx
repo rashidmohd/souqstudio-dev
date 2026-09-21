@@ -67,12 +67,17 @@ type Props = {
    */
   background?: PageBackground | null | undefined
   /**
-   * Artwork the owner uploaded, by R2 key.
+   * Artwork the owner uploaded or generated, by R2 key.
    *
-   * **Absent means an image background draws nothing**, and the same is already
-   * true of an `image` element inside a block — `DrawContext.asset`. That is not
-   * a placeholder decision so much as an admission: a surface that has not been
-   * given the base URL cannot invent one.
+   * **Absent means an image draws nothing** — the page's own background and any
+   * `image` element inside a block alike. That is not a placeholder decision so
+   * much as an admission: a surface that has not been given the base URL cannot
+   * invent one.
+   *
+   * **Present, it now reaches the blocks too.** It used to stop at the page
+   * ground: this prop was handed to `PageGround` and never put on the
+   * `DrawContext`, so a picture an owner placed on a card in the designer drew
+   * there and disappeared in every book that used the block.
    */
   asset?: ((assetId: string) => string | null) | undefined
   /** Where a card's unused height goes. See `compactBlock`. */
@@ -227,6 +232,26 @@ export function BookPage({
           // cells of one page and each draws its own gradient definition.
           uid: `${uid}-${index}`,
           token: (ref) => resolveToken(palette, ref),
+          /**
+           * **The two fields a page used to build and then not hand over.**
+           *
+           * Both were resolved here already — `palette` on the line above the
+           * return, `asset` arriving as a prop — and both went to `PageGround`
+           * and to nothing else. So the page's *paper* could draw a brand colour
+           * and an uploaded picture while the *cards on it* could not: an image
+           * element inside a block resolved through `subjects.asset`, found
+           * nothing and drew nothing, and a fill naming a brand colour by id
+           * resolved against `ctx.palette ?? []`.
+           *
+           * The failure was silent, and it was invisible where anyone would look
+           * for it: `BlockArtboard` sets both, so artwork an owner put on a card
+           * in the designer drew there and vanished the moment the block reached
+           * a book. Every surface that draws a page — the editor, the preview,
+           * the list thumbnails — already passes `asset` in. What was missing
+           * was these two lines. `BookPage.test.tsx` is what keeps them here.
+           */
+          palette,
+          asset,
           scale,
           blockSize,
           ar: direction === 'rtl',
