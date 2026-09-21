@@ -3,7 +3,7 @@ import 'server-only'
 
 import { adoptRowsIntoCatalog } from '@/lib/catalog'
 import type { BookCover } from '@/lib/offer-book-compose'
-import { prisma } from '@souqstudio/db'
+import { enqueueShadowRender, prisma } from '@souqstudio/db'
 import {
   arrangementCovers,
   flowBook,
@@ -13,6 +13,8 @@ import {
   type RegionBlock,
 } from '@souqstudio/engine'
 import type { Block, PageBackground, PageGrid, Pin, SlotOverride } from '@souqstudio/types'
+import { isShadowPreset, shadowKey } from '@souqstudio/types'
+import type { ShadowPreset } from '@souqstudio/types'
 import { KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { autoTitle } from '@/lib/book-title'
 import {
@@ -304,7 +306,17 @@ export async function loadBook(
                       ],
                     },
                     orderBy: { createdAt: 'desc' },
-                    select: { kind: true, r2Key: true, contributedBy: true },
+                    select: {
+                      // The row id, because a shadow rendition is queued
+                      // against the asset rather than against the product.
+                      id: true,
+                      kind: true,
+                      r2Key: true,
+                      contributedBy: true,
+                      // Which shadowed renditions exist. Read with the image
+                      // rather than probed per card — E14 §2.4.
+                      shadowPresets: true,
+                    },
                   },
                 },
               },
@@ -394,6 +406,20 @@ export async function loadBook(
               imageIsShared:
                 item.product.organizationId !== organizationId &&
                 image?.contributedBy !== organizationId,
+              /*
+               * **Only renditions that exist.** A block asking for a preset
+               * nothing has rendered draws the plain cutout; `queueShadows`
+               * below asks for the missing ones and the next render picks them
+               * up. A URL built optimistically is a broken picture on a flyer.
+               */
+              imageShadowUrls:
+                image === undefined
+                  ? {}
+                  : Object.fromEntries(
+                      image.shadowPresets
+                        .filter(isShadowPreset)
+                        .map((preset) => [preset, publicUrl(shadowKey(image.r2Key, preset))])
+                    ),
             },
           }
         }),
@@ -498,6 +524,18 @@ export async function loadBook(
     // an English flyer — the rule `BlockPreview` already states.
     direction: edition === 'ar' ? 'rtl' : 'ltr',
   })
+
+  /*
+   * **Ask for the renditions the book's designs want and does not have.** It
+   * has to happen here because this is the one place that holds both halves:
+   * the blocks name the presets, and the images know which have been rendered.
+   *
+   * It does not wait, and it does not change what this render draws. A card
+   * whose rendition is not ready draws its plain cutout; the shadow appears on
+   * the next load, the way a cutout does. `enqueueShadowRender` deduplicates by
+   * job id, which matters because this runs on every render of the page.
+   */
+  void queueMissingShadows(book.offers, blocks, organizationId)
 
   return {
     id: book.id,
@@ -1708,4 +1746,66 @@ function offerPeriod(
       ? ''
       : new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(value)
   return { validFrom: format(from), validTo: format(to) }
+}
+
+/**
+ * Queue the shadow renditions this book's designs ask for and do not have.
+ *
+ * **Both halves meet here and nowhere else.** A block names a preset on an
+ * image element; an `image_assets` row records which presets have been
+ * rendered. The composer sees the images and the grid sees the blocks, so the
+ * question "what is missing" has no answer until `loadBook` holds both.
+ *
+ * **It never blocks the render and never fails it.** A card without its
+ * rendition draws the plain cutout — which is what it drew before this feature
+ * existed — so a queue that is down costs a shadow rather than a page. That is
+ * the same bargain `bg.remove` makes with Rembg, and for the same reason.
+ *
+ * **Deduplicated by job id**, because this runs on every render of the editor:
+ * `enqueueShadowRender` derives `bg.shadow:<assetId>:<preset>`, and BullMQ drops
+ * a duplicate while the first is queued or running. Without that, opening a
+ * book would queue one job per card per refresh.
+ */
+async function queueMissingShadows(
+  offers: { items: { product: { images: { id: string; shadowPresets: string[] }[] } }[] }[],
+  blocks: Record<string, Block>,
+  organizationId: string
+): Promise<void> {
+  // What the book's designs actually want. Usually one preset, often none.
+  const wanted = new Set<ShadowPreset>()
+  for (const block of Object.values(blocks)) {
+    for (const arrangement of block.arrangements) {
+      for (const element of arrangement.elements) {
+        if (element.kind !== 'image') continue
+        if (element.source.from !== 'product') continue
+        if (element.shadowPreset !== undefined) wanted.add(element.shadowPreset)
+      }
+    }
+  }
+  if (wanted.size === 0) return
+
+  const asked = new Set<string>()
+  for (const offer of offers) {
+    for (const item of offer.items) {
+      for (const image of item.product.images) {
+        for (const preset of wanted) {
+          if (image.shadowPresets.includes(preset)) continue
+          const once = `${image.id}:${preset}`
+          if (asked.has(once)) continue
+          asked.add(once)
+          try {
+            await enqueueShadowRender({ imageAssetId: image.id, preset })
+          } catch (problem) {
+            // A queue that is down costs a shadow, not a page.
+            console.error('[shadow] could not queue a rendition', problem)
+            return
+          }
+        }
+      }
+    }
+  }
+
+  if (asked.size > 0) {
+    console.log(`[shadow] queued ${asked.size} rendition(s) for organization ${organizationId}`)
+  }
 }

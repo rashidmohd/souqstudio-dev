@@ -338,6 +338,32 @@ export interface BgRemovePayload {
   billShopId?: string
 }
 
+/**
+ * Render one shadow preset for one image. E14 §2.4.
+ *
+ * **Its own payload rather than a flag on `BgRemovePayload`.** They share a
+ * queue because they share a rhythm — a few seconds of CPU on one picture — and
+ * nothing else: this one calls no external service, cannot be "unavailable",
+ * charges nobody, and its result is a rendition beside an existing object
+ * rather than a new row.
+ *
+ * **Deduplicated by job id, not by a check.** `bg.shadow:<assetId>:<preset>`
+ * means a book re-rendered five times while the first render is still in flight
+ * queues one job, not five — which matters because the page that queues these
+ * is a server component and runs on every refresh.
+ */
+export interface ShadowRenderPayload {
+  /** The `image_assets` row whose `r2Key` is the source. */
+  imageAssetId: string
+  /** A `ShadowPreset` name. Validated by the handler against the shared list. */
+  preset: string
+  /**
+   * The shadow's colour, from the block's palette rather than a stored hex —
+   * pure black muddies on a warm ground. Omitted renders black.
+   */
+  color?: { r: number; g: number; b: number }
+}
+
 export interface EnrichPayload {
   catalogProductId: string
 }
@@ -423,6 +449,22 @@ export async function enqueueBgRemove(payload: BgRemovePayload) {
   return queues.bg.add('bg.remove', payload, {
     attempts: 3,
     backoff: { type: 'fixed', delay: 2000 },
+  })
+}
+
+export async function enqueueShadowRender(payload: ShadowRenderPayload) {
+  return queues.bg.add('bg.shadow', payload, {
+    /*
+     * **The id is the work.** Two pages asking for the same rendition are one
+     * job; BullMQ drops the duplicate while the first is queued or running.
+     * Without it, a server component that queues on render queues on every
+     * render.
+     */
+    jobId: `bg.shadow:${payload.imageAssetId}:${payload.preset}`,
+    attempts: 2,
+    backoff: { type: 'fixed', delay: 2000 },
+    removeOnComplete: 200,
+    removeOnFail: 500,
   })
 }
 

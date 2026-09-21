@@ -53,6 +53,7 @@ const OFFER: ArtboardOffer = {
   saveAmount: '87.78',
   savePercent: '89%',
   chips: [],
+  imageShadowUrls: {},
 }
 
 const CTX: DrawContext = {

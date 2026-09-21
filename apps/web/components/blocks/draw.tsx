@@ -10,6 +10,7 @@ import type {
   TokenRef,
   TypeStep,
 } from '@souqstudio/types'
+import { SHADOW_PRESET_SPECS } from '@souqstudio/types'
 import {
   CHIP_FIT,
   chipPathShape,
@@ -74,6 +75,9 @@ export type ArtboardOffer = Pick<
   | 'origin'
   | 'packSize'
   | 'imageUrl'
+  // Shadowed renditions that exist, by preset. An image element naming one
+  // draws it instead of `imageUrl` — E14 §2.4.
+  | 'imageShadowUrls'
   | 'priceMark'
   | 'tierLabel'
   | 'tierToken'
@@ -441,6 +445,36 @@ function textShadowRings(
   }))
 }
 
+/**
+ * The shadowed rendition this element should draw, or null.
+ *
+ * **Three conditions, and each one has a reason.** The element has to name a
+ * preset; the picture has to be the *product*, because that is the only source
+ * whose pixels are rendered ahead of time by the pipeline that made the cutout;
+ * and the rendition has to already exist, because a URL built optimistically is
+ * a broken picture on a printed page. When any of them fails the element draws
+ * its plain picture and — if it has one — its ring shadow.
+ */
+function tracedShadowUrl(element: BlockElement, ctx: DrawContext): string | null {
+  if (element.kind !== 'image') return null
+  const preset = element.shadowPreset
+  if (preset === undefined || element.source.from !== 'product') return null
+  return ctx.offer?.imageShadowUrls?.[preset] ?? null
+}
+
+/**
+ * How much bigger the rendition is than its source, as a fraction of the
+ * rendition's own width — which is what the drawn box has to grow by.
+ *
+ * The renderer pads by `pad` on each side of a source of width 1, so the
+ * rendition is `1 + 2·pad` wide and the padding is `pad / (1 + 2·pad)` of it.
+ */
+function tracedGrowth(element: BlockElement): number {
+  if (element.kind !== 'image' || element.shadowPreset === undefined) return 0
+  const pad = SHADOW_PRESET_SPECS[element.shadowPreset].pad
+  return pad / (1 + pad * 2)
+}
+
 function drawInner(element: BlockElement, box: Rect, ctx: DrawContext): React.ReactNode {
   /**
    * **The shadow is painted here rather than inside each kind**, so one
@@ -448,8 +482,19 @@ function drawInner(element: BlockElement, box: Rect, ctx: DrawContext): React.Re
    * paints its own: a glyph has no box to expand, so its rings are strokes on
    * the string rather than shapes behind it.
    */
+  /**
+   * **A traced shadow is drawn *into* the picture, so it cancels the rings.**
+   * `shadowPreset` names a rendition whose shadow is already in its pixels;
+   * drawing rings behind it as well would put a rounded rectangle under a
+   * silhouette. The preset wins, which is what the field's own note promises.
+   */
+  const traced =
+    element.kind === 'image' &&
+    element.shadowPreset !== undefined &&
+    tracedShadowUrl(element, ctx) !== null
+
   const shadow =
-    element.kind === 'shape' || element.kind === 'image'
+    !traced && (element.kind === 'shape' || element.kind === 'image')
       ? element.shadow
       : undefined
 
@@ -603,11 +648,14 @@ function Packshot({
   // the 12% breathing room that keeps a packshot off its card's border would
   // read as a mistake on both.
   const source = element.source
-  const url = resolveImageBinding(source, {
-    product: ctx.offer?.imageUrl ?? null,
-    brandLogo: ctx.brand.logo,
-    ...(ctx.asset === undefined ? {} : { asset: ctx.asset }),
-  })
+  const traced = tracedShadowUrl(element, ctx)
+  const url =
+    traced ??
+    resolveImageBinding(source, {
+      product: ctx.offer?.imageUrl ?? null,
+      brandLogo: ctx.brand.logo,
+      ...(ctx.asset === undefined ? {} : { asset: ctx.asset }),
+    })
   // **A logo is artwork, not a packshot.** It reaches its box like an upload
   // does: a mark inset by 12% inside a header that was already sized for it
   // reads as a mark that did not fit. E14 §3.1 — the whole reason `logo`
@@ -616,6 +664,22 @@ function Packshot({
   const artwork = source.from !== 'product'
   const inset = artwork ? 0 : Math.min(box.width, box.height) * 0.12
   const cover = element.fit === 'cover'
+
+  /**
+   * **A shadowed rendition is bigger than the picture it shadows**, by `pad` on
+   * every side, so drawn into the same box the *product* would come out about
+   * 40% smaller than its unshadowed neighbours. The box is grown by the same
+   * proportion instead, which puts the product back at the size the layout
+   * chose and lets the shadow fall outside — which is what §2.4 says a shadow
+   * does: it is paint, and the box is layout.
+   */
+  const grow = traced === null ? 0 : tracedGrowth(element)
+  const drawn = {
+    x: box.x + inset - (box.width - inset * 2) * grow,
+    y: box.y + inset - (box.height - inset * 2) * grow,
+    width: (box.width - inset * 2) * (1 + grow * 2),
+    height: (box.height - inset * 2) * (1 + grow * 2),
+  }
 
   if (url !== null) {
     const clip = `clip-${element.id}`
@@ -631,10 +695,10 @@ function Packshot({
           </defs>
         ) : null}
         <image
-          x={box.x + inset}
-          y={box.y + inset}
-          width={box.width - inset * 2}
-          height={box.height - inset * 2}
+          x={drawn.x}
+          y={drawn.y}
+          width={drawn.width}
+          height={drawn.height}
           href={url}
           preserveAspectRatio={cover ? 'xMidYMid slice' : 'xMidYMid meet'}
           {...(cover ? { clipPath: `url(#${clip})` } : {})}

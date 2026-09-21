@@ -85,3 +85,25 @@ export type ImageVariantName = ImageVariant['name']
 export function variantKey(fullKey: string, variant: ImageVariantName): string {
   return `${fullKey.replace(/\.[^./]+$/, '')}@${variant}.webp`
 }
+
+/**
+ * Where a shadowed rendition of an image lives.
+ *
+ * **A derived key, not a row** — the same call `IMAGE_VARIANTS` makes above and
+ * for the same reason. A shadow is one more rendition of a picture we already
+ * have: `image_assets.shadowPresets` records *which* have been rendered so a
+ * page never points at an object that is not there, and the key itself is
+ * arithmetic rather than a lookup.
+ *
+ * **It sits beside the source rather than replacing it.** The unshadowed cutout
+ * stays exactly where it was, which is what a card with no shadow draws and
+ * what a different preset is re-rendered from. Re-rendering a shadow from a
+ * shadow would compound the same way a blur does.
+ */
+export function shadowKey(r2Key: string, preset: string): string {
+  const dot = r2Key.lastIndexOf('.')
+  const stem = dot === -1 ? r2Key : r2Key.slice(0, dot)
+  // Always PNG: a cast shadow is alpha by definition, and the source's own
+  // extension says nothing about what the rendition needs.
+  return `${stem}@shadow-${preset}.png`
+}

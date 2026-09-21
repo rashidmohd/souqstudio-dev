@@ -1,6 +1,8 @@
-import { Worker } from 'bullmq'
+import { Worker, type Job } from 'bullmq'
+import type { ShadowRenderPayload } from '@souqstudio/db'
 import { env } from '../lib/env'
-import { handleBgRemove } from '../jobs/bg.job'
+import { handleBgRemove, type BgJobPayload } from '../jobs/bg.job'
+import { handleShadowRender } from '../jobs/shadow.job'
 
 /**
  * Background removal. E4-01.
@@ -18,7 +20,22 @@ export const bgWorker = new Worker(
   'bg',
   async (job) => {
     console.log(`[bg] Processing job ${job.id} — ${job.name}`)
-    return handleBgRemove(job)
+    /*
+     * **Two job names on one queue.** They share a rhythm — seconds of CPU on
+     * one picture — and the same concurrency ceiling, and nothing else: a
+     * shadow render calls no external service and cannot be "unavailable".
+     * Branching on the name rather than on a payload field, as `ai.worker`
+     * does, so a payload never has to carry a discriminator the handler could
+     * disagree with.
+     *
+     * The two assertions are the cost of that: BullMQ types a worker by one
+     * payload, and the name is what actually discriminates. Each branch asserts
+     * only the type its own `add()` call writes.
+     */
+    if (job.name === 'bg.shadow') {
+      return handleShadowRender(job as Job<ShadowRenderPayload>)
+    }
+    return handleBgRemove(job as Job<BgJobPayload>)
   },
   {
     connection: { url: env.REDIS_URL },

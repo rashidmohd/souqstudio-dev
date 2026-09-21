@@ -18,6 +18,7 @@ const offer = (over: Partial<ArtboardOffer['priceMark']> = {}): ArtboardOffer =>
   tierLabel: 'Save 20%',
   tierToken: '',
   chips: [],
+  imageShadowUrls: {},
   unitPrice: null,
   // 31.00 − 24.50 = 6.50, which is 21% of 31.00.
   saveAmount: '6.50',

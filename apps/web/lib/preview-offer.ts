@@ -89,6 +89,7 @@ export function toArtboardOffer(product: SampleProduct, ar: boolean): ArtboardOf
     // inventing a "Limit 2" beside it would show a block preview that no real
     // offer produces until an owner asks for it.
     chips: [],
+    imageShadowUrls: {},
   }
 }
 

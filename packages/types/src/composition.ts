@@ -365,6 +365,8 @@ export interface Box {
  * block, not by binding to a second source that half its branches would get
  * wrong.
  */
+import type { ShadowPreset } from './shadow-presets'
+
 export type ImageSource =
   | { from: 'product' }
   | {
@@ -573,6 +575,17 @@ export type BlockElement =
       radius?: number | undefined
       stroke?: Stroke | undefined
       shadow?: Shadow | undefined
+      /**
+       * A shadow traced from the picture's own alpha instead of grown from its
+       * box, rendered ahead of time and stored. E14 §2.4.
+       *
+       * `shadow` above is vector rings around the element's *rectangle*, which
+       * is right for a shape and wrong for a cutout — a bottle casts a rounded
+       * rect. Tracing needs pixels, so this names a preset whose rendition
+       * lives at `shadowKey(r2Key, preset)`. Product images only; when both are
+       * set the preset wins and no rings are drawn.
+       */
+      shadowPreset?: ShadowPreset | undefined
     })
   | (ElementBase & {
       kind: 'text'

@@ -442,6 +442,29 @@ const elementSchema = z.discriminatedUnion('kind', [
     radius: z.number().min(0).max(64).optional(),
     stroke: strokeSchema.optional(),
     shadow: shadowSchema.optional(),
+    /**
+     * A shadow traced from the picture's own alpha, rather than grown from its
+     * box. E14 §2.4.
+     *
+     * **Why this is a second field and not `shadow` with more options.** The
+     * two are different mechanisms with different limits. `shadow` above is
+     * painted as concentric vector rings around the element's *rectangle* — so
+     * on a cutout of a bottle it draws the shadow of a rounded rect, which is
+     * the defect this exists to fix. A traced shadow needs the alpha channel,
+     * which means reading pixels, which means it is rendered ahead of time and
+     * stored: `shadowKey(r2Key, preset)` in `packages/types`.
+     *
+     * **Presets rather than parameters**, because each distinct value is a
+     * rendered object per product. A free-form radius would re-render every
+     * product in a book on every nudge of a slider.
+     *
+     * **It applies to a product image**, the one source whose pixels are
+     * rendered ahead of time by the pipeline that produced the cutout. An
+     * upload has no such pass, so the ring shadow remains its answer — and
+     * when both are set on the same element, the preset wins and the rings are
+     * not drawn.
+     */
+    shadowPreset: z.enum(['soft-drop', 'hard-drop', 'contact', 'grounded']).optional(),
   }),
   z.strictObject({
     ...baseSchema,

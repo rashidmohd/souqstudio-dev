@@ -13,6 +13,7 @@ import type {
   PriceMarkPreset,
   PriceMarkRecipe,
   PriceMarkStyle,
+  ShadowPreset,
   TextOverflow,
   TokenRef,
   TypeLevel,
@@ -249,6 +250,41 @@ export function ElementProperties({
             {...color}
             onChange={(stroke) => onChange({ ...element, stroke })}
           />
+          {/*
+            **The product's own shadow, and it replaces the ring one.** Rings are
+            grown from the element's rectangle, so on a cutout they draw the
+            shadow of a rounded box; these are traced from the picture's alpha,
+            rendered ahead of time and stored. E14 §2.4.
+
+            Offered only on a product image, because that is the one source with
+            a rendering pass behind it — an upload has none, and a logo belongs
+            to whichever shop draws the block. The ring control below stays for
+            those.
+          */}
+          {element.source.from === 'product' ? (
+            <Select
+              label="Product shadow"
+              disabled={disabled}
+              value={element.shadowPreset ?? 'none'}
+              hint="Traced from the photo itself. It appears a moment after you pick it."
+              options={[
+                { value: 'none', label: 'No shadow' },
+                { value: 'soft-drop', label: 'Soft drop' },
+                { value: 'hard-drop', label: 'Hard drop' },
+                { value: 'contact', label: 'Contact' },
+                { value: 'grounded', label: 'Grounded' },
+              ]}
+              onChange={(event) => {
+                const next = event.target.value
+                if (next === 'none') {
+                  const { shadowPreset: _cleared, ...rest } = element
+                  onChange(rest)
+                  return
+                }
+                onChange({ ...element, shadowPreset: next as ShadowPreset })
+              }}
+            />
+          ) : null}
           <ShadowControl
             value={element.shadow}
             {...color}

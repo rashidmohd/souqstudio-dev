@@ -39,7 +39,7 @@ import { removeBackground, RembgUnavailableError } from '../lib/rembg'
  * a shop that overrides its logo owns its own. The web side decides which via
  * `levelFor(override, 'logo')` and sets exactly one of the two.
  */
-type BgJobPayload = BgRemovePayload & { shopId?: string; organizationId?: string }
+export type BgJobPayload = BgRemovePayload & { shopId?: string; organizationId?: string }
 
 export async function handleBgRemove(job: Job<BgJobPayload>): Promise<{
   status: 'removed' | 'kept_original'

@@ -10,6 +10,7 @@ import type {
   PriceMark,
   Region,
   SellBy,
+  ShadowPreset,
 } from '@souqstudio/types'
 import { currencyLabelFor, deriveUnitPrice, packLabel, unitPriceLabel } from '@souqstudio/types'
 import type { CurrencyDisplay } from '@souqstudio/types'
@@ -156,6 +157,18 @@ export interface ComposedOffer {
    */
   fallbackImageIsShared: boolean
   /**
+   * Shadowed renditions of the card's picture that **already exist**, by preset.
+   *
+   * **Only the ones that are rendered.** A block asking for a preset that has
+   * not been produced yet draws the plain cutout and the page queues the render;
+   * pointing at a key before the object lands is a broken image on a flyer.
+   *
+   * The pixels are `shadowKey(r2Key, preset)` beside the source, and the list of
+   * which exist is `image_assets.shadowPresets` — read with the image rather
+   * than probed per card. E14 §2.4.
+   */
+  imageShadowUrls: Partial<Record<ShadowPreset, string>>
+  /**
    * The lead item's product, when it has no photo at all.
    *
    * **A second field rather than one that means two things.** The two flags
@@ -247,6 +260,8 @@ export interface ProductRow {
   imageUrl: string | null
   /** True when the image is an ORIGINAL standing in for a missing CUTOUT. */
   imageIsFallback: boolean
+  /** Shadowed renditions that already exist, by preset. Absent is none. */
+  imageShadowUrls?: Partial<Record<ShadowPreset, string>> | undefined
   /**
    * True when the photo on the card belongs to the shared catalog rather than
    * to this shop — the product is universal *and* this shop did not contribute
@@ -481,6 +496,8 @@ export function composeOffer(
     // Same gate, so it cannot describe a photo no button is offered against.
     fallbackImageIsShared:
       flags.includes('fallback-image') && (items[0]?.product.imageIsShared ?? false),
+    // The lead item's, because the lead item's photo is what a card draws.
+    imageShadowUrls: lead.product.imageShadowUrls ?? {},
     // Same rule, same reason: set only when the flag is. The lead item is the
     // one whose photo a card draws, and `flagsFor` reads the same item.
     missingImageProductId: flags.includes('no-image') ? (items[0]?.product.id ?? null) : null,

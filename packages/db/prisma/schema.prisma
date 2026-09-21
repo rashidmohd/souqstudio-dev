@@ -1005,6 +1005,13 @@ model ImageAsset {
   /// dimensions — without this a cutout carrying 30% transparent padding
   /// renders visibly smaller than its neighbours on the same row.
   bboxTight     Json?
+  /// Which shadow presets have been rendered for this image, by name.
+  ///
+  /// **A list of renditions, not a shadow.** The pixels live at
+  /// `shadowKey(r2Key, preset)` — a derived sibling, like the size ladder — and
+  /// this column exists so a page can know a rendition is there without a HEAD
+  /// against the bucket for every card it draws. E14 §2.4.
+  shadowPresets String[]      @default([])
   /// Matting confidence, 0..1. Low scores route to review rather than shipping
   /// a haloed cutout onto a printed page.
   quality       Float?
