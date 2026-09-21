@@ -311,6 +311,20 @@ export interface Shadow {
   /** 0 is a hard shadow. */
   blur: number
   color: FlatColor
+  /**
+   * How dark the shadow reaches at its centre, 0–1. Absent is `SHADOW_PEAK`.
+   *
+   * **It was a gap rather than a decision**, and `ShadowControl` said so: the
+   * rings accumulate to a constant the engine picked, so the only way to soften
+   * a shadow was to lighten its colour — which is the move that produces a pale
+   * *glow* instead of a shadow, because a light shadow on a light ground reads
+   * as light coming out of the shape rather than falling behind it.
+   *
+   * `FlatColor` carries no alpha and the element's own `opacity` is the wrong
+   * control, since it fades the element along with its shadow. So it lives
+   * here, and `shadowRings` already took a `peak` for it.
+   */
+  opacity?: number | undefined
 }
 
 /**

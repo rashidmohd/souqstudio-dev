@@ -341,7 +341,14 @@ function ShadowLayer({
   element: BlockElement
 }) {
   const css = paint(ctx, shadow.color)
-  const rings = shadowRings(shadowPx(shadow, ctx), box, radiusOf(element), outputFor(ctx))
+  const rings = shadowRings(shadowPx(shadow, ctx), box, radiusOf(element), {
+    ...outputFor(ctx),
+    // The shop's own darkness when they set one. `shadowRings` already took a
+    // `peak`; nothing was passing it, so every shadow accumulated to the
+    // engine's constant and the only way to soften one was to lighten its
+    // colour — which is how a shadow becomes a glow.
+    ...(shadow.opacity === undefined ? {} : { peak: shadow.opacity }),
+  })
   const path = element.kind === 'shape' ? asPathShape(element.variant) : null
   const ellipse = element.kind === 'shape' && element.variant === 'ellipse'
 

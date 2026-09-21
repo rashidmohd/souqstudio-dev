@@ -196,6 +196,20 @@ describe('a shadow — §2.4', () => {
       ).toBeNull()
     })
 
+    it('takes a darkness, so softening is not done by paling the colour', () => {
+      // The gap that made a green card cast a green glow: the rings accumulated
+      // to a constant, so the only way to soften a shadow was to lighten it.
+      expect(
+        toArrangements(arrange([shape({ fill: ROLE, shadow: { ...shadow, opacity: 0.2 } })]))
+      ).not.toBeNull()
+    })
+
+    it('refuses a fully opaque shadow, which stops reading as one', () => {
+      expect(
+        toArrangements(arrange([shape({ fill: ROLE, shadow: { ...shadow, opacity: 1 } })]))
+      ).toBeNull()
+    })
+
     it('still allows a soft one on a shape', () => {
       expect(toArrangements(arrange([shape({ fill: ROLE, shadow })]))).not.toBeNull()
     })

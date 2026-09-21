@@ -1,9 +1,10 @@
 'use client'
 
 import type { BrandColor, FlatColor, Shadow, TokenRef } from '@souqstudio/types'
-import { Input } from '@/components/ui/input'
+import { SHADOW_PEAK } from '@souqstudio/engine'
+import { Slider } from '@/components/ui/slider'
 import { ColorControl } from '@/components/card-designer/ColorControl'
-import { readPercent, showPercent } from '@/lib/percent-field'
+import { showPercent } from '@/lib/percent-field'
 
 /**
  * A cast shadow: its colour, where it falls, and how soft it is.
@@ -21,10 +22,12 @@ import { readPercent, showPercent } from '@/lib/percent-field'
  * text takes the font out of the PDF entirely. E14 §2.4, and
  * `pnpm --filter @souqstudio/engine export:check` is the measurement.
  *
- * **There is no opacity here and that is a gap rather than a decision.**
- * `FlatColor` carries no alpha and the element's own `opacity` is the wrong
- * control, because it fades the element along with its shadow. `SHADOW_PEAK` in
- * the engine stands in until somebody decides whether a shop may set it.
+ * **Darkness is a control now, and closing that gap is what stops a shadow
+ * being a glow.** It used to be fixed at `SHADOW_PEAK`, so the only way to
+ * soften a shadow was to lighten its colour — and a pale shadow on a pale
+ * ground reads as light coming *out* of the shape. A green card with a green
+ * shadow is the case that showed it. `FlatColor` carries no alpha and the
+ * element's own `opacity` fades the element with it, so it lives on `Shadow`.
  */
 type Props = {
   value: Shadow | undefined
@@ -85,55 +88,69 @@ export function ShadowControl({
 
       {value === undefined ? null : (
         <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            {/* **Across and down, not left and right.** The app ships in
-                Arabic; a shadow's offset is light direction and never mirrors
-                — §5.5 — so the words have to describe the artboard rather than
-                the reading order. */}
-            <Input
-              label="Across"
-              type="number"
-              min={OFFSET.min}
-              max={OFFSET.max}
-              step={0.1}
-              figure
-              disabled={disabled}
-              value={showPercent(value.x)}
-              onChange={(event) =>
-                onChange({ ...value, x: readPercent(event.target.value, OFFSET, 0) })
-              }
-            />
-            <Input
-              label="Down"
-              type="number"
-              min={OFFSET.min}
-              max={OFFSET.max}
-              step={0.1}
-              figure
-              disabled={disabled}
-              value={showPercent(value.y)}
-              onChange={(event) =>
-                onChange({ ...value, y: readPercent(event.target.value, OFFSET, 0) })
-              }
-            />
-          </div>
+          {/* **Across and down, not left and right.** The app ships in Arabic;
+              a shadow's offset is light direction and never mirrors — §5.5 — so
+              the words describe the artboard rather than the reading order.
+
+              **Sliders rather than number boxes.** A shadow is judged by eye
+              and nudged, which is a gesture a spinner is bad at: the shadow lab
+              is three sliders and a swatch, and it is how these numbers were
+              chosen in the first place. Each one carries its own value, so what
+              is on screen can be reported and repeated on a second block. */}
+          <Slider
+            label="Across"
+            min={OFFSET.min}
+            max={OFFSET.max}
+            step={0.1}
+            unit="%"
+            disabled={disabled}
+            value={Number(showPercent(value.x))}
+            onValueChange={(next) => onChange({ ...value, x: next / 100 })}
+          />
+          <Slider
+            label="Down"
+            min={OFFSET.min}
+            max={OFFSET.max}
+            step={0.1}
+            unit="%"
+            disabled={disabled}
+            value={Number(showPercent(value.y))}
+            onValueChange={(next) => onChange({ ...value, y: next / 100 })}
+          />
 
           {allowBlur ? (
-            <Input
+            <Slider
               label="Softness"
-              type="number"
               min={BLUR.min}
               max={BLUR.max}
               step={0.1}
-              figure
+              unit="%"
               disabled={disabled}
-              value={showPercent(value.blur)}
+              value={Number(showPercent(value.blur))}
               hint="Zero is a hard edge. Percent of the card, like the offsets."
-              onChange={(event) =>
-                onChange({ ...value, blur: readPercent(event.target.value, BLUR, 0) })
-              }
+              onValueChange={(next) => onChange({ ...value, blur: next / 100 })}
             />
           ) : null}
+
+          {/* **Darkness, which had no control at all until now.**
+
+              Without it the only way to soften a shadow was to lighten its
+              colour — and a light shadow on a light ground is a *glow*: it
+              reads as light coming out of the shape rather than falling behind
+              it. That is what a mid-green shadow under a green card looks like,
+              and the fix is a dark colour at low opacity rather than a pale one
+              at full. */}
+          <Slider
+            label="Darkness"
+            min={5}
+            max={90}
+            step={5}
+            unit="%"
+            disabled={disabled}
+            value={Math.round((value.opacity ?? SHADOW_PEAK) * 100)}
+            hint="A shadow is a dark colour turned down, never a pale one turned up."
+            onValueChange={(next) => onChange({ ...value, opacity: next / 100 })}
+          />
         </div>
       )}
     </div>

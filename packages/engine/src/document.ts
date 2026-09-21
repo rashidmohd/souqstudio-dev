@@ -157,6 +157,14 @@ const shadowSchema = z.object({
   y: z.number().min(-0.5).max(0.5),
   blur: z.number().min(0).max(0.25),
   color: flatColorSchema,
+  /**
+   * Peak darkness, 0–1. Absent is `SHADOW_PEAK`.
+   *
+   * **Bounded below 1 because the rings would stop reading as a shadow.** At
+   * full opacity a soft shadow is a solid silhouette with a fringe, which is
+   * the thing an owner is trying to avoid when they reach for softness.
+   */
+  opacity: z.number().min(0).max(0.9).optional(),
 })
 
 const textSourceSchema = z.discriminatedUnion('from', [
