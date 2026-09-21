@@ -1,0 +1,137 @@
+import type { Font } from '@prisma/client'
+import { BRAND_CSS_KEY } from '@souqstudio/types'
+import { prisma } from './client'
+
+/**
+ * Reading and writing the font registry. `docs/fonts-from-google.md`.
+ *
+ * **Here rather than in `apps/web/lib`, because there are three readers.** The
+ * web app resolves a brand kit's four slots through this, the export worker
+ * needs the same rows to find the files Playwright will embed, and E14's
+ * measurer opens them as bytes. Those three must agree about which families
+ * exist and where their files are, for the same reason `library-sync.ts` has
+ * one implementation and two callers.
+ *
+ * **Nothing here fetches from Google.** Mirroring is `apps/web/lib/font-mirror.ts`
+ * — it needs R2 credentials and an outbound network, and neither belongs in the
+ * package every process imports. This module only ever reads what is already
+ * mirrored and writes the row that says so.
+ */
+
+export type { Font }
+
+/** What `registerFont` is handed once the files are in R2. */
+export interface FontRegistration {
+  family: string
+  slug: string
+  version: string
+  subsets: string[]
+  category: string
+  weights: number[]
+  italicWeights: number[]
+  license: string
+  css: string
+}
+
+export async function getFont(family: string): Promise<Font | null> {
+  return prisma.font.findUnique({ where: { family } })
+}
+
+export async function listFonts(): Promise<Font[]> {
+  return prisma.font.findMany({ orderBy: { family: 'asc' } })
+}
+
+/**
+ * The rows for a set of family names, in no particular order.
+ *
+ * Used to resolve a brand kit's four slots in one query rather than four. A
+ * family with no row is simply absent from the result — **and that absence is
+ * the signal**, not an error. `resolveFont()` falls back on it, which is the
+ * correct behaviour at render time: a family we hold no files for is a family
+ * that would otherwise draw as something else without saying so.
+ */
+export async function getFonts(families: readonly string[]): Promise<Font[]> {
+  const unique = [...new Set(families)]
+  if (unique.length === 0) return []
+  return prisma.font.findMany({ where: { family: { in: unique } } })
+}
+
+/**
+ * Every mirrored family covering *all* of the given scripts.
+ *
+ * **The picker's only filter, and the reason the catalog can stop being ten
+ * hand-picked names.** A shop selling in Arabic and English is offered a family
+ * only if it carries both; a family carrying one of the two is not a partial
+ * match, it is tofu on half the book. `hasEvery` is that "all", and the GIN
+ * index on `subsets` is what makes it cheap enough to run on every open of the
+ * typography panel.
+ *
+ * Passing an empty list returns everything, which is what an unconfigured shop
+ * should see rather than nothing.
+ */
+export async function fontsCovering(subsets: readonly string[]): Promise<Font[]> {
+  return prisma.font.findMany({
+    where: subsets.length === 0 ? {} : { subsets: { hasEvery: [...subsets] } },
+    orderBy: { family: 'asc' },
+  })
+}
+
+export async function isMirrored(family: string): Promise<boolean> {
+  return (await prisma.font.count({ where: { family } })) > 0
+}
+
+/**
+ * Record a family as mirrored.
+ *
+ * **Called only after every file is in R2**, never before and never alongside.
+ * The row is what every other surface treats as proof the bytes exist, so a row
+ * written optimistically is a brand kit that can name a face the export cannot
+ * load — which surfaces as a PDF in the fallback, silently, days later.
+ *
+ * An upsert rather than a create because a mirror run that failed halfway is
+ * re-runnable, and re-uploading a file to the same key is a no-op. It is *not*
+ * a refresh: `version` is expected to be the same string it already was, and a
+ * newer Google release is a deliberate migration rather than something this
+ * function quietly performs. §2a.
+ */
+export async function registerFont(input: FontRegistration): Promise<Font> {
+  const { family, ...rest } = input
+  return prisma.font.upsert({
+    where: { family },
+    update: rest,
+    create: { family, ...rest },
+  })
+}
+
+/**
+ * The stylesheet at `fonts/brand.css`, assembled from the rows.
+ *
+ * Each row already carries its own `@font-face` blocks with Google's
+ * `unicode-range` verbatim and the URLs pointed at R2, so this is concatenation
+ * and a header — there is no CSS generated here. Keeping the rules on the row
+ * is what guarantees the ranges are Google's own rather than ours reconstructed:
+ * those ranges are the only thing stopping an English page downloading Arabic.
+ *
+ * Every mirrored family appears, and that is not a size problem. A `@font-face`
+ * rule downloads nothing until something references the family, so a shop still
+ * fetches only the faces its kit names.
+ */
+export type BrandCssSource = Pick<Font, 'family' | 'version' | 'license' | 'css'>
+
+export function assembleBrandCss(fonts: readonly BrandCssSource[]): string {
+  const header = [
+    '/* Generated by `pnpm --filter @souqstudio/web fonts:mirror`. Do not edit.',
+    ` * ${fonts.length} families, mirrored from Google Fonts into R2.`,
+    ' * docs/fonts-from-google.md',
+    ' */',
+    '',
+  ].join('\n')
+
+  const bodies = [...fonts]
+    .sort((a, b) => a.family.localeCompare(b.family))
+    .map((font) => `/* ${font.family} — ${font.version}, ${font.license} */\n${font.css.trim()}`)
+
+  return `${header}\n${bodies.join('\n\n')}\n`
+}
+
+export { BRAND_CSS_KEY }

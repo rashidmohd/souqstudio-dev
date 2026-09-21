@@ -91,6 +91,24 @@ const schema = z.object({
    * to hold a credential for one.
    */
   IMAGE_PROVIDER:                     z.enum(['gemini', 'qwen']).optional(),
+  /**
+   * The Web Fonts Developer API key — what lets the picker see the library.
+   *
+   * It answers one question, `family → subsets, version, category, variants`,
+   * and that is the question the whole design turns on: a family is offered to a
+   * shop only if its subsets cover every language the shop sells in. Without it
+   * there is no filter, and without the filter a bilingual shop can pick a
+   * Latin-only face and get a page of tofu.
+   *
+   * **Optional, and its absence is the old behaviour rather than a broken app.**
+   * Unset means the picker falls back to the families already mirrored into the
+   * `fonts` table — which after a pre-warm run is the curated ten, exactly what
+   * shipped before any of this. Only widening the library and mirroring a face
+   * nobody has picked before need the key, and both refuse with a sentence.
+   *
+   * `docs/fonts-from-google.md` §3a.
+   */
+  GOOGLE_FONTS_API_KEY:               z.string().min(1).optional(),
 })
 
 /**

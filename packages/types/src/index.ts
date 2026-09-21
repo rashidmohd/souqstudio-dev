@@ -22,6 +22,10 @@ export * from './pack'
 // R2 key derivation for catalog images. Reason again: the worker writes these
 // objects and the web app builds URLs from them, so the two must agree.
 export * from './catalog-image-keys'
+// R2 key derivation for mirrored typefaces. Four processes derive these —
+// the mirror, the stylesheet, the export worker and E14's measurer — and a
+// disagreement between any two of them is a PDF in the fallback with no error.
+export * from './font-keys'
 export * from './shadow-presets'
 import type { BrandColor, TextStyle, TypeScale } from './composition'
 

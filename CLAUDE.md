@@ -272,6 +272,11 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   `souqstudio-design → references/brand-kit-fonts.md`. E6 also has to
   `await document.fonts.load()` for every family and weight *before* creating any
   Fabric text object, or every bounding box is measured against the fallback.
+  **The plan is `docs/fonts-from-google.md`**, written 21 September 2026: R2
+  becomes the only source of font bytes after selection, each family is mirrored
+  once for the whole platform, and the curated ten become a *Recommended* group
+  in front of the library filtered by the shop's languages. Part A moves the
+  bytes and ships alone; it is what unblocks E14 Phase 2 and E9.
 - **The layout engine is what everything draws through.** `packages/engine` carries track
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation, the
   flow engine, the fit ladder, the price mark, bounded overrides, snapping, the block

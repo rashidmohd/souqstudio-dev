@@ -79,3 +79,19 @@ export type {
  */
 export { syncLibrary } from './library-sync'
 export type { LibrarySyncResult } from './library-sync'
+/**
+ * The font registry — which typefaces are mirrored into R2 and where their files
+ * are. Here rather than in an app because three processes read it: the web app
+ * resolving a brand kit, the export worker finding files for Playwright, and
+ * E14's measurer opening them as bytes. `docs/fonts-from-google.md`.
+ */
+export {
+  getFont,
+  getFonts,
+  listFonts,
+  fontsCovering,
+  isMirrored,
+  registerFont,
+  assembleBrandCss,
+} from './fonts'
+export type { Font, FontRegistration, BrandCssSource } from './fonts'

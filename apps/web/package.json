@@ -13,7 +13,7 @@
     "stylelint": "stylelint \"styles/**/*.css\"",
     "check:classes": "node scripts/check-classes.mjs",
     "r2:cors": "node --env-file=.env.local scripts/r2-cors.mjs",
-    "fonts:mirror": "node --env-file-if-exists=.env.local scripts/mirror-fonts.mjs"
+    "fonts:mirror": "tsx --env-file-if-exists=.env.local scripts/mirror-fonts.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3",
@@ -60,6 +60,7 @@
     "postcss": "^8.0.0",
     "stylelint": "^16.0.0",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "vitest": "^2"
   }

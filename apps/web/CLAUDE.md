@@ -242,10 +242,28 @@ place, the session layer is ours and next-auth is scoped to OAuth. Full reasonin
 
 ## Fonts — critical
 
-Fonts are self-hosted in R2, not fetched from fonts.googleapis.com at render time.
-`next/font` is used for Host Grotesk and IBM Plex Sans Arabic with `display: swap`.
-IBM Plex Mono loaded the same way.
-Font files must be preloaded in `<head>` for the editor route.
+**Two systems, and they are not the same one.** The chrome typefaces are ours —
+Host Grotesk, IBM Plex Sans Arabic and IBM Plex Mono, through `next/font` in
+`lib/fonts.ts` with `display: swap`, self-hosted at build time with no
+render-time request to Google. Font files must be preloaded in `<head>` for the
+editor route.
+
+The **brand kit** typefaces are the shop owner's, and are a separate system:
+`docs/fonts-from-google.md`. A family is mirrored from Google into R2 once for
+the whole platform, recorded in the `fonts` table, and served from R2 to every
+surface after that — the specimen, the Fabric artboard, the HarfBuzz measurer
+and the PDF. **One set of bytes for all four** is not a preference: E14 Phase 0.1
+measured 0.000% parity between the measurer and Chromium's canvas, and that
+number is a statement about two programs reading the same file.
+
+Mirroring is `lib/font-mirror.ts`, pre-warmed by
+`pnpm --filter @souqstudio/web fonts:mirror`. Nothing may write a family into a
+brand kit before its files are in R2 — a kit naming a face the export cannot load
+comes back as a PDF in the fallback, silently.
+
+**Still true today:** `lib/brand-fonts.ts` is a static array of ten families and
+the specimen still links `fonts.googleapis.com`. Part A of the doc is what moves
+that; until it lands, do not add a read site that depends on the static array.
 
 ---
 

@@ -1503,6 +1503,91 @@ model OfferShopOverride {
   @@map("offer_shop_overrides")
 }
 
+// ─── Fonts ───────────────────────────────────────────────────────────────────
+/// One mirrored typeface family. **Platform-wide, and deliberately not tenant
+/// data** — there is no `organizationId` here and there must not be. The first
+/// shop anywhere to choose Cairo pays for the fetch; every shop after it gets a
+/// hit. A brand kit stores the family *name* and points at this row.
+///
+/// A row exists only once the files are in R2. That is the invariant the whole
+/// design rests on — *a family named by a brand kit is a family present in R2* —
+/// and it is what lets the specimen, the Fabric artboard, the HarfBuzz measurer
+/// and the PDF all read one set of bytes. `docs/fonts-from-google.md` §1.
+model Font {
+  id      String @id @default(cuid())
+  /// The Google Fonts family name, verbatim: `Noto Sans Arabic`, never a slug.
+  /// This is what a brand kit stores and what `font-family` names in CSS, so it
+  /// is also what a rename would break. Nothing renames a family — OFL's
+  /// reserved font name clause asks for exactly that.
+  family  String @unique
+  /// `noto-sans-arabic`. The R2 key prefix.
+  ///
+  /// Stored rather than recomputed at each call site. A second derivation of
+  /// where a file lives is how the picker and the render path come to disagree,
+  /// and the failure would be a shop choosing a face the export cannot load —
+  /// which nobody sees until a PDF comes back in the fallback.
+  slug    String @unique
+  /// Google's version for the release we took — Cairo is `v31` today. Theirs,
+  /// not ours.
+  ///
+  /// **Never refreshed on a schedule.** Shops have published books built against
+  /// these exact outlines, and swapping them under a live document is the defect
+  /// this design exists to prevent. Taking a newer release is a deliberate
+  /// migration to a new row and new keys, with the old ones left in place.
+  /// `docs/fonts-from-google.md` §2a.
+  version String
+
+  /// Which scripts the face covers — `["arabic", "latin", "latin-ext"]`, from
+  /// Google's own metadata.
+  ///
+  /// **The only thing standing between a bilingual shop and a page of tofu.**
+  /// The picker offers a family to a shop only if these cover every language the
+  /// shop sells in. That rule replaces the hand-curated ten in
+  /// `apps/web/lib/brand-fonts.ts`, which was a stand-in for this filter.
+  subsets  String[]
+  /// `sans-serif`, `serif`, `display`, `handwriting` or `monospace`. Coarse slot
+  /// filtering: a handwriting face is never a price.
+  category String
+
+  /// Every upright weight mirrored — `[400, 700]`. Not the weights some kit
+  /// binds today: a family is taken whole, so presence is a fact about the
+  /// family rather than a question to ask per weight in eight places.
+  /// `docs/fonts-from-google.md` §2b.
+  weights       Int[]
+  /// Every italic weight mirrored. Usually empty — Arabic has no italic
+  /// convention, so Arabic-capable families generally ship none and a browser
+  /// synthesises a slant instead.
+  italicWeights Int[]
+
+  /// `OFL-1.1`, `Apache-2.0` or `UFL-1.0`, taken from which directory of
+  /// `google/fonts` holds the family. **Read, never assumed** — the mirror
+  /// script used to hardcode `ofl/`, which is right for ten families and wrong
+  /// for the library. All three permit hosting and embedding; what differs is
+  /// which licence file has to travel with the files, and it is mirrored beside
+  /// them.
+  license String
+
+  /// The family's `@font-face` rules, already rewritten to point at R2.
+  ///
+  /// **Stored rather than modelled.** What matters in Google's CSS is the
+  /// `unicode-range` blocks — they are what keeps an English page from
+  /// downloading Arabic — and decomposing them into columns only to reassemble
+  /// them is an opportunity to get them subtly wrong. This holds Google's own
+  /// ranges verbatim with the URLs swapped. `fonts/brand.css` is these rows
+  /// concatenated.
+  css String
+
+  mirroredAt DateTime @default(now())
+
+  /// The picker's only filter — which families cover the scripts this shop sells
+  /// in — is array containment, and a bilingual shop asks it on every open of
+  /// the typography panel. Declared here as well as in the migration for the
+  /// reason `idx_catalog_fts` is: a raw index Prisma does not know about shows
+  /// up as drift on every `migrate diff` and eventually gets "fixed" away.
+  @@index([subsets], type: Gin, map: "fonts_subsets_idx")
+  @@map("fonts")
+}
+
 // ─── Templates & Grids ───────────────────────────────────────────────────────
 /// A designed building block — the unit an offer book is assembled from.
 ///
