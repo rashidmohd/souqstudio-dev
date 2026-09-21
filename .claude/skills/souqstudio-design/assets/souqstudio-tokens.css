@@ -198,6 +198,13 @@
      reached the render. A box that needs a size needs a name. */
   --sq-preview:         96px;   /* logo preview box */
   --sq-preview-cap:     64px;   /* the logo sitting inside it */
+  /* A picture shown large in a dialog — a generated character, a cover. Viewport
+     relative rather than px, because what it is competing with is the dialog's
+     own title and buttons and the edge of the screen, none of which are fixed.
+     A square box was the first answer and it was wrong twice over: a wide
+     photograph letterboxed into a tall empty frame, and the frame itself pushed
+     the dialog past the viewport. */
+  --sq-media-cap:       60vh;
   --sq-skeleton-card:  128px;   /* stands in for a real card */
   --sq-skeleton-chip:   64px;   /* stands in for a chip */
   --sq-field-select:   176px;   /* a role select; its longest option sets this */

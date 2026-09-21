@@ -113,18 +113,27 @@ export function ImageViewer({ images, index, onIndexChange, action }: Props) {
            * frame cuts its feet off — which is the one thing an owner is looking
            * at this to check.
            *
-           * The box is the image's own ratio where it has one, and square where
-           * it does not. Inline rather than a class because the six cover shapes
-           * are engine data, and Tailwind cannot generate a class per value it
-           * has never seen.
+           * **No box of its own unless the caller knows the shape.** This forced
+           * `aspect-square` on anything without a stated ratio, which is every
+           * character — and a *photo* character is a wide picture, so it
+           * letterboxed into a tall empty frame with the figure as a band across
+           * the middle. Left alone, the picture is its own shape and the only
+           * thing imposed is a cap so it cannot push the dialog past the screen.
+           *
+           * A cover states its ratio, and there the box is worth having: it
+           * reserves the right space before the bytes arrive, so the dialog does
+           * not resize under the owner as they step through.
+           *
+           * **`min-w-0` and `flex-1` rather than `w-full`.** `w-full` is 100% of
+           * the row, and the row also holds two 44px arrows and the gaps between
+           * them — so the picture was always wider than the space left for it,
+           * which is where the horizontal scrollbar came from.
            */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={current.url}
             alt={current.label}
-            className={`w-full rounded-block border border-border-subtle bg-stone-0 object-contain ${
-              current.aspectRatio === undefined ? 'aspect-square' : ''
-            }`}
+            className="min-w-0 flex-1 rounded-block border border-border-subtle bg-stone-0 object-contain max-h-media-cap"
             {...(current.aspectRatio === undefined
               ? {}
               : { style: { aspectRatio: current.aspectRatio } })}

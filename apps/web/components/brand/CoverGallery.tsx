@@ -7,6 +7,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { MachineOutput } from '@/components/ui/machine-output'
 import { CoverDialog } from '@/components/brand/CoverDialog'
 import { ImageViewer } from '@/components/brand/ImageViewer'
+import { TILE_HEIGHT } from '@/components/blocks/BlockTile'
 import { coverRatio } from '@/lib/cover-shape'
 
 /**
@@ -119,19 +120,36 @@ export function CoverGallery() {
                   onClick={() => setViewing(index)}
                 >
                   {/*
-                    The shape it was drawn at, never a square. `coverRatio`
-                    carries the reasoning; the short of it is that a square
-                    thumbnail of a 16:9 cover is a crop of the cover rather than
-                    the cover, and an owner picking between two of them is
-                    picking between two crops.
+                    **A uniform box, with the cover drawn at its own shape
+                    inside it.**
+
+                    The first fix for this made each thumbnail the cover's own
+                    ratio, which stopped a 16:9 cover being shown as a square
+                    crop — right about the picture, wrong about the grid. A row
+                    of tiles then took its height from the tallest, and every
+                    shorter one sat in a bordered box with a band of white under
+                    its caption: four covers of different shapes made a page of
+                    ragged holes.
+
+                    One box, contained within it, is the shape `BlockTile`
+                    already uses for exactly this reason, and it gives both
+                    halves: the grid stays a grid, and a 9:16 story cover still
+                    *looks* 9:16 beside a 16:9 one, because it is drawn at its
+                    own proportions rather than cropped to fill.
                   */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={cover.url}
-                    alt={`${label(cover.campaign)} cover`}
-                    className="block w-full object-cover transition-transform duration-fast ease-sq hover:scale-105"
-                    style={{ aspectRatio: coverRatio(cover.shape) }}
-                  />
+                  <span
+                    className="flex items-center justify-center overflow-hidden bg-stone-0"
+                    style={{ height: TILE_HEIGHT }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={cover.url}
+                      alt={`${label(cover.campaign)} cover`}
+                      className="max-h-full max-w-full object-contain transition-transform duration-fast ease-sq hover:scale-105"
+                      style={{ aspectRatio: coverRatio(cover.shape) }}
+                      loading="lazy"
+                    />
+                  </span>
                 </button>
                 <div className="flex items-center justify-between gap-2 p-2">
                   <span className="truncate font-ui text-body-sm text-secondary">

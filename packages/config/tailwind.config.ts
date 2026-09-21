@@ -169,6 +169,8 @@ const config: Config = {
       },
       maxHeight: {
         'preview-cap': 'var(--sq-preview-cap)',
+        // A picture shown large in a dialog. See the token.
+        'media-cap': 'var(--sq-media-cap)',
       },
       minHeight: {
         control: 'var(--sq-h-control)',

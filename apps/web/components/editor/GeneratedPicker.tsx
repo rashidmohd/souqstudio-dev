@@ -4,6 +4,7 @@ import * as React from 'react'
 import { COVER_SHAPE_NOTE, type CoverShape } from '@souqstudio/engine'
 import { Dialog } from '@/components/ui/dialog'
 import { MachineOutput } from '@/components/ui/machine-output'
+import { TILE_HEIGHT } from '@/components/blocks/BlockTile'
 import { shapeFor } from '@/lib/cover-shape'
 
 /**
@@ -121,25 +122,27 @@ export function GeneratedPicker({ open, onOpenChange, aspect, onChosen }: Props)
                         }}
                       >
                         {/*
-                          Its own shape, which is also what makes the note below
-                          legible: a cover drawn 9:16 now *looks* 9:16 beside a
-                          page that is not, so "will be cropped on this page" is
-                          something the owner can see rather than only read.
-
-                          `contain` for a figure, `cover` for a cover: a
-                          character on a plain ground has its feet at the edge of
-                          the frame, and a tile that crops to fill cuts them off.
+                          **A uniform box, contained.** Each picture keeps its
+                          own proportions — a 9:16 story cover *looks* 9:16
+                          beside a page that is not, which is what makes the
+                          "will be cropped on this page" note something an owner
+                          can see rather than only read — while the tiles stay
+                          one size, so a grid of mixed shapes is still a grid.
+                          `BlockTile` makes the same argument.
                         */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={image.url}
-                          alt=""
-                          className={`block w-full transition-transform group-hover:scale-105 ${
-                            image.kind === 'cover' ? 'object-cover' : 'bg-stone-0 object-contain'
-                          }`}
-                          style={{ aspectRatio: image.ratio }}
-                          loading="lazy"
-                        />
+                        <span
+                          className="flex items-center justify-center overflow-hidden bg-stone-0"
+                          style={{ height: TILE_HEIGHT }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={image.url}
+                            alt=""
+                            className="max-h-full max-w-full object-contain transition-transform group-hover:scale-105"
+                            style={{ aspectRatio: image.ratio }}
+                            loading="lazy"
+                          />
+                        </span>
                         <span className="block p-2 font-ui text-body-sm text-secondary">
                           {image.label}
                           {mismatch(image, wanted)}
