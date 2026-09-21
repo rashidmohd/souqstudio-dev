@@ -93,12 +93,37 @@ export async function renderBlurred(
   const bleed = pixels * OVERSCAN_RADII
   context.drawImage(image, -bleed, -bleed, width + bleed * 2, height + bleed * 2)
 
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, OUTPUT_TYPE, OUTPUT_QUALITY)
-  })
-  if (blob === null) return null
+  /*
+   * **PNG if WebP does not encode.** The spec says a UA that cannot encode the
+   * requested type falls back to `image/png`, and most do — but `toBlob` is
+   * also allowed to hand back null, and a null here is indistinguishable from
+   * a CORS failure in the message the owner reads. Asking twice costs one
+   * encode on the browsers that need it and nothing on the rest.
+   */
+  const blob =
+    (await encode(canvas, OUTPUT_TYPE)) ?? (await encode(canvas, 'image/png'))
+  if (blob === null) {
+    console.error('[blur] the canvas would not encode a blob — neither WebP nor PNG')
+    return null
+  }
 
-  return new File([blob], filename, { type: OUTPUT_TYPE })
+  const type = blob.type === '' ? OUTPUT_TYPE : blob.type
+  const name = type === 'image/png' ? filename.replace(/\.webp$/, '.png') : filename
+  return new File([blob], name, { type })
+}
+
+function encode(canvas: HTMLCanvasElement, type: string): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob(resolve, type, OUTPUT_QUALITY)
+    } catch (problem) {
+      // A tainted canvas throws here rather than resolving null. It should be
+      // unreachable — `loadImage` refuses a source it could not read with CORS
+      // — but the distinction is worth keeping in the log if it ever is.
+      console.error('[blur] the canvas refused to encode; it is probably tainted', problem)
+      resolve(null)
+    }
+  })
 }
 
 /**
@@ -117,9 +142,31 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
     image.crossOrigin = 'anonymous'
     image.onload = () => resolve(image)
     image.onerror = () => {
-      console.error(`[blur] could not load ${url} for blurring — CORS, or the object is gone`)
+      console.error(
+        `[blur] could not load ${url} — the bucket's CORS policy does not cover this origin, or the object is gone`
+      )
       resolve(null)
     }
-    image.src = url
+    image.src = corsUrl(url)
   })
+}
+
+/**
+ * The same object, asked for in a way the cache cannot answer with the wrong
+ * copy.
+ *
+ * **The artboard has already downloaded this picture without CORS.** It draws
+ * backgrounds and artwork as `<image href>` inside the SVG, and SVG images carry
+ * no `crossorigin` attribute — so the response sits in the HTTP cache with no
+ * `Access-Control-Allow-Origin` on it. A later request for the *same URL* with
+ * `crossOrigin = 'anonymous'` can be served that entry, and the load then fails
+ * however correct the bucket's policy is. It is the classic shape of this bug:
+ * it only appears once the picture is on screen, which is always.
+ *
+ * A query parameter makes it a different cache key, so the CORS request goes to
+ * the network and comes back with the header. It costs one extra download of a
+ * picture the owner is about to change anyway.
+ */
+function corsUrl(url: string): string {
+  return `${url}${url.includes('?') ? '&' : '?'}sq-cors=1`
 }
