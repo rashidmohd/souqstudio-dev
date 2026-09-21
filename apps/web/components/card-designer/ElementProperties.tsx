@@ -48,6 +48,7 @@ import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { StrokeControl } from '@/components/card-designer/StrokeControl'
 import { ShadowControl } from '@/components/card-designer/ShadowControl'
+import { ImageBlurControl } from '@/components/card-designer/ImageBlurControl'
 import { Segmented, ToggleBar } from '@/components/ui/segmented'
 import { Slider } from '@/components/ui/slider'
 import { describe } from '@/components/card-designer/LayerList'
@@ -84,7 +85,14 @@ type Props = {
   disabled: boolean
   palette: readonly BrandColor[]
   token: (ref: TokenRef) => string
-  onChange: (element: BlockElement) => void  /**
+  onChange: (element: BlockElement) => void
+  /**
+   * Where an `assetId` becomes a URL. The blur control on an uploaded image
+   * re-renders from the unblurred original, so it needs somewhere to read it
+   * from; omitted hides that one control and nothing else.
+   */
+  assetBaseUrl?: string | undefined
+  /**
    * Take the selected price mark apart into layers.
    *
    * Supplied by the shell, because the split is computed against the artboard's
@@ -112,6 +120,7 @@ export function ElementProperties({
   palette,
   token,
   onChange,
+  assetBaseUrl,
   onSplit,
 }: Props) {
   if (element === null) {
@@ -246,6 +255,25 @@ export function ElementProperties({
             allowBlur
             onChange={(shadow) => onChange({ ...element, shadow })}
           />
+          {/*
+            **Blur, on an upload only.** The union is what says so: a product
+            image is chosen from the catalog at render time and a logo belongs
+            to whichever shop draws the block, so neither is a single file that
+            could have been blurred in advance. Offering the control for them
+            would be a slider that cannot do anything.
+
+            Pixels rather than a filter, for the reason §2.4 measured — see
+            `lib/blur-image.ts`. The painter draws an ordinary image and never
+            learns a blur happened.
+          */}
+          {element.source.from === 'asset' && assetBaseUrl !== undefined ? (
+            <ImageBlurControl
+              source={element.source}
+              assetBaseUrl={assetBaseUrl}
+              disabled={disabled}
+              onChange={(source) => onChange({ ...element, source })}
+            />
+          ) : null}
           <Select
           label="How it fills its box"
           disabled={disabled}

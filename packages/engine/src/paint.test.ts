@@ -200,4 +200,50 @@ describe('a shadow — §2.4', () => {
       expect(toArrangements(arrange([shape({ fill: ROLE, shadow })]))).not.toBeNull()
     })
   })
+
+  /**
+   * A blurred *picture* is the one soft thing that survives the export path,
+   * because it is pixels rather than a filter: the image is rendered blurred
+   * and stored, and what the painter draws carries no filter at all. What is
+   * stored beside it is provenance — the unblurred original and the radius —
+   * so the designer can re-render from the original instead of compounding.
+   */
+  describe('a blurred upload', () => {
+    const image = (source: unknown): BlockElement =>
+      ({ id: 'i1', kind: 'image', box: BOX, source }) as BlockElement
+
+    it('carries the original it was rendered from', () => {
+      expect(
+        toArrangements(
+          arrange([
+            image({ from: 'asset', assetId: 'org_1/blocks/soft', blur: { from: 'org_1/blocks/sharp', radius: 0.02 } }),
+          ])
+        )
+      ).not.toBeNull()
+    })
+
+    it('bounds the radius, because past it a picture is a wash', () => {
+      expect(
+        toArrangements(
+          arrange([
+            image({ from: 'asset', assetId: 'org_1/blocks/soft', blur: { from: 'org_1/blocks/sharp', radius: 0.5 } }),
+          ])
+        )
+      ).toBeNull()
+    })
+
+    it('refuses it on a bound image, which has no one file to blur', () => {
+      // A product image is chosen from the catalog at render time and a logo
+      // belongs to whichever shop draws the block. The union is what says so;
+      // this is the test that keeps it saying it.
+      expect(
+        toArrangements(arrange([image({ from: 'product', blur: { from: 'x', radius: 0.02 } })]))
+      ).toBeNull()
+      expect(
+        toArrangements(
+          arrange([image({ from: 'brand', field: 'logo', blur: { from: 'x', radius: 0.02 } })])
+        )
+      ).toBeNull()
+    })
+  })
 })

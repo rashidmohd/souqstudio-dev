@@ -399,11 +399,44 @@ const elementSchema = z.discriminatedUnion('kind', [
     ...baseSchema,
     kind: z.literal('image'),
     source: z.discriminatedUnion('from', [
-      z.object({ from: z.literal('product') }),
-      z.object({ from: z.literal('asset'), assetId: z.string().min(1).max(64) }),
+      /*
+       * **The two bound sources are strict, and that is what makes "uploads
+       * only" true rather than merely intended.** A plain `z.object` *strips*
+       * an unknown key instead of refusing it, so `blur` on a product image
+       * parsed cleanly and disappeared — the owner sets something, the document
+       * stores nothing, and nobody is told. Refused at the boundary, the same
+       * rule the text shadow above follows: a block cannot store one thing and
+       * render another.
+       *
+       * The `asset` member stays open, because it is the one that legitimately
+       * gains fields.
+       */
+      z.strictObject({ from: z.literal('product') }),
+      z.object({
+        from: z.literal('asset'),
+        assetId: z.string().min(1).max(64),
+        /**
+         * Where a blurred upload came from — **provenance, never paint.**
+         *
+         * `assetId` always names the picture as drawn, so no painter learns
+         * what a blur is and nothing reaches the export path as a filter. §2.4
+         * measured `feGaussianBlur` rasterising its own element at a resolution
+         * Chromium picks, so blur is produced as pixels and stored.
+         *
+         * **Only on an upload, and the union is what enforces it.** A product
+         * image is chosen from the catalog at render time and a brand logo
+         * belongs to whichever shop draws the block — neither is one file that
+         * could have been blurred in advance, so neither member carries this.
+         *
+         * `radius` is a fraction of the image's shorter edge.
+         */
+        blur: z
+          .object({ from: z.string().min(1).max(64), radius: z.number().min(0).max(0.06) })
+          .optional(),
+      }),
       // `logo` stopped being an element kind — E14 §3.1. It is a picture, so
       // every image property applies to it, `aspect` most of all.
-      z.object({ from: z.literal('brand'), field: z.literal('logo') }),
+      z.strictObject({ from: z.literal('brand'), field: z.literal('logo') }),
     ]),
     fit: z.enum(['contain', 'cover']).optional(),
     radius: z.number().min(0).max(64).optional(),

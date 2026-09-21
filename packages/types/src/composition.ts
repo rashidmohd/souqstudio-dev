@@ -367,7 +367,21 @@ export interface Box {
  */
 export type ImageSource =
   | { from: 'product' }
-  | { from: 'asset'; assetId: string }
+  | {
+      from: 'asset'
+      assetId: string
+      /**
+       * Where a blurred upload came from — authoring provenance, never paint.
+       * `assetId` is always the picture as drawn; `from` is the unblurred
+       * original the designer re-renders from, and `radius` is a fraction of
+       * the image's shorter edge. Absent means the picture is the original.
+       *
+       * **Only an upload can carry it.** A product image comes from the catalog
+       * at render time and a logo belongs to whichever shop draws the block;
+       * neither is a single file that could have been blurred in advance.
+       */
+      blur?: { from: string; radius: number } | undefined
+    }
   | { from: 'brand'; field: 'logo' }
 
 /**

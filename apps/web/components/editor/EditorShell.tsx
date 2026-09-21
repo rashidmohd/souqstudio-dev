@@ -798,6 +798,14 @@ export function EditorShell({
                 palette={palette}
                 token={(ref) => resolveToken(palette, ref)}
                 /*
+                  The blur control re-renders from the unblurred original, so it
+                  needs somewhere to read it from. Passed here as well as to
+                  `PagePanel`: the book's ground and one page's are the same
+                  control, and a blur that worked on a single page but not on
+                  the book would be the harder of the two to explain.
+                */
+                assetBaseUrl={assetBaseUrl}
+                /*
                   Every page in the book is this shape — the master grid is what
                   `page` describes — so a ground generated here is drawn at the
                   aspect it will actually be cropped to.

@@ -652,6 +652,9 @@ export function DesignerShell({
               disabled={!editable}
               palette={palette}
               token={token}
+              // The blur control on an uploaded image re-renders from the
+              // unblurred original and needs somewhere to read it from.
+              assetBaseUrl={assetBaseUrl}
               onChange={(element) => store.setElement(element.id, element)}
               {...(selectedElement?.kind === 'priceMark'
                 ? {
