@@ -4,6 +4,7 @@ import * as React from 'react'
 import { ImagePlus, Loader2 } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { MachineOutput } from '@/components/ui/machine-output'
 import { cn } from '@/lib/utils'
 
 /**
@@ -26,6 +27,14 @@ import { cn } from '@/lib/utils'
  * Tiles draw at each asset's own proportion inside a shared box, which is why
  * the row carries `width` and `height`. A grid of squares would say a wide
  * banner and a round badge are the same object.
+ *
+ * **And a third collection, which is the one an owner paid for.** Their covers,
+ * their character and its poses were generated, stored at an R2 key like every
+ * other picture here, and offered *nowhere* — `block_assets` holds uploads, and
+ * no generated image has ever had a row on it. So a shop could put a crescent we
+ * shipped on a card and could not put its own mascot there. They come from
+ * `/api/v1/brand/generated`, which the book editor's background picker reads
+ * too, and they arrive as keys that need nothing else in this screen to change.
  */
 
 export type Artwork = {
@@ -36,6 +45,26 @@ export type Artwork = {
   height: number
   seeded: boolean
   url: string
+}
+
+/**
+ * One generated picture, as `/api/v1/brand/generated` sends it.
+ *
+ * **It is not an `Artwork` and is not converted into one.** An artwork row
+ * carries pixel dimensions, read back off the object after the upload; a
+ * generated image is described by the shape it was drawn at, which is a ratio
+ * rather than a size. Flattening the two would mean inventing numbers for one of
+ * them, and the only thing either is used for here is drawing a tile. The route
+ * sends more than this — a cover's ratio and shape, which the book editor's
+ * picker needs and this screen does not — and the extra fields are simply left
+ * undeclared rather than carried around unused.
+ */
+type Generated = {
+  id: string
+  kind: 'cover' | 'character' | 'pose'
+  key: string
+  url: string
+  label: string
 }
 
 type Props = {
@@ -51,6 +80,7 @@ const TILE = 120
 
 export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
   const [assets, setAssets] = React.useState<Artwork[] | null>(null)
+  const [generated, setGenerated] = React.useState<Generated[]>([])
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const fileInput = React.useRef<HTMLInputElement | null>(null)
@@ -70,6 +100,20 @@ export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
       .catch(() => {
         if (live) setError('That list could not be loaded.')
       })
+    /*
+     * **A second request rather than one route serving both.** The two lists are
+     * scoped differently and neither can be widened to the other: artwork
+     * belongs to the organization, and a generated image belongs to the shop
+     * whose character is in it. A shop that does not have one is not an error
+     * here — the grid simply shows the uploads, as it always did.
+     */
+    void fetch('/api/v1/brand/generated')
+      .then((response) => response.json() as Promise<{ data: { images: Generated[] } | null }>)
+      .then((body) => {
+        if (live) setGenerated(body.data?.images ?? [])
+      })
+      .catch(() => undefined)
+
     return () => {
       live = false
     }
@@ -89,6 +133,10 @@ export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
 
   const mine = assets?.filter((asset) => !asset.seeded) ?? []
   const shipped = assets?.filter((asset) => asset.seeded) ?? []
+  // Covers first, then the character, then its poses — most page-sized to least,
+  // which is also the order an owner made them in.
+  const covers = generated.filter((image) => image.kind === 'cover')
+  const characters = generated.filter((image) => image.kind !== 'cover')
 
   return (
     <Dialog
@@ -96,7 +144,7 @@ export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
       onOpenChange={onOpenChange}
       size="lg"
       title="Artwork"
-      description="Anything you have uploaded before, ready to use again."
+      description="Anything you have uploaded or generated before, ready to use again."
     >
       <div className="flex flex-col gap-4">
         <div>
@@ -131,7 +179,7 @@ export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
             <Loader2 className="size-4 animate-spin" strokeWidth={1.75} aria-hidden="true" />
             Loading your artwork…
           </p>
-        ) : assets.length === 0 ? (
+        ) : assets.length === 0 && generated.length === 0 ? (
           // **Not an illustrated empty state.** The action that fills this is
           // the button directly above it, already on screen; a picture between
           // the two would put furniture in the way of the one thing to do.
@@ -142,6 +190,18 @@ export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
         ) : (
           <>
             <Group label="Yours" assets={mine} onPick={onPick} />
+            {/*
+              **Marked as generated, because it is.** The design system requires
+              anything a machine drew to be identifiable as such wherever it is
+              shown, and a picker is where an owner decides to print it on a
+              flyer that reaches thousands of their customers.
+            */}
+            <GeneratedGroup label="Generated covers" images={covers} onPick={onPick} />
+            <GeneratedGroup
+              label="Your character and poses"
+              images={characters}
+              onPick={onPick}
+            />
             <Group label="From SouqStudio" assets={shipped} onPick={onPick} />
           </>
         )}
@@ -198,5 +258,64 @@ function Group({
         ))}
       </ul>
     </section>
+  )
+}
+
+/**
+ * The generated collections, with the machine mark on them.
+ *
+ * A separate component from `Group` rather than a prop on it: the rows are a
+ * different shape — a ratio where an artwork has pixels — and the whole section
+ * is wrapped in `MachineOutput`, which `Group` must never gain, because it also
+ * renders the artwork an owner drew and uploaded themselves.
+ */
+function GeneratedGroup({
+  label,
+  images,
+  onPick,
+}: {
+  label: string
+  images: Generated[]
+  onPick: (assetId: string) => void
+}) {
+  if (images.length === 0) return null
+
+  return (
+    <MachineOutput label={label}>
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {images.map((image) => (
+          <li key={image.id}>
+            <button
+              type="button"
+              onClick={() => onPick(image.key)}
+              className={cn(
+                'flex w-full flex-col gap-2 rounded-card border-hairline border-border-subtle p-2 text-start',
+                'hover:bg-stone-100'
+              )}
+            >
+              {/* The same 120px box the uploads use, and `contain` inside it, so
+                  the picture letterboxes at its own proportions rather than
+                  being cropped to fill: a character is a figure standing on a
+                  plain ground, and a tile that crops cuts its feet off. */}
+              <span
+                className="flex items-center justify-center overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0"
+                style={{ height: TILE }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={image.url}
+                  alt=""
+                  className="max-h-full max-w-full object-contain"
+                  loading="lazy"
+                />
+              </span>
+              <span className="truncate font-ui text-label font-medium text-primary">
+                {image.label}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </MachineOutput>
   )
 }

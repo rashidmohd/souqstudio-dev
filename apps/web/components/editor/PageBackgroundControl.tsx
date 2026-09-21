@@ -10,7 +10,7 @@ import { Slider } from '@/components/ui/slider'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { uploadArtwork } from '@/lib/upload-artwork'
 import { MAX_BLUR_RADIUS, renderBlurred } from '@/lib/blur-image'
-import { CoverPicker } from '@/components/editor/CoverPicker'
+import { GeneratedPicker } from '@/components/editor/GeneratedPicker'
 
 /**
  * The paper behind every card in the book. E6 —
@@ -28,13 +28,20 @@ import { CoverPicker } from '@/components/editor/CoverPicker'
  * control inside. Splitting them here would be four modes for three decisions,
  * and would also mean a second gradient editor.
  *
- * **A generated cover arrives by the same door as an uploaded one.** E8-04
+ * **A generated image arrives by the same door as an uploaded one.** E8-04
  * draws from the shop's character and its own photographs and stores the result
- * at `{org}/{shop}/covers/…`; this control
- * already turns an R2 key into `{ from: 'asset' }`, and that key satisfies the
- * background route's org-prefix tenancy check unchanged. So "Generate" sits
- * beside "Upload" and everything downstream — the fit control, the strength
- * slider, `assetResolver`, the painter — cannot tell the two apart.
+ * at `{org}/{shop}/covers/…`; a character and its poses sit under
+ * `{org}/{shop}/characters/…`. This control already turns an R2 key into
+ * `{ from: 'asset' }`, and every one of those keys satisfies the background
+ * route's org-prefix tenancy check unchanged. So the picker sits beside
+ * "Upload" and everything downstream — the fit control, the strength slider,
+ * `assetResolver`, the painter — cannot tell the two apart.
+ *
+ * **It offers every generated image, not only covers.** The picker used to read
+ * the covers route alone, so a shop that had paid for a mascot could not put it
+ * behind a page; `GeneratedPicker` reads one list that the card designer's
+ * artwork dialog reads too, because two pickers with their own idea of what
+ * exists is how one of them ends up missing a whole kind of picture.
  *
  * **`ColorControl` is reused from the card designer rather than rebuilt.** It
  * carries the palette rows, the mechanics row, the hex box, the eight gradient
@@ -238,13 +245,13 @@ export function PageBackgroundControl({
             onClick={() => setGenerating(true)}
           >
             <Sparkles className="size-4" aria-hidden="true" strokeWidth={1.75} />
-            Your covers
+            Your generated images
           </Button>
         </div>
       ) : null}
 
       {aspect !== undefined ? (
-        <CoverPicker
+        <GeneratedPicker
           open={generating}
           onOpenChange={setGenerating}
           aspect={aspect}

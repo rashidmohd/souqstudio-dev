@@ -422,7 +422,22 @@ const elementSchema = z.discriminatedUnion('kind', [
       z.strictObject({ from: z.literal('product') }),
       z.object({
         from: z.literal('asset'),
-        assetId: z.string().min(1).max(64),
+        /**
+         * An R2 object key.
+         *
+         * **200, because 64 was the length of an upload and not the length of a
+         * key.** `POST /blocks/artwork` mints `{org}/blocks/{random}`, which is
+         * comfortably inside 64 — so the limit held for as long as an upload was
+         * the only picture a block could name. A generated cover is
+         * `{org}/{shop}/covers/{jobId}-{index}.jpg` and a character
+         * `{org}/{shop}/characters/…`: around ninety characters, both of them,
+         * and both silently refused at the boundary. The same 200 the page
+         * background's own schema uses, so the two ways a picture reaches a page
+         * agree about what a key is.
+         *
+         * Raising a maximum cannot invalidate a document that already parsed.
+         */
+        assetId: z.string().min(1).max(200),
         /**
          * Where a blurred upload came from — **provenance, never paint.**
          *
@@ -439,7 +454,8 @@ const elementSchema = z.discriminatedUnion('kind', [
          * `radius` is a fraction of the image's shorter edge.
          */
         blur: z
-          .object({ from: z.string().min(1).max(64), radius: z.number().min(0).max(0.06) })
+          // 200 for the same reason `assetId` is: this is the same kind of key.
+          .object({ from: z.string().min(1).max(200), radius: z.number().min(0).max(0.06) })
           .optional(),
       }),
       // `logo` stopped being an element kind — E14 §3.1. It is a picture, so
