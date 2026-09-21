@@ -246,12 +246,20 @@ export interface GradientStop {
  * gradient is still a rectangle with a fill, and only the resolving of that
  * fill changed. `resolveColor` was the seam and stayed one.
  *
- * **Only `shape.fill` takes one.** Text, strokes, chips and the price mark are
- * `FlatColor`, and that is a design decision rather than an unfinished edge:
- * gradient text and gradient hairlines are how a card stops being legible at
- * the size a booklet actually prints, and neither has been asked for. Widening
- * one of those fields later is a one-word change here plus whatever the
- * renderers then owe — the type is what will tell you which ones.
+ * **`shape.fill` takes one, and text now takes an opaque one.** Strokes, chips
+ * and the price mark are still `FlatColor`, for the reason this note has always
+ * given: gradient hairlines are how a card stops being legible at the size a
+ * booklet actually prints.
+ *
+ * **Text was refused on the same grounds and has been widened deliberately** —
+ * it was asked for, as the face of a three-dimensional price, which is the one
+ * place the legibility argument runs the other way: a run from a lighter to a
+ * darker shade of one hue is *what makes* a big price read as solid, and it is
+ * what every retail ticket already wears. The legibility risk is a
+ * low-contrast run rather than a run as such, and it is the same risk an owner
+ * already takes with a flat colour nobody can read. So text takes `TextFill`,
+ * which is this type minus the alpha — see it for the measurement that made the
+ * export path allow it and the one that keeps alpha out.
  *
  * **No seeded block may hold one.** `usesOnlyRoles` in the web app refuses a
  * gradient outright, so the shipped library stays flat; the design system's "no
@@ -344,6 +352,58 @@ export interface Shadow {
  * picture.
  */
 export type HardShadow = Shadow & { blur: 0 }
+
+/**
+ * What the face of a glyph is filled with: a flat colour, or an opaque gradient.
+ *
+ * **The alpha ban survives exactly where its reasoning does.** A gradient
+ * carrying alpha stops makes Chromium emit a page-sized soft mask to carry the
+ * alpha, at a resolution nothing in the document can set — `export-check.ts`
+ * bans it and E14 §0.3 measured the mask at 54 dpi. An *opaque* gradient had
+ * never been tested, and it behaves nothing like that: a PDF shading pattern,
+ * no mask, no raster, and the price is still real text. 5.1 kB against 4.7 kB
+ * flat, for one price.
+ *
+ * So a stop here carries `at` and `color`, and no `opacity`. The engine's schema
+ * refuses one rather than stripping it, because a gradient that silently loses a
+ * stop's alpha is a document that renders differently from the one somebody
+ * built.
+ */
+export type TextFill =
+  | FlatColor
+  | { from: 'gradient'; angle: number; stops: { at: number; color: FlatColor }[] }
+
+/**
+ * An extrusion: the glyphs repeated behind themselves, making a solid side.
+ *
+ * **Copies of the string, which is the only reason it is affordable.** A ring on
+ * text is the string again under a *stroke*, and Chromium outlines stroked text
+ * into path geometry — which is why a soft text shadow costs 24 kB a ring and
+ * `HardShadow` refuses one. An extrusion needs no stroke: each copy is another
+ * text run, the font stays in the PDF, and a copy costs about a fifth of a
+ * kilobyte. Measured through headless Chromium at 0/4/8/16 copies: 4.7, 5.6, 6.4
+ * and 8.1 kB, every one vector and still text.
+ *
+ * **How many copies is decided at paint, never stored.** How many it takes to
+ * read as solid depends on the output scale, exactly as a shadow's ring count
+ * does, and a stored count is a document that looks right on screen and striped
+ * at 300 dpi.
+ *
+ * **The offsets are bounded far tighter than a shadow's**, because an extrusion
+ * hangs outside the element's box and nothing in the fit ladder knows that yet.
+ *
+ * **There is no bevel and there should not be one.** `feSpecularLighting` over
+ * text rasterises the element and takes the font out of the PDF — zero
+ * text-drawing operators, measured — which is the one disqualifying class of
+ * result the export harness exists to catch.
+ */
+export interface Extrude {
+  /** Fractions of the block's geometric mean, like every other offset here. */
+  x: number
+  y: number
+  /** The side of the letters. Usually a darker cousin of the face. */
+  color: FlatColor
+}
 
 // ─── Blocks ───────────────────────────────────────────────────────────────────
 
@@ -645,8 +705,13 @@ export type BlockElement =
       decoration?: 'none' | 'line-through' | undefined
       /** Overrides the face the level binds to. */
       family?: TypeFamily | undefined
-      /** Overrides the automatic ink. */
-      color?: FlatColor | undefined
+      /**
+       * Overrides the automatic ink — a flat colour, or an opaque gradient down
+       * the glyphs, which is the cheapest three-dimensional cue there is and
+       * what a retail price ticket already wears. `TextFill` carries the
+       * measurement that made the gradient admissible.
+       */
+      color?: TextFill | undefined
       /**
        * An outline on the glyphs. E14 §2.4.
        *
@@ -670,6 +735,9 @@ export type BlockElement =
       stroke?: Stroke | undefined
       /** Hard only, and `HardShadow` says why. */
       shadow?: HardShadow | undefined
+      /** The side of the letters, drawn behind the face. `Extrude` says why it
+       *  is copies rather than a filter, and what a filter would cost. */
+      extrude?: Extrude | undefined
     })
   | (ElementBase & { kind: 'priceMark'; style?: PriceMarkStyle | undefined })
   | (ElementBase & {

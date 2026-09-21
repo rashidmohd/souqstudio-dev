@@ -582,12 +582,38 @@ describe('gradients', () => {
   })
 
   /**
-   * Gradient text and gradient hairlines are how a card stops being legible at
-   * the size a booklet prints. The decision is in `ColorValue`; this is the
-   * check that it survives contact with the edge.
+   * **Text takes a gradient now, and this is the reversal written down.**
+   *
+   * It was refused with hairlines, on the shared ground that both are how a card
+   * stops being legible at the size a booklet prints. Text was widened
+   * deliberately — a run from a lighter to a darker shade of one hue is what
+   * makes a big price read as solid, and it is the face of the three-dimensional
+   * price this product now draws. The legibility risk is a low-contrast run,
+   * which is the same risk a flat colour nobody can read already carries.
+   *
+   * The hairline half of the decision stands: a stroke is still `FlatColor`.
    */
-  it('refuses one anywhere but a shape fill', () => {
-    expect(toArrangements(withTextColor(gradient(two)))).toBeNull()
+  it('takes a gradient on text, which used to be refused', () => {
+    expect(toArrangements(withTextColor(gradient(two)))).not.toBeNull()
+  })
+
+  /**
+   * **And refuses a stop that fades, which is the half that is not taste.**
+   *
+   * An alpha stop makes Chromium carry the gradient with a page-sized soft mask
+   * at a resolution nothing in the document can set — `export-check.ts` bans it
+   * and E14 §0.3 measured the mask at 54 dpi. An opaque gradient emits a shading
+   * pattern instead and the text stays text. Refused rather than stripped: a
+   * `z.object` would drop the `opacity` and store a gradient that renders
+   * differently from the one somebody built.
+   */
+  it('refuses a fading stop on text, where a shape fill takes one', () => {
+    const fading = gradient([
+      { at: 0, color: { from: 'hex', hex: '#143CD2' } },
+      { at: 1, color: { from: 'hex', hex: '#143CD2' }, opacity: 0 },
+    ])
+    expect(toArrangements(withTextColor(fading))).toBeNull()
+    expect(toArrangements(withFill(fading))).not.toBeNull()
   })
 
   it('keeps a gradient out of the seeded library, whatever its stops name', () => {

@@ -27,6 +27,7 @@ import {
   placeText,
   readableInkOn,
   resolveBlock,
+  extrudeCopies,
   resolveColor,
   resolvePaint,
   shapePath,
@@ -753,9 +754,38 @@ function text(
         )
   const shadowInk = shadow === undefined ? '' : resolveColor(shadow.color, color)
 
+  /**
+   * The side of the letters, as copies offset toward a vanishing point.
+   *
+   * **Behind the shadow as well as behind the face.** The shadow is cast by the
+   * whole solid, so it belongs under all of it; drawing the side first would put
+   * the cast shadow on top of the letters' own edge.
+   *
+   * `dpi: 96` here, as the rings above use: this file draws for a screen, and
+   * `draw.tsx` passes the real surface.
+   */
+  const extrude = element.extrude
+  const sides =
+    extrude === undefined
+      ? []
+      : extrudeCopies(
+          { x: extrude.x * blockEdge, y: extrude.y * blockEdge },
+          { scale: 1, dpi: 96 }
+        )
+  const sideInk = extrude === undefined ? '' : resolveColor(extrude.color, color)
+  const face = textFace(element)
+
   return fitted.lines
     .map((line, i) => {
       const y = rect.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)
+      const side = sides
+        .map(
+          (copy) =>
+            `<text ${run(y + copy.dy, `fill="${sideInk}"`)}` +
+            ` transform="translate(${copy.dx} 0)"` +
+            `>${esc(line)}</text>`
+        )
+        .join('')
       const cast = rings
         .map(
           (ring) =>
@@ -768,6 +798,8 @@ function text(
         )
         .join('')
       return (
+        (i === 0 ? face.defs : '') +
+        side +
         cast +
         `<text ${run(y, `fill="${fill}"`)}${outline}>${esc(line)}</text>`
       )
@@ -871,11 +903,46 @@ function inkFor(
   ctx: RenderContext
 ): string {
   void ctx
-  if (element.color !== undefined) return resolveColor(element.color, color)
+  // A gradient face resolves to a `url(#…)` and its definition is emitted
+  // beside the run — see `textFace`. Flat stays a colour, as it always was.
+  if (element.color !== undefined) return textFace(element).fill
   // `shop` is deliberately absent — see the note in `draw.tsx`. This file
   // matches it line for line, which is the point of it.
   if (element.source.from === 'static') return KIT.surface
   return element.level === 'caption' ? KIT.inkMuted : KIT.ink
+}
+
+/**
+ * The face of a string: what it is filled with, and the definition that needs
+ * to travel with it.
+ *
+ * **An opaque gradient is admissible on text and an alpha one is not** — the
+ * ban `export-check.ts` carries is on the soft mask Chromium emits to carry
+ * alpha, and an opaque gradient emits a shading pattern with no mask and leaves
+ * the text as text. `TextFill` carries the measurement. The schema refuses a
+ * stop with an `opacity`, so anything reaching here is already opaque.
+ */
+function textFace(element: Extract<BlockElement, { kind: 'text' }>): {
+  fill: string
+  defs: string
+} {
+  const value = element.color
+  if (value === undefined) return { fill: '', defs: '' }
+
+  const paint = resolvePaint(value, color)
+  if (paint.kind === 'flat') return { fill: paint.css, defs: '' }
+
+  const id = `tf-${element.id}`
+  return {
+    fill: `url(#${id})`,
+    defs:
+      `<defs><linearGradient id="${id}"` +
+      ` x1="${paint.x1}" y1="${paint.y1}" x2="${paint.x2}" y2="${paint.y2}">` +
+      paint.stops
+        .map((stop) => `<stop offset="${stop.at}" stop-color="${stop.css}"/>`)
+        .join('') +
+      `</linearGradient></defs>`,
+  }
 }
 
 // ─── Primitives ───────────────────────────────────────────────────────────────

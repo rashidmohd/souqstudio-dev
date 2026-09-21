@@ -28,6 +28,7 @@ import {
   resolveImageBinding,
   resolvePaint,
   resolveTextBinding,
+  extrudeCopies,
   shadowRings,
   shapePath,
   type BindingSubjects,
@@ -1239,9 +1240,29 @@ function Text({
    * layer happens to be bound to.
    */
   const struck = element.decoration === 'line-through'
+
+  /**
+   * The face of the glyphs — a flat colour, or an opaque gradient down them.
+   *
+   * **A gradient is admissible here and an alpha one is not.** What
+   * `export-check.ts` bans is the page-sized soft mask Chromium emits to carry a
+   * stop's alpha, at a resolution nothing in the document can set. An opaque
+   * gradient emits a shading pattern instead: vector, no mask, and the price is
+   * still text — 5.1 kB against 4.7 kB flat, measured. `TextFill` in
+   * `@souqstudio/types` carries the numbers; the schema refuses a stop with an
+   * `opacity`, so anything arriving here is already opaque.
+   *
+   * It is also the cheapest three-dimensional cue there is, and the one every
+   * retail price ticket already wears.
+   */
+  const face =
+    element.color === undefined
+      ? null
+      : paintFill(element.color, { token: ctx.token, palette: ctx.palette ?? [], id: `${ctx.uid}-tf` })
+
   const fill =
-    element.color !== undefined
-      ? paint(ctx, element.color)
+    face !== null
+      ? face.fill
       : onTint
         ? ctx.token('surface')
         : element.level === 'caption'
@@ -1295,8 +1316,52 @@ function Text({
   const rings = shadow === undefined ? [] : textShadowRings(shadow, box, ctx)
   const shadowInk = shadow === undefined ? '' : paint(ctx, shadow.color)
 
+  /**
+   * The side of the letters, as copies of the string offset toward a vanishing
+   * point — an extrusion.
+   *
+   * **Copies, never a filter, and that is what makes it affordable.** A ring is
+   * the string again under a *stroke* and Chromium outlines stroked text into
+   * path geometry, which is the 24 kB a ring that makes a blurred text shadow
+   * impossible. A copy carries no stroke: it is another text run, the font stays
+   * in the PDF, and it costs about a fifth of a kilobyte. The whole effect —
+   * eight copies, a gradient face and an outline — measured 17.3 kB for one
+   * price, against the 274 kB page of ringed bursts this product already prints.
+   *
+   * **How many copies is decided here rather than stored**, from the same
+   * `outputFor(ctx)` the rings use: how many it takes to read as solid depends
+   * on the surface, and a stored count is a price that looks right on screen and
+   * striped at 300 dpi.
+   *
+   * **Drawn under the cast shadow as well as under the face.** The shadow is
+   * cast by the whole solid, so it belongs beneath all of it.
+   */
+  const extrude = element.extrude
+  const sides =
+    extrude === undefined
+      ? []
+      : extrudeCopies(
+          { x: extrude.x * ctx.blockSize, y: extrude.y * ctx.blockSize },
+          outputFor(ctx)
+        )
+  const sideInk = extrude === undefined ? '' : paint(ctx, extrude.color)
+
   return (
     <>
+      {face?.defs}
+      {fitted.lines.map((line, i) =>
+        sides.map((copy, c) => (
+          <text
+            key={`e-${i}-${c}`}
+            {...runProps(i)}
+            x={x + copy.dx}
+            y={box.y + fitted.fontSize * (0.85 + i * fitted.lineHeight) + copy.dy}
+            fill={sideInk}
+          >
+            {line}
+          </text>
+        ))
+      )}
       {fitted.lines.map((line, i) =>
         rings.map((ring, r) => (
           <text

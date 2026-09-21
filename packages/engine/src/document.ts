@@ -167,6 +167,78 @@ const shadowSchema = z.object({
   opacity: z.number().min(0).max(0.9).optional(),
 })
 
+/**
+ * What a glyph is filled with: a flat colour, or an **opaque** gradient.
+ *
+ * **Measured before it was allowed, and the measurement is the whole story.**
+ * `export-check.ts` bans gradients carrying alpha stops because Chromium emits
+ * a page-sized soft mask to carry the alpha, at a resolution nothing in the
+ * document can set — E14 §0.3 recorded 54 dpi. What had never been tested was an
+ * *opaque* gradient, and it behaves completely differently: a PDF shading
+ * pattern, no mask, no raster, and the price is still real text. One price with
+ * an opaque gradient measured 5.1 kB against 4.7 kB flat.
+ *
+ * So the alpha ban survives exactly where the reasoning does. A stop here is
+ * `{ at, color }` and nothing else, and it is a `strictObject` on purpose: a
+ * plain `z.object` would *strip* an `opacity` an authoring tool sent, storing a
+ * gradient that renders differently from the one somebody built. Refused at the
+ * boundary is the rule the text shadow below already follows.
+ *
+ * A gradient down the glyphs — light at the top, dark at the foot — is the
+ * cheapest three-dimensional cue there is, and the one every retail price ticket
+ * already uses.
+ */
+const textFillSchema = z.union([
+  flatColorSchema,
+  z.object({
+    from: z.literal('gradient'),
+    angle: z.number().min(0).max(360),
+    stops: z.array(z.strictObject({ at: z.number().min(0).max(1), color: flatColorSchema }))
+      .min(2)
+      .max(MAX_GRADIENT_STOPS),
+  }),
+])
+
+/**
+ * An extrusion: the glyphs repeated behind themselves, making a solid side.
+ *
+ * **Copies of the string, which is why this is affordable.** A ring on text is
+ * the string again under a *stroke*, and Chromium outlines stroked text into
+ * explicit path geometry — which is why a soft text shadow costs 24 kB a ring
+ * and is refused below. An extrusion needs no stroke: each copy is another text
+ * run, the font stays in the PDF, and the cost is about a fifth of a kilobyte a
+ * copy. Rendered through headless Chromium and the PDFs counted:
+ *
+ *   copies   0      4      8     16
+ *   PDF     4.7kB  5.6kB  6.4kB  8.1kB      all vector, all still text
+ *
+ * With a gradient face and an outline on top, the whole effect is 17.3 kB for
+ * one price — against 274 kB for a page of twenty-four ringed bursts, which is
+ * the page this product already prints.
+ *
+ * **How many copies is derived at paint, never stored** — the same rule the
+ * shadow's ring count follows. How many it takes to read as solid depends on the
+ * output scale, and a document that stored the count would be a document that
+ * looks right on screen and striped at 300 dpi.
+ *
+ * **The offsets are bounded much tighter than a shadow's.** An extrusion hangs
+ * outside the element's box and nothing in the fit ladder knows about it, so a
+ * deep one on a tight cell would overhang its neighbour. Until the fit accounts
+ * for it, the bound is what keeps that from being anybody's problem.
+ *
+ * **A bevel is not here and should not be added.** `feSpecularLighting` over
+ * text rasterises the element and takes the font out of the PDF entirely —
+ * measured at 762×203 px with zero text-drawing operators, the one disqualifying
+ * class of result in `export-check.ts`. A price that has become a picture is
+ * unselectable, unsearchable and resampled by any printer that reprocesses it.
+ */
+const extrudeSchema = z.object({
+  x: z.number().min(-0.08).max(0.08),
+  y: z.number().min(-0.08).max(0.08),
+  /** The side of the letters. Usually a darker cousin of the face colour. */
+  color: flatColorSchema,
+})
+
 const textSourceSchema = z.discriminatedUnion('from', [
   z.object({
     from: z.literal('product'),
@@ -511,12 +583,19 @@ const elementSchema = z.discriminatedUnion('kind', [
     // was-price, plain for everything else.
     decoration: z.enum(['none', 'line-through']).optional(),
     family: familySchema.optional(),
-    color: flatColorSchema.optional(),
+    /**
+     * The face of the glyphs. Widened from a flat colour to accept an opaque
+     * gradient — see `textFillSchema`. Every stored document still parses: a
+     * flat colour is the first member of the union.
+     */
+    color: textFillSchema.optional(),
     // An outline on the glyphs — "SAVE 20%" in white over red. The painter
     // doubles this and orders the paint `stroke fill`, so the number here is
     // the outline you see. E14 §2.4.
     stroke: strokeSchema.optional(),
     shadow: textShadowSchema.optional(),
+    /** The side of the letters, drawn behind the face. See `extrudeSchema`. */
+    extrude: extrudeSchema.optional(),
   }),
   z.strictObject({
     ...baseSchema,

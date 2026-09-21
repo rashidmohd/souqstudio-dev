@@ -113,3 +113,52 @@ export function shadowRings(
   }
   return rings
 }
+
+// ─── Extrusion ────────────────────────────────────────────────────────────────
+
+/**
+ * An extrusion, as copies of the element offset toward a vanishing point.
+ *
+ * **Here beside the rings, and both painters call it, for the same reason the
+ * rings are here**: the count depends on the output scale, and a count decided
+ * twice is a price that reads solid on screen and striped in the PDF.
+ *
+ * **Copies rather than a filter, and that is not a stylistic preference.** A
+ * ring on text is the string again under a *stroke*, and Chromium outlines
+ * stroked text into explicit path geometry — 24 kB a ring, which is why a
+ * blurred text shadow is refused at the schema. A copy needs no stroke: it is
+ * another text run, the font stays in the PDF, and it costs about a fifth of a
+ * kilobyte. Measured through headless Chromium at 0/4/8/16 copies: 4.7, 5.6,
+ * 6.4, 8.1 kB, every one vector and still text. `feSpecularLighting` — a real
+ * bevel — rasterises the element and takes the font out of the PDF altogether,
+ * which is the one disqualifying class of result `export-check.ts` exists for.
+ *
+ * **One copy per device pixel of travel**, which is what makes the side solid
+ * rather than a comb: below that the copies separate and the letters look
+ * striped. Capped, because the offset is a fraction of the block and a large
+ * block at 300 dpi would otherwise ask for hundreds — and past the cap the
+ * copies are closer together than the output can resolve anyway.
+ */
+export const MAX_EXTRUDE_COPIES = 64
+
+export function extrudeCopies(
+  offset: { x: number; y: number },
+  output: { scale: number; dpi: number }
+): { dx: number; dy: number }[] {
+  const travel = Math.hypot(offset.x, offset.y)
+  if (travel <= 0) return []
+
+  const devicePixels = travel * output.scale * (output.dpi / 72)
+  const count = Math.min(MAX_EXTRUDE_COPIES, Math.max(1, Math.round(devicePixels)))
+
+  /*
+   * Far end first, so nearer copies paint over it and the face lands last. The
+   * step starts at 1 rather than 0: a copy at zero offset is the face itself,
+   * drawn again underneath in the side colour, which is a glyph with a dirty
+   * edge wherever the face is not perfectly opaque.
+   */
+  return Array.from({ length: count }, (_, index) => {
+    const t = (count - index) / count
+    return { dx: offset.x * t, dy: offset.y * t }
+  })
+}

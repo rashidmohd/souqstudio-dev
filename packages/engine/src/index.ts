@@ -130,8 +130,10 @@ export {
 // rasterizes at a resolution nothing in the document can set. Measured, not
 // reasoned about — `harness/export-check.ts` is the measurement. E14 §2.4.
 export {
+  MAX_EXTRUDE_COPIES,
   SHADOW_PEAK,
   SHADOW_SPREAD,
+  extrudeCopies,
   ringAlpha,
   ringCount,
   shadowRings,

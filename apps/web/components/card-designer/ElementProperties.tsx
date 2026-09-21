@@ -9,6 +9,7 @@ import type {
   MarkCurrencyPlace,
   MarkPlace,
   MarkSatellite,
+  ColorValue,
   PriceMark,
   PriceMarkPreset,
   PriceMarkRecipe,
@@ -47,6 +48,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
+import { ExtrudeControl } from '@/components/card-designer/ExtrudeControl'
 import { StrokeControl } from '@/components/card-designer/StrokeControl'
 import { ShadowControl } from '@/components/card-designer/ShadowControl'
 import { ImageBlurControl } from '@/components/card-designer/ImageBlurControl'
@@ -189,7 +191,7 @@ export function ElementProperties({
             {...(element.variant === 'line'
               ? {}
               : { onClear: () => onChange({ ...element, fill: undefined }) })}
-            onChange={(fill) => onChange({ ...element, fill })}
+            onChange={(fill: ColorValue) => onChange({ ...element, fill })}
           />
           {/* A line has no interior — it draws its stroke along its own middle
               and the fill *is* the line — so a border on one is a second line
@@ -1387,10 +1389,22 @@ function TextFields({
         />
       </Field>
 
+      {/*
+        **A gradient is allowed on text, and an alpha stop is not.** The face of
+        a price with a run from light to dark is the cheapest three-dimensional
+        cue there is and what a retail ticket already wears; a stop that *fades*
+        makes Chromium carry the whole thing with a page-sized soft mask at a
+        resolution nothing in the document can set, which the export harness
+        bans. So the gradient is offered and the opacity slider inside it is not.
+      */}
       <ColorControl
         label="Text colour"
+        allowGradient
+        allowStopAlpha={false}
         value={element.color}
-        {...color}
+        palette={color.palette}
+        token={color.token}
+        disabled={color.disabled}
         onChange={(next) => onChange({ ...element, color: next })}
       />
 
@@ -1422,6 +1436,16 @@ function TextFields({
             ...(shadow === undefined ? { shadow: undefined } : { shadow: { ...shadow, blur: 0 } }),
           })
         }
+      />
+
+      {/* **An extrusion, not a bevel.** A real bevel rasterises the glyphs and
+          takes the font out of the PDF; copies of the string keep it text and
+          cost about a fifth of a kilobyte each. `ExtrudeControl` carries the
+          measurements and the reason there is no lighting control here. */}
+      <ExtrudeControl
+        value={element.extrude}
+        {...color}
+        onChange={(extrude) => onChange({ ...element, extrude })}
       />
 
       <OverflowField element={element} disabled={disabled} onChange={onChange} />

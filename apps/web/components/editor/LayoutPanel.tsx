@@ -19,6 +19,7 @@ import {
   nearestMarginStep,
 } from '@/lib/offer-book-layout'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { PanelSection } from '@/components/editor/PanelSection'
 import { bandBlocks, type Band as BandEnd } from '@/lib/band-blocks'
 import type { GridPatch } from '@/components/editor/use-grid-patch'
 
@@ -151,8 +152,31 @@ export function LayoutPanel({
   onChangeHeader,
   onChangeFooter,
 }: Props) {
+  const bandName = (blockId: string | null): string =>
+    blockId === null
+      ? 'None'
+      : (blocks.find((block) => block.id === blockId)?.name ?? 'A block from outside your library')
+
   return (
     <div className="flex flex-col gap-3">
+      {/*
+        **Three sections rather than one list, because the tab outgrew the
+        rail.** It holds eleven controls, and the two an owner comes for — the
+        cards across and what runs along the bottom — had drifted a scroll
+        apart. Each remembers whether it was left open, and each says what it
+        currently holds when it is not, so folding one does not mean opening it
+        again to find out. `PanelSection` carries the rest of the reasoning.
+      */}
+      <PanelSection
+        title="Page"
+        rememberAs="layout-page"
+        summary={
+          <>
+            <span data-figure>{perRow}</span> across ·{' '}
+            <span data-figure>{pages}</span> {pages === 1 ? 'page' : 'pages'}
+          </>
+        }
+      >
       <div className="grid grid-cols-2 gap-2">
         <Select
           label="Across"
@@ -257,7 +281,14 @@ export function LayoutPanel({
         hint="Where the page background shows through."
       />
 
+      </PanelSection>
+
       {/*
+        **Outside the sections, and deliberately.** It is the consequence of the
+        track count *and* of the bands together — adding a header to a story is
+        enough to reach it — so it belongs to neither, and a warning folded away
+        inside a section an owner has closed is a warning nobody reads.
+
         **The one thing about a layout that nothing else can tell the owner.**
         `pickArrangement` falls back to the nearest arrangement rather than
         failing, so a card designed tall in a near-square cell renders stretched
@@ -275,6 +306,11 @@ export function LayoutPanel({
         </p>
       ) : null}
 
+      <PanelSection
+        title="Header"
+        rememberAs="layout-header"
+        summary={bandName(headerBlockId)}
+      >
       <Band
         title="Header"
         empty="Nothing across the top of the page."
@@ -290,7 +326,13 @@ export function LayoutPanel({
         onHeight={(next) => patch({ headerHeight: next })}
         onWidth={(next) => patch({ headerWidth: next })}
       />
+      </PanelSection>
 
+      <PanelSection
+        title="Footer"
+        rememberAs="layout-footer"
+        summary={bandName(footerBlockId)}
+      >
       <Band
         title="Footer"
         empty="Nothing across the bottom of the page."
@@ -306,6 +348,7 @@ export function LayoutPanel({
         onHeight={(next) => patch({ footerHeight: next })}
         onWidth={(next) => patch({ footerWidth: next })}
       />
+      </PanelSection>
 
       {error ? (
         <p className="font-ui text-body-sm text-critical-fg" role="alert">
@@ -401,14 +444,20 @@ function Band({
 
   return (
     <section className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">{title}</h3>
-        {value === null ? null : (
+      {/*
+        **No heading of its own any more — `PanelSection` names it.** Two
+        "Header" labels one above the other is what the fold produced when this
+        kept its own, and the section's is the one that stays visible when the
+        controls are folded away. The Remove button stays here, because it acts
+        on the band rather than on the section.
+      */}
+      {value === null ? null : (
+        <div className="flex justify-end">
           <Button type="button" variant="ghost" disabled={disabled} onClick={onRemove}>
-            Remove
+            Remove {title.toLowerCase()}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/*
         **The preview is the button.** An owner looking at the band and an owner

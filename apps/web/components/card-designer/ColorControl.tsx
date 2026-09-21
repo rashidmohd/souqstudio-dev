@@ -14,7 +14,14 @@ import {
   Palette,
   Trash2,
 } from 'lucide-react'
-import type { BrandColor, ColorValue, FlatColor, GradientStop, TokenRef } from '@souqstudio/types'
+import type {
+  BrandColor,
+  ColorValue,
+  FlatColor,
+  GradientStop,
+  TextFill,
+  TokenRef,
+} from '@souqstudio/types'
 import { resolveColor } from '@souqstudio/engine'
 import { ColorField } from '@/components/ui/color-field'
 import { Button } from '@/components/ui/button'
@@ -84,11 +91,33 @@ type Props = Base &
   (
     | {
         allowGradient: true
+        allowStopAlpha?: true | undefined
         value: ColorValue | undefined
         onChange: (value: ColorValue) => void
       }
+    /**
+     * A gradient whose stops are opaque — what text is allowed.
+     *
+     * **The narrower type is the point, not the hidden slider.** A stop's alpha
+     * makes Chromium carry the gradient with a page-sized soft mask at a
+     * resolution nothing in the document can set, which `export-check.ts` bans;
+     * an opaque gradient emits a shading pattern and the text stays text. So the
+     * document schema *refuses* an alpha stop on text rather than stripping it,
+     * and a control that could produce one would be a control whose output the
+     * boundary rejects. `TextFill` carries the measurement.
+     */
+    | {
+        allowGradient: true
+        allowStopAlpha: false
+        value: TextFill | undefined
+        onChange: (value: TextFill) => void
+      }
     | {
         allowGradient?: false | undefined
+        // Declared, and always absent: a property TypeScript can read on every
+        // member is what lets the component ask about it without narrowing the
+        // union first.
+        allowStopAlpha?: undefined
         value: FlatColor | undefined
         onChange: (value: FlatColor) => void
       }
@@ -210,6 +239,7 @@ export function ColorControl(props: Props) {
           activeStop={activeStop}
           onActiveStop={setActiveStop}
           onChange={emit}
+          allowStopAlpha={props.allowStopAlpha !== false}
         />
       ) : (
         <FlatPicker
@@ -335,6 +365,7 @@ function GradientEditor({
   activeStop,
   onActiveStop,
   onChange,
+  allowStopAlpha = true,
 }: {
   value: Extract<ColorValue, { from: 'gradient' }>
   palette: readonly BrandColor[]
@@ -342,6 +373,14 @@ function GradientEditor({
   activeStop: number
   onActiveStop: (index: number) => void
   onChange: (next: ColorValue) => void
+  /**
+   * Whether a stop may fade. False on text, where an alpha stop is refused at
+   * the document boundary — see the note on the `Props` variant. The slider is
+   * hidden rather than disabled: there is no setting of it that would be
+   * accepted, so offering it greyed out would be a control with no reachable
+   * state.
+   */
+  allowStopAlpha?: boolean
 }) {
   const [custom, setCustom] = React.useState(false)
   const bar = React.useRef<HTMLDivElement | null>(null)
@@ -545,16 +584,18 @@ function GradientEditor({
         onChange={(color) => setStop(index, { color })}
       />
 
-      <Slider
-        label="Opacity"
-        unit="%"
-        min={0}
-        max={100}
-        step={1}
-        hint="Zero fades this end of the run out entirely."
-        value={Math.round((active.opacity ?? 1) * 100)}
-        onValueChange={(next) => setStop(index, { opacity: next / 100 })}
-      />
+      {allowStopAlpha ? (
+        <Slider
+          label="Opacity"
+          unit="%"
+          min={0}
+          max={100}
+          step={1}
+          hint="Zero fades this end of the run out entirely."
+          value={Math.round((active.opacity ?? 1) * 100)}
+          onValueChange={(next) => setStop(index, { opacity: next / 100 })}
+        />
+      ) : null}
 
       <div className="flex">
         <Button

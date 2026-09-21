@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { SHADOW_PEAK, SHADOW_SPREAD, ringAlpha, ringCount, shadowRings, type Shadow } from './shadow'
+import {
+  MAX_EXTRUDE_COPIES,
+  SHADOW_PEAK,
+  SHADOW_SPREAD,
+  extrudeCopies,
+  ringAlpha,
+  ringCount,
+  shadowRings,
+  type Shadow,
+} from './shadow'
 
 const BLACK = { from: 'hex' as const, hex: '#000000' }
 const shadow = (over: Partial<Shadow> = {}): Shadow => ({ x: 0, y: 0, blur: 8, color: BLACK, ...over })
@@ -104,5 +113,62 @@ describe('shadowRings', () => {
   it('takes a peak override without storing one', () => {
     const rings = shadowRings(shadow(), RECT, 0, { ...SCREEN, peak: 0.6 })
     expect(1 - Math.pow(1 - rings[0]!.alpha, rings.length)).toBeCloseTo(0.6, 10)
+  })
+})
+
+/**
+ * An extrusion — the side of the letters, as copies of the string.
+ *
+ * **Copies rather than a filter, and the count derived rather than stored**, for
+ * the two reasons this file's own note gives about rings: a filter over text
+ * takes the font out of the PDF, and a count baked into a document is a price
+ * that reads solid on screen and striped at 300 dpi.
+ */
+describe('extrudeCopies', () => {
+  const screen = { scale: 1, dpi: 96 }
+
+  it('draws nothing when there is nowhere to travel', () => {
+    expect(extrudeCopies({ x: 0, y: 0 }, screen)).toEqual([])
+  })
+
+  it('makes about one copy per device pixel of travel', () => {
+    // Solid rather than striped is the whole requirement, and a copy a pixel is
+    // what meets it. 12px at 96dpi is 16 device pixels.
+    expect(extrudeCopies({ x: 12, y: 0 }, screen)).toHaveLength(16)
+  })
+
+  it('asks for more copies at print resolution, from the same document', () => {
+    const print = extrudeCopies({ x: 12, y: 0 }, { scale: 1, dpi: 300 })
+    expect(print.length).toBeGreaterThan(extrudeCopies({ x: 12, y: 0 }, screen).length)
+  })
+
+  it('walks from the far end back toward the face', () => {
+    const copies = extrudeCopies({ x: 8, y: 4 }, screen)
+    const first = copies[0]
+    const last = copies[copies.length - 1]
+
+    // Furthest first, so nearer copies paint over it and the face lands on top.
+    expect(first!.dx).toBeCloseTo(8, 5)
+    expect(first!.dy).toBeCloseTo(4, 5)
+    // And the nearest copy is one step out, never at zero: a copy at zero is the
+    // face drawn again underneath in the side colour.
+    expect(last!.dx).toBeGreaterThan(0)
+    expect(last!.dx).toBeLessThan(8)
+  })
+
+  it('keeps the direction it was given, including backwards', () => {
+    // An extrusion up and to the start is unusual and not wrong, exactly as a
+    // shadow's negative offsets are.
+    const copies = extrudeCopies({ x: -6, y: -6 }, screen)
+    expect(copies.every((copy) => copy.dx <= 0 && copy.dy <= 0)).toBe(true)
+  })
+
+  it('caps the count, whatever the document asks for', () => {
+    // The offset is a fraction of the block, so a large block at 300 dpi would
+    // otherwise ask for hundreds — and past the cap the copies are closer
+    // together than the output can resolve.
+    expect(extrudeCopies({ x: 900, y: 0 }, { scale: 4, dpi: 300 })).toHaveLength(
+      MAX_EXTRUDE_COPIES
+    )
   })
 })
