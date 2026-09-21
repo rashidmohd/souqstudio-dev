@@ -14,6 +14,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "credits:grant": "tsx --env-file-if-exists=.env scripts/grant-credits.ts",
     "catalog:import-off": "tsx scripts/import-off.ts",
     "catalog:import-unioncoop": "tsx scripts/import-unioncoop.ts",
     "catalog:seed-demo": "tsx scripts/seed-catalog-demo.ts",

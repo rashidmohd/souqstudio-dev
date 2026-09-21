@@ -3,12 +3,14 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 import {
   CHARACTER_GENDERS,
   CHARACTER_LOOKS,
   CHARACTER_LOOK_NOTE,
   CHARACTER_STYLES,
   CHARACTER_STYLE_NOTE,
+  CHARACTER_VARIATIONS,
   MAX_GOAL,
   MAX_UNIFORM_ANGLES,
   type CharacterGender,
@@ -133,6 +135,23 @@ export function CharacterFlow({
   const [gender, setGender] = React.useState<CharacterGender>('both')
   const [look, setLook] = React.useState<CharacterLook>('unspecified')
 
+  /**
+   * Seconds since the drawing started.
+   *
+   * **Keyed on the phase**, so one interval exists while the work does and is
+   * cleared the moment it ends — including when an owner navigates away
+   * mid-draw, which does not cancel the job. The same clock the cover dialog
+   * runs, for the same reason: a minute with no number on it is a minute
+   * somebody assumes is broken.
+   */
+  const [elapsed, setElapsed] = React.useState(0)
+  React.useEffect(() => {
+    if (phase.at !== 'working') return
+    setElapsed(0)
+    const ticking = setInterval(() => setElapsed((was) => was + 1), 1000)
+    return () => clearInterval(ticking)
+  }, [phase.at])
+
   const ready = profileComplete && brandComplete
   const affordable = credits >= COST
 
@@ -236,11 +255,48 @@ export function CharacterFlow({
 
   if (phase.at === 'working') {
     return (
+      /*
+        **A progress screen, not a sentence.**
+
+        This was one line of text on an otherwise empty panel for a minute of
+        third-party image generation — no spinner, no clock, nothing that moved.
+        A screen that does not move is a screen an owner reads as broken, and
+        this one costs ten credits before it starts. The cover dialog was fixed
+        first and this is the same treatment: something turning, placeholders in
+        the shape of what is coming so nothing jumps when the faces land, and a
+        count of the seconds so a slow provider is visibly slow rather than
+        indistinguishable from a hung one.
+      */
       <Panel title="Drawing">
-        <p className="font-ui text-body text-secondary">
-          This takes up to a minute. Leaving this page cancels nothing — the characters will
-          be waiting in your brand kit.
-        </p>
+        <div className="flex flex-col gap-4" role="status" aria-live="polite" aria-busy="true">
+          <div className="flex items-center gap-2">
+            <Loader2
+              className="size-4 animate-spin text-secondary"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <p className="font-ui text-body text-primary">
+              Drawing <span data-figure>{CHARACTER_VARIATIONS}</span> characters…
+            </p>
+          </div>
+
+          {/* The same grid the picker uses, at the same square each face is
+              drawn at, so the four land in the boxes they were sitting in. */}
+          <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {Array.from({ length: CHARACTER_VARIATIONS }, (_, slot) => (
+              <li
+                key={slot}
+                aria-hidden="true"
+                className="aspect-square w-full animate-pulse rounded-block bg-stone-100"
+              />
+            ))}
+          </ul>
+
+          <p className="font-ui text-body text-secondary">
+            This takes up to a minute — <span data-figure>{elapsed}s</span> so far. Leaving this
+            page cancels nothing: the characters will be waiting in your brand kit.
+          </p>
+        </div>
       </Panel>
     )
   }
