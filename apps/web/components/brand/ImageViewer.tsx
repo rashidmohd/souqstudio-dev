@@ -27,6 +27,16 @@ export type ViewerImage = {
   url: string
   /** What this image is, used as the dialog's title and the alt text. */
   label: string
+  /**
+   * The proportions it was drawn at, as a CSS `aspect-ratio` — `'3 / 4'`.
+   *
+   * **Optional, and square when it is absent**, which is what a character is.
+   * A cover is not: they are drawn at six different shapes, and a 9:16 story
+   * cover letterboxed inside a square box is shown at barely half the size the
+   * dialog has room for — while the owner is looking at it to judge whether it
+   * works, which is the one job this screen has.
+   */
+  aspectRatio?: string
 }
 
 type Props = {
@@ -98,16 +108,26 @@ export function ImageViewer({ images, index, onIndexChange, action }: Props) {
           ) : null}
 
           {/*
-           * `object-contain` on a square box, never `cover`. A generated
-           * character is a full-length figure on a plain ground, and cropping
-           * one to fill a frame cuts its feet off — which is the one thing an
-           * owner is looking at this to check.
+           * `object-contain`, never `cover`. A generated character is a
+           * full-length figure on a plain ground, and cropping one to fill a
+           * frame cuts its feet off — which is the one thing an owner is looking
+           * at this to check.
+           *
+           * The box is the image's own ratio where it has one, and square where
+           * it does not. Inline rather than a class because the six cover shapes
+           * are engine data, and Tailwind cannot generate a class per value it
+           * has never seen.
            */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={current.url}
             alt={current.label}
-            className="aspect-square w-full rounded-block border border-border-subtle bg-stone-0 object-contain"
+            className={`w-full rounded-block border border-border-subtle bg-stone-0 object-contain ${
+              current.aspectRatio === undefined ? 'aspect-square' : ''
+            }`}
+            {...(current.aspectRatio === undefined
+              ? {}
+              : { style: { aspectRatio: current.aspectRatio } })}
           />
 
           {images.length > 1 ? (

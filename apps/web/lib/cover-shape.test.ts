@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shapeFor } from '@/lib/cover-shape'
+import { coverRatio, shapeFor } from '@/lib/cover-shape'
 
 /**
  * Which cover shape suits a page, from its own proportions.
@@ -47,5 +47,26 @@ describe('shapeFor', () => {
     // for that to become an exception.
     expect(shapeFor(0)).toBe('portrait')
     expect(shapeFor(Number.NaN)).toBe('portrait')
+  })
+})
+
+/**
+ * The ratio a kept cover is shown at.
+ *
+ * **It takes a stored string, not a `CoverShape`**, which is the whole reason
+ * it needs a test: `covers.shape` is a plain column, and every thumbnail in the
+ * product renders from whatever is in it. A row naming a shape we have stopped
+ * offering must come back as a picture, not as an exception in a gallery.
+ */
+describe('coverRatio', () => {
+  it('gives each shape its own proportions', () => {
+    expect(coverRatio('wide')).toBe('16 / 9')
+    expect(coverRatio('square')).toBe('1 / 1')
+    expect(coverRatio('story')).toBe('9 / 16')
+  })
+
+  it('falls back to portrait for a shape no longer offered', () => {
+    expect(coverRatio('billboard')).toBe('3 / 4')
+    expect(coverRatio('')).toBe('3 / 4')
   })
 })

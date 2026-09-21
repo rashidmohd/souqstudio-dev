@@ -133,6 +133,41 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
       drawn.map((bytes, index) => store(bytes, organizationId, shopId, jobId, index))
     )
 
+    /**
+     * **Every option is kept, here, before the job is complete.**
+     *
+     * Keeping used to be the owner's click: three options came back, they ticked
+     * the ones worth having and `POST /covers` wrote those rows. Two things were
+     * wrong with that. The credits are spent on all three whatever they tick, so
+     * the two they did not tick were paid-for work thrown away — and a shop that
+     * closed the tab mid-draw got nothing at all, because the only thing that
+     * ever wrote a row was a click on a screen that was no longer open.
+     *
+     * A generated cover is a brand asset from the moment it exists. It lands in
+     * the library, and removing one is an ordinary decision an owner makes later
+     * against something they can see, rather than a decision they are forced to
+     * make once, at thumbnail size, before the tab may be closed.
+     *
+     * **Written before the job is marked complete**, so the client that polls
+     * cannot see `complete` and reload the library ahead of the rows existing.
+     * If this throws, the job fails and no credits are consumed — `consumeCredits`
+     * is below.
+     */
+    const covers = await prisma.$transaction(
+      options.map((option) =>
+        prisma.cover.create({
+          data: {
+            shopId,
+            r2Key: option.key,
+            campaign: job.data.promptSlug ?? 'custom',
+            style,
+            shape,
+          },
+          select: { id: true },
+        })
+      )
+    )
+
     const spend = await consumeCredits({
       organizationId,
       shopId,
@@ -145,8 +180,18 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
       data: {
         status: 'complete',
         completedAt: new Date(),
+        /**
+         * **Claimed by the job itself**, because there is nothing left to come
+         * back for — the covers are in the library. The bell lists complete work
+         * that still needs the owner, and a cover that is already an asset does
+         * not qualify. `POST /covers` still stamps this for a job drawn before
+         * covers were kept automatically.
+         */
+        claimedAt: new Date(),
         result: {
           options,
+          /** The rows written above, so a client can tell what it now owns. */
+          coverIds: covers.map((cover) => cover.id),
           /** The prompt this was made from, for the library to label itself. */
           promptSlug: job.data.promptSlug ?? 'custom',
           shape,

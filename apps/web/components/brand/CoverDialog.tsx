@@ -10,7 +10,7 @@ import {
   type CoverShape,
   type CoverStyle,
 } from '@souqstudio/engine'
-import { Image as ImageIcon } from 'lucide-react'
+import { Image as ImageIcon, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Select } from '@/components/ui/select'
@@ -54,6 +54,12 @@ import { uploadArtwork } from '@/lib/upload-artwork'
  * The first build applied it straight to the page an owner happened to be on,
  * which meant the same shop paid five credits again the next week for the same
  * Ramadan cover.
+ *
+ * **And every one of them is kept, by the worker, without being asked.** What
+ * this screen shows after a generation is a receipt rather than a decision —
+ * see `Phase`. The two consequences are that closing the tab mid-draw no longer
+ * loses the work, and that the two options an owner did not tick are no longer
+ * paid-for pictures nothing points at.
  */
 
 type Props = {
@@ -94,10 +100,19 @@ type Prompt = {
 }
 type Sources = { prompts: Prompt[]; characters: Character[]; storePhotos: StorePhoto[] }
 
+/**
+ * **Three phases, and no ticking step between them.**
+ *
+ * `picking` used to sit where `saved` is: three thumbnails, a checkbox each and
+ * a Keep button that wrote only what was ticked. The covers are written by the
+ * worker now, the moment they are drawn — so what was a decision is a result,
+ * and this screen shows the owner what they already own rather than asking them
+ * to rescue it from a grid of squares.
+ */
 type Phase =
   | { at: 'asking'; error?: string }
   | { at: 'drawing' }
-  | { at: 'picking'; jobId: string; options: Option[]; withCharacter: boolean; error?: string }
+  | { at: 'saved'; options: Option[]; withCharacter: boolean }
 
 export function CoverDialog({ open, onOpenChange, onKept }: Props) {
   const [promptSlug, setPromptSlug] = React.useState<string>('custom')
@@ -110,9 +125,16 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
    * in the editor is what warns when a kept cover does not suit the page.
    */
   const [shape, setShape] = React.useState<CoverShape>('portrait')
-  const [keeping, setKeeping] = React.useState(false)
-  /** Which of the three options are ticked. `POST /covers` takes them all. */
-  const [picked, setPicked] = React.useState<number[]>([])
+  /**
+   * Seconds since the drawing started, shown on the processing screen.
+   *
+   * **Because a minute with no clock on it is a minute an owner assumes is
+   * broken.** The panel used to be the form with a spinner on its own button,
+   * which said an action was in flight and nothing about how long it would be
+   * in flight for — and a provider that takes fifty seconds looks identical to
+   * one that has hung.
+   */
+  const [elapsed, setElapsed] = React.useState(0)
   /**
    * The advanced half: images the owner attaches for this cover alone.
    *
@@ -171,33 +193,22 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
    * an in-flight generation is over.
    */
   React.useEffect(() => {
-    if (open) {
-      setPhase({ at: 'asking' })
-      setPicked([])
-    }
+    if (open) setPhase({ at: 'asking' })
   }, [open])
 
   /**
-   * Keep every ticked option, in one write.
+   * The clock on the processing screen.
    *
-   * **Several, because the generation already produced several and charged for
-   * them.** The first build kept one and silently abandoned the other two —
-   * which is five credits spent on three covers and one kept, every time. The
-   * route has taken an array of indexes since it was written.
+   * Keyed on the phase rather than on a timestamp in it: one interval exists
+   * while the drawing does, and it is cleared the moment the phase changes —
+   * including when the dialog closes mid-draw, which does not cancel the job.
    */
-  async function keep() {
-    if (phase.at !== 'picking' || picked.length === 0) return
-    setKeeping(true)
-    try {
-      await post('/api/v1/covers', { jobId: phase.jobId, indexes: picked })
-      onKept()
-      onOpenChange(false)
-    } catch (error) {
-      setPhase({ ...phase, error: message(error) })
-    } finally {
-      setKeeping(false)
-    }
-  }
+  React.useEffect(() => {
+    if (phase.at !== 'drawing') return
+    setElapsed(0)
+    const ticking = setInterval(() => setElapsed((was) => was + 1), 1000)
+    return () => clearInterval(ticking)
+  }, [phase.at])
 
   async function attach(files: File[]) {
     setUploading(true)
@@ -235,8 +246,15 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
         ...(promptSlug === 'custom' ? { described: described.trim() } : {}),
       })
       const options = await poll(queued.jobId)
-      setPicked([])
-      setPhase({ at: 'picking', jobId: queued.jobId, options, withCharacter })
+      /**
+       * **Reloaded before the covers are shown, not after a Keep click.** The
+       * worker writes the rows before it marks the job complete, so by the time
+       * `poll` returns they exist — and the library behind this dialog is stale
+       * until something says so. An owner who closes this screen without reading
+       * it still finds all three waiting for them.
+       */
+      onKept()
+      setPhase({ at: 'saved', options, withCharacter })
     } catch (error) {
       setPhase({ at: 'asking', error: message(error) })
     }
@@ -256,7 +274,55 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
       description="Drawn from your character, your shop and your colours. Your name and logo go on top in the editor, not in the picture."
       size="lg"
     >
-      {phase.at === 'picking' ? (
+      {phase.at === 'drawing' ? (
+        /*
+          **A screen of its own, not a spinner on a button.**
+
+          The design system's loading ladder puts a spinner on the pressed
+          control up to a second and skeletons above that; this is a minute of
+          third-party image generation, which is the far end of the ladder. The
+          form was left on screen with every control disabled — thirty greyed
+          selects an owner cannot use and cannot leave, which reads as a jammed
+          page rather than as work in progress.
+
+          **The placeholders are the shape of what is coming**, three of them at
+          the chosen ratio, so nothing moves when the covers land in their place.
+        */
+        <div
+          className="flex flex-col gap-4"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="flex items-center gap-2">
+            <Loader2
+              className="size-4 animate-spin text-secondary"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <p className="font-ui text-body text-primary">
+              Drawing <span data-figure>3</span> covers in your brand colours…
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[0, 1, 2].map((slot) => (
+              <div
+                key={slot}
+                aria-hidden="true"
+                className="w-full animate-pulse rounded-card bg-stone-100"
+                style={{ aspectRatio: COVER_SHAPE_RATIO[shape].css }}
+              />
+            ))}
+          </div>
+
+          <p className="font-ui text-body-sm text-secondary">
+            This takes about a minute — <span data-figure>{elapsed}s</span> so far. You can close
+            this and carry on: the covers are saved to your brand kit either way, and finished
+            work is in the bell at the top of the rail.
+          </p>
+        </div>
+      ) : phase.at === 'saved' ? (
         <MachineOutput
           label={
             phase.withCharacter
@@ -266,63 +332,40 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
         >
         <div className="flex flex-col gap-3">
           <p className="font-ui text-body-sm text-secondary">
-            Three covers, {COVER_SHAPE_NOTE[shape].toLowerCase()}. Tap the ones worth keeping —
-            you already paid for all three. They join your covers and any book can use them.
+            <span data-figure>{phase.options.length}</span> covers,{' '}
+            {COVER_SHAPE_NOTE[shape].toLowerCase()}. They are in your covers already — you paid
+            for all of them, so you keep all of them, and any book can use them.
           </p>
 
+          {/*
+            **Shown at the ratio they were drawn at.** A cover squeezed into a
+            square thumbnail is a different picture from the one the owner will
+            put on a page: the top third the prompt keeps clear for their name is
+            exactly what a square crop eats.
+          */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {phase.options.map((option, index) => (
-              <button
+            {phase.options.map((option) => (
+              <div
                 key={option.key}
-                type="button"
-                className={`group overflow-hidden rounded-card border bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus ${
-                  picked.includes(index) ? 'border-action-primary-bg' : 'border-default'
-                }`}
-                aria-pressed={picked.includes(index)}
-                disabled={keeping}
-                onClick={() =>
-                  setPicked((was) =>
-                    was.includes(index) ? was.filter((at) => at !== index) : [...was, index]
-                  )
-                }
+                className="overflow-hidden rounded-card border border-default bg-surface"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={option.url}
-                  alt=""
-                  className="block w-full transition-transform group-hover:scale-[1.02]"
+                  alt="Generated cover"
+                  className="block w-full object-cover"
                   style={{ aspectRatio: COVER_SHAPE_RATIO[shape].css }}
                 />
-                <span className="block p-2 font-ui text-body-sm text-secondary group-hover:text-primary">
-                  {picked.includes(index) ? 'Keeping this one' : 'Tap to keep'}
-                </span>
-              </button>
+              </div>
             ))}
           </div>
 
-          {phase.error ? (
-            <p className="font-ui text-body-sm text-critical-fg" role="alert">
-              {phase.error}
-            </p>
-          ) : null}
-
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              disabled={picked.length === 0}
-              loading={keeping}
-              onClick={() => void keep()}
-            >
-              {picked.length > 1 ? (
-                <>
-                  Keep <span data-figure>{picked.length}</span> covers
-                </>
-              ) : (
-                'Keep'
-              )}
+            <Button type="button" onClick={() => onOpenChange(false)}>
+              Done
             </Button>
             <Button type="button" variant="ghost" onClick={() => setPhase({ at: 'asking' })}>
-              Start again
+              Make another
             </Button>
           </div>
         </div>
@@ -341,7 +384,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
             <Select
               label="Who is in it?"
               value={person}
-              disabled={phase.at === 'drawing'}
               options={[
                 {
                   value: 'staff',
@@ -364,7 +406,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
             <Select
               label="What is this cover of?"
               value={promptSlug}
-              disabled={phase.at === 'drawing'}
               options={[
                 ...prompts.map((option) => ({ value: option.slug, label: option.label })),
                 { value: 'custom', label: 'Describe it yourself' },
@@ -385,7 +426,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
             <Select
               label="How should it look?"
               value={style}
-              disabled={phase.at === 'drawing'}
               options={COVER_STYLES.map((option) => ({
                 value: option,
                 label: COVER_STYLE_COPY[option].label,
@@ -397,7 +437,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
             <Select
               label="What size?"
               value={shape}
-              disabled={phase.at === 'drawing'}
               options={COVER_SHAPES.map((option) => ({
                 value: option,
                 label: COVER_SHAPE_RATIO[option].label,
@@ -413,7 +452,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               rows={3}
               maxLength={200}
               value={described}
-              disabled={phase.at === 'drawing'}
               onChange={(event) => setDescribed(event.target.value)}
               hint="Where it is and what is happening — not the words on it. Those are typed in the editor."
             />
@@ -435,7 +473,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
                       key={character.id}
                       type="button"
                       aria-pressed={chosen}
-                      disabled={phase.at === 'drawing'}
                       className={`overflow-hidden rounded-card border bg-surface p-1 ${
                         chosen ? 'border-action-primary-bg' : 'border-default'
                       }`}
@@ -462,7 +499,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               <input
                 type="checkbox"
                 checked={useScene}
-                disabled={phase.at === 'drawing'}
                 onChange={(event) => setUseScene(event.target.checked)}
                 className="mt-1"
               />
@@ -490,7 +526,6 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               type="button"
               variant="ghost"
               onClick={() => setAdvanced((was) => !was)}
-              disabled={phase.at === 'drawing'}
             >
               {advanced ? 'Hide reference images' : 'Add reference images'}
             </Button>
@@ -540,7 +575,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
                     type="button"
                     variant="secondary"
                     loading={uploading}
-                    disabled={references.length >= 4 || phase.at === 'drawing'}
+                    disabled={references.length >= 4}
                     onClick={() => referenceInput.current?.click()}
                   >
                     <ImageIcon className="size-4" aria-hidden="true" strokeWidth={1.75} />
@@ -566,32 +601,21 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
           </div>
 
           <p className="font-ui text-body-sm text-secondary">
-            Drawn in your brand colours. Three options, 5 credits.
+            Drawn in your brand colours. <span data-figure>3</span> covers for{' '}
+            <span data-figure>5</span> credits, and all three are saved to your covers.
           </p>
 
-          {phase.at === 'asking' && phase.error ? (
+          {phase.error ? (
             <p className="font-ui text-body-sm text-critical-fg" role="alert">
               {phase.error}
             </p>
           ) : null}
 
           <div>
-            <Button
-              type="button"
-              disabled={!ready}
-              loading={phase.at === 'drawing'}
-              onClick={() => void generate()}
-            >
-              {phase.at === 'drawing' ? 'Drawing three options…' : 'Generate'}
+            <Button type="button" disabled={!ready} onClick={() => void generate()}>
+              Generate
             </Button>
           </div>
-
-          {phase.at === 'drawing' ? (
-            <p className="font-ui text-body-sm text-secondary">
-              This takes about a minute. You can close this — finished work waits for you in the
-              bell at the top of the rail.
-            </p>
-          ) : null}
         </div>
       )}
     </Dialog>

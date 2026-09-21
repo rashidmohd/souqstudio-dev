@@ -32,3 +32,22 @@ export function shapeFor(aspect: number): CoverShape {
 
   return best
 }
+
+/**
+ * The CSS `aspect-ratio` for a stored cover shape.
+ *
+ * **A stored string, not a `CoverShape`** — `covers.shape` is a plain column and
+ * a row may name a shape we no longer offer, which must still render rather than
+ * crash a gallery. Portrait is the fallback for the same reason the campaign
+ * label never indexes the engine's map.
+ *
+ * **Why any of this exists:** every cover thumbnail in the product was an
+ * `aspect-square`, so a 16:9 cover and a 9:16 one were shown as the same square
+ * and both were cropped to something that was not the picture. The top third a
+ * cover keeps clear for the shop's name is exactly what a square crop eats, so
+ * the one thing an owner is judging is the one thing they could not see.
+ */
+export function coverRatio(shape: string): string {
+  const found = COVER_SHAPES.find((known) => known === shape)
+  return COVER_SHAPE_RATIO[found ?? 'portrait'].css
+}

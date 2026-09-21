@@ -4,7 +4,7 @@ import * as React from 'react'
 import { COVER_SHAPE_NOTE, type CoverShape } from '@souqstudio/engine'
 import { Dialog } from '@/components/ui/dialog'
 import { MachineOutput } from '@/components/ui/machine-output'
-import { shapeFor } from '@/lib/cover-shape'
+import { coverRatio, shapeFor } from '@/lib/cover-shape'
 
 /**
  * Choose one of the shop's kept covers for this page. E8-04.
@@ -92,11 +92,18 @@ export function CoverPicker({ open, onOpenChange, aspect, onChosen }: Props) {
                     onOpenChange(false)
                   }}
                 >
+                  {/*
+                    Its own shape, which is also what makes the note under it
+                    legible: a cover drawn 9:16 now *looks* 9:16 beside a page
+                    that is not, so "will be cropped on this page" is something
+                    the owner can see rather than only read.
+                  */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={cover.url}
                     alt=""
-                    className="block aspect-square w-full object-cover transition-transform group-hover:scale-105"
+                    className="block w-full object-cover transition-transform group-hover:scale-105"
+                    style={{ aspectRatio: coverRatio(cover.shape) }}
                   />
                   <span className="block p-2 font-ui text-body-sm text-secondary">
                     {label(cover.campaign)}

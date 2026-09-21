@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { MachineOutput } from '@/components/ui/machine-output'
 import { CoverDialog } from '@/components/brand/CoverDialog'
 import { ImageViewer } from '@/components/brand/ImageViewer'
+import { coverRatio } from '@/lib/cover-shape'
 
 /**
  * The shop's kept covers. E8-04.
@@ -55,7 +56,8 @@ export function CoverGallery() {
         <p className="font-ui text-body-sm text-secondary">Loading…</p>
       ) : covers.length === 0 ? (
         <p className="font-ui text-body-sm text-secondary">
-          No covers yet. Generating one costs 5 credits and gives you three to choose from.
+          No covers yet. Generating costs <span data-figure>5</span> credits and draws{' '}
+          <span data-figure>3</span> covers — all three are saved here.
         </p>
       ) : (
         <MachineOutput label="Generated from your character and your shop">
@@ -67,11 +69,19 @@ export function CoverGallery() {
                   className="w-full overflow-hidden rounded-card border border-border-subtle bg-surface text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
                   onClick={() => setViewing(index)}
                 >
+                  {/*
+                    The shape it was drawn at, never a square. `coverRatio`
+                    carries the reasoning; the short of it is that a square
+                    thumbnail of a 16:9 cover is a crop of the cover rather than
+                    the cover, and an owner picking between two of them is
+                    picking between two crops.
+                  */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={cover.url}
                     alt={`${label(cover.campaign)} cover`}
-                    className="block aspect-square w-full object-cover transition-transform duration-fast ease-sq hover:scale-105"
+                    className="block w-full object-cover transition-transform duration-fast ease-sq hover:scale-105"
+                    style={{ aspectRatio: coverRatio(cover.shape) }}
                   />
                   <span className="block p-2 font-ui text-body-sm text-secondary">
                     {label(cover.campaign)}
@@ -87,7 +97,11 @@ export function CoverGallery() {
 
       {viewing !== null && covers !== null ? (
         <ImageViewer
-          images={covers.map((cover) => ({ url: cover.url, label: `${label(cover.campaign)} cover` }))}
+          images={covers.map((cover) => ({
+            url: cover.url,
+            label: `${label(cover.campaign)} cover`,
+            aspectRatio: coverRatio(cover.shape),
+          }))}
           index={viewing}
           onIndexChange={setViewing}
         />

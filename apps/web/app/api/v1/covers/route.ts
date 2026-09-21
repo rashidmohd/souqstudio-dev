@@ -21,8 +21,16 @@ import { keyFromPublicUrl, publicUrl } from '@/lib/r2'
 
 const schema = z.object({
   jobId: z.string().min(1).max(64),
-  /** Which of the generated options to keep. Several is allowed; none is not. */
-  indexes: z.array(z.number().int().min(0).max(9)).min(1).max(3),
+  /**
+   * Which of the generated options to keep. Absent means all of them.
+   *
+   * **The worker keeps every option now**, so nothing in the product sends this
+   * any more — a cover is an asset from the moment it is drawn, and the ticking
+   * step is gone. What is left here is the recovery path for a job drawn before
+   * that was true: a generation that completed, wrote no rows, and whose images
+   * are still sitting in the bucket with nothing pointing at them.
+   */
+  indexes: z.array(z.number().int().min(0).max(9)).min(1).max(3).optional(),
 })
 
 export async function GET() {
@@ -84,10 +92,10 @@ export async function POST(request: NextRequest) {
 
   // Deduplicated: the same position twice means one cover, not two identical
   // rows pointing at one object.
-  const wanted = [...new Set(parsed.data.indexes)]
+  const wanted = [...new Set(parsed.data.indexes ?? options.map((_, index) => index))]
   const chosen = wanted.map((index) => options[index])
 
-  if (chosen.some((option) => option === undefined)) {
+  if (chosen.length === 0 || chosen.some((option) => option === undefined)) {
     return fail('not_found', 'One of those is not an option of this generation.', 404)
   }
 
@@ -105,14 +113,34 @@ export async function POST(request: NextRequest) {
    * than a second set of R2 calls on the owner's click. Written down so the next
    * person reads it as a decision rather than as a leak.
    */
-  const covers = await prisma.$transaction(
-    chosen.map((option) =>
+  const keys = chosen.map((option) => keyOf(option as { url: string; key?: string }))
+
+  /**
+   * **Written once per object, however often this is called.**
+   *
+   * The worker writes these rows itself the moment it has drawn them, so an
+   * owner arriving here through the bell on a job that already delivered would
+   * otherwise get a second library full of the same three pictures. The key is
+   * what identifies an object, so the key is what is checked — there is no job
+   * column on `covers` to check instead, and adding one to carry a transitional
+   * guard would be the wrong shape for good.
+   */
+  const already = await prisma.cover.findMany({
+    where: { shopId: shop.id, r2Key: { in: keys } },
+    select: { id: true, r2Key: true },
+  })
+  const missing = keys.filter((key) => !already.some((row) => row.r2Key === key))
+
+  const written = await prisma.$transaction(
+    missing.map((r2Key) =>
       prisma.cover.create({
-        data: { ...common, r2Key: keyOf(option as { url: string; key?: string }) },
+        data: { ...common, r2Key },
         select: { id: true, r2Key: true },
       })
     )
   )
+
+  const covers = [...already, ...written]
 
   // Written after the rows exist: a job marked claimed with no cover behind it
   // is a generation the owner paid for and can no longer reach.
