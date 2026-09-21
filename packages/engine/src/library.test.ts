@@ -396,3 +396,74 @@ describe('the library uses the range it ships', () => {
     }
   })
 })
+
+/**
+ * How big a band is — the one thing about a header an owner could not change.
+ *
+ * It was a constant in `library.ts`: every band in every book was 0.34 of a body
+ * row and full bleed. The height *is* the row track and the width *is* a field
+ * on the region, so both are read back off the stored grid rather than kept
+ * anywhere else — which is what makes them survive the rebuild that every other
+ * layout edit performs.
+ */
+describe('band size', () => {
+  it('writes the height as the band track', () => {
+    const grid = composeGrid({
+      perRow: 3,
+      bodyRows: 2,
+      headerBlockId: 'blk_head',
+      footerBlockId: 'blk_foot',
+      headerHeight: 0.8,
+      footerHeight: 0.2,
+    })
+    expect(grid.rows).toEqual([0.8, 1, 1, 0.2])
+  })
+
+  it('defaults to the band constant when nothing asks', () => {
+    const grid = composeGrid({ perRow: 3, bodyRows: 2, headerBlockId: 'blk_head' })
+    expect(grid.rows[0]).toBe(0.34)
+  })
+
+  it('holds a stored oddity to something renderable', () => {
+    // A book that cannot open is worse than a book with a strange header, so a
+    // value from outside the editor's own bounds is clamped rather than refused.
+    const huge = composeGrid({ bodyRows: 1, headerBlockId: 'b', headerHeight: 40 })
+    const tiny = composeGrid({ bodyRows: 1, headerBlockId: 'b', headerHeight: 0 })
+    expect(huge.rows[0]).toBe(2)
+    expect(tiny.rows[0]).toBe(0.1)
+  })
+
+  it('puts the width on the region, and omits it at full bleed', () => {
+    const narrow = composeGrid({ bodyRows: 2, headerBlockId: 'b', headerWidth: 0.7 })
+    expect(narrow.regions.find((region) => region.id === 'header')?.width).toBe(0.7)
+
+    // Absent and 1 are the same layout; storing 1 would make two identical
+    // grids compare unequal.
+    const full = composeGrid({ bodyRows: 2, headerBlockId: 'b', headerWidth: 1 })
+    expect(full.regions.find((region) => region.id === 'header')).not.toHaveProperty('width')
+    expect(composeGrid({ bodyRows: 2, headerBlockId: 'b' }).regions[0]).not.toHaveProperty('width')
+  })
+
+  it('sizes the two bands independently', () => {
+    const grid = composeGrid({
+      bodyRows: 2,
+      headerBlockId: 'b',
+      footerBlockId: 'f',
+      headerWidth: 0.5,
+      footerWidth: 0.9,
+    })
+    expect(grid.regions.find((region) => region.id === 'header')?.width).toBe(0.5)
+    expect(grid.regions.find((region) => region.id === 'footer')?.width).toBe(0.9)
+  })
+
+  it('leaves the cards where they were, whatever the band height', () => {
+    // The band takes a track either way, so the regions below it must not move:
+    // a region id names a position among the cards, and renumbering them would
+    // orphan every nudge in the book.
+    const short = composeGrid({ perRow: 2, bodyRows: 2, headerBlockId: 'b', headerHeight: 0.15 })
+    const tall = composeGrid({ perRow: 2, bodyRows: 2, headerBlockId: 'b', headerHeight: 1.6 })
+    expect(short.regions.map((r) => `${r.id}@${r.rowStart}`)).toEqual(
+      tall.regions.map((r) => `${r.id}@${r.rowStart}`)
+    )
+  })
+})

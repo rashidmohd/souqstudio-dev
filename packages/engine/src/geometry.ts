@@ -81,6 +81,40 @@ export function spanRect(
   }
 }
 
+/**
+ * The same rectangle, narrowed to a fraction of its width and kept centred.
+ *
+ * **Separate from `spanRect`, which sees tracks and nothing else.** Narrowing is
+ * a property of one region — a header an owner wanted at 70% — and folding it
+ * into the span maths would put a region's opinion inside the function that
+ * places pins and merges too.
+ *
+ * **Centred, and not configurable.** A narrowed band is a masthead or a footer
+ * rule, and both are centred in every design anyone would recognise; an
+ * alignment nothing sets is a field that outlives the reason for it. Centring is
+ * also the one answer that needs no RTL case, because it is the same rectangle
+ * in both directions.
+ *
+ * A fraction at or above 1, or one that is not a usable number, returns the rect
+ * untouched — an absent `width` and a full-width one are the same layout, and
+ * this is the seam where a stored value from anywhere has to behave.
+ */
+export function narrowRect(rect: Rect, width: number | undefined): Rect {
+  if (width === undefined || !Number.isFinite(width) || width >= 1) return rect
+
+  // Floored rather than trusted: a zero or negative width is a region that
+  // cannot be drawn, seen or selected, and a grid that renders nothing is worse
+  // than one that renders small.
+  const fraction = Math.max(0.05, width)
+  const narrowed = rect.width * fraction
+
+  return {
+    ...rect,
+    x: rect.x + (rect.width - narrowed) / 2,
+    width: narrowed,
+  }
+}
+
 /** Width ÷ height. What `pickArrangement` selects on. */
 export function aspectOf(rect: Rect): number {
   if (rect.height <= 0) {

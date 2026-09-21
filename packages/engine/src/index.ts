@@ -6,6 +6,7 @@
 
 export { resolveTracks, type Track } from './tracks'
 export {
+  narrowRect,
   spanRect,
   spansIntersect,
   spanArea,

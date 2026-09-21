@@ -9,7 +9,13 @@ import { loadBlock } from '@/lib/blocks'
 import { pageSizeFor, toMasterGrid } from '@/lib/offer-book-compose'
 import { gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { backgroundSchema } from '@/lib/offer-book-background'
-import { MAX_GAP, MAX_MARGIN } from '@/lib/offer-book-layout'
+import {
+  MAX_BAND_HEIGHT,
+  MAX_GAP,
+  MAX_MARGIN,
+  MIN_BAND_HEIGHT,
+  MIN_BAND_WIDTH,
+} from '@/lib/offer-book-layout'
 
 /**
  * The master grid — the cards across and down, the page margin, and the header
@@ -76,6 +82,24 @@ const schema = z.object({
    * Removing it is not an answer, so "none" is not on the wire.
    */
   cardBlockId: z.string().min(1).max(64).optional(),
+  /**
+   * How big each band is: height as a fraction of one body row, width as a
+   * fraction of the page.
+   *
+   * **Bounded here as well as clamped in the engine**, and the two are different
+   * jobs. These are the bounds the owner's sliders offer, so a value outside
+   * them is a request nobody's editor made and is refused; the engine's clamp is
+   * what a *stored* oddity renders as, because a book that cannot open is worse
+   * than a book with a strange header.
+   *
+   * Ignored when the band is absent, which needs no guard: `composeGrid` writes
+   * no track and no region for a band that does not exist, so a height for one
+   * has nothing to land on.
+   */
+  headerHeight: z.number().min(MIN_BAND_HEIGHT).max(MAX_BAND_HEIGHT).optional(),
+  footerHeight: z.number().min(MIN_BAND_HEIGHT).max(MAX_BAND_HEIGHT).optional(),
+  headerWidth: z.number().min(MIN_BAND_WIDTH).max(1).optional(),
+  footerWidth: z.number().min(MIN_BAND_WIDTH).max(1).optional(),
   /** A running band on every page. `null` removes it. */
   headerBlockId: z.string().min(1).max(64).nullable().optional(),
   footerBlockId: z.string().min(1).max(64).nullable().optional(),
@@ -245,6 +269,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     ...(parsed.data.footerBlockId === undefined
       ? {}
       : { footerBlockId: parsed.data.footerBlockId }),
+    ...(parsed.data.headerHeight === undefined ? {} : { headerHeight: parsed.data.headerHeight }),
+    ...(parsed.data.footerHeight === undefined ? {} : { footerHeight: parsed.data.footerHeight }),
+    ...(parsed.data.headerWidth === undefined ? {} : { headerWidth: parsed.data.headerWidth }),
+    ...(parsed.data.footerWidth === undefined ? {} : { footerWidth: parsed.data.footerWidth }),
     ...(background === undefined ? {} : { background }),
   })
 

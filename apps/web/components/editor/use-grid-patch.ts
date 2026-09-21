@@ -48,6 +48,18 @@ export interface GridPatch {
   /** `null` removes the band. Absent leaves it. */
   headerBlockId?: string | null
   footerBlockId?: string | null
+  /**
+   * Each band's height, as a fraction of one body row, and its width as a
+   * fraction of the page. Absent leaves what the book has.
+   *
+   * Both are debounced like the margin and the gap rather than written per
+   * step: a slider drag is thirty values and each one rebuilds the master and
+   * recomposes every page.
+   */
+  headerHeight?: number
+  footerHeight?: number
+  headerWidth?: number
+  footerWidth?: number
   /** `null` clears the page back to `--sq-tpl-paper`. */
   background?: PageBackground | null
 }

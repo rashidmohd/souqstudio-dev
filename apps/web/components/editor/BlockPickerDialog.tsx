@@ -1,13 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { Ban, Pencil } from 'lucide-react'
+import { Ban, Check, Pencil } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { BLOCK_CATEGORIES, type BlockCategory } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Segmented } from '@/components/ui/segmented'
-import { BlockTile } from '@/components/blocks/BlockTile'
+import { BlockTile, TILE_HEIGHT } from '@/components/blocks/BlockTile'
+import { bandBlocks } from '@/lib/band-blocks'
+import { cn } from '@/lib/utils'
 
 /**
  * Which design is drawn, picked by looking at it — for one cell, or for the
@@ -37,6 +39,16 @@ import { BlockTile } from '@/components/blocks/BlockTile'
  * that this picks **one** rather than many, and that it offers going back to the
  * book's own card as a choice rather than as a separate reset button.
  *
+ * **The running bands came here last, and they had the same fault.** A header
+ * and a footer were two selects in the layout panel, which asked an owner to
+ * know what "Corner flag band" looks like — the identical question this dialog
+ * was built to stop asking about cards. They are the choice a book is *most*
+ * judged on: a band is on every page, so a wrong one is wrong forty times. They
+ * are scopes here now, and "None" is a tile in the grid rather than the first
+ * row of a dropdown, which is where the select already put it and for the same
+ * reason: taking the footer off is one of the answers to "what is along the
+ * bottom", not a different kind of act.
+ *
  * **Choosing something that does not repeat moves the products.** A cell holding
  * a brand block takes no offer, so the offer that was there goes to the next
  * cell and the book grows by a page rather than losing it. That is surprising
@@ -52,18 +64,29 @@ type CellBlock = {
   category: BlockCategory | null
 }
 
+/**
+ * What is being chosen for.
+ *
+ * It decides the wording, which blocks are candidates, and which of the two
+ * "nothing" answers — the book's own card, or no band at all — is offered as a
+ * tile.
+ */
+export type PickerScope = 'cell' | 'book' | 'header' | 'footer'
+
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   /**
    * `cell` changes the one cell the owner clicked; `book` changes the card
-   * every cell draws. It decides the wording, which blocks are offered, and
-   * whether "the book's own card" is one of the answers.
+   * every cell draws; `header` and `footer` change the band on every page.
    */
-  scope: 'cell' | 'book'
+  scope: PickerScope
   blocks: CellBlock[]
   kit: BrandKit
-  /** What is drawn now. Null at cell scope once the cell draws the book's card. */
+  /**
+   * What is drawn now. Null at cell scope once the cell draws the book's card,
+   * and at band scope when the book has no band at that end.
+   */
   current: string | null
   /** The book's repeating card, offered as the way back. Cell scope only. */
   offerCardBlockId: string | null
@@ -81,6 +104,44 @@ type Props = {
 }
 
 type Filter = BlockCategory | 'all'
+
+const TITLE: Record<PickerScope, string> = {
+  book: 'The card every cell draws',
+  cell: 'What this cell draws',
+  header: 'The band across the top',
+  footer: 'The band across the bottom',
+}
+
+/**
+ * **Each says what it applies to, because that is what the scopes differ in.**
+ * A band is on every page; a cell is one cell. An owner who reads the sentence
+ * above the grid should not have to remember which control they came from.
+ */
+const DESCRIPTION: Record<PickerScope, string> = {
+  book: 'Every product in this book is drawn with this design.',
+  cell: "Every other cell keeps the book's offer card. This one is yours to change.",
+  header: 'Drawn along the top of every page in this book.',
+  footer: 'Drawn along the bottom of every page in this book.',
+}
+
+/**
+ * Committing "None" at a band scope, which is a removal and should read like
+ * one — "Use this header" over an empty tile is a sentence about nothing.
+ */
+const REMOVE: Record<PickerScope, string> = {
+  book: '',
+  cell: '',
+  header: 'Remove the header',
+  footer: 'Remove the footer',
+}
+
+/** What "Use this" commits to, said in the words of the thing being changed. */
+const COMMIT: Record<PickerScope, string> = {
+  book: 'Use this design',
+  cell: 'Use this design',
+  header: 'Use this header',
+  footer: 'Use this footer',
+}
 
 const CATEGORY_LABEL: Record<BlockCategory, string> = {
   'offer-card': 'Offer cards',
@@ -119,13 +180,16 @@ export function BlockPickerDialog({
 
   /*
    * At book scope a static block is not a candidate at all — see the note at
-   * the top. Filtered before the category row rather than refused on choosing,
-   * so the owner never picks something that is then taken back.
+   * the top. At a band scope the test is the mirror image and lives in
+   * `lib/band-blocks.ts`, because the layout panel applies it too. Filtered
+   * before the category row rather than refused on choosing, so the owner never
+   * picks something that is then taken back.
    */
-  const candidates = React.useMemo(
-    () => (scope === 'book' ? blocks.filter((block) => block.repeats) : blocks),
-    [blocks, scope]
-  )
+  const candidates = React.useMemo(() => {
+    if (scope === 'book') return blocks.filter((block) => block.repeats)
+    if (scope === 'header' || scope === 'footer') return bandBlocks(blocks, scope)
+    return blocks
+  }, [blocks, scope])
 
   const shown = React.useMemo(
     () =>
@@ -143,8 +207,16 @@ export function BlockPickerDialog({
   const chosen = picked === undefined ? current : picked
   const changed = picked !== undefined && picked !== current
   const chosenBlock = chosen === null ? undefined : blocks.find((block) => block.id === chosen)
-  // Only reachable at cell scope; book scope offers no static block to pick.
-  const losesProduct = chosenBlock !== undefined && !chosenBlock.repeats
+  /*
+   * Cell scope only, and now stated rather than implied. Book scope offers no
+   * static block to pick, so this could never fire there — but a band offers
+   * *nothing else*, and the warning would have appeared on every band an owner
+   * ever chose, telling them a product was about to move when a band has never
+   * been handed one.
+   */
+  const losesProduct = scope === 'cell' && chosenBlock !== undefined && !chosenBlock.repeats
+
+  const band = scope === 'header' || scope === 'footer'
 
   /**
    * Which design "Edit" would open.
@@ -153,23 +225,19 @@ export function BlockPickerDialog({
    * cell has gone back to the book's own card, so the thing to edit is the
    * book's card — which is what the owner is looking at either way.
    */
-  const editing = chosen ?? offerCardBlockId
+  const editing = band ? chosen : (chosen ?? offerCardBlockId)
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       size="lg"
-      title={scope === 'book' ? 'The card every cell draws' : 'What this cell draws'}
-      description={
-        scope === 'book'
-          ? 'Every product in this book is drawn with this design.'
-          : "Every other cell keeps the book's offer card. This one is yours to change."
-      }
+      title={TITLE[scope]}
+      description={DESCRIPTION[scope]}
       {...(changed
         ? {
             primaryAction: {
-              label: 'Use this design',
+              label: chosen === null && band ? REMOVE[scope] : COMMIT[scope],
               onClick: () => onChoose(chosen ?? null),
               loading: busy,
             },
@@ -210,7 +278,58 @@ export function BlockPickerDialog({
           </p>
         ) : null}
 
+        {/*
+          **The library can be empty at a band scope, and a select said so in a
+          hint.** Nothing else in this dialog can be: a shop always has offer
+          cards, because we ship them. A shop with no footer in its library —
+          possible the day it archives ours — must be told that rather than shown
+          an empty grid it will read as a broken screen.
+        */}
+        {candidates.length === 0 ? (
+          <p className="font-ui text-body-sm text-secondary">
+            You have no {scope === 'header' ? 'headers' : 'footers'} in your library yet. Add one
+            from the block library and it will be here for every book.
+          </p>
+        ) : null}
+
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {/*
+            **"None" is a tile, in the grid, first.** The select it replaced put
+            it first in the list for the reason that still holds: an owner is
+            answering "what runs along the bottom of every page", and "nothing"
+            is one of the answers rather than a separate act of removal. It is
+            drawn as an empty frame because that is what it does to the page.
+          */}
+          {!band ? null : (
+            <li>
+              <button
+                type="button"
+                aria-pressed={chosen === null}
+                onClick={() => setPicked(null)}
+                className={cn(
+                  'flex w-full flex-col gap-2 rounded-card border-hairline p-2 text-start',
+                  chosen === null
+                    ? 'border-border-focus bg-selected-bg'
+                    : 'border-border-subtle hover:bg-stone-100'
+                )}
+              >
+                <span
+                  className="relative flex items-center justify-center overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0"
+                  style={{ height: TILE_HEIGHT }}
+                >
+                  <Ban className="size-4 text-muted" strokeWidth={1.75} aria-hidden="true" />
+                  {chosen === null ? (
+                    <span className="absolute end-1 top-1 flex size-4 items-center justify-center rounded-pill bg-action-primary text-inverse">
+                      <Check className="size-3" strokeWidth={2.5} aria-hidden="true" />
+                    </span>
+                  ) : null}
+                </span>
+                <span className="truncate font-ui text-label font-medium text-primary">
+                  None
+                </span>
+              </button>
+            </li>
+          )}
           {/*
             **The way back is a tile, not a reset button beside the grid.** "What
             does this cell draw" has one answer at a time and the book's own card
@@ -222,7 +341,7 @@ export function BlockPickerDialog({
             being chosen, so offering it as one of the choices would be a tile
             that means "leave it as it is" sitting in a grid of designs.
           */}
-          {scope === 'book' || offerCardBlockId === null ? null : (
+          {scope !== 'cell' || offerCardBlockId === null ? null : (
             <BlockTile
               name="The book's offer card"
               arrangements={
@@ -241,7 +360,7 @@ export function BlockPickerDialog({
           )}
 
           {shown
-            .filter((block) => scope === 'book' || block.id !== offerCardBlockId)
+            .filter((block) => scope !== 'cell' || block.id !== offerCardBlockId)
             .map((block) => (
               <BlockTile
                 key={block.id}

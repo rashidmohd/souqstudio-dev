@@ -11,7 +11,14 @@
 
 import type { PageGrid, Pin, Region, RegionFill } from '@souqstudio/types'
 import { resolveTracks, type Track } from './tracks'
-import { spanRect, spansIntersect, type CellSpan, type Direction, type Rect } from './geometry'
+import {
+  narrowRect,
+  spanRect,
+  spansIntersect,
+  type CellSpan,
+  type Direction,
+  type Rect,
+} from './geometry'
 import { mergeRegions, normalizeMerges } from './merge'
 import { validateGrid } from './validate'
 
@@ -374,7 +381,16 @@ export function flowBook(input: FlowInput): FlowResult {
       if (pinsHere.some((pin) => spansIntersect(pin, region))) continue
       placements.push({
         sourceId: region.id,
-        rect: spanRect(region, cols, rows, direction),
+        /*
+         * **Narrowed where the region asks for it — bands, in practice.** A
+         * header set to 70% is drawn at 70% and centred, while still owning its
+         * whole track: `spansIntersect` reads the integer span, so a pin on that
+         * row still collides and no product creeps into the space beside it.
+         * The cells an owner selects are computed from `spanRect` untouched,
+         * which is right — a narrowed band is not a narrowed cell, and bands are
+         * not selectable cells at all.
+         */
+        rect: narrowRect(spanRect(region, cols, rows, direction), region.width),
         blockId: region.blockId,
         offerId: null,
         kind: 'static',
@@ -409,7 +425,10 @@ export function flowBook(input: FlowInput): FlowResult {
       cursor += 1
       placements.push({
         sourceId: region.id,
-        rect: spanRect(region, cols, rows, direction),
+        // A flowing cell has no `width` today — only bands are given one — but
+        // reading it here is what stops a cell that gains one from being the
+        // single place the field is silently ignored.
+        rect: narrowRect(spanRect(region, cols, rows, direction), region.width),
         blockId: region.blockId,
         offerId,
         kind: 'flow',

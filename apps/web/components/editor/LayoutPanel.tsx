@@ -1,16 +1,25 @@
 'use client'
 
 import * as React from 'react'
-import { LayoutGrid, Pencil } from 'lucide-react'
+import { Ban, LayoutGrid, Pencil } from 'lucide-react'
+import type { Arrangement, BrandKit } from '@souqstudio/types'
+import type { BlockCategory } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
 import { Select } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 import {
+  DEFAULT_BAND_HEIGHT,
   GAP_STEPS,
   MARGIN_STEPS,
+  MAX_BAND_HEIGHT,
+  MIN_BAND_HEIGHT,
+  MIN_BAND_WIDTH,
   nearestGapStep,
   nearestMarginStep,
 } from '@/lib/offer-book-layout'
+import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { bandBlocks, type Band as BandEnd } from '@/lib/band-blocks'
 import type { GridPatch } from '@/components/editor/use-grid-patch'
 
 /**
@@ -67,6 +76,17 @@ type Props = {
   headerBlockId: string | null
   footerBlockId: string | null
   /**
+   * How big each band is: height as a fraction of one body row, width as a
+   * fraction of the page.
+   *
+   * Absent means the band is — there is no size for a band that does not exist —
+   * so the sliders appear with the band and leave with it.
+   */
+  headerHeight?: number | undefined
+  footerHeight?: number | undefined
+  headerWidth?: number | undefined
+  footerWidth?: number | undefined
+  /**
    * False when the chosen offer card has no arrangement for the shape this
    * layout gives its cells, so the renderer is stretching a design drawn for
    * another shape. Nothing errors; this is the only place it is visible.
@@ -80,15 +100,30 @@ type Props = {
   busy: boolean
   error: string | null
   /**
-   * Static blocks grouped by what they are for.
+   * Everything this shop could put in a cell or a band, drawn rather than named.
    *
-   * **Filtered by category rather than offered as one list**, because "which of
-   * these fifty is a footer" is not a question an owner should answer. A block
-   * the shop authored has no category — that is a fact about the library we
-   * shipped, not about their row — so those are offered in both.
+   * **The arrangements travel, which is the point of this change.** The bands
+   * used to take two lists of `{ id, name }` and render them as dropdowns, so an
+   * owner chose the thing on every page of their book by reading "Corner flag
+   * band" and hoping. Same payload the cell picker already carries; what it buys
+   * here is the preview beside the control and the library browse behind it.
+   *
+   * Unfiltered: `lib/band-blocks.ts` decides what may be a header or a footer,
+   * and both this panel and the picker read it, so the two cannot disagree about
+   * what is eligible.
    */
-  headerBlocks: { id: string; name: string }[]
-  footerBlocks: { id: string; name: string }[]
+  blocks: {
+    id: string
+    name: string
+    repeats: boolean
+    arrangements: Arrangement[]
+    category: BlockCategory | null
+  }[]
+  /** The shop's colours, so a band preview is drawn in them. */
+  kit: BrandKit
+  /** Open the library browse for that end of the page. */
+  onChangeHeader: () => void
+  onChangeFooter: () => void
 }
 
 export function LayoutPanel({
@@ -101,14 +136,20 @@ export function LayoutPanel({
   gap,
   headerBlockId,
   footerBlockId,
+  headerHeight,
+  footerHeight,
+  headerWidth,
+  footerWidth,
   cardFits,
   offerCount,
   pages,
   patch,
   busy,
   error,
-  headerBlocks,
-  footerBlocks,
+  blocks,
+  kit,
+  onChangeHeader,
+  onChangeFooter,
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
@@ -236,20 +277,34 @@ export function LayoutPanel({
 
       <Band
         title="Header"
-        empty="No band across the top."
-        blocks={headerBlocks}
+        empty="Nothing across the top of the page."
+        band="header"
+        blocks={blocks}
+        kit={kit}
         value={headerBlockId}
+        height={headerHeight}
+        width={headerWidth}
         disabled={busy}
-        onChange={(next) => patch({ headerBlockId: next })}
+        onBrowse={onChangeHeader}
+        onRemove={() => patch({ headerBlockId: null })}
+        onHeight={(next) => patch({ headerHeight: next })}
+        onWidth={(next) => patch({ headerWidth: next })}
       />
 
       <Band
         title="Footer"
-        empty="No band across the bottom."
-        blocks={footerBlocks}
+        empty="Nothing across the bottom of the page."
+        band="footer"
+        blocks={blocks}
+        kit={kit}
         value={footerBlockId}
+        height={footerHeight}
+        width={footerWidth}
         disabled={busy}
-        onChange={(next) => patch({ footerBlockId: next })}
+        onBrowse={onChangeFooter}
+        onRemove={() => patch({ footerBlockId: null })}
+        onHeight={(next) => patch({ footerHeight: next })}
+        onWidth={(next) => patch({ footerWidth: next })}
       />
 
       {error ? (
@@ -262,60 +317,235 @@ export function LayoutPanel({
 }
 
 /**
- * A running band, on every page: add one, swap it, or take it away.
+ * A running band, on every page: what it is, what it looks like, and the way to
+ * change it.
  *
- * **One control does all three**, because they are one decision. A separate
- * "remove" button beside a picker would make taking a footer off a page a
- * different kind of act from changing which footer it is, and it is not — the
- * owner is answering "what is along the bottom of every page", and "nothing" is
- * one of the answers. So "None" is the first option in the list.
+ * **It was a select, and a select cannot show a band.** An owner picked the
+ * strip that would appear on every page of a printed book by reading its name
+ * out of a dropdown — the exact fault `BlockPickerDialog`'s own note describes
+ * about cards, left unfixed here because bands were built before that dialog
+ * existed. The stake is higher, not lower: a card is wrong in one cell, a band
+ * is wrong on every page.
+ *
+ * So the control is now what the owner is choosing — the band, drawn, at the
+ * proportions it will actually have — and pressing it opens the library browse.
+ * Choosing happens there, against previews, which is where it belongs.
+ *
+ * **Remove stays a separate button, unlike in the picker.** In the grid "None"
+ * is one of the answers to "which band", and a tile among tiles is the honest
+ * shape for that. Out here, with a band already set, taking it off is a thing
+ * an owner wants to do in one press rather than by opening a dialog to pick
+ * nothing — and the button only exists when there is something to remove.
  *
  * **`null` on the wire, and it has to be.** Absent means "leave it alone" to
  * `PATCH .../grid`; `null` means "remove it". If removal were sent as absent,
  * the route would rebuild from the stored grid and hand the band straight back.
  *
- * A band is what appears on **every** page. `Pins` below is the other half: one
- * page, placed by the owner. The two look similar in a panel and are not the
- * same thing, so each says which it is.
+ * A band is what appears on **every** page. `Pins` is the other half: one page,
+ * placed by the owner. The two look similar in a panel and are not the same
+ * thing, so each says which it is.
  */
 function Band({
   title,
   empty,
+  band,
   blocks,
+  kit,
   value,
+  height,
+  width,
   disabled,
-  onChange,
+  onBrowse,
+  onRemove,
+  onHeight,
+  onWidth,
 }: {
   title: string
-  /** What "None" means here, said once, so the panel is readable at a glance. */
+  /** What "nothing here" means, said once, so the panel reads at a glance. */
   empty: string
-  blocks: { id: string; name: string }[]
+  band: BandEnd
+  blocks: Props['blocks']
+  kit: BrandKit
   value: string | null
+  height: number | undefined
+  width: number | undefined
   disabled: boolean
-  onChange: (blockId: string | null) => void
+  onBrowse: () => void
+  onRemove: () => void
+  onHeight: (height: number) => void
+  onWidth: (width: number) => void
 }) {
-  /*
-   * A band naming a block this shop cannot pick from — one archived since, or
-   * moved behind a plan — still has to be selectable, or the select would show
-   * the first option and the next change would silently swap the band. Same
-   * reasoning as `loadBlocks` not filtering by status: a book already in print
-   * must go on rendering what it was printed with.
+  const current = value === null ? undefined : blocks.find((block) => block.id === value)
+  const available = bandBlocks(blocks, band).length
+
+  /**
+   * The sliders' live positions.
+   *
+   * **Local, and committed on release, exactly as the page background's blur
+   * is.** Every step of a drag would rebuild the master grid and recompose every
+   * page in the book; `patch` is debounced, but a debounce still fires mid-drag
+   * and reflows the artboard under the owner's hand. The thumb has to move in
+   * between or the control feels broken, so the position is state and the write
+   * is a gesture ending.
+   *
+   * Percent rather than the stored fraction, so the readout says `34%` instead
+   * of `0.34` — a number nobody can act on is the defect `Slider`'s own comment
+   * describes.
    */
-  const known = blocks.some((block) => block.id === value)
-  const options = [
-    { value: '', label: `None. ${empty}` },
-    ...blocks.map((block) => ({ value: block.id, label: block.name })),
-    ...(value !== null && !known ? [{ value, label: 'The block this book uses' }] : []),
-  ]
+  const storedHeight = Math.round((height ?? DEFAULT_BAND_HEIGHT) * 100)
+  const storedWidth = Math.round((width ?? 1) * 100)
+  const [heightPercent, setHeightPercent] = React.useState(storedHeight)
+  const [widthPercent, setWidthPercent] = React.useState(storedWidth)
+  React.useEffect(() => setHeightPercent(storedHeight), [storedHeight])
+  React.useEffect(() => setWidthPercent(storedWidth), [storedWidth])
 
   return (
-    <Select
-      label={title}
-      value={value ?? ''}
-      disabled={disabled || blocks.length === 0}
-      options={options}
-      onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
-      hint={blocks.length === 0 ? 'No blocks of this kind in your library yet.' : 'On every page.'}
-    />
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">{title}</h3>
+        {value === null ? null : (
+          <Button type="button" variant="ghost" disabled={disabled} onClick={onRemove}>
+            Remove
+          </Button>
+        )}
+      </div>
+
+      {/*
+        **The preview is the button.** An owner looking at the band and an owner
+        about to change it are the same person a moment apart, so the thing on
+        screen is the thing they press — the same gesture the offer card's own
+        row in this panel uses.
+      */}
+      <button
+        type="button"
+        disabled={disabled || available === 0}
+        onClick={onBrowse}
+        className="flex w-full items-center gap-3 rounded-card border-hairline border-border-subtle p-2 text-start hover:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus disabled:opacity-disabled"
+      >
+        <span
+          className="flex shrink-0 items-center justify-center overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0"
+          style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT }}
+        >
+          {current === undefined ? (
+            <Ban className="size-4 text-muted" strokeWidth={1.75} aria-hidden="true" />
+          ) : (
+            /* Drawn at the band's own proportions inside a fixed frame — a
+               footer really is a thin strip and showing it as one is the
+               information. `BlockTile` makes the same argument at grid size. */
+            <BlockPreview
+              arrangements={current.arrangements}
+              kit={kit}
+              {...previewSize(current)}
+            />
+          )}
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-ui text-label font-medium text-primary">
+            {current !== undefined
+              ? current.name
+              : value === null
+                ? 'None'
+                : /* A band naming a block this shop can no longer pick — archived
+                     since, or moved behind a plan. It goes on being drawn, and
+                     the panel says so rather than showing "None" over a page
+                     that plainly has a band on it. Same reasoning as `loadBlocks`
+                     not filtering by status: a book already in print must go on
+                     rendering what it was printed with. */
+                  'A block that is no longer in your library'}
+          </span>
+          <span className="block font-ui text-body-sm text-secondary">
+            {available === 0
+              ? 'No blocks of this kind in your library yet.'
+              : current === undefined && value === null
+                ? empty
+                : 'On every page.'}
+          </span>
+        </span>
+      </button>
+
+      {/*
+        **The size controls appear with the band and leave with it.** There is
+        no height for a header that does not exist, and a pair of dead sliders
+        under "None" is two controls an owner has to work out do nothing.
+
+        Height is a fraction of a *body row* rather than of the page, which is
+        what keeps a band looking like a band at every page size — the reasoning
+        `offer-book-layout.ts` carries. The readout is a percentage of a row, so
+        100% is a band as tall as a row of cards.
+      */}
+      {current === undefined ? null : (
+        <div className="flex flex-col gap-2">
+          <Slider
+            label="Height"
+            min={MIN_BAND_HEIGHT * 100}
+            max={MAX_BAND_HEIGHT * 100}
+            step={1}
+            unit="%"
+            value={heightPercent}
+            disabled={disabled}
+            onValueChange={setHeightPercent}
+            // Release, not change: each step rebuilds the master and recomposes
+            // every page. Both events, because a slider is a keyboard control
+            // as much as a pointer one.
+            onPointerUp={() => commit(heightPercent, storedHeight, onHeight)}
+            onKeyUp={() => commit(heightPercent, storedHeight, onHeight)}
+            hint="As much as a row of cards, at 100%."
+          />
+
+          <Slider
+            label="Width"
+            min={MIN_BAND_WIDTH * 100}
+            max={100}
+            step={1}
+            unit="%"
+            value={widthPercent}
+            disabled={disabled}
+            onValueChange={setWidthPercent}
+            onPointerUp={() => commit(widthPercent, storedWidth, onWidth)}
+            onKeyUp={() => commit(widthPercent, storedWidth, onWidth)}
+            hint="Narrower than the page, centred. Full width is edge to edge."
+          />
+        </div>
+      )}
+    </section>
   )
+}
+
+/**
+ * Write a slider's value, unless it is the one already stored.
+ *
+ * Releasing without having moved is not a change, and without this every click
+ * on the thumb costs a grid rebuild and a recompose of every page in the book.
+ * The same guard `PageBackgroundControl.setBlur` makes, for the same reason.
+ */
+function commit(percent: number, stored: number, write: (value: number) => void): void {
+  if (percent === stored) return
+  write(percent / 100)
+}
+
+/**
+ * The frame a band is previewed in, and the size the block is drawn at inside
+ * it.
+ *
+ * Wider than it is tall, unlike a tile: this sits in a 320px rail beside its
+ * own label, and a band is a wide, short object. `tileSize`'s reasoning, at the
+ * proportions this frame has.
+ */
+const PREVIEW_WIDTH = 96
+const PREVIEW_HEIGHT = 44
+
+function previewSize(block: { repeats: boolean; arrangements: Arrangement[] }): {
+  width: number
+  height: number
+} {
+  const arrangement = block.arrangements[0]
+  const natural =
+    arrangement === undefined
+      ? PREVIEW_WIDTH / PREVIEW_HEIGHT
+      : Math.min(12, Math.max(0.4, Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)))
+
+  return natural > PREVIEW_WIDTH / PREVIEW_HEIGHT
+    ? { width: PREVIEW_WIDTH, height: Math.round(PREVIEW_WIDTH / natural) }
+    : { width: Math.round(PREVIEW_HEIGHT * natural), height: PREVIEW_HEIGHT }
 }

@@ -143,6 +143,38 @@ const FOOTER = byId('blk_footer')
 const BAND = 0.34
 
 /**
+ * The range a band is held to, whatever it was stored as.
+ *
+ * **Defensive, and deliberately not the control's range.** `offer-book-layout.ts`
+ * holds the bounds the owner's sliders offer and the route validates; these are
+ * what this function does with a number that reached it anyway — an older book,
+ * a hand-edited row, a caller of the engine that is not our editor. Below about
+ * a tenth of a row a band is a hairline nothing can be laid out in, and above
+ * two rows the "band" is the page.
+ *
+ * **Not exported, and that is on purpose.** Importing any value from this file
+ * pulls every element of all sixty-five seeded blocks into the bundle that does
+ * it — `offer-book-grid.ts` carries the 72 KB measurement. A shared constant
+ * would be a browser paying for the block library to draw a slider.
+ */
+const BAND_MIN = 0.1
+const BAND_MAX = 2
+
+/** Same argument, across: a band at a twentieth of the width is a mark. */
+const BAND_WIDTH_MIN = 0.2
+
+/** Held to the range above, so a stored oddity still renders as a layout. */
+function bandHeight(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return BAND
+  return Math.min(BAND_MAX, Math.max(BAND_MIN, value))
+}
+
+function bandWidth(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 1
+  return Math.min(1, Math.max(BAND_WIDTH_MIN, value))
+}
+
+/**
  * The body of a grid: `perRow` × `bodyRows` cells, every one of them flowing.
  *
  * **The ids count body rows, not grid rows**, and `rowOffset` is what keeps that
@@ -202,6 +234,21 @@ export interface ComposeGridOptions {
    */
   headerBlockId?: string | null
   footerBlockId?: string | null
+  /**
+   * How tall each band is, as a fraction of one body row, and how much of the
+   * page's width it fills. Absent is `BAND` and edge to edge — what every band
+   * was when the height was a constant in this file and nothing could change it.
+   *
+   * **A fraction of a row rather than of the page**, which is what keeps a band
+   * looking like a band at every page size: a footer pinned to the page grows
+   * into a stripe on A3, and one that scales with the cards above it stays a
+   * footer. That was the reasoning behind the constant and it is why the control
+   * an owner gets is in these units rather than in millimetres.
+   */
+  headerHeight?: number
+  footerHeight?: number
+  headerWidth?: number
+  footerWidth?: number
   /** Fraction of the page's shorter edge. Zero is full bleed. */
   margin?: number
   /** Fraction of the shorter edge, between tracks. */
@@ -233,9 +280,9 @@ export function composeGrid(options: ComposeGridOptions = {}): PageGrid {
   const footer = options.footerBlockId ?? null
 
   const rows: number[] = [
-    ...(header === null ? [] : [BAND]),
+    ...(header === null ? [] : [bandHeight(options.headerHeight)]),
     ...Array.from({ length: bodyRows }, () => 1),
-    ...(footer === null ? [] : [BAND]),
+    ...(footer === null ? [] : [bandHeight(options.footerHeight)]),
   ]
 
   // Where the cards start. One row down when a header takes the top band.
@@ -244,6 +291,7 @@ export function composeGrid(options: ComposeGridOptions = {}): PageGrid {
   const regions: Region[] = []
 
   if (header !== null) {
+    const width = bandWidth(options.headerWidth)
     regions.push({
       id: 'header',
       colStart: 0,
@@ -252,6 +300,10 @@ export function composeGrid(options: ComposeGridOptions = {}): PageGrid {
       rowEnd: 0,
       blockId: header,
       fill: 'static',
+      // Omitted at full width rather than written as 1: absent and 1 are the
+      // same layout, and a stored 1 would make two identical grids compare
+      // unequal in the round-trip tests.
+      ...(width >= 1 ? {} : { width }),
     })
   }
 
@@ -266,6 +318,9 @@ export function composeGrid(options: ComposeGridOptions = {}): PageGrid {
       rowEnd: top + bodyRows,
       blockId: footer,
       fill: 'static',
+      ...(bandWidth(options.footerWidth) >= 1
+        ? {}
+        : { width: bandWidth(options.footerWidth) }),
     })
   }
 

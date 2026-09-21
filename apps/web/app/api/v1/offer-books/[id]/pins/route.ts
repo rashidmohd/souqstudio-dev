@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { toMasterGrid } from '@/lib/offer-book-compose'
+import { spanFor } from '@/lib/pin-span'
 
 /**
  * Pins — a static block parked at a position in the flow. Composition model §6.
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     )
   }
 
-  const span = spanFor(parsed.data.span, parsed.data.row, master.cols.length, master.rows.length)
+  const span = spanFor(parsed.data.span, parsed.data.row, master)
 
   const pin = await prisma.$transaction(async (tx) => {
     // Two pins over the same cells would fight for the position, and the engine
@@ -141,36 +142,4 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   return ok(pin, 201)
-}
-
-/**
- * The cells a shape takes, given the grid it lands in.
- *
- * Logical and inclusive, the same convention a region uses — `colStart` is the
- * reading-order start, so an Arabic edition mirrors the pin with the rest of the
- * page and there is no second layout to author.
- */
-function spanFor(
-  shape: 'row' | 'half-row' | 'page',
-  row: number,
-  cols: number,
-  rows: number
-): { colStart: number; colEnd: number; rowStart: number; rowEnd: number } {
-  if (shape === 'page') {
-    return { colStart: 0, colEnd: cols - 1, rowStart: 0, rowEnd: rows - 1 }
-  }
-
-  // The last row of a booklet grid is the footer band, so a body row is bounded
-  // one short of it. A pin over the footer would displace nothing and cover the
-  // shop's own details.
-  const bodyRows = Math.max(1, rows - 1)
-  const rowIndex = Math.min(Math.max(row, 0), bodyRows - 1)
-  const half = Math.max(1, Math.ceil(cols / 2))
-
-  return {
-    colStart: 0,
-    colEnd: shape === 'row' ? cols - 1 : half - 1,
-    rowStart: rowIndex,
-    rowEnd: rowIndex,
-  }
 }

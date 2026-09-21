@@ -1,6 +1,7 @@
 import { bookletGrid, postGrid } from '@souqstudio/engine'
 import type { PageBackground, PageGrid } from '@souqstudio/types'
 import { KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
+import { DEFAULT_BAND_HEIGHT } from '@/lib/offer-book-layout'
 
 /**
  * The master grid a book uses, chosen by what the owner said they were making
@@ -44,6 +45,19 @@ export interface GridChoice {
    */
   headerBlockId?: string | null
   footerBlockId?: string | null
+  /**
+   * How big each band is: its height as a fraction of one body row, its width as
+   * a fraction of the page.
+   *
+   * **Read back like everything else here, and for the same reason.** The grid
+   * is rebuilt from scratch on every edit, so a height the owner set and this
+   * function did not return would be handed back as the default the next time
+   * they nudged the margin. That is the precise defect `gap` exists to record.
+   */
+  headerHeight?: number
+  footerHeight?: number
+  headerWidth?: number
+  footerWidth?: number
   /** Fraction of the page's shorter edge. Zero is full bleed. */
   margin?: number
   /**
@@ -90,6 +104,10 @@ export function gridForKind(choice: GridChoice): PageGrid {
     // default" and `null` as "no band". Normalising here would lose that.
     ...(choice.headerBlockId === undefined ? {} : { headerBlockId: choice.headerBlockId }),
     ...(choice.footerBlockId === undefined ? {} : { footerBlockId: choice.footerBlockId }),
+    ...(choice.headerHeight === undefined ? {} : { headerHeight: choice.headerHeight }),
+    ...(choice.footerHeight === undefined ? {} : { footerHeight: choice.footerHeight }),
+    ...(choice.headerWidth === undefined ? {} : { headerWidth: choice.headerWidth }),
+    ...(choice.footerWidth === undefined ? {} : { footerWidth: choice.footerWidth }),
   }
 
   return spec.footer ? bookletGrid(options) : postGrid(options)
@@ -156,5 +174,23 @@ export function readGridChoice(format: string, grid: PageGrid): GridChoice {
     // whose footer was removed must not have one handed back by the preset.
     headerBlockId: header?.blockId ?? null,
     footerBlockId: footer?.blockId ?? null,
+    /*
+     * **The band's size, read off the grid that has it rather than stored
+     * twice.** The height *is* the row track and the width *is* the region's
+     * own field, so there is nothing to keep in step — the same argument this
+     * function makes about the card: a second copy on the book would be the one
+     * that goes stale.
+     *
+     * Absent when the band is, because a height for a band that does not exist
+     * is a number with nothing to measure.
+     */
+    ...(header === undefined ? {} : { headerHeight: grid.rows[0] ?? DEFAULT_BAND_HEIGHT }),
+    ...(footer === undefined
+      ? {}
+      : { footerHeight: grid.rows[grid.rows.length - 1] ?? DEFAULT_BAND_HEIGHT }),
+    // Absent on the region means edge to edge, which is what `composeGrid`
+    // writes for a full-width band — so absent here says the same thing.
+    ...(header?.width === undefined ? {} : { headerWidth: header.width }),
+    ...(footer?.width === undefined ? {} : { footerWidth: footer.width }),
   }
 }

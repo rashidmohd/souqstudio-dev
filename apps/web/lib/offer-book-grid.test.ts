@@ -367,3 +367,71 @@ describe('MAX_GAP', () => {
     }
   })
 })
+
+/**
+ * A band's own size, through the rebuild.
+ *
+ * **The failure this guards is the one `gap` already documents.** Every layout
+ * edit rebuilds the master from scratch, so a height the owner set and
+ * `readGridChoice` does not return is handed back as the default the moment they
+ * nudge the margin — and it would look like the editor undoing their work at
+ * random. The height is the band's row track and the width is the region's own
+ * field, so both are read off the grid that renders them rather than stored a
+ * second time.
+ */
+describe('readGridChoice — band size', () => {
+  it('reads a header height and width back', () => {
+    const grid = gridForKind({
+      kind: 'booklet',
+      headerBlockId: 'blk_masthead',
+      headerHeight: 0.75,
+      headerWidth: 0.6,
+    })
+    const read = readGridChoice('leaflet', grid)
+
+    expect(read.headerHeight).toBe(0.75)
+    expect(read.headerWidth).toBe(0.6)
+    expect(gridForKind(read)).toEqual(grid)
+  })
+
+  it('survives an unrelated edit, which is the whole point', () => {
+    const grid = gridForKind({
+      kind: 'booklet',
+      headerBlockId: 'blk_masthead',
+      headerHeight: 0.9,
+      footerHeight: 0.2,
+      footerWidth: 0.5,
+    })
+
+    // The owner changes the track count a week later. Everything else stands.
+    const after = gridForKind({ ...readGridChoice('leaflet', grid), perRow: 4 })
+    const read = readGridChoice('leaflet', after)
+
+    expect(read.headerHeight).toBe(0.9)
+    expect(read.footerHeight).toBe(0.2)
+    expect(read.footerWidth).toBe(0.5)
+  })
+
+  it('reads no size for a band the book does not have', () => {
+    const read = readGridChoice(
+      'leaflet',
+      gridForKind({ kind: 'booklet', headerBlockId: null, footerBlockId: null })
+    )
+
+    // Not zero, and not a default: a height for a band that does not exist is a
+    // number with nothing to measure, and writing one back would be inventing a
+    // band the owner removed.
+    expect(read.headerHeight).toBeUndefined()
+    expect(read.footerWidth).toBeUndefined()
+  })
+
+  it('reads a full-width band back as full width', () => {
+    const grid = gridForKind({ kind: 'booklet', headerBlockId: 'blk_masthead', headerWidth: 1 })
+    const read = readGridChoice('leaflet', grid)
+
+    // Absent on the region means edge to edge, so absent here says the same —
+    // and the rebuild has to produce the identical grid either way.
+    expect(read.headerWidth).toBeUndefined()
+    expect(gridForKind(read)).toEqual(grid)
+  })
+})

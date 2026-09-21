@@ -106,6 +106,18 @@ export interface ComposedBook {
     /** The running band at the top of every page, or null for none. */
     headerBlockId: string | null
     footerBlockId: string | null
+    /**
+     * Each band's size: height as a fraction of one body row, width as a
+     * fraction of the page.
+     *
+     * Absent when the band is. `readGridChoice` reads both off the stored grid —
+     * the height *is* the row track and the width *is* the region's own field —
+     * so there is no second copy to keep in step with what renders.
+     */
+    headerHeight?: number
+    footerHeight?: number
+    headerWidth?: number
+    footerWidth?: number
     /** The paper behind every card. Null is `--sq-tpl-paper`, which is what
      *  every book drew before this existed. */
     background: PageBackground | null
@@ -563,6 +575,12 @@ export async function loadBook(
       gap: choice.gap ?? master.gap,
       headerBlockId: choice.headerBlockId ?? null,
       footerBlockId: choice.footerBlockId ?? null,
+      // Spread rather than defaulted: absent means "this book has no band at
+      // that end", which is not the same as a band of some default height.
+      ...(choice.headerHeight === undefined ? {} : { headerHeight: choice.headerHeight }),
+      ...(choice.footerHeight === undefined ? {} : { footerHeight: choice.footerHeight }),
+      ...(choice.headerWidth === undefined ? {} : { headerWidth: choice.headerWidth }),
+      ...(choice.footerWidth === undefined ? {} : { footerWidth: choice.footerWidth }),
       background: choice.background ?? null,
       cardBlockId: choice.cardBlockId ?? null,
       ...cardFit(flow.pages, blocks),

@@ -21,7 +21,7 @@ import { BookPage } from '@/components/editor/BookPage'
 import { CutoutWatch } from '@/components/editor/CutoutWatch'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PagePanel } from '@/components/editor/PagePanel'
-import { BlockPickerDialog } from '@/components/editor/BlockPickerDialog'
+import { BlockPickerDialog, type PickerScope } from '@/components/editor/BlockPickerDialog'
 import { BlockEditDialog } from '@/components/editor/BlockEditDialog'
 import { BlockEditorWindow } from '@/components/editor/BlockEditorWindow'
 import { useBlockEdit, type Repoint } from '@/components/editor/use-block-edit'
@@ -125,6 +125,12 @@ type Props = {
     gap: number
     headerBlockId: string | null
     footerBlockId: string | null
+    /** Each band's height, as a fraction of a body row, and its width as a
+     *  fraction of the page. Absent when that band is. */
+    headerHeight?: number
+    footerHeight?: number
+    headerWidth?: number
+    footerWidth?: number
     /** False when the offer card has no design for the shape this layout gives
      *  its cells, so it is being stretched. */
     cardFits: boolean
@@ -147,10 +153,6 @@ type Props = {
   /** Static blocks this shop may pin. A repeating one reads an offer, and a pin
    *  has none. */
   pinnable: { id: string; name: string; season?: { starts: string } }[]
-  /** Static blocks that can be a running band, by what they are for. A band on
-   *  every page is a different thing from a pin on one. */
-  headerBlocks: { id: string; name: string }[]
-  footerBlocks: { id: string; name: string }[]
   gridProblems: { code: string }[]
 }
 
@@ -179,8 +181,6 @@ export function EditorShell({
   offerCardBlockId,
   layout,
   pinnable,
-  headerBlocks,
-  footerBlocks,
   assetBaseUrl,
   gridProblems,
 }: Props) {
@@ -448,7 +448,15 @@ export function EditorShell({
    * One picker serves both — the scope decides its wording and which blocks it
    * offers — so this is the scope rather than a second boolean.
    */
-  const [picking, setPicking] = React.useState<'cell' | 'book' | null>(null)
+  /**
+   * Which picker is open, and at what scope.
+   *
+   * The bands joined the cell and the book here: they were two selects in the
+   * layout panel, and a select cannot show what a band looks like. One dialog
+   * answers all four, which is also what stops a fifth place learning its own
+   * idea of what a block is.
+   */
+  const [picking, setPicking] = React.useState<PickerScope | null>(null)
 
   /**
    * The design open in the designer window, or null for none.
@@ -470,6 +478,20 @@ export function EditorShell({
    */
   const repointBook = React.useCallback<Repoint>(
     (blockId) => grid.patch({ cardBlockId: blockId }),
+    [grid]
+  )
+
+  /**
+   * Repointing a *band*, for a copy made on the way into the designer.
+   *
+   * `repointBook`'s sibling, against the field the band lives in. A band is the
+   * book's — every page draws it — so like the card it is written through
+   * `PATCH .../grid` and not through the page's own region map.
+   */
+  const repointBand = React.useCallback(
+    (end: 'header' | 'footer'): Repoint =>
+      (blockId) =>
+        grid.patch(end === 'header' ? { headerBlockId: blockId } : { footerBlockId: blockId }),
     [grid]
   )
 
@@ -507,6 +529,22 @@ export function EditorShell({
    * no "none" at book scope, since a book with no offer card cannot draw a
    * product — and it is ignored rather than asserted away.
    */
+  /**
+   * Committing a band.
+   *
+   * **`null` travels, and it is a removal.** `GridPatch` treats absent as "leave
+   * it alone" and `null` as "take it off" — the distinction `Band` has always
+   * depended on and the one reason this cannot reuse `chooseBookCard`, which
+   * refuses null because a book must always have a card.
+   */
+  const chooseBand = React.useCallback(
+    (end: 'header' | 'footer') => (blockId: string | null) => {
+      setPicking(null)
+      void grid.patch(end === 'header' ? { headerBlockId: blockId } : { footerBlockId: blockId })
+    },
+    [grid]
+  )
+
   const chooseBookCard = React.useCallback(
     (blockId: string | null) => {
       if (blockId === null) return
@@ -768,14 +806,20 @@ export function EditorShell({
                 gap={layout.gap}
                 headerBlockId={layout.headerBlockId}
                 footerBlockId={layout.footerBlockId}
+                headerHeight={layout.headerHeight}
+                footerHeight={layout.footerHeight}
+                headerWidth={layout.headerWidth}
+                footerWidth={layout.footerWidth}
                 cardFits={layout.cardFits}
                 offerCount={offers.length}
                 pages={grid.pages}
                 patch={(next) => void grid.patch(next)}
                 busy={grid.busy}
                 error={grid.error ?? pageMergeWriter.error}
-                headerBlocks={headerBlocks}
-                footerBlocks={footerBlocks}
+                blocks={cellBlocks}
+                kit={kit}
+                onChangeHeader={() => setPicking('header')}
+                onChangeFooter={() => setPicking('footer')}
               />
             </div>
 
@@ -973,14 +1017,24 @@ export function EditorShell({
           blocks={cellBlocks}
           kit={kit}
           current={
-            picking === 'book'
-              ? offerCardBlockId
-              : selectedCell === null || selectedCell.blockId === layout.cardBlockId
-                ? null
-                : selectedCell.blockId
+            picking === 'header'
+              ? layout.headerBlockId
+              : picking === 'footer'
+                ? layout.footerBlockId
+                : picking === 'book'
+                  ? offerCardBlockId
+                  : selectedCell === null || selectedCell.blockId === layout.cardBlockId
+                    ? null
+                    : selectedCell.blockId
           }
           offerCardBlockId={offerCardBlockId}
-          onChoose={picking === 'book' ? chooseBookCard : chooseCellBlock}
+          onChoose={
+            picking === 'header' || picking === 'footer'
+              ? chooseBand(picking)
+              : picking === 'book'
+                ? chooseBookCard
+                : chooseCellBlock
+          }
           busy={pendingBlock || grid.busy}
           onEdit={
             canDesign
@@ -988,7 +1042,11 @@ export function EditorShell({
                   setPicking(null)
                   void blockEdit.begin(
                     blockId,
-                    picking === 'book' ? repointBook : repointCell
+                    picking === 'header' || picking === 'footer'
+                      ? repointBand(picking)
+                      : picking === 'book'
+                        ? repointBook
+                        : repointCell
                   )
                 }
               : undefined

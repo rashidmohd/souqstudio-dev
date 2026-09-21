@@ -111,3 +111,30 @@ export const MAX_GAP = 0.06
 export function nearestGapStep(gap: number): GapStep {
   return nearest(GAP_STEPS, gap)
 }
+
+/**
+ * How tall a header or footer band is, as a fraction of one body row, and how
+ * much of the page's width it fills.
+ *
+ * **A fraction of a row rather than of the page**, which is what keeps a band
+ * looking like a band at every page size: a footer pinned to the page grows into
+ * a stripe on A3, while one that scales with the cards above it stays a footer.
+ * That was the reasoning behind the constant these replace, and it is why the
+ * control is in these units rather than in millimetres — a shop owner has no
+ * opinion about 0.34, but they can see a band get taller.
+ *
+ * **Here rather than imported from the engine**, for the reason
+ * `offer-book-grid.ts` sets out at length: every value in `library.ts` drags the
+ * sixty-five seeded blocks into whatever bundle imports it, and this file is
+ * read by a client component. The engine clamps to its own slightly wider range
+ * for data that reached it by another route; these are the bounds the slider
+ * offers and the API validates, which is a different question from what the
+ * renderer will tolerate.
+ */
+export const MIN_BAND_HEIGHT = 0.1
+export const MAX_BAND_HEIGHT = 2
+export const MIN_BAND_WIDTH = 0.2
+
+/** What a band is when nothing has said otherwise. `composeGrid`'s own default,
+ *  repeated here so a slider with no stored value starts where the book is. */
+export const DEFAULT_BAND_HEIGHT = 0.34

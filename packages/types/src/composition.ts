@@ -1255,6 +1255,25 @@ export interface Region {
   rowEnd: number
   blockId: string
   fill: RegionFill
+  /**
+   * How much of its own span the region actually fills, across. Absent is all
+   * of it, which is what every region was before this existed.
+   *
+   * **A fraction rather than a column count, because a band is not on the
+   * column grid.** A header spans every column by construction, so narrowing it
+   * by columns gives thirds on a three-across page and nothing at all on a
+   * one-across post — and a masthead that is 70% of the page is an ordinary
+   * design. The rect is narrowed after the tracks are resolved and the region
+   * stays centred in its span, so nothing about the grid, the merges or the
+   * pins has to know.
+   *
+   * **It is geometry, not overlap.** `spansIntersect` compares integer spans
+   * and does not read this: a narrowed header still *occupies* its whole row, so
+   * a pin on that row still collides with it and a product cannot creep into the
+   * space beside it. Anything else would be a layout where two blocks share a
+   * track and only the renderer knows.
+   */
+  width?: number
 }
 
 /**

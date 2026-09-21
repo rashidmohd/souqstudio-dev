@@ -76,21 +76,20 @@ export default async function EditorPage({ params }: { params: { id: string } })
   ])
 
   /*
-   * Static, unlocked and not archived — the same test `pinnable` applies, and
-   * for the same reason. Narrowed to `{ id, name, category }` because a client
-   * component holds it and `BlockSummary` carries the arrangements.
-   */
-  const bandBlocks = blocks
-    .filter((block) => !block.repeats && !block.locked && block.status !== 'archived')
-    .map((block) => ({ id: block.id, name: block.name, category: block.category }))
-
-  /*
    * What an owner may put in one cell, which is **everything usable** — unlike a
    * band or a pin, both of which refuse a repeating block because they carry no
    * offer to give it. A cell is exactly where a repeating card belongs, and a
    * static one turns that cell into a brand block with the products routing
    * around it. `repeats` travels so the panel can say which is which before the
    * owner finds out by watching a product move.
+   *
+   * **The bands read this list too, and used to have their own.** Two narrowed
+   * copies were built here — `{ id, name, category }` each, one per end of the
+   * page — because the bands were dropdowns and a dropdown needs nothing but a
+   * name. They are a library browse now, so they need the arrangements this
+   * already carries, and `lib/band-blocks.ts` applies the eligibility test that
+   * used to be written out below. One payload, one rule, and the editor cannot
+   * offer a block in one place that it refuses in the other.
    */
   const cellBlocks = blocks
     .filter((block) => !block.locked && block.status !== 'archived')
@@ -154,24 +153,6 @@ export default async function EditorPage({ params }: { params: { id: string } })
               : null
           return { id: block.id, name: block.name, ...(live === null ? {} : { season: live }) }
         })}
-      /*
-       * **Which static blocks can be a running band, by what they are for.**
-       * "Which of these fifty is a footer" is not a question to put to an owner,
-       * so the category does the filtering here, on the server, where the
-       * shipped library's own taxonomy is already attached to the row.
-       *
-       * A block the *shop* authored has a null category — that is a fact about
-       * our library, not about their row — so theirs are offered in both lists.
-       * `repeats` is the property that actually decides eligibility: a repeating
-       * card in a static band reads an offer it was never given and draws an
-       * empty card across every page.
-       */
-      headerBlocks={bandBlocks.filter(
-        (block) => block.category === 'header' || block.category === null
-      )}
-      footerBlocks={bandBlocks.filter(
-        (block) => block.category === 'footer' || block.category === null
-      )}
       assetBaseUrl={env.R2_PUBLIC_URL}
       gridProblems={book.gridProblems}
     />
