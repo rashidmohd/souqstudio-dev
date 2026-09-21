@@ -158,7 +158,7 @@ export function LayoutPanel({
       : (blocks.find((block) => block.id === blockId)?.name ?? 'A block from outside your library')
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {/*
         **Three sections rather than one list, because the tab outgrew the
         rail.** It holds eleven controls, and the two an owner comes for — the
