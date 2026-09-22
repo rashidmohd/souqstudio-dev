@@ -171,6 +171,8 @@ const config: Config = {
         'preview-cap': 'var(--sq-preview-cap)',
         // A picture shown large in a dialog. See the token.
         'media-cap': 'var(--sq-media-cap)',
+        // A scrollable chooser inside a dialog. See the token.
+        'list-cap': 'var(--sq-list-cap)',
       },
       minHeight: {
         control: 'var(--sq-h-control)',

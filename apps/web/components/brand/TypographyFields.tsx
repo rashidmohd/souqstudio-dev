@@ -13,6 +13,7 @@ import { isRecommended } from '@/lib/font-editorial'
 import type { OfferableFont } from '@/lib/font-catalog-server'
 import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
 import { useSpecimenFont } from '@/lib/use-specimen-font'
+import { FontPicker } from '@/components/brand/FontPicker'
 import { resolvePalette } from '@/lib/brand-palette'
 import {
   MAX_STYLES,
@@ -212,106 +213,113 @@ function StyleDialog({
       }}
       title={`Edit ${draft.name || 'style'}`}
       description="Sizes scale with whatever block the style lands in, so one style works on a booklet page and a carousel post."
-      size="lg"
+      size="xl"
       primaryAction={{ label: 'Save style', onClick: onSave }}
       secondaryAction={{ label: 'Cancel', onClick: onCancel }}
     >
-      {/*
-        Two columns, so the specimen is beside the controls rather than below
-        them. Choosing a typeface is a comparison, and a preview that needs
-        scrolling to reach is one you stop looking at. Stacks below `md`, where
-        the dialog is a single narrow column anyway.
-      */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-3">
-          <Input
-            label="Name"
-            value={draft.name}
-            onChange={(event) => set({ name: event.target.value })}
-            error={named ? undefined : 'Give the style a name so you can recognise it later.'}
-            hint={draft.slot ? 'The standard blocks use this style' : undefined}
+      <div className="flex flex-col gap-4">
+        <Input
+          label="Name"
+          value={draft.name}
+          onChange={(event) => set({ name: event.target.value })}
+          error={named ? undefined : 'Give the style a name so you can recognise it later.'}
+          hint={draft.slot ? 'The standard blocks use this style' : undefined}
+        />
+
+        {/*
+          The list and the specimen side by side, because arrowing through the
+          list is only useful if the specimen is in view while you do it.
+          Stacks below `md`, where they follow each other instead.
+        */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <FontPicker
+            value={draft.family}
+            fonts={offerable}
+            onChange={(family) => set({ family })}
+          />
+
+          <div className="flex min-w-0 flex-col gap-2 rounded-control bg-stone-0 p-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-ui text-label font-medium text-secondary">Preview</span>
+              <span className="min-w-0 truncate font-figure text-data text-secondary">
+                {draft.family} {draft.weight}
+              </span>
+            </div>
+
+            {/* Arabic first: it is where a face fails, and it runs longer. */}
+            <p dir="rtl" className="min-w-0 break-words" style={specimenCss(draft, color?.hex)}>
+              أرز بسمتي ذهبي ٣ كجم
+            </p>
+            <p className="min-w-0 break-words" style={specimenCss(draft, color?.hex)}>
+              Golden basmati rice 3kg
+            </p>
+
+            {/*
+              A price, because it is the string that most often breaks a face:
+              the figures are what a shopper reads first and a three-decimal
+              Kuwaiti price is the widest thing on a card.
+            */}
+            <p className="min-w-0 break-words" style={specimenCss(draft, color?.hex)}>
+              AED 1,449.00
+            </p>
+
+            {pending ? (
+              <span className="font-ui text-body-sm text-secondary">
+                Loading this typeface for the preview.
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Size, weight, style and colour on one line: four small decisions
+            about the same style, and stacking them buried the specimen. */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Select
+            label="Size"
+            value={String(draft.size)}
+            onChange={(event) => set({ size: Number(event.target.value) })}
+            options={SIZE_STEPS.map((step) => ({ value: String(step), label: `${step}×` }))}
           />
 
           <Select
-            label="Typeface"
-            value={draft.family}
-            onChange={(event) => set({ family: event.target.value })}
-            options={typefaceOptions(offerable, draft.family)}
-            hint={typefaceHint(offerable, draft.family)}
+            label="Weight"
+            value={String(draft.weight)}
+            onChange={(event) => set({ weight: Number(event.target.value) })}
+            options={WEIGHTS.map((weight) => ({ value: String(weight), label: String(weight) }))}
           />
 
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Size"
-              value={String(draft.size)}
-              onChange={(event) => set({ size: Number(event.target.value) })}
-              options={SIZE_STEPS.map((step) => ({ value: String(step), label: `${step}×` }))}
-            />
+          <Select
+            label="Style"
+            value={draft.italic ? 'italic' : 'regular'}
+            onChange={(event) => set({ italic: event.target.value === 'italic' })}
+            options={[
+              { value: 'regular', label: 'Regular' },
+              { value: 'italic', label: 'Italic' },
+            ]}
+            // Stated, never blocked: it is the shop's brand.
+            hint={
+              italicIsSynthetic(draft, catalog)
+                ? `${draft.family} has no italic, so this will be slanted`
+                : undefined
+            }
+          />
 
-            <Select
-              label="Weight"
-              value={String(draft.weight)}
-              onChange={(event) => set({ weight: Number(event.target.value) })}
-              options={WEIGHTS.map((weight) => ({ value: String(weight), label: String(weight) }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Style"
-              value={draft.italic ? 'italic' : 'regular'}
-              onChange={(event) => set({ italic: event.target.value === 'italic' })}
-              options={[
-                { value: 'regular', label: 'Regular' },
-                { value: 'italic', label: 'Italic' },
-              ]}
-              // Stated, never blocked: it is the shop's brand.
-              hint={
-                italicIsSynthetic(draft, catalog)
-                  ? `${draft.family} has no italic, so this will be slanted`
-                  : undefined
-              }
-            />
-
-            <Select
-              label="Colour"
-              value={draft.colorId ?? ''}
-              onChange={(event) => set({ colorId: event.target.value || null })}
-              options={[
-                { value: '', label: 'Default ink' },
-                ...palette.map((entry) => ({ value: entry.id, label: entry.name })),
-              ]}
-            />
-          </div>
+          <Select
+            label="Colour"
+            value={draft.colorId ?? ''}
+            onChange={(event) => set({ colorId: event.target.value || null })}
+            options={[
+              { value: '', label: 'Default ink' },
+              ...palette.map((entry) => ({ value: entry.id, label: entry.name })),
+            ]}
+          />
         </div>
 
-        <div className="flex flex-col gap-2 rounded-control bg-stone-0 p-4">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="font-ui text-label font-medium text-secondary">Preview</span>
-            <span className="font-figure text-data text-secondary">
-              {draft.family} {draft.weight}
-            </span>
-          </div>
-
-          {/* Arabic first: it is where a face fails, and it runs longer. */}
-          <p dir="rtl" style={specimenCss(draft, color?.hex)}>
-            أرز بسمتي ذهبي ٣ كجم
-          </p>
-          <p style={specimenCss(draft, color?.hex)}>Golden basmati rice 3kg</p>
-
-          {/*
-            A price, because it is the string that most often breaks a face: the
-            figures are what a shopper reads first and a three-decimal Kuwaiti
-            price is the widest thing on a card.
-          */}
-          <p style={specimenCss(draft, color?.hex)}>AED 1,449.00</p>
-
-          {pending ? (
-            <span className="font-ui text-caption text-secondary">
-              Loading this typeface for the preview.
-            </span>
-          ) : null}
-        </div>
+        {typefaceHint(offerable, draft.family) !== undefined ? (
+          <span className="font-ui text-body-sm text-secondary">
+            {typefaceHint(offerable, draft.family)}
+          </span>
+        ) : null}
       </div>
     </Dialog>
   )

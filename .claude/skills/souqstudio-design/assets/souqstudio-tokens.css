@@ -205,6 +205,11 @@
      photograph letterboxed into a tall empty frame, and the frame itself pushed
      the dialog past the viewport. */
   --sq-media-cap:       60vh;
+  /* A scrollable chooser inside a dialog: the type editor's list of
+     typefaces. Deep enough that arrowing through it shows several names
+     either side of the selected one, short enough that the specimen beside
+     it stays in view without scrolling. */
+  --sq-list-cap: 16rem;
   --sq-skeleton-card:  128px;   /* stands in for a real card */
   --sq-skeleton-chip:   64px;   /* stands in for a chip */
   --sq-field-select:   176px;   /* a role select; its longest option sets this */

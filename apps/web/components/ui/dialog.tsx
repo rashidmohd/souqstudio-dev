@@ -27,15 +27,25 @@ type DialogProps = {
   title: string
   description?: string | undefined
   /**
-   * `default` is confirm width — one question and two buttons, which is what a
+   * `default` is confirm width, one question and two buttons, which is what a
    * dialog is mostly for. `lg` is for the few that carry a *form*: at confirm
    * width a ten-field form becomes a narrow column taller than the viewport,
    * which is the shape E5-04's "add a product" had.
    *
-   * Deliberately two values and not a free width. A dialog wide enough to need
-   * a third is a screen.
+   * `xl` is for a form that carries a *chooser* beside its fields. It was added
+   * for the type editor, where picking a typeface means comparing a searchable
+   * list of 57 families against a live specimen, and then setting size, weight,
+   * style and colour on one line underneath. At `lg` those four controls are
+   * 150px each and the specimen has no room to be read.
+   *
+   * **This note used to say two values were deliberate and a dialog needing a
+   * third is a screen.** That still describes `default` and `lg`, and the bar
+   * for `xl` stays high: it is not "this feels cramped", it is a dialog whose
+   * job is comparison, where the thing being compared has to be visible at a
+   * usable size. Three values, and a fourth would be the screen the old note
+   * warned about.
    */
-  size?: 'default' | 'lg' | undefined
+  size?: 'default' | 'lg' | 'xl' | undefined
   /**
    * **Optional, because a dialog carrying a form does not have one.** A confirm
    * dialog's primary *is* the decision, so it belongs to the dialog. A form's
@@ -99,7 +109,7 @@ export function Dialog({
       className={cn(
         'w-full rounded-card border-hairline border-border-subtle bg-surface p-0',
         'text-primary',
-        size === 'lg' ? 'max-w-2xl' : 'max-w-md',
+        size === 'xl' ? 'max-w-4xl' : size === 'lg' ? 'max-w-2xl' : 'max-w-md',
         // The default UA centring relies on margin auto; keep it explicit.
         'm-auto',
         // **The body scrolls, not the dialog.** The UA stylesheet already caps a

@@ -1013,7 +1013,7 @@ type DialogProps = {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
-  size?: 'default' | 'lg'          // confirm width / form width
+  size?: 'default' | 'lg' | 'xl'   // confirm / form / form-with-a-chooser
   primaryAction?: { label: string; onClick: () => void; destructive?: boolean }
   secondaryAction?: { label: string; onClick: () => void }
 }
@@ -1024,6 +1024,16 @@ Exactly one primary and one optional secondary — the shape prevents a third. N
 object: "Delete week 32", not "Confirm".
 
 **Prefer undo over confirm.** Reserve dialogs for the genuinely irreversible.
+
+**`xl` (max-w-4xl) was added for the type editor** and the bar for reaching for it
+is high. `default` is confirm width and `lg` is form width; `xl` is for a form whose
+job is *comparison* — the type editor searches 57 families, draws the chosen one as a
+live specimen, and sets size, weight, style and colour on one line beneath it. At `lg`
+those four controls are about 150px each and the specimen has nowhere to be read.
+
+This note previously said two values were deliberate and that a dialog needing a third
+is a screen. That still holds for everything else: "it feels cramped" is not the test.
+A fourth width would be the screen the old note warned about.
 
 Built on the native `<dialog>` element with `showModal()`, so focus containment,
 background inerting and Escape come from the platform rather than a
