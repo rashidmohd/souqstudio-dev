@@ -3,6 +3,9 @@
 Next.js 14 App Router. Internal SouqStudio team tool.
 Not customer-facing. Access restricted to SouqStudio staff only.
 
+Epic: `docs/E13-admin-panel.md`. What is built and what is not:
+`docs/E13-pending.md`.
+
 ---
 
 ## Directory structure
@@ -10,88 +13,151 @@ Not customer-facing. Access restricted to SouqStudio staff only.
 ```
 apps/admin/
 ├── app/
-│   ├── layout.tsx               # Admin shell — different from shop owner shell
-│   ├── page.tsx                 # Platform overview dashboard
-│   ├── organizations/           # Org search, detail, impersonation
-│   ├── catalog/                 # Product CRUD, bulk import, synonym management
-│   ├── contributions/           # Community image review queue
-│   ├── templates/               # Template + grid builder and publisher
-│   ├── analytics/               # Platform-wide health metrics
-│   ├── broadcasts/              # Email + WhatsApp broadcast management
+│   ├── layout.tsx               # Document, fonts. No rail — see below.
+│   ├── login/                   # The only screen reachable without a session
+│   ├── (panel)/                 # Everything behind a session
+│   │   ├── layout.tsx           # The rail, and the session read that feeds it
+│   │   ├── page.tsx             # Platform overview
+│   │   ├── catalog/             # E13-02 — product list, detail, add
+│   │   ├── blocks/              # E13-04 — library console, publish and sync
+│   │   ├── prompts/             # Cover art direction, editable
+│   │   ├── audit/               # E13-01 — every admin action
+│   │   ├── organizations/       # E13-01 — not built
+│   │   ├── contributions/       # E13-03 — not built
+│   │   ├── templates/           # E13-04 grids — not built
+│   │   ├── analytics/           # E13-06 — not built
+│   │   └── broadcasts/          # E13-07 — not built
 │   └── api/
-│       └── v1/
-│           └── admin/           # Admin-only API routes
+│       ├── health/              # Liveness. Outside the IP allowlist.
+│       └── v1/admin/            # Admin-only API routes
 ├── components/
-│   ├── ui/                      # shadcn/ui (same bridge, slightly more utilitarian)
-│   ├── catalog/                 # Catalog management tables + forms
-│   ├── templates/               # Template visual builder
-│   └── shared/
+│   ├── ui/                      # The primitive set. Hand-built, not shadcn.
+│   ├── auth/ catalog/ blocks/ prompts/
+│   └── shared/                  # AdminRail, PageHeader
 ├── lib/
 │   ├── env.ts
-│   ├── auth.ts                  # Separate admin auth — checks admin_users table
-│   └── audit.ts                 # Writes to admin_audit_log on every action
-└── middleware.ts                 # IP allowlist + admin session check
+│   ├── admin-roles.ts           # The vocabulary. No server-only: the rail reads it.
+│   ├── admin-session.ts         # Sole writer to admin_sessions
+│   ├── admin-auth.ts            # requireAdmin, requireAdminApi, role gates
+│   ├── audit.ts                 # Sole writer to admin_audit_logs
+│   ├── ip-allowlist.ts          # Pure, Edge-safe. Imported by middleware.
+│   ├── library-client.ts        # Calls apps/web's library routes
+│   ├── catalog-list.ts  catalog-schema.ts
+│   ├── block-summary.ts  prompt-schema.ts
+│   └── api.ts  password.ts  utils.ts
+└── middleware.ts                # IP allowlist + session cookie presence
 ```
+
+**`(panel)` is a route group, so the URLs are unchanged** — `(panel)/catalog`
+still serves `/catalog`. It exists because the login screen has to render
+without the rail and a root layout cannot know which route it is wrapping.
 
 ---
 
 ## Access control
 
-- Admin users are in `admin_users` table — completely separate from `users`.
-- Middleware checks `admin_users` table, not the shop owner `users` table.
-- IP allowlist enforced in middleware — restrict to office/VPN IPs in production.
-- Admin roles: `super_admin` | `catalog_manager` | `support_agent`
-- Every action writes to `admin_audit_log`: who, what, which entity, before + after state.
+- Admin users are in `admin_users` — completely separate from `users`. This app
+  never reads `users`; `apps/web` never reads `admin_users`. The separation is
+  the app boundary, not a role column, and it is what stops a leaked customer
+  password becoming staff access.
+- **There is no sign-up and deliberately no bootstrap route.** Accounts are
+  created from a shell: `pnpm --filter @souqstudio/db admin:create -- <email>
+  <role> [name]`. A route that creates the first admin when the table is empty
+  is a door that stays unlocked until somebody notices it.
+- Sessions are rows in `admin_sessions`, 8 hours absolute and 1 hour idle, with
+  no "remember me". `ADMIN_SESSION_SECRET` keys the stored token hash, so
+  rotating it ends every staff session at once.
+- `isActive = false` ends a session on the next request: the admin row is
+  re-read every time.
+- IP allowlist in middleware, before anything touches the database. Empty means
+  every address, which the login screen says out loud.
+- Roles: `super_admin` | `catalog_manager` | `support_agent`, and they nest.
+  `roleAtLeast` is a rank rather than a capability map because every capability
+  today falls into read / change the catalog / change what every shop sees. When
+  one appears that breaks the nesting, make it a map.
+- **Every mutation writes to `admin_audit_log`** through `lib/audit.ts`, which
+  is the only writer. Called explicitly by the route, never by a Prisma hook:
+  the log records intent, not statements. Failed publishes and syncs are logged
+  too.
+
+**Middleware is not authentication.** Next 14 pins it to the Edge runtime with
+no opt-out, so Prisma cannot run there. Every page calls `requireAdmin()` and
+every route calls `requireAdminApi()`, in Node. A present cookie proves nothing.
 
 ---
 
-## Impersonation
+## Catalog rules
 
-- Super admin can impersonate an org owner for support debugging.
-- Generates a short-lived session token for the target org.
-- Every action during impersonation is labelled in the audit log.
-- Impersonation sessions expire after 30 minutes.
-- A visible banner shows "Impersonating [org name]" during the session.
-
----
-
-## Catalog management rules
-
-- Bulk import via CSV. Preview before import. Show duplicates and errors.
-- Duplicate detection: by barcode (exact) or name similarity (pg_trgm, > 85%).
-- Background removal queued via BullMQ when image is uploaded — never blocks the UI.
-- AI enrichment (synonym generation) triggered manually per product or in bulk.
-  Runs via BullMQ, not synchronously.
-- Never delete products — archive them. Existing offer books must not break.
+- **Archive, never delete.** A published offer book references the row and
+  renders its name and cutout; deleting one breaks a flyer a shop already sent.
+  There is no DELETE route and there should not be.
+- The list spans both collections and says which one each row is.
+- Everything created here is universal. Promotion runs private → universal and
+  is its own action with its own audit entry; there is no field for creating a
+  row inside a customer's private collection.
+- Archive, restore and promote are separate actions from a field update, so each
+  is legible in the audit log rather than buried in a diff of forty fields.
+- Bulk import, image upload, the matte review queue, synonym editing and
+  enrichment are **not built**. See `docs/E13-pending.md`.
 
 ---
 
-## Template builder rules
+## Block library rules
 
-- Template config is structured JSON. Never freeform CSS.
-- Preview panel renders a mini Fabric.js canvas with sample products.
-- Seasonal templates have an `active_from` / `active_to` date range.
-  They appear automatically in the shop owner template picker during the active window.
-- Publishing a template does not affect existing offer books using it.
-- Template versioning: every save creates a row in `template_versions`.
-  Super admin can restore a previous version.
+- **Authoring stays in `apps/web`'s card designer.** This app does not draw
+  blocks and must not start: four surfaces render through one painter, and a
+  second painter is how the PDF stops matching the screen. The console describes
+  a block's shape and shows its thumbnail.
+- Publishing calls `apps/web`'s `/api/v1/library/publish` and `/sync` rather
+  than writing R2. One implementation decides what a published block is.
+- **Super admin only.** Writing the library prefix reaches every shop on the
+  platform, which is wider than any other action in this panel.
+- Publish and sync are two buttons because they are two decisions. Publishing
+  writes an object and changes nothing a shop sees; syncing gives the library to
+  everybody and prunes.
 
 ---
 
-## Community contribution review
+## Prompt rules
 
-- Queue shows: submitted image, name, brand, category, submitting shop.
-- Actions: Approve | Reject (with reason) | Request better image | Merge with existing.
-- Approving triggers: product added to master catalog, shop owner notified.
-- Quality gates shown to reviewer: resolution warning, duplicate matches, AI category suggestion.
+- `cover_prompts` rows are the only model instructions in the product that live
+  in the database. Every other prompt is code in `apps/worker/src/lib/`.
+- The seed only inserts a slug it has never seen, so tuning survives a deploy.
+- **A slug never changes** — generated covers record the one they came from. A
+  new slug is a new prompt and the old one is switched off.
+- **No delete.** `isActive` is the off switch, because a prompt that produced
+  bad covers is worth keeping to compare against its replacement.
+- A scene is a photograph: a place, a person doing something, a light. It never
+  says what the person wears, because the uniform comes from the character
+  reference. The form warns on clothing words rather than rejecting them, since
+  an apron on a rail is legitimate.
 
 ---
 
 ## Design
 
-- Uses the same `souqstudio-tokens.css` design tokens as the shop owner app.
-- Same shadcn/ui bridge.
-- More utilitarian density — tables are the primary UI, not cards.
-- TanStack Table for sortable, filterable data tables.
-- Tremor for platform analytics charts.
-- No illustrations — this is a dense working tool, not an onboarding experience.
+- Same `souqstudio-tokens.css` as `apps/web`, imported by `styles/globals.css`.
+- **The primitives here are hand-built, not shadcn.** `components/ui/` holds
+  nine small components against the design system directly. shadcn was not
+  pulled in because every component it ships needs its shadows stripped and its
+  radius corrected, and this app needs a ninth of the set. If it grows to want
+  a real dialog or combobox, bring in the bridge then.
+- More utilitarian density than the shop owner app. Tables are the primary UI.
+- **No illustrations.** This is a dense working tool, not an onboarding
+  experience, so `EmptyState` here carries no artwork.
+- One scope zone in the rail, not two. Nothing here belongs to an organization.
+- English only, and logical properties throughout anyway, so translating it
+  later is not a rewrite.
+- After UI work: `pnpm --filter @souqstudio/admin build && pnpm --filter
+  @souqstudio/admin check:classes`. It reports sized utilities that generate no
+  CSS, which this config's replaced scales make silent. The script itself lives
+  in `apps/web/scripts/` and is shared rather than copied; move it to
+  `packages/config` if a third app needs it.
+
+---
+
+## Forbidden here
+
+Playwright, BullMQ `Worker` instances, Fabric.js, direct Resend sends, AI
+provider keys, `--sq-tpl-*` tokens, and shop owner session auth. See
+`project-structure` → "What is forbidden where".

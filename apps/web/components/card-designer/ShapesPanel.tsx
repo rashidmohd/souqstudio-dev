@@ -1,9 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import type { BlockElement } from '@souqstudio/types'
-import { SHAPE_VARIANTS, shapeElement } from '@/lib/block-elements'
+import { Upload } from 'lucide-react'
+import type { BlockElement, ShapeArt } from '@souqstudio/types'
+import { SHAPE_VARIANTS, artShapeElement, shapeElement } from '@/lib/block-elements'
 import { ShapeMark } from '@/components/card-designer/ShapeMark'
+import { Button } from '@/components/ui/button'
+import { toast } from '@/components/ui/toast'
 
 /**
  * Every shape, on a visible surface. E7.
@@ -29,6 +32,14 @@ import { ShapeMark } from '@/components/card-designer/ShapeMark'
  * so the fill control in the properties panel is already pointed at the thing
  * the owner just made. That is the whole answer to "can I change the colour":
  * it is one glance away rather than a thing to go looking for.
+ *
+ * **The upload is in this section and not beside `Upload artwork` on the rail**,
+ * because the difference between the two is not the file, it is what the file
+ * becomes. The same SVG through the rail is rasterised and lands as a picture
+ * with the colour its designer chose, frozen; through here it lands as a shape,
+ * with the fill control and everything else a shape has. Putting them side by
+ * side would make that a question about file formats. Putting this one under
+ * the thirteen says what it is: another way to get a shape.
  */
 
 type Props = {
@@ -37,6 +48,46 @@ type Props = {
 }
 
 export function ShapesPanel({ disabled, onAdd }: Props) {
+  const file = React.useRef<HTMLInputElement>(null)
+  const [reading, setReading] = React.useState(false)
+
+  /**
+   * **The file is read here and posted as text.** It goes to the server because
+   * the server is what decides whether this is a drawing, and what comes back
+   * is geometry rather than a URL — there is nothing stored to point at.
+   *
+   * Every refusal is the route's own sentence, because the parser's refusals
+   * name the thing in the file and what to do about it. "Convert the text to
+   * outlines" is something an owner can do; "that file could not be used" is
+   * something they can only wonder about.
+   */
+  async function upload(chosen: File) {
+    setReading(true)
+    try {
+      const response = await fetch('/api/v1/blocks/shape', {
+        method: 'POST',
+        headers: { 'content-type': 'image/svg+xml' },
+        body: await chosen.text(),
+      })
+      const body = (await response.json()) as {
+        data: { art: ShapeArt } | null
+        error: { message: string } | null
+      }
+      if (body.data === null) {
+        toast({
+          message: body.error?.message ?? 'That drawing could not be read.',
+          tone: 'critical',
+        })
+        return
+      }
+      onAdd(artShapeElement(body.data.art))
+    } catch {
+      toast({ message: 'That drawing could not be read. Check your connection.', tone: 'critical' })
+    } finally {
+      setReading(false)
+    }
+  }
+
   return (
     <section className="flex flex-col gap-2">
       <h2 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">Shapes</h2>
@@ -66,6 +117,37 @@ export function ShapesPanel({ disabled, onAdd }: Props) {
           </li>
         ))}
       </ul>
+
+      <input
+        ref={file}
+        type="file"
+        accept="image/svg+xml,.svg"
+        className="hidden"
+        onChange={(event) => {
+          const chosen = event.target.files?.[0]
+          // Cleared before the upload, not after: an owner who picks the same
+          // file twice gets no `change` event the second time otherwise, and
+          // the control looks broken rather than busy.
+          event.target.value = ''
+          if (chosen !== undefined) void upload(chosen)
+        }}
+      />
+
+      <Button
+        type="button"
+        variant="secondary"
+        className="w-full"
+        disabled={disabled}
+        loading={reading}
+        onClick={() => file.current?.click()}
+      >
+        <Upload className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        Upload a shape
+      </Button>
+
+      <p className="font-ui text-body-sm text-muted">
+        An SVG drawing becomes a shape you can recolour. Its own colours are not kept.
+      </p>
     </section>
   )
 }

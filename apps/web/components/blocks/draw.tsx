@@ -20,6 +20,7 @@ import {
   layoutPriceMark,
   markGround,
   markRecipe,
+  artTransform,
   needsEvenOdd,
   PATH_SHAPES,
   type ShapeOptions,
@@ -619,6 +620,45 @@ function Shape({
           fill={fill}
           {...strokeProps}
         />
+      </>
+    )
+  }
+
+  /**
+   * **The outline the owner uploaded**, scaled into the box they dragged.
+   *
+   * Before the computed shapes rather than after, because `asPathShape` does
+   * not know this one and the fall-through below would draw their drawing as a
+   * plain rectangle — the exact failure the note on that branch describes.
+   *
+   * `vector-effect` is what keeps a border honest. The outline is scaled by a
+   * transform, so a border drawn on it would be scaled too, and a drawing
+   * stretched wide would wear a stroke thick on one side and thin on the other.
+   * Ignoring the transform for the stroke alone leaves its width in artboard
+   * units, which is what it means on every other shape.
+   */
+  if (element.variant === 'art' && element.art !== undefined) {
+    const art = element.art
+    return (
+      <>
+        {defs}
+        <g transform={artTransform(art, box)}>
+          {art.paths.map((outline, index) => (
+            <path
+              // Index as the key: these are geometry in a fixed order, minted
+              // once by the parser and never inserted into or reordered.
+              key={index}
+              d={outline.d}
+              {...(outline.transform === undefined ? {} : { transform: outline.transform })}
+              fill={fill}
+              {...(outline.evenOdd === true ? { fillRule: 'evenodd' as const } : {})}
+              {...strokeProps}
+              {...(strokeProps.stroke === undefined
+                ? {}
+                : { vectorEffect: 'non-scaling-stroke' as const })}
+            />
+          ))}
+        </g>
       </>
     )
   }

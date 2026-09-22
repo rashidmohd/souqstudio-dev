@@ -88,6 +88,7 @@ export {
   PATH_SHAPES,
   POLYGON_SIDES,
   SHAPE_BOUNDS,
+  artTransform,
   chipPathShape,
   drawsGround,
   layoutChipStack,

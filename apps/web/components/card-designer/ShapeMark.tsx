@@ -3,7 +3,7 @@
 import * as React from 'react'
 import type { Rect } from '@souqstudio/engine'
 import { needsEvenOdd, shapePath } from '@souqstudio/engine'
-import type { ShapeVariant } from '@/lib/block-elements'
+import type { PickableShape } from '@/lib/block-elements'
 
 /**
  * One shape at glyph size, drawn by the engine that draws it on the card.
@@ -22,6 +22,10 @@ import type { ShapeVariant } from '@/lib/block-elements'
  * `ShapeGlyph`, and it means something else: the little rectangle standing for
  * a *page* aspect. Two things called the same thing in one folder is a question
  * every reader has to answer once.
+ *
+ * An uploaded outline has no mark here: there is nothing to draw until its file
+ * has been read, and what it looks like is not something a toolbar can say in
+ * advance. `PickableShape` is the type that keeps that honest.
  *
  * `rect`, `ellipse` and `line` are not paths — they are drawn as their own SVG
  * elements on the card too, and turning a rectangle into a path here would draw
@@ -47,7 +51,7 @@ export function ShapeMark({
   variant,
   options = {},
 }: {
-  variant: ShapeVariant
+  variant: PickableShape
   options?: ShapeMarkOptions
 }) {
   return (

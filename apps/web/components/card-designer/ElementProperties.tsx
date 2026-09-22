@@ -56,7 +56,7 @@ import { StrokeControl } from '@/components/card-designer/StrokeControl'
 import { ShadowControl } from '@/components/card-designer/ShadowControl'
 import { ImageBlurControl } from '@/components/card-designer/ImageBlurControl'
 import { ShapeMark } from '@/components/card-designer/ShapeMark'
-import { SHAPE_VARIANTS, type ShapeVariant } from '@/lib/block-elements'
+import { SHAPE_VARIANTS, type PickableShape, type ShapeVariant } from '@/lib/block-elements'
 import { Segmented, ToggleBar } from '@/components/ui/segmented'
 import { Slider } from '@/components/ui/slider'
 import { describe } from '@/components/card-designer/LayerList'
@@ -163,6 +163,15 @@ export function ElementProperties({
 
       {element.kind === 'shape' ? (
         <>
+          {/*
+            **No shape grid on an uploaded outline.** Every button in it writes
+            a `variant`, and writing one over `art` swaps the owner's drawing
+            for a rectangle with no way back — the element would still hold the
+            outline, and nothing would draw it. The rest of the panel is
+            unchanged, which is the point of an upload being a shape: fill,
+            border, shadow, rotation and opacity all mean what they always mean.
+          */}
+          {element.variant === 'art' ? null : (
           <Field label="Shape">
             {/*
               **Ten in a 3×3 grid, and every mark is the shape itself.** A row
@@ -186,6 +195,7 @@ export function ElementProperties({
               onChange={(variant) => onChange({ ...element, variant })}
             />
           </Field>
+          )}
 
           {/*
             **Only under the polygon, because it means nothing anywhere else.**
@@ -1352,7 +1362,7 @@ function ShapePreview({
   variant,
   element,
 }: {
-  variant: ShapeVariant
+  variant: PickableShape
   /** The element being edited, so each button draws the settings it would keep. */
   element: Extract<BlockElement, { kind: 'shape' }>
 }) {

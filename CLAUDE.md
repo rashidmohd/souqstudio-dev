@@ -105,6 +105,13 @@ per-service configuration: `docs/deployment-railway.md` and `railway/*.json`.
 
 Each app has its own `CLAUDE.md` — load it when working in that app.
 
+**`apps/admin` is no longer a scaffold.** Staff auth against `admin_users`, an
+IP allowlist, an audit log, catalog management, the block library publish console
+and cover prompt editing are built; organizations, contributions, analytics and
+broadcasts are not. `docs/E13-pending.md` is the boundary. Staff accounts are
+created with `pnpm --filter @souqstudio/db admin:create` and there is
+deliberately no sign-up.
+
 ---
 
 ## Decisions that must not be silently reversed
@@ -344,8 +351,10 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   waiting for a deploy; `POST /api/v1/library/publish` publishes one designed
   block. Both routes are authorised by `LIBRARY_PUBLISH_TOKEN` and **never by a
   session or a role** — writing that prefix reaches every organization, and the
-  highest role this app has is one organization's owner. That token is a
-  placeholder for E13. **Nothing is published to a production prefix yet and no
+  highest role *the web app* has is one organization's owner. **E13 is now the
+  token's holder**: `apps/admin` keeps it server-side and gates it behind a staff
+  session and the super admin role, so the secret is the transport and the
+  session is the credential. It still does not become `requireOrgRole`. **Nothing is published to a production prefix yet and no
   deployment sets the variable**, so today every environment still seeds from the
   repo; `docs/block-library-from-r2.md` §11 is the procedure to change that, and
   unsetting the variable is the one-line rollback. Rendering still reads Postgres
@@ -371,5 +380,8 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   teammate's two-factor, but an owner who loses both their device and their
   backup codes needs a Super Admin action that E13-01 does not have. Manual
   database edit until then, which contradicts the self-served promise above.
+  **The admin panel exists now and still does not have it** — E13-01's
+  organization half is unbuilt, and impersonation carries a real design question
+  with it. `docs/E13-pending.md` §3a.
 - **No security-alert email.** Enabling, disabling or resetting two-factor
   notifies nobody. E12 specifies no such template.

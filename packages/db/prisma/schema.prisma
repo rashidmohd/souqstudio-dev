@@ -1019,7 +1019,7 @@ model ImageAsset {
   /// `shadowKey(r2Key, preset)` — a derived sibling, like the size ladder — and
   /// this column exists so a page can know a rendition is there without a HEAD
   /// against the bucket for every card it draws. E14 §2.4.
-  shadowPresets String[]      @default([])
+  shadowPresets String[]       @default([])
   /// Matting confidence, 0..1. Low scores route to review rather than shipping
   /// a haloed cutout onto a printed page.
   quality       Float?
@@ -2141,22 +2141,97 @@ model NotificationPreference {
 }
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
+/// A member of the SouqStudio team. E13-01.
+///
+/// **Completely separate from `users`.** A shop owner's account is a customer
+/// record; this is a staff record, and the two must never be reachable from one
+/// another. `apps/admin` reads this table and never `users`; `apps/web` reads
+/// `users` and never this one. That separation is the reason an admin login
+/// cannot be escalated out of a leaked customer password, and it is enforced by
+/// the app boundary rather than by a role column.
 model AdminUser {
-  id           String          @id @default(cuid())
-  email        String          @unique
+  id           String  @id @default(cuid())
+  email        String  @unique
+  /// Who this is, for the audit log to name. Optional because the first admin
+  /// is created from a shell and a name is not what makes the row work.
+  name         String?
   passwordHash String
   role         String // super_admin | catalog_manager | support_agent
-  lastLoginAt  DateTime?
-  auditLogs    AdminAuditLog[]
-  createdAt    DateTime        @default(now())
+
+  /// Off rather than deleted. Every `admin_audit_logs` row points here, so a
+  /// departing admin's history has to survive them. Setting this false ends
+  /// their sessions on the next request: `requireAdmin` re-reads the row every
+  /// time and an inactive admin resolves to no session at all.
+  isActive Boolean @default(true)
+
+  lastLoginAt DateTime?
+  auditLogs   AdminAuditLog[]
+  sessions    AdminSession[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@map("admin_users")
 }
 
+/// An admin's logged-in session. E13-01.
+///
+/// **A row rather than a signed stateless cookie**, for the same reason
+/// `sessions` is one: revocability. It matters more here than it does there.
+/// A staff session can reach every organization on the platform, so "log this
+/// person out now" has to be a fact about the system and not a wait for an
+/// expiry.
+///
+/// **`tokenHash` is a keyed hash, which is where `ADMIN_SESSION_SECRET` goes.**
+/// `sessions` stores a plain SHA-256 and is right to: a 256-bit CSPRNG token has
+/// no dictionary to attack. The key buys one extra thing, and it is an
+/// operational one rather than a cryptographic one: rotating the secret
+/// invalidates every admin session at once, without a migration and without a
+/// deploy touching the database. That is the break-glass control an admin panel
+/// wants and a shop owner's session layer has no use for.
+///
+/// Short-lived by default. An admin panel is a tool people open to do a thing,
+/// not a place they live.
+model AdminSession {
+  id          String @id @default(cuid())
+  adminUserId String
+  /// HMAC-SHA256 of the cookie token under `ADMIN_SESSION_SECRET`. The raw
+  /// token exists only in the cookie and is never stored or logged.
+  tokenHash   String @unique
+
+  /// For the sessions list, so an admin can recognise which one to end.
+  ipHash    String?
+  userAgent String?
+
+  expiresAt  DateTime
+  /// Set when the session was ended deliberately, by a logout or by another
+  /// admin. Distinct from expiry so the audit trail can tell the two apart.
+  revokedAt  DateTime?
+  lastUsedAt DateTime  @default(now())
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([adminUserId, expiresAt])
+  @@map("admin_sessions")
+}
+
+/// Every admin action, with what changed. E13-01.
+///
+/// **Written by the route, not by a Prisma hook.** A middleware that logged
+/// automatically would record the shape of the query rather than the intent of
+/// the action, and "what did somebody do" is the only question this table is
+/// for. `lib/audit.ts` is the single writer.
+///
+/// `before` and `after` hold only the fields the action touched. A whole-row
+/// snapshot makes a diff unreadable, and on a catalog row it would copy the
+/// product's metadata blob on every price fix.
 model AdminAuditLog {
   id          String    @id @default(cuid())
   adminUserId String
+  /// Verb, dot-separated, naming the thing and what happened to it:
+  /// `catalog.product.updated`, `library.block.published`, `prompt.updated`.
   action      String
+  /// The noun on its own, so the log can be filtered without parsing `action`.
   entityType  String
   entityId    String
   before      Json?
@@ -2164,5 +2239,8 @@ model AdminAuditLog {
   adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
   createdAt   DateTime  @default(now())
 
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([adminUserId, createdAt])
   @@map("admin_audit_logs")
 }

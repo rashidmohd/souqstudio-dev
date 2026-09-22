@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Arrangement, BlockElement } from '@souqstudio/types'
 import { PATH_SHAPES, usesOnlyRoles } from '@souqstudio/engine'
-import { FREE_ELEMENTS, SHAPE_VARIANTS, shapeElement } from '@/lib/block-elements'
+import { arrangementsSchema } from '@souqstudio/engine'
+import { FREE_ELEMENTS, SHAPE_VARIANTS, artShapeElement, shapeElement } from '@/lib/block-elements'
 
 /**
  * The shape kit, as the two things that mint it have to agree about it.
@@ -30,6 +31,17 @@ describe('SHAPE_VARIANTS', () => {
     expect([...SHAPE_VARIANTS.map((entry) => entry.value)].sort()).toEqual(
       [...PATH_SHAPES, 'rect', 'ellipse', 'line'].sort()
     )
+  })
+
+  /**
+   * **An uploaded outline is not something the grid can offer.** There is
+   * nothing to draw on a button and no box to seed until a file has been read,
+   * which is what `PickableShape` says in the types and what this says at
+   * runtime — a list that grew an `art` entry would render a button that mints
+   * an element the schema then refuses.
+   */
+  it('does not offer the uploaded shape as something to pick', () => {
+    expect(SHAPE_VARIANTS.map((entry) => entry.value)).not.toContain('art')
   })
 
   it('names each one once', () => {
@@ -110,5 +122,62 @@ describe('the rail shape tools', () => {
   it('keeps the line its stroke', () => {
     expect(shape(FREE_ELEMENTS.line()).stroke).toBeDefined()
     expect(shape(FREE_ELEMENTS.rectangle()).stroke).toBeUndefined()
+  })
+})
+
+/**
+ * An uploaded outline, as an element.
+ *
+ * The drawing itself is `svg-shape.test.ts`'s subject. What is checked here is
+ * the pairing the document schema enforces, because either half alone is an
+ * element that draws nothing and neither half is visible to the compiler.
+ */
+describe('artShapeElement', () => {
+  const ART = { width: 102.84, height: 88.07, paths: [{ d: 'M0,0H10V10H0Z' }] }
+
+  const arrangement = (elements: BlockElement[]) => [
+    { aspectMin: 0.1, aspectMax: 30, elements },
+  ]
+
+  it('names the variant that the outline belongs to', () => {
+    const element = shape(artShapeElement(ART))
+    expect(element.variant).toBe('art')
+    expect(element.art).toEqual(ART)
+  })
+
+  /**
+   * **Fitted, not stretched.** A viewBox is whatever units the owner's drawing
+   * program used, so the numbers mean nothing on a card — but the *ratio* is
+   * theirs, and a drawing squashed on arrival is one they have to fix before
+   * they can judge it.
+   */
+  it('keeps the drawing its proportion when it lands', () => {
+    const element = shape(artShapeElement(ART))
+    const landed = element.box.width / element.box.height
+    expect(landed).toBeCloseTo(ART.width / ART.height, 5)
+  })
+
+  it('lands a tall drawing inside the card too', () => {
+    const element = shape(artShapeElement({ ...ART, width: 40, height: 160 }))
+    expect(element.box.top + element.box.height).toBeLessThanOrEqual(1)
+    expect(element.box.start + element.box.width).toBeLessThanOrEqual(1)
+  })
+
+  it('colours it from the palette, not from the file', () => {
+    expect(shape(artShapeElement(ART)).fill).toEqual({ from: 'role', ref: 'accent' })
+  })
+
+  it('is accepted by the document schema', () => {
+    expect(() => arrangementsSchema.parse(arrangement([artShapeElement(ART)]))).not.toThrow()
+  })
+
+  it('refuses an outline whose variant does not name it', () => {
+    const element = { ...shape(artShapeElement(ART)), variant: 'rect' as const }
+    expect(() => arrangementsSchema.parse(arrangement([element]))).toThrow()
+  })
+
+  it('refuses the variant without an outline', () => {
+    const { art: _dropped, ...element } = shape(artShapeElement(ART))
+    expect(() => arrangementsSchema.parse(arrangement([element]))).toThrow()
   })
 })

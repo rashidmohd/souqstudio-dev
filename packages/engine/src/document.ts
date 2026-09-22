@@ -475,6 +475,45 @@ const priceMarkStyleSchema = z.strictObject({
     .optional(),
 })
 
+/**
+ * An uploaded outline, validated as geometry and nothing else.
+ *
+ * **These patterns are the security boundary, not a tidiness check.** Nothing
+ * upstream sanitises an SVG, because nothing upstream keeps one — the parser
+ * reads a file and returns numbers. What lands here is therefore the only thing
+ * that has to be true: a `d` that is path commands and digits, and a transform
+ * that is one of six named functions taking numbers. Neither alphabet can spell
+ * a URL, an entity, an element or a script, so a stored document cannot carry
+ * one however it was written, by our own parser or by an import.
+ */
+const PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,+\-\s]+$/
+const TRANSFORM = /^(?:(?:matrix|translate|scale|rotate|skewX|skewY)\(\s*[-+0-9eE.,\s]+\)\s*)+$/
+
+/** Past this a drawing is a file rather than a shape, and the page carries it every read. */
+const MAX_ART_BYTES = 16_384
+
+const shapeArtSchema = z
+  .strictObject({
+    // A viewBox of zero scales to nothing; one in the millions is a file that
+    // was authored in the wrong units and will land as a smear.
+    width: z.number().finite().gt(0).max(100_000),
+    height: z.number().finite().gt(0).max(100_000),
+    paths: z
+      .array(
+        z.strictObject({
+          d: z.string().min(2).max(MAX_ART_BYTES).regex(PATH_DATA),
+          transform: z.string().max(512).regex(TRANSFORM).optional(),
+          evenOdd: z.boolean().optional(),
+        })
+      )
+      .min(1)
+      .max(64),
+  })
+  .refine(
+    (art) => art.paths.reduce((total, path) => total + path.d.length, 0) <= MAX_ART_BYTES,
+    { message: 'That drawing has too much detail to carry on a card' }
+  )
+
 const elementSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     ...baseSchema,
@@ -621,6 +660,10 @@ const elementSchema = z.discriminatedUnion('kind', [
     // on a printed ticket — had to be faked with one filled rectangle on
     // another. E14 §2.4.
     fill: colorSchema.optional(),
+    // Present exactly when `variant` is `art`; the arrangement refuses the pair
+    // separately, because a member of a discriminated union cannot carry its
+    // own refinement.
+    art: shapeArtSchema.optional(),
     // The three primitives, then the six an offer card is actually made of,
     // then the one whose geometry the owner sets rather than picks.
     // `radius` applies to the rectangle and the polygon; the other paths
@@ -641,6 +684,7 @@ const elementSchema = z.discriminatedUnion('kind', [
         'arch',
         'wave',
         'bubble',
+        'art',
       ])
       .optional(),
     // **The bounds are the schema's, not the control's.** A block arrives here
@@ -688,6 +732,22 @@ const arrangementSchema = z
   .refine((value) => value.aspectMin <= value.aspectMax, {
     message: 'An arrangement cannot end at a narrower shape than it starts',
   })
+  /**
+   * **`art` and the variant that names it arrive together or not at all.**
+   * Either half alone is an element that draws nothing: a variant with no
+   * outline falls through every branch of the painter, and an outline the
+   * variant does not name is bytes nobody reads. It is checked here rather than
+   * on the element because `z.discriminatedUnion` takes objects, and an object
+   * carrying a refinement is no longer one.
+   */
+  .refine(
+    (value) =>
+      value.elements.every(
+        (element) =>
+          element.kind !== 'shape' || (element.variant === 'art') === (element.art !== undefined)
+      ),
+    { message: 'An uploaded shape needs its outline, and an outline needs to be named' }
+  )
 
 export const arrangementsSchema = z.array(arrangementSchema).min(1).max(MAX_ARRANGEMENTS)
 

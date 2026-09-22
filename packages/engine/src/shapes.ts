@@ -18,6 +18,7 @@
  * Nothing here knows about pixels, and nothing here knows about the block.
  */
 
+import type { ShapeArt } from '@souqstudio/types'
 import type { TextMeasurer } from './fit'
 import type { Direction, Rect } from './geometry'
 
@@ -608,6 +609,32 @@ export function shapeExtent(shape: PathShape, rect: Rect): Rect {
 
 /** `tag` punches a hole, so it is the one shape that needs the even-odd rule. */
 export const needsEvenOdd = (shape: PathShape): boolean => shape === 'tag'
+
+/**
+ * Where an uploaded outline sits, as the transform that puts it there.
+ *
+ * **Here for the same reason every other shape is here.** The drawing is stored
+ * in its own viewBox coordinates and has to land in the box the owner dragged;
+ * the screen doing that arithmetic and the export worker doing it again is the
+ * drift this file exists to prevent, arriving as a bubble a few percent bigger
+ * in the PDF than on the canvas.
+ *
+ * **A transform rather than rewritten coordinates.** Applying a scale to path
+ * data means parsing every command and re-emitting it, arcs included — a second
+ * path implementation, written to avoid carrying a string of six numbers. SVG
+ * already has the operation; both renderers are SVG.
+ *
+ * **It does not mirror in Arabic**, and that is a deliberate exception to what
+ * the computed shapes do. A tag and an arrow mirror because they are furniture
+ * pointing the way the text runs; an uploaded drawing is the shop's own, and a
+ * shop that uploads a mark with a word in it would find the word backwards on
+ * the Arabic edition. Direction is the card's; the drawing is theirs.
+ */
+export function artTransform(art: ShapeArt, rect: Rect): string {
+  const sx = rect.width / art.width
+  const sy = rect.height / art.height
+  return `translate(${rect.x} ${rect.y}) scale(${sx} ${sy})`
+}
 
 /**
  * The shapes an offer badge may take. E7.

@@ -19,14 +19,16 @@
     "catalog:import-unioncoop": "tsx scripts/import-unioncoop.ts",
     "catalog:seed-demo": "tsx scripts/seed-catalog-demo.ts",
     "catalog:harness-export": "tsx scripts/export-harness-products.ts",
-    "blocks:convert-logo": "tsx --env-file-if-exists=../../apps/web/.env.local scripts/convert-logo-elements.ts"
+    "blocks:convert-logo": "tsx --env-file-if-exists=../../apps/web/.env.local scripts/convert-logo-elements.ts",
+    "admin:create": "tsx --env-file-if-exists=.env scripts/create-admin.ts"
   },
   "dependencies": {
     "@souqstudio/types": "workspace:*",
     "@prisma/client": "^5.0.0",
     "bullmq": "^5.0.0",
     "ioredis": "^5.0.0",
-    "@souqstudio/engine": "workspace:*"
+    "@souqstudio/engine": "workspace:*",
+    "bcryptjs": "^3.0.3"
   },
   "devDependencies": {
     "@souqstudio/config": "workspace:*",

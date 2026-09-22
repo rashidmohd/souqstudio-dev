@@ -1,4 +1,4 @@
-import type { BlockElement, Box, FlatColor } from '@souqstudio/types'
+import type { BlockElement, Box, FlatColor, ShapeArt } from '@souqstudio/types'
 
 /**
  * Minting elements for the designer. E7.
@@ -45,8 +45,18 @@ const role = (ref: 'primary' | 'secondary' | 'accent' | 'surface' | 'ink' | 'ink
   ref,
 })
 
-/** Every shape a `kind: 'shape'` element may be. */
+/** Every shape a `kind: 'shape'` element may be, uploaded outlines included. */
 export type ShapeVariant = NonNullable<Extract<BlockElement, { kind: 'shape' }>['variant']>
+
+/**
+ * The shapes an owner picks from a grid.
+ *
+ * **`art` is not one of them**, and the distinction is worth a type rather than
+ * a convention: an uploaded outline has no box to seed and no mark to draw
+ * until its file has been read, so every list, picker and preview that offers
+ * "a shape" means these thirteen. The compiler says so at each of them.
+ */
+export type PickableShape = Exclude<ShapeVariant, 'art'>
 
 /**
  * Which shapes exist, in the order they are offered, and what each is called.
@@ -60,7 +70,7 @@ export type ShapeVariant = NonNullable<Extract<BlockElement, { kind: 'shape' }>[
  * first, because a rectangle is what most owners reach for, then the offer
  * furniture, because a burst is what an offer card is usually about.
  */
-export const SHAPE_VARIANTS: { value: ShapeVariant; label: string }[] = [
+export const SHAPE_VARIANTS: { value: PickableShape; label: string }[] = [
   { value: 'rect', label: 'Rectangle' },
   { value: 'ellipse', label: 'Circle' },
   { value: 'line', label: 'Line' },
@@ -107,7 +117,7 @@ type ShapeSeed = {
  * the owner never picked, and the fill control is beside them when they want a
  * different one.
  */
-const SHAPE_SEEDS: Record<ShapeVariant, ShapeSeed> = {
+const SHAPE_SEEDS: Record<PickableShape, ShapeSeed> = {
   rect: { box: { start: 0.15, top: 0.3, width: 0.7, height: 0.3 }, fill: role('primary'), radius: 3 },
   ellipse: { box: { start: 0.3, top: 0.3, width: 0.4, height: 0.4 }, fill: role('accent'), radius: 0 },
   line: {
@@ -132,8 +142,39 @@ const SHAPE_SEEDS: Record<ShapeVariant, ShapeSeed> = {
   bubble: { box: { start: 0.18, top: 0.3, width: 0.64, height: 0.3 }, fill: role('accent'), radius: 0 },
 }
 
+/**
+ * Mint a shape from an outline the owner uploaded.
+ *
+ * **It lands in the middle at a readable size, not at the drawing's own.** A
+ * viewBox is the size somebody's drawing program happened to use and means
+ * nothing on a card: the same bubble arrives as 102 units from one export and
+ * 1024 from another, and honouring either would drop it onto the artboard at a
+ * size that says more about their software than their intent. The proportion is
+ * theirs, though — a drawing squashed on arrival is one they have to fix before
+ * they can judge it — so it is fitted inside a square rather than stretched to
+ * fill one.
+ *
+ * The drawing's own fill is already gone by the time it gets here. `accent`
+ * from the shop's palette is what colours it, which is the difference between
+ * this and the same file uploaded as artwork.
+ */
+export function artShapeElement(art: ShapeArt): BlockElement {
+  const wide = art.width >= art.height
+  const width = wide ? 0.44 : 0.44 * (art.width / art.height)
+  const height = wide ? 0.44 * (art.height / art.width) : 0.44
+  return {
+    id: newElementId(),
+    kind: 'shape',
+    box: { start: (1 - width) / 2, top: (1 - height) / 2, width, height },
+    fill: role('accent'),
+    variant: 'art',
+    art,
+    radius: 0,
+  }
+}
+
 /** Mint one shape, placed and coloured by the table above. */
-export function shapeElement(variant: ShapeVariant): BlockElement {
+export function shapeElement(variant: PickableShape): BlockElement {
   const seed = SHAPE_SEEDS[variant]
   return {
     id: newElementId(),

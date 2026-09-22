@@ -414,6 +414,55 @@ export interface Extrude {
  *
  * `start` rather than `left`: logical, so RTL mirrors for free.
  */
+/**
+ * A drawing the owner uploaded, as geometry and nothing else.
+ *
+ * **The file is not kept, and that is the security design rather than an
+ * economy.** `lib/artwork.ts` rasterises uploaded SVG because an SVG served
+ * from our own domain is script-bearing content. A *shape* does not need the
+ * file served — it needs the outline — so the parser takes the path data and
+ * discards the document. Nothing SVG reaches the bucket, nothing SVG is served,
+ * and there is no sanitiser to keep current against the next `<foreignObject>`
+ * trick, because there is no document left to sanitise. The fields below are
+ * the entire surface: coordinates, and a transform made of numbers.
+ *
+ * **Inline on the element rather than an asset.** Geometry is a few hundred
+ * bytes and it is what the element *is*, not something the element points at.
+ * An asset row would buy a second fetch, a second failure mode and an orphan to
+ * collect, for a payload smaller than the id naming it.
+ *
+ * The owner's own fill is thrown away on the way in. `fill` on the element is
+ * what colours this, which is the whole reason an upload becomes a shape rather
+ * than a picture: a drawing that arrives white stays white forever, and a shape
+ * follows the shop.
+ */
+export interface ShapeArt {
+  /** The source viewBox, so the outline can be scaled into whatever box the owner drags. */
+  width: number
+  height: number
+  /**
+   * The outlines, in the source's own coordinates.
+   *
+   * A list rather than one concatenated `d`, because a `transform` belongs to
+   * the element that carried it and concatenating two paths under different
+   * transforms draws neither. It is also the seam a per-outline fill would use
+   * if "recolour each part separately" is ever built; today every outline takes
+   * the element's one fill.
+   */
+  paths: {
+    d: string
+    /**
+     * The source's own transform, with every ancestor's composed in front of
+     * it. Kept verbatim rather than applied, because applying one means
+     * rewriting every coordinate of every command including arcs — a second
+     * path implementation, to avoid carrying a string of numbers.
+     */
+    transform?: string | undefined
+    /** The source's `fill-rule`. Absent is SVG's own default, which is non-zero. */
+    evenOdd?: boolean | undefined
+  }[]
+}
+
 export interface Box {
   start: number
   top: number
@@ -794,6 +843,15 @@ export type BlockElement =
        * burst drawn by the screen and a burst drawn by the export worker have to
        * be the same burst.
        */
+      /**
+       * The uploaded outline, present exactly when `variant` is `art`.
+       *
+       * **A shape rather than an image, which is the entire point.** The same
+       * drawing uploaded through `Upload artwork` is rasterised to a PNG and
+       * lands as a picture with a frozen colour; here it keeps its geometry and
+       * takes `fill`, `stroke`, `shadow` and the rest of the shape vocabulary.
+       */
+      art?: ShapeArt | undefined
       variant?:
         | 'rect'
         | 'ellipse'
@@ -808,6 +866,11 @@ export type BlockElement =
         | 'arch'
         | 'wave'
         | 'bubble'
+        // **Not a shape anybody picks from the grid** — it is the one that
+        // arrives with its own outline, and `art` is where that outline is.
+        // A document naming it without one draws nothing, which is why the
+        // schema refuses the pair separately.
+        | 'art'
         | undefined
       /**
        * How many sides a `polygon` has. Ignored by every other variant.
