@@ -95,14 +95,34 @@ const CANVAS_EDGE = 720
  * shape a book actually produces: the page formats `pageSizeFor` knows, plus the
  * two bands a merged region makes.
  */
-type PageShape = 'a4' | 'square' | 'story' | 'band' | 'half'
+type PageShape = 'story' | 'a4' | 'square' | 'half' | 'band' | 'any'
 
-const PAGE_SHAPES: Record<PageShape, { label: string; aspect: number; width: number }> = {
-  a4: { label: 'A4 page', aspect: 1240 / 1754, width: 1240 },
-  square: { label: 'Square post', aspect: 1, width: 1080 },
-  story: { label: 'Story', aspect: 1080 / 1920, width: 1080 },
-  band: { label: 'Band across a page', aspect: 3.2, width: 1240 },
-  half: { label: 'Half a page', aspect: 1.4, width: 1240 },
+/**
+ * Each shape carries the aspect range it stands for, because **the shape an
+ * owner picks is written onto the layout** rather than kept beside it.
+ *
+ * The ranges meet at shared endpoints, the way `library-kit`'s four do, so the
+ * five named shapes cover the line an owner can reach without a hole between
+ * them and `shapeFor` can read one back. They are the designer's own vocabulary
+ * and not the seeded constants: `PAGE` is deliberately wide enough to hold both
+ * an A4 page and a story, which is exactly the distinction this picker has to
+ * be able to make.
+ *
+ * `any` is the shape-agnostic escape hatch and the one entry that is not a
+ * shape at all. A message panel crops into anything close, so it claims the
+ * open range; it is drawn at the half page because an open range's middle is
+ * 1.7 and that is the nearest shape an owner can name.
+ */
+const PAGE_SHAPES: Record<
+  PageShape,
+  { label: string; aspect: number; width: number; aspectMin: number; aspectMax: number }
+> = {
+  story: { label: 'Story', aspect: 1080 / 1920, width: 1080, aspectMin: 0.45, aspectMax: 0.62 },
+  a4: { label: 'A4 page', aspect: 1240 / 1754, width: 1240, aspectMin: 0.62, aspectMax: 0.85 },
+  square: { label: 'Square post', aspect: 1, width: 1080, aspectMin: 0.85, aspectMax: 1.2 },
+  half: { label: 'Half a page', aspect: 1.4, width: 1240, aspectMin: 1.2, aspectMax: 2.2 },
+  band: { label: 'Band across a page', aspect: 3.2, width: 1240, aspectMin: 2.2, aspectMax: 30 },
+  any: { label: 'Any shape', aspect: 1.4, width: 1240, aspectMin: 0.1, aspectMax: 30 },
 }
 
 /**
@@ -122,21 +142,46 @@ function pageSize(shape: PageShape): { width: number; height: number } {
 }
 
 /**
- * What a block opens at, read from the shape it was drawn for.
+ * The shape a layout was drawn for, read back off its own aspect range.
  *
- * A footer or a hero band is wide and should not open as a portrait page; a
- * message block is roughly square. Guessing from the elements would be reading
- * tea leaves, so this reads the arrangement's own range and picks the nearest
- * named shape — which for the seeded blocks' open range lands on the page.
+ * **The inverse of the picker, and it has to stay one.** The shape was state
+ * the designer kept and threw away on close, so an owner who drew a story
+ * reopened on the band the seeded range still claimed — and the book agreed
+ * with the range rather than with the drawing, because element boxes are
+ * fractions of their container and a design is only true at the aspect it was
+ * drawn at. The range is the whole of that promise, so the range is what the
+ * picker writes and what this reads.
+ *
+ * Matched in three steps, narrowest first. The open range is checked by both
+ * its endpoints, so a panel that genuinely claims every shape is not mistaken
+ * for the half page its middle sits on. Everything else is placed by its middle
+ * — which puts the seeded `PAGE`, `SQUARE`, `HALF` and `STRIP` on the page, the
+ * square post, the half page and the band respectively. A range that reaches
+ * past both ends of the list falls to the nearest, because the canvas has to
+ * draw something.
  */
-function defaultShape(arrangement: Arrangement | undefined): PageShape {
+export function shapeFor(arrangement: Arrangement | undefined): PageShape {
   if (arrangement === undefined) return 'a4'
+
+  const open = PAGE_SHAPES.any
+  if (near(arrangement.aspectMin, open.aspectMin) && near(arrangement.aspectMax, open.aspectMax)) {
+    return 'any'
+  }
+
   const middle = Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)
-  if (middle > 6) return 'band'
-  if (middle > 1.2) return 'half'
-  if (middle > 0.85) return 'square'
-  return 'a4'
+  const named = NAMED_SHAPES.find(
+    (shape) => middle >= PAGE_SHAPES[shape].aspectMin && middle <= PAGE_SHAPES[shape].aspectMax
+  )
+  if (named !== undefined) return named
+
+  return middle < PAGE_SHAPES.story.aspectMin ? 'story' : 'band'
 }
+
+/** The five shapes a block is actually drawn at, tallest first. `any` is not one. */
+const NAMED_SHAPES: readonly PageShape[] = ['story', 'a4', 'square', 'half', 'band']
+
+/** Within a twentieth of each other, which is closer than two ranges ever are. */
+const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.05
 
 export function DesignerShell({
   onClose,
@@ -191,16 +236,19 @@ export function DesignerShell({
    * Showing it at one end would be designing for the edge case and eyeballing
    * the rest.
    *
-   * **A block placed once is drawn at whatever the owner is designing for**, and
-   * that is the whole of what "design a page rather than a card" needs: a cover,
-   * a full-page brand panel and a footer band are the same kind of object at
-   * three shapes, and the aspect range stays open because a static block
-   * letterboxes into anything close. The picker changes the *canvas*, never the
-   * document.
+   * **A block placed once is drawn at the shape its layout says it is for**, and
+   * that is the same rule stated for a block that carries one arrangement. A
+   * cover, a full-page brand panel and a footer band are the same kind of object
+   * at three shapes, and the shape is the layout's own range — so this is read,
+   * never held. Held, it was lost on close and the design reopened on whatever
+   * shape the range had claimed since the block was seeded.
+   *
+   * **The picker now changes the document**, which is the point: a design drawn
+   * at one aspect is only true at that aspect, so an owner who wants the block
+   * at a second shape adds a second layout and draws it, exactly as a repeating
+   * card already does.
    */
-  const [pageShape, setPageShape] = React.useState<PageShape>(() =>
-    repeats ? 'a4' : defaultShape(initialArrangements[0])
-  )
+  const pageShape = shapeFor(arrangement)
 
   const aspect = repeats
     ? clamp(
@@ -558,17 +606,68 @@ export function DesignerShell({
                 repeats ? (
                   <ArrangementTabs />
                 ) : (
-                  <InlineSelect
-                    label="Designing for"
-                    className="w-field-select"
-                    value={pageShape}
-                    leading={<ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />}
-                    options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
-                      value: shape,
-                      label: PAGE_SHAPES[shape].label,
-                    }))}
-                    onChange={setPageShape}
-                  />
+                  <>
+                    {/* **Only once there is a second one to choose between.** A
+                        panel carries one layout in the ordinary case, and a
+                        picker with a single option is a control that teaches an
+                        owner nothing and still costs them a glance. */}
+                    {store.arrangements.length > 1 ? (
+                      <InlineSelect
+                        label="Layout"
+                        className="w-field-select"
+                        value={String(store.arrangementIndex)}
+                        leading={<ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />}
+                        options={store.arrangements.map((item, i) => ({
+                          value: String(i),
+                          label: PAGE_SHAPES[shapeFor(item)].label,
+                        }))}
+                        onChange={(next) => store.selectArrangement(Number(next))}
+                      />
+                    ) : null}
+
+                    <InlineSelect
+                      label="Designing for"
+                      className="w-field-select"
+                      value={pageShape}
+                      disabled={!editable}
+                      leading={<ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />}
+                      options={(Object.keys(PAGE_SHAPES) as PageShape[]).map((shape) => ({
+                        value: shape,
+                        label: PAGE_SHAPES[shape].label,
+                      }))}
+                      // **Writes the shape onto the layout**, which is what
+                      // makes it survive the close and what makes a book draw
+                      // the panel where it was drawn. `setAspect` takes the
+                      // checkpoint, so a shape picked by accident undoes like
+                      // anything else.
+                      onChange={(shape) =>
+                        setAspect(PAGE_SHAPES[shape].aspectMin, PAGE_SHAPES[shape].aspectMax)
+                      }
+                    />
+
+                    {/* **The way out of one shape per layout.** Reshaping the
+                        open layout is the right answer for a panel drawn at the
+                        wrong aspect and the wrong one for a panel that has to
+                        work at two, so the second shape is a second layout and
+                        the block reflows into whichever the region asks for —
+                        the same mechanism a repeating card has always used. */}
+                    {editable ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={store.arrangements.length >= MAX_ARRANGEMENTS}
+                        title={
+                          store.arrangements.length >= MAX_ARRANGEMENTS
+                            ? `A block may carry ${MAX_ARRANGEMENTS} layouts.`
+                            : undefined
+                        }
+                        onClick={addStillArrangement}
+                      >
+                        <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                        Add a layout
+                      </Button>
+                    ) : null}
+                  </>
                 )
               }
               count={store.selectedIds.length}
@@ -722,6 +821,50 @@ export function DesignerShell({
       save: 'dirty',
     })
   }
+}
+
+/**
+ * The shape a second layout should start at: the first named one nothing claims
+ * yet, tallest first, and the band when an owner has worked through all five.
+ *
+ * A copy of the range it was copied from would be two layouts claiming the same
+ * shape, which `coverageProblems` reports as an overlap and which is never what
+ * the owner meant by "add" — they are here because the block has to work
+ * somewhere else.
+ */
+export function nextStillShape(arrangements: readonly Arrangement[]): PageShape {
+  const claimed = new Set(arrangements.map(shapeFor))
+  return NAMED_SHAPES.find((shape) => !claimed.has(shape)) ?? 'band'
+}
+
+/**
+ * A second layout for a block placed once, drawn from the one currently open.
+ *
+ * `ArrangementTabs.add` is the same move for a repeating card and stays there:
+ * that one walks up from the widest range it already carries, because a card's
+ * layouts partition a continuum of merges, while a panel's name the handful of
+ * page shapes a book actually produces.
+ */
+function addStillArrangement(): void {
+  const state = useDesignerStore.getState()
+  const current = state.arrangements[state.arrangementIndex]
+  if (current === undefined || state.arrangements.length >= MAX_ARRANGEMENTS) return
+
+  const shape = PAGE_SHAPES[nextStillShape(state.arrangements)]
+  const copy: Arrangement = {
+    aspectMin: shape.aspectMin,
+    aspectMax: shape.aspectMax,
+    elements: structuredClone(current.elements) as BlockElement[],
+  }
+
+  useDesignerStore.setState({
+    arrangements: [...state.arrangements, copy],
+    arrangementIndex: state.arrangements.length,
+    selectedIds: [],
+    past: [...state.past, state.arrangements].slice(-50),
+    future: [],
+    save: 'dirty',
+  })
 }
 
 /**

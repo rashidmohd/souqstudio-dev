@@ -88,10 +88,16 @@ export function BlockProperties({
             This layout
           </legend>
 
+          {/* **Two readings of one field, because the two kinds of block reach
+              it differently.** A repeating card's range is a claim over a
+              continuum of merges and is typed here; a panel's is the shape it
+              was drawn at, which the picker above the canvas writes. Leaving
+              the fields open on a panel is deliberate: they are how an owner
+              reaches a shape the picker does not name. */}
           <p className="font-ui text-body-sm text-muted">
-            Used when the space it lands in is between these shapes. Shape is
-            width divided by height. A tall booklet cell is about 0.7, a square post
-            is 1, a two-column merge is 2.
+            {repeats
+              ? 'Used when the space it lands in is between these shapes. Shape is width divided by height. A tall booklet cell is about 0.7, a square post is 1, a two-column merge is 2.'
+              : 'The shape this layout was drawn at, which the picker above the canvas sets. Shape is width divided by height, so a story is about 0.56, an A4 page 0.7 and a band across a page 3.2.'}
           </p>
 
           <div className="grid grid-cols-2 gap-3">
