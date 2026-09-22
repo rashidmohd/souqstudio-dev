@@ -173,6 +173,7 @@ export {
   SNAP,
   snap,
   moveBox,
+  recentre,
   resizeBox,
   addElement,
   removeElement,

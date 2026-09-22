@@ -6,6 +6,7 @@ import {
   addElement,
   isBound,
   moveBox,
+  recentre,
   removeElement,
   reorderElement,
   replaceElement,
@@ -216,6 +217,90 @@ describe('resizeBox', () => {
       expect(resized.height).toBeCloseTo(0.2)
       expect(resized.width).toBeCloseTo(0.6)
     })
+  })
+})
+
+describe('recentre', () => {
+  const board = { width: 1000, height: 1000, mirror: false }
+
+  /** Where a box's corner actually lands once its own turn is applied. */
+  const cornerOf = (box: Box, turn: number, at: { fx: number; fy: number }) => {
+    const cx = box.start + box.width / 2
+    const cy = box.top + box.height / 2
+    const px = box.start + box.width * at.fx
+    const py = box.top + box.height * at.fy
+    const radians = (turn * Math.PI) / 180
+    const cos = Math.cos(radians)
+    const sin = Math.sin(radians)
+    return {
+      x: cx + (px - cx) * cos - (py - cy) * sin,
+      y: cy + (px - cx) * sin + (py - cy) * cos,
+    }
+  }
+
+  it('costs an upright element nothing', () => {
+    expect(recentre(box(0.2, 0.2, 0.4, 0.4), box(0.2, 0.2, 0.6, 0.6), 0, board)).toEqual({
+      start: 0,
+      top: 0,
+    })
+  })
+
+  /**
+   * **The corner the owner is not dragging has to stay where they left it.**
+   * A rotation is about the element's own centre, and resizing with one edge
+   * pinned moves that centre — so without this the far corner of a shape turned
+   * 30° walks across the card while the near one follows the pointer.
+   */
+  it.each([15, 30, 90, -45])('holds the pinned corner at %i°', (turn) => {
+    const before = box(0.2, 0.2, 0.4, 0.4)
+    // Dragged from the end-bottom handle, so the start-top corner is pinned.
+    const grown = resizeBox(before, 'end-bottom', 0.2, 0.15)
+    const drift = recentre(before, grown, turn, board)
+    const after = {
+      ...grown,
+      start: grown.start + drift.start,
+      top: grown.top + drift.top,
+    }
+
+    const pinned = { fx: 0, fy: 0 }
+    expect(cornerOf(after, turn, pinned).x).toBeCloseTo(cornerOf(before, turn, pinned).x, 6)
+    expect(cornerOf(after, turn, pinned).y).toBeCloseTo(cornerOf(before, turn, pinned).y, 6)
+  })
+
+  it('holds the other corner when the other handle is dragged', () => {
+    const before = box(0.3, 0.3, 0.4, 0.4)
+    const grown = resizeBox(before, 'start-top', -0.15, -0.1)
+    const drift = recentre(before, grown, 40, board)
+    const after = {
+      ...grown,
+      start: grown.start + drift.start,
+      top: grown.top + drift.top,
+    }
+
+    const pinned = { fx: 1, fy: 1 }
+    expect(cornerOf(after, 40, pinned).x).toBeCloseTo(cornerOf(before, 40, pinned).x, 6)
+    expect(cornerOf(after, 40, pinned).y).toBeCloseTo(cornerOf(before, 40, pinned).y, 6)
+  })
+
+  /**
+   * `start` runs the other way in an Arabic edition and the turn does not, so
+   * the shift is flipped on the way in and back on the way out. Getting that
+   * wrong sends the correction the wrong way — twice the error rather than
+   * none.
+   */
+  it('mirrors for an Arabic artboard', () => {
+    const before = box(0.2, 0.2, 0.4, 0.4)
+    const grown = resizeBox(before, 'end-bottom', 0.2, 0.15)
+    const ltr = recentre(before, grown, 30, board)
+    const rtl = recentre(before, grown, 30, { ...board, mirror: true })
+
+    expect(rtl.start).not.toBeCloseTo(ltr.start, 6)
+    expect(rtl.top).not.toBeCloseTo(ltr.top, 6)
+  })
+
+  it('is unaffected by a resize that does not move the centre', () => {
+    const same = box(0.2, 0.2, 0.4, 0.4)
+    expect(recentre(same, same, 45, board)).toMatchObject({ start: 0, top: 0 })
   })
 })
 

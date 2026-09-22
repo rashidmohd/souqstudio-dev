@@ -282,6 +282,48 @@ export function resizeBox(
   }
 }
 
+/**
+ * The shift that keeps a rotated element's pinned corner where the owner left
+ * it, in the logical fractions a box is written in.
+ *
+ * A rotation is about the element's own centre. Resize with one edge pinned and
+ * the centre moves, so every point swings about the *new* centre instead of the
+ * old one — the far corner of a shape turned 30° walks across the card while
+ * the near one follows the pointer. Solving
+ * `c₁ + t + R(p − c₁) = c₀ + R(p − c₀)` for the shift `t` leaves
+ * `t = (c₀ − c₁) − R(c₀ − c₁)`: the part of the centre's movement that the
+ * turn does not already account for.
+ *
+ * Zero at zero degrees, where `R` is the identity — an upright drag pays
+ * nothing for this.
+ */
+export function recentre(
+  before: Box,
+  after: Box,
+  turn: number,
+  artboard: { width: number; height: number; mirror: boolean }
+): { start: number; top: number } {
+  if (turn === 0) return { start: 0, top: 0 }
+
+  // Artboard units, because a vector in fractions of two different lengths
+  // cannot be rotated — the same reason `screenDelta` works in them. And on
+  // the *screen's* axes, because the turn is: `start` runs the other way in an
+  // Arabic edition, so it is flipped on the way in and back on the way out.
+  const sign = artboard.mirror ? -1 : 1
+  const dx =
+    (before.start + before.width / 2 - (after.start + after.width / 2)) * artboard.width * sign
+  const dy = (before.top + before.height / 2 - (after.top + after.height / 2)) * artboard.height
+
+  const radians = (turn * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+
+  return {
+    start: ((dx - (dx * cos - dy * sin)) / artboard.width) * sign,
+    top: (dy - (dx * sin + dy * cos)) / artboard.height,
+  }
+}
+
 // ─── Element lists ────────────────────────────────────────────────────────────
 //
 // Array order is z-order — later elements paint over earlier ones, which is what

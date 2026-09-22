@@ -6,6 +6,7 @@ import {
   BLEED,
   isBound,
   moveBox,
+  recentre,
   SNAP,
   resizeBox,
   resolveBlock,
@@ -166,15 +167,48 @@ export function BlockArtboard({
     direction
   )
 
-  /** Client pixels to block fractions, with RTL's one sign flip. */
-  function delta(event: React.PointerEvent, from: { startX: number; startY: number }) {
+  /**
+   * Client pixels to **artboard units, on the screen's own axes**.
+   *
+   * Artboard units rather than fractions, because the next thing that happens
+   * to a resize delta is a rotation — and a vector written as a fraction of the
+   * width and a fraction of the height cannot be rotated. The two axes are
+   * different lengths, so turning it 90° would stretch it.
+   */
+  function screenDelta(event: React.PointerEvent, from: { startX: number; startY: number }) {
     const rect = svgRef.current?.getBoundingClientRect()
-    if (rect === undefined || rect.width === 0 || rect.height === 0) return { dStart: 0, dTop: 0 }
+    if (rect === undefined || rect.width === 0 || rect.height === 0) return { dx: 0, dy: 0 }
 
-    const dx = (event.clientX - from.startX) / rect.width
     return {
-      dStart: direction === 'rtl' ? -dx : dx,
-      dTop: (event.clientY - from.startY) / rect.height,
+      dx: ((event.clientX - from.startX) / rect.width) * width,
+      dy: ((event.clientY - from.startY) / rect.height) * height,
+    }
+  }
+
+  /**
+   * Artboard units to the logical fractions a box is written in.
+   *
+   * **The mirror happens here and only here**, after any rotation has been
+   * undone: an element is drawn rotated in *screen* space — `resolveBlock` has
+   * already mirrored its rectangle by then — so the turn has to come off in
+   * screen space too, and the reading direction is applied to what is left.
+   */
+  function logical(vector: { dx: number; dy: number }) {
+    return {
+      dStart: (direction === 'rtl' ? -vector.dx : vector.dx) / width,
+      dTop: vector.dy / height,
+    }
+  }
+
+  /** A screen-space vector in an element's own axes: the turn, taken off. */
+  function untilted(vector: { dx: number; dy: number }, turn: number) {
+    if (turn === 0) return vector
+    const radians = (-turn * Math.PI) / 180
+    const cos = Math.cos(radians)
+    const sin = Math.sin(radians)
+    return {
+      dx: vector.dx * cos - vector.dy * sin,
+      dy: vector.dx * sin + vector.dy * cos,
     }
   }
 
@@ -202,27 +236,70 @@ export function BlockArtboard({
       return
     }
 
-    const { dStart, dTop } = delta(event, active)
+    const screen = screenDelta(event, active)
     const moving = new Set(selectedIds)
 
     if (active.kind === 'rotate') {
-      // A drag to the side turns the element. Vertical movement is ignored:
-      // a rotation handle that responds to both axes spins wildly as soon as
-      // the pointer crosses the centre.
-      const turn = Math.round(dStart * 180)
+      /*
+       * **The angle the pointer stands at, not how far sideways it went.**
+       *
+       * A horizontal-only gesture was defensible while the handle sat above an
+       * upright box: it reads as a slider and it cannot spin. It stops being
+       * defensible the moment the handle turns with the shape — at 90° the
+       * handle is out to the side, and dragging it *along* the arc it should
+       * follow does nothing while dragging it away from the shape turns it.
+       *
+       * Measured from the centre, the handle simply goes where the pointer is,
+       * and the wild spinning the old comment warned about does not happen: it
+       * came from feeding two axes into one number, not from using the angle.
+       */
+      const rect = svgRef.current?.getBoundingClientRect()
+      if (rect === undefined || rect.width === 0 || rect.height === 0) return
+
+      const middle = centreOf(selectionRects.map(({ rect: drawn }) => drawn))
+      const cx = rect.left + (middle.x / width) * rect.width
+      const cy = rect.top + (middle.y / height) * rect.height
+
+      const before = Math.atan2(active.startY - cy, active.startX - cx)
+      const now = Math.atan2(event.clientY - cy, event.clientX - cx)
+      // Through the half turn rather than the long way round it: the raw
+      // difference jumps by 360° as the pointer crosses due west.
+      const swept = wrapTurn(((now - before) * 180) / Math.PI)
+
+      // Shift snaps to 15°, which is every angle anybody sets on purpose — a
+      // tilted badge is 15° or 30°, and by hand it is 14° and looks it.
+      const step = event.shiftKey ? 15 : 1
+
       onChange(
         active.origin.map((element) =>
           moving.has(element.id)
-            ? { ...element, rotation: clampTurn((element.rotation ?? 0) + turn) }
+            ? {
+                ...element,
+                rotation: wrapTurn(
+                  Math.round(((element.rotation ?? 0) + swept) / step) * step
+                ),
+              }
             : element
         )
       )
       return
     }
 
+    const { dStart, dTop } = logical(screen)
+
     if (active.kind === 'resize') {
       const chosen = active.origin.filter((element) => moving.has(element.id))
       if (chosen.length === 0) return
+
+      /*
+       * **The drag, read in the element's own frame.** A handle on a shape
+       * turned 30° points 30° off the screen's axes, so the pointer travelling
+       * along it is travelling diagonally as far as the box is concerned —
+       * and a box resized by the raw screen delta grows on both axes at once
+       * and slides out from under the pointer.
+       */
+      const turn = sharedTurn(chosen)
+      const local = logical(untilted(screen, turn))
 
       /*
        * **The selection is resized, and the elements follow it.**
@@ -239,7 +316,7 @@ export function BlockArtboard({
        * There is no second path to disagree with it.
        */
       const bounds = boundsOf(chosen.map((element) => element.box))
-      const next = resizeBox(bounds, active.handle, dStart, dTop, {
+      const next = resizeBox(bounds, active.handle, local.dStart, local.dTop, {
         // **A corner holds the ratio unless Shift says otherwise.** Stretching
         // a photograph or a logo by dragging its corner is the one thing a
         // corner is never used for, and an owner who wants it has the edge
@@ -251,14 +328,30 @@ export function BlockArtboard({
       const sx = bounds.width === 0 ? 1 : next.width / bounds.width
       const sy = bounds.height === 0 ? 1 : next.height / bounds.height
 
+      /*
+       * **Putting the pinned corner back where it was.**
+       *
+       * A rotated element turns about its own centre, and resizing with one
+       * edge pinned *moves* that centre — so the corner the owner is not
+       * dragging swings away from where they left it, by more the further the
+       * shape is turned. The shift that undoes it works out to
+       * `(I − R) · (centre before − centre after)`, which is nothing at all
+       * when the turn is zero, and is why this costs an upright drag nothing.
+       */
+      const drift = recentre(bounds, next, turn, {
+        width,
+        height,
+        mirror: direction === 'rtl',
+      })
+
       onChange(
         active.origin.map((element) =>
           moving.has(element.id)
             ? {
                 ...element,
                 box: {
-                  start: tidy(next.start + (element.box.start - bounds.start) * sx),
-                  top: tidy(next.top + (element.box.top - bounds.top) * sy),
+                  start: tidy(next.start + (element.box.start - bounds.start) * sx + drift.start),
+                  top: tidy(next.top + (element.box.top - bounds.top) * sy + drift.top),
                   width: tidy(element.box.width * sx),
                   height: tidy(element.box.height * sy),
                 },
@@ -400,6 +493,14 @@ export function BlockArtboard({
             <rect
               key={`hit-${element.id}`}
               {...xywh(grab(rect, Math.max(width, height)))}
+              // The same transform `drawElement` puts on the element itself. A
+              // target that stayed upright while its shape turned is a shape
+              // you have to click beside.
+              {...(element.rotation === undefined || element.rotation === 0
+                ? {}
+                : {
+                    transform: `rotate(${element.rotation} ${rect.x + rect.width / 2} ${rect.y + rect.height / 2})`,
+                  })}
               fill="transparent"
               className={element.locked === true ? 'outline-none' : 'cursor-move outline-none'}
               role="button"
@@ -463,6 +564,12 @@ export function BlockArtboard({
            * handle moves; this says what is actually in it.
            */
           content={selectionRects.map(({ element, rect }) => paintedRect(element, rect, ctx))}
+          // One turn per outline, and one for the handle frame. They differ
+          // whenever a selection holds elements at different angles — then the
+          // frame is upright and each outline still sits on its own shape.
+          turns={selectionRects.map(({ element }) => element.rotation ?? 0)}
+          frameTurn={sharedTurn(selectionRects.map(({ element }) => element))}
+          mirror={direction === 'rtl'}
           scale={Math.max(width, height)}
           interactive={interactive}
           onHandle={(handle, event) => startDrag(event, { kind: 'resize', handle })}
@@ -486,7 +593,41 @@ export function BlockArtboard({
 
 const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.height })
 
-const clampTurn = (value: number) => Math.min(180, Math.max(-180, value))
+/**
+ * An angle brought back into the half turn either side of upright.
+ *
+ * **Wrapped rather than clamped, which it used to be.** Clamping means a shape
+ * turned to 180° stops dead and will not come round the other side — the owner
+ * keeps dragging and nothing happens, at the one angle where carrying on is the
+ * obvious thing to do. −170° and 190° are the same picture; only one of them is
+ * inside what the schema stores.
+ */
+export function wrapTurn(value: number): number {
+  return ((((value + 180) % 360) + 360) % 360) - 180
+}
+
+/** The middle of a set of rectangles, in artboard units. */
+function centreOf(rects: readonly Rect[]): { x: number; y: number } {
+  const x = Math.min(...rects.map((rect) => rect.x))
+  const y = Math.min(...rects.map((rect) => rect.y))
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width))
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height))
+  return { x: (x + right) / 2, y: (y + bottom) / 2 }
+}
+
+/**
+ * The turn a selection shares, or none.
+ *
+ * **One answer for the whole selection, because the handles are one frame.**
+ * Two elements at different angles have no common frame to draw a box in, so
+ * the selection falls back to an upright one around both — which is what every
+ * tool does, and what the resize arithmetic below already assumed before any of
+ * this could be rotated at all.
+ */
+export function sharedTurn(elements: readonly BlockElement[]): number {
+  const first = elements[0]?.rotation ?? 0
+  return elements.every((element) => (element.rotation ?? 0) === first) ? first : 0
+}
 
 /** Rounds away the floating-point tail scaling a group leaves behind. */
 const tidy = (value: number) => Math.round(value * 1e6) / 1e6
@@ -571,16 +712,39 @@ function groupOf(elements: readonly BlockElement[], element: BlockElement): stri
 }
 
 /** Logical handle names, so a drag means the same thing in both directions. */
-const HANDLES: { handle: Handle; fx: number; fy: number; cursor: string }[] = [
-  { handle: 'start-top', fx: 0, fy: 0, cursor: 'nwse-resize' },
-  { handle: 'top', fx: 0.5, fy: 0, cursor: 'ns-resize' },
-  { handle: 'end-top', fx: 1, fy: 0, cursor: 'nesw-resize' },
-  { handle: 'start', fx: 0, fy: 0.5, cursor: 'ew-resize' },
-  { handle: 'end', fx: 1, fy: 0.5, cursor: 'ew-resize' },
-  { handle: 'start-bottom', fx: 0, fy: 1, cursor: 'nesw-resize' },
-  { handle: 'bottom', fx: 0.5, fy: 1, cursor: 'ns-resize' },
-  { handle: 'end-bottom', fx: 1, fy: 1, cursor: 'nwse-resize' },
+const HANDLES: { handle: Handle; fx: number; fy: number }[] = [
+  { handle: 'start-top', fx: 0, fy: 0 },
+  { handle: 'top', fx: 0.5, fy: 0 },
+  { handle: 'end-top', fx: 1, fy: 0 },
+  { handle: 'start', fx: 0, fy: 0.5 },
+  { handle: 'end', fx: 1, fy: 0.5 },
+  { handle: 'start-bottom', fx: 0, fy: 1 },
+  { handle: 'bottom', fx: 0.5, fy: 1 },
+  { handle: 'end-bottom', fx: 1, fy: 1 },
 ]
+
+/**
+ * The cursor for a handle, from where it actually is on the screen.
+ *
+ * **It was a column in the table, and a table cannot know.** A handle's
+ * direction is a property of the *drawing*: the top-start corner of a shape
+ * turned 90° is over on the right and resizes left-to-right, and in an Arabic
+ * edition it is on the other side before any turn is applied. A fixed
+ * `nwse-resize` was right in exactly one of those cases and quietly wrong in
+ * the rest — the cursor is the only thing that tells an owner what a handle
+ * will do before they commit to dragging it.
+ *
+ * Measured clockwise from upright and folded into a half turn, because a resize
+ * cursor is a double-headed arrow: north-east and south-west are one picture.
+ */
+export function handleCursor(fx: number, fy: number, turn: number): string {
+  const facing = (Math.atan2(fx - 0.5, 0.5 - fy) * 180) / Math.PI + turn
+  const half = ((Math.round(facing / 45) * 45) % 180 + 180) % 180
+  if (half === 0) return 'ns-resize'
+  if (half === 45) return 'nesw-resize'
+  if (half === 90) return 'ew-resize'
+  return 'nwse-resize'
+}
 
 /**
  * The selection, and its handles.
@@ -593,6 +757,9 @@ const HANDLES: { handle: Handle; fx: number; fy: number; cursor: string }[] = [
 function Selection({
   rects,
   content,
+  turns,
+  frameTurn,
+  mirror,
   scale,
   interactive,
   onHandle,
@@ -601,6 +768,12 @@ function Selection({
   rects: Rect[]
   /** Where the paint lands, one per `rects` entry. Null means it fills its box. */
   content: (Rect | null)[]
+  /** Each element's own turn, one per `rects` entry. */
+  turns: number[]
+  /** The turn the handle frame is drawn at — zero when the selection disagrees. */
+  frameTurn: number
+  /** Whether the artboard reads right to left, which moves `start` to the right. */
+  mirror: boolean
   scale: number
   interactive: boolean
   onHandle: (handle: Handle, event: React.PointerEvent) => void
@@ -682,6 +855,7 @@ function Selection({
           <rect
             key={`content-${index}`}
             {...xywh(rect)}
+            {...spin(turns[index] ?? 0, ring)}
             fill="none"
             stroke="var(--sq-ui-selected-ring)"
             strokeWidth={stroke}
@@ -696,6 +870,8 @@ function Selection({
         <rect
           key={index}
           {...xywh(rect)}
+          // Turned about the element's own centre, exactly as the element is.
+          {...spin(turns[index] ?? 0, rect)}
           fill="none"
           stroke="var(--sq-ui-selected-ring)"
           strokeWidth={stroke}
@@ -705,7 +881,14 @@ function Selection({
       ))}
 
       {interactive ? (
-        <>
+        /*
+          **One group, turned once.** The handles, the stalk and the rotation
+          knob all belong to the same frame, so they are placed in upright
+          coordinates and the whole assembly is turned about the frame's centre
+          — which is also what makes the arithmetic in `onPointerMove` the
+          inverse of what is drawn here, rather than a second version of it.
+        */
+        <g {...spin(frameTurn, box)}>
           <line
             x1={box.x + box.width / 2}
             y1={box.y}
@@ -727,7 +910,21 @@ function Selection({
             onPointerDown={onRotate}
           />
 
-          {HANDLES.map(({ handle, fx, fy, cursor }) => {
+          {HANDLES.map(({ handle, fx: logical, fy }) => {
+            /*
+             * **`start` is a reading-order name and this is a screen**, so the
+             * table's `fx` is mirrored here for an Arabic artboard — the one
+             * place it can be, because `resolveBlock` has already mirrored the
+             * rectangle these are drawn on.
+             *
+             * It was not, and the handles came out on the wrong edges: the
+             * control on the screen-left was labelled `start`, `dStart` is
+             * sign-flipped for the same direction, and the two cancelled into a
+             * left edge that grew the shape to the right. Nothing in an
+             * English artboard could show it.
+             */
+            const fx = mirror ? 1 - logical : logical
+
             // A corner names both axes; an edge names one. `fx`/`fy` at 0.5 is
             // exactly what "on an edge" means, so the table does not need a
             // column for it.
@@ -735,6 +932,7 @@ function Selection({
             const drawn = edge ? edgeSize : size
             const cx = box.x + box.width * fx
             const cy = box.y + box.height * fy
+            const cursor = handleCursor(fx, fy, frameTurn)
 
             return (
               <g key={handle} style={{ cursor }} onPointerDown={(event) => onHandle(handle, event)}>
@@ -769,10 +967,25 @@ function Selection({
               </g>
             )
           })}
-        </>
+        </g>
       ) : null}
     </>
   )
+}
+
+/**
+ * The SVG transform that turns something about a rectangle's own centre.
+ *
+ * `drawElement` writes the same string for the element itself; this is the
+ * selection's half of it, and the two have to agree or the outline sits beside
+ * the shape rather than on it.
+ */
+function spin(turn: number, about: Rect): { transform?: string } {
+  return turn === 0
+    ? {}
+    : {
+        transform: `rotate(${turn} ${about.x + about.width / 2} ${about.y + about.height / 2})`,
+      }
 }
 
 /** What a screen reader is told an element is. Its binding, where it has one. */
