@@ -19,9 +19,16 @@ import { ImageGenerationOffError, NoImageError, draw } from '../lib/image-gen'
  * **No text, ever, and that half of the old rule stands.** `coverPrompt` says it
  * twice because a model asked to render a shop's name produces text that is
  * misspelled, in a typeface nobody chose, and often in a language it guessed.
- * The name and the logo are typed in the editor, on top of what this draws, and
- * the seam between the two is an R2 key exactly as `lib/block-assets.ts` already
- * does for uploaded artwork.
+ * The name is typed in the editor, on top of what this draws, and the seam
+ * between the two is an R2 key exactly as `lib/block-assets.ts` already does for
+ * uploaded artwork.
+ *
+ * **The logo is the half that bends, on one surface.** A mark printed on a
+ * carrier bag in the scene is a picture being copied rather than a word being
+ * spelled, and an owner who wants their bag in the shot could not get it from a
+ * cover that refused every mark. It is off unless the payload carries a
+ * `logoKey`, and `coverLogoRule` carries the reasoning for why a bag and
+ * nothing else.
  *
  * **The character is drawn in, not composited on.** This used to send no
  * references at all, on the spec's reasoning that compositing afterwards keeps
@@ -39,7 +46,7 @@ import { ImageGenerationOffError, NoImageError, draw } from '../lib/image-gen'
  * should acquire it.
  */
 export async function handleCoverGen(job: Job<CoverGenPayload>) {
-  const { jobId, organizationId, shopId, palette, characterId } = job.data
+  const { jobId, organizationId, shopId, palette, characterId, logoKey } = job.data
 
   await prisma.aiJob.update({ where: { id: jobId }, data: { status: 'processing' } })
 
@@ -109,10 +116,23 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
      */
     const ownRefs = await Promise.all((job.data.referenceKeys ?? []).map(referenceFromKey))
 
+    /**
+     * **The logo goes last, and `coverLogoRule` names that position.**
+     *
+     * `character.job.ts` puts it last for one reason — a logo leading the list
+     * produces a picture of a logo with a scene behind it — and that reason
+     * holds here unchanged. What is new is that a cover may send six images
+     * rather than two, so last is not only a weighting: it is the only thing
+     * that tells the model which attachment is the logo, and the prompt says
+     * "the last attached image" because of this line.
+     */
+    const logoRef = logoKey === undefined ? null : await referenceFromKey(logoKey)
+
     const references = [
       ...(characterRef === null ? [] : [characterRef]),
       ...sceneRefs,
       ...ownRefs,
+      ...(logoRef === null ? [] : [logoRef]),
     ]
 
     const drawn = await draw({
@@ -124,6 +144,7 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
         palette,
         withScene: sceneRefs.length > 0,
         withReference: ownRefs.length > 0,
+        withLogo: logoRef !== null,
       }),
       count: COVER_VARIATIONS,
       ...(references.length === 0 ? {} : { references }),
@@ -200,6 +221,7 @@ export async function handleCoverGen(job: Job<CoverGenPayload>) {
           person,
           withScene: sceneRefs.length > 0,
           withReference: ownRefs.length > 0,
+          withLogo: logoRef !== null,
           charged: spend.ok ? spend.charged : 0,
         },
       },

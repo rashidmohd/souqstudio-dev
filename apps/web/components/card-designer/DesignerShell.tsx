@@ -97,12 +97,28 @@ const CANVAS_EDGE = 720
  */
 type PageShape = 'a4' | 'square' | 'story' | 'band' | 'half'
 
-const PAGE_SHAPES: Record<PageShape, { label: string; aspect: number }> = {
-  a4: { label: 'A4 page', aspect: 1240 / 1754 },
-  square: { label: 'Square post', aspect: 1 },
-  story: { label: 'Story', aspect: 1080 / 1920 },
-  band: { label: 'Band across a page', aspect: 3.2 },
-  half: { label: 'Half a page', aspect: 1.4 },
+const PAGE_SHAPES: Record<PageShape, { label: string; aspect: number; width: number }> = {
+  a4: { label: 'A4 page', aspect: 1240 / 1754, width: 1240 },
+  square: { label: 'Square post', aspect: 1, width: 1080 },
+  story: { label: 'Story', aspect: 1080 / 1920, width: 1080 },
+  band: { label: 'Band across a page', aspect: 3.2, width: 1240 },
+  half: { label: 'Half a page', aspect: 1.4, width: 1240 },
+}
+
+/**
+ * The drawn size of the previewed shape, in export pixels at 150dpi.
+ *
+ * **`aspect` stays the source of truth and the height is derived from it**, so
+ * a pair of numbers here can never disagree with the rectangle on the canvas.
+ * The widths are `pageSizeFor`'s own; a band and a half page are regions of an
+ * A4 page rather than formats of their own, so they carry its width.
+ *
+ * Only the properties panel wants this, and only to say what a percentage comes
+ * to. Nothing on the canvas is px.
+ */
+function pageSize(shape: PageShape): { width: number; height: number } {
+  const { width, aspect } = PAGE_SHAPES[shape]
+  return { width, height: Math.round(width / aspect) }
 }
 
 /**
@@ -652,6 +668,11 @@ export function DesignerShell({
               disabled={!editable}
               palette={palette}
               token={token}
+              // What the size fields read their percentages against. A block
+              // placed once is drawn on a page and has a size in pixels; a
+              // repeating one letterboxes into whatever region the grid gives
+              // it, so the proportion is all that can honestly be said.
+              canvas={{ aspect, page: repeats ? null : pageSize(pageShape) }}
               // The blur control on an uploaded image re-renders from the
               // unblurred original and needs somewhere to read it from.
               assetBaseUrl={assetBaseUrl}

@@ -294,6 +294,22 @@ export interface CoverGenPayload {
    * model and nothing else.
    */
   referenceKeys?: string[]
+  /**
+   * The shop's logo, to be printed on a carrier bag in the cover.
+   *
+   * **Resolved by the route from the brand kit, never sent as a key.** The rest
+   * of this payload follows the same discipline — the character is an id, the
+   * scene is a boolean — and for the same reason: a caller that names which
+   * image goes to a third-party model is a caller that names any image.
+   * `referenceKeys` is the one exception and it pays for it with a prefix test.
+   *
+   * **A cover is not a uniform.** `CharacterGenPayload.logoKey` puts the mark on
+   * a garment, where a model has a flat panel of fabric to print on. This puts
+   * it on something being carried, which is the only surface in a cover that can
+   * take a mark without becoming a sign — and a sign is a place a shop's *name*
+   * goes, which is text, which no cover renders.
+   */
+  logoKey?: string
 }
 
 export interface BgRemovePayload {

@@ -14,14 +14,22 @@ import { getActiveShop } from '@/lib/active-shop'
 import { env } from '@/lib/env'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { resolvePalette } from '@/lib/brand-palette'
+import { keyFromPublicUrl } from '@/lib/r2'
 
 /**
  * Generate a cover, three options. E8-04.
  *
  * **No text, and that is the part of the old rule that stands.** A model asked
  * to render a shop's name produces misspelled text in a typeface nobody chose,
- * so the name and the logo are typed in the editor on top of what this draws.
- * The seam is an R2 key, exactly as uploaded block artwork already works.
+ * so the name is typed in the editor on top of what this draws. The seam is an
+ * R2 key, exactly as uploaded block artwork already works.
+ *
+ * **The logo may now be drawn in, on a bag, when the owner asks for it.**
+ * `useBrandLogo` is off by default and the editor's overlay is still how most
+ * covers get their branding — but a mark on a carrier bag in the scene is a
+ * picture being copied rather than a word being spelled, and it is the one
+ * surface a cover has that can carry one. `coverLogoRule` in the worker holds
+ * the reasoning.
  *
  * **The shop's own character and its own shop are what it is drawn from.** This
  * used to draw an empty background on the reasoning that E9 would composite the
@@ -30,10 +38,11 @@ import { resolvePalette } from '@/lib/brand-palette'
  * and the drawing is conditioned on them.
  *
  * **Nothing about which images to send comes from the client.** The body carries
- * two booleans and at most a character id; the keys themselves are read here —
- * the character scoped to this shop, the scene photographs off the shop row. A
- * route that accepted keys would accept any key, and these are the images that
- * travel to a third party.
+ * booleans and at most a character id; the keys themselves are read here — the
+ * character scoped to this shop, the scene photographs off the shop row, the
+ * logo off the brand kit. A route that accepted keys would accept any key, and
+ * these are the images that travel to a third party. `referenceKeys` is the one
+ * exception and it pays for it with a prefix test.
  *
  * **The palette is read here rather than sent**, for the same reason: which
  * colours a shop has is a fact in the brand kit, not a client's opinion.
@@ -90,6 +99,21 @@ const schema = z
      * tenant's object. The same check `PATCH .../background` makes.
      */
     referenceKeys: z.array(z.string().min(1).max(300)).max(4).optional(),
+    /**
+     * Print the shop's logo on a carrier bag in the cover.
+     *
+     * **A boolean, and the logo it means is the brand kit's** — read below
+     * from `brand.logoUrl`, the same way `useScene` resolves to keys off the
+     * shop row. A cover that took a logo key would be a cover that takes any
+     * key, which is the thing the header of this file refuses.
+     *
+     * **Off by default, because it is not the right answer for most logos.**
+     * A mark with words in it comes back with the letters wrong; that is a
+     * property of the models and the dialog says so beside this checkbox. The
+     * cleared upper third, where the logo is typed on afterwards, is still how
+     * a cover gets its branding.
+     */
+    useBrandLogo: z.boolean().default(false),
   })
   .refine(
     (value) => value.promptSlug !== 'custom' || value.described !== undefined,
@@ -194,6 +218,32 @@ export async function POST(request: NextRequest) {
   })
   const palette = resolvePalette(brand.brandKit).map((color) => color.hex)
 
+  /**
+   * Which logo, if any, goes on the bag.
+   *
+   * **`keyFromPublicUrl` is the seam, exactly as `POST /characters/generate`
+   * uses it.** The kit stores a public URL and the worker needs an R2 key; a
+   * logo hosted anywhere else is refused here rather than fetched over HTTP by
+   * a background job.
+   *
+   * **Refused rather than ignored.** An owner who ticked the box and got a
+   * cover with no logo on it has no way to tell whether the model dropped it or
+   * the kit never had one — which is the whole shape of the bug this feature
+   * exists to fix, reintroduced one layer up.
+   */
+  let logoKey: string | undefined
+  if (parsed.data.useBrandLogo) {
+    const resolved = brand.logoUrl === null ? null : keyFromPublicUrl(brand.logoUrl)
+    if (resolved === null) {
+      return fail(
+        'no_brand_logo',
+        'There is no logo in your brand kit to put on the bag. Add one in your brand settings first.',
+        409
+      )
+    }
+    logoKey = resolved
+  }
+
   const cost = CREDIT_COSTS.cover_gen
   const snapshot = await getCreditSnapshot(session.user.organizationId)
   if (snapshot.total < cost) {
@@ -230,6 +280,7 @@ export async function POST(request: NextRequest) {
       ...(sceneKeys.length === 0 ? {} : { sceneKeys }),
       ...(referenceKeys.length === 0 ? {} : { referenceKeys }),
       ...(parsed.data.described === undefined ? {} : { described: parsed.data.described }),
+      ...(logoKey === undefined ? {} : { logoKey }),
     })
   } catch {
     await prisma.aiJob.update({

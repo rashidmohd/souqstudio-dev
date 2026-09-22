@@ -98,7 +98,13 @@ type Prompt = {
   group: string
   person: CoverPerson
 }
-type Sources = { prompts: Prompt[]; characters: Character[]; storePhotos: StorePhoto[] }
+type Sources = {
+  prompts: Prompt[]
+  characters: Character[]
+  storePhotos: StorePhoto[]
+  /** The brand kit's logo, or null when there is none a cover could be drawn from. */
+  logoUrl: string | null
+}
 
 /**
  * **Three phases, and no ticking step between them.**
@@ -153,6 +159,16 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
   const [sources, setSources] = React.useState<Sources | null>(null)
   const [characterId, setCharacterId] = React.useState<string | null>(null)
   const [useScene, setUseScene] = React.useState(true)
+  /**
+   * Print the logo on a bag in the picture.
+   *
+   * **Off, unlike `useScene`.** Setting a cover in the owner's own shop is
+   * better than a generic one every time, so that one is on. This is a trade: a
+   * mark redrawn by a model is approximate, and a logo with words in it comes
+   * back misspelled. The label says so rather than leaving an owner to discover
+   * it on a cover they already paid for.
+   */
+  const [useLogo, setUseLogo] = React.useState(false)
 
   /**
    * What this shop has to draw from, read when the dialog opens.
@@ -241,6 +257,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
         style,
         person,
         useScene: useScene && hasPhotos,
+        useBrandLogo: useLogo && hasLogo,
         ...(referenceKeys.length === 0 ? {} : { referenceKeys }),
         ...(person === 'staff' && characterId !== null ? { characterId } : {}),
         ...(promptSlug === 'custom' ? { described: described.trim() } : {}),
@@ -265,13 +282,14 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
   const characters = sources?.characters ?? []
   const storePhotos = sources?.storePhotos ?? []
   const hasPhotos = storePhotos.length > 0
+  const hasLogo = (sources?.logoUrl ?? null) !== null
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       title="Generate a cover"
-      description="Drawn from your character, your shop and your colours. Your name and logo go on top in the editor, not in the picture."
+      description="Drawn from your character, your shop and your colours. Your name goes on top in the editor, not in the picture."
       size="lg"
     >
       {phase.at === 'drawing' ? (
@@ -509,6 +527,26 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
                   <span data-figure>{storePhotos.length}</span>
                   {storePhotos.length === 1 ? ' photo' : ' photos'} from your shop settings, so the
                   shelves and the counter are yours rather than invented.
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          {hasLogo ? (
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={useLogo}
+                onChange={(event) => setUseLogo(event.target.checked)}
+                className="mt-1"
+              />
+              <span className="font-ui text-body-sm text-primary">
+                Put my logo on the bag
+                <span className="block text-secondary">
+                  Draws your logo onto a shopping bag in the picture, so it is part of the
+                  photo rather than placed over it. It is redrawn by the model, so a logo
+                  with words in it can come back with the letters wrong. Leave this off to
+                  put your logo on in the editor instead, where it stays exact.
                 </span>
               </span>
             </label>

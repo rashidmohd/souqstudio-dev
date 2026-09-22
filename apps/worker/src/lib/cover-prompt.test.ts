@@ -189,6 +189,83 @@ describe('coverPrompt', () => {
     })
   })
 
+  /**
+   * **The logo is the one mark a cover may carry, and the danger is arithmetic.**
+   *
+   * Three rules in this prompt forbid branding — the goods rule, the props rule
+   * and the closing rule — and a fourth asking for a logo does not outvote them;
+   * a model resolves the contradiction by guessing, and it guesses the refusal.
+   * That is why a cover came back with a blank bag. So what these test is not
+   * that the logo is *mentioned*, which never fixed anything, but that the three
+   * refusals change shape around it.
+   */
+  describe('the shop\'s own logo, on the one surface that can carry it', () => {
+    it('says nothing about a logo when none is attached', () => {
+      const prompt = said(base)
+      expect(prompt).not.toContain('THE SHOP\'S LOGO')
+      expect(prompt).toContain('No logo and no brand mark anywhere in the image')
+    })
+
+    it('drops the blanket refusal rather than arguing with itself', () => {
+      const prompt = said({ ...base, withLogo: true })
+      expect(prompt).toContain('THE SHOP\'S LOGO')
+      // The sentence that made the model drop the logo. It must be gone, not
+      // merely outnumbered.
+      expect(prompt).not.toContain('No logo and no brand mark anywhere in the image')
+    })
+
+    it('still refuses text, which is the half of the rule that never bends', () => {
+      for (const person of ['staff', 'customer', 'none'] as const) {
+        const prompt = said({ ...base, person, withLogo: true })
+        expect(prompt).toContain('**No text of any kind.**')
+        expect(prompt).toContain('No words, no letters, no numbers')
+      }
+    })
+
+    it('names the exception inside the goods rule as well', () => {
+      const prompt = said({ ...base, withLogo: true })
+      expect(prompt).toContain('The goods must not carry any branding')
+      expect(prompt).toContain('The one exception is the shop\'s own carrier bag')
+    })
+
+    it('overrides the props rule out loud, because the bag is a prop', () => {
+      // The staff branch forbids props worn on the body and objects added from
+      // the theme. A bag is both unless something says it is not.
+      const prompt = said({ ...base, withLogo: true })
+      expect(prompt).toContain('no props worn on the body')
+      expect(prompt).toContain('It overrides the rules above about props and about branding')
+    })
+
+    it('stops promising the cleared band is for the logo', () => {
+      // The last thing that told the model the logo goes somewhere other than
+      // where coverLogoRule just put it. The band itself does not move: the
+      // name is still typed over it.
+      expect(said(base)).toContain("the shop's name and logo are placed over it afterwards")
+      const prompt = said({ ...base, withLogo: true })
+      expect(prompt).toContain('Keep the upper third of the image clear')
+      expect(prompt).toContain("the shop's name is placed over it afterwards")
+      expect(prompt).not.toContain("the shop's name and logo are placed over it afterwards")
+    })
+
+    it('identifies the logo by position, since a cover may send six images', () => {
+      const prompt = said({ ...base, withLogo: true })
+      expect(prompt).toContain('the last attached image')
+    })
+
+    it('refuses to let the model redraw or reword the mark', () => {
+      const prompt = said({ ...base, withLogo: true })
+      expect(prompt).toContain('do not redraw it, restyle it, add words to it')
+    })
+
+    it('puts the bag in the scene when there is nobody to hold it', () => {
+      const held = said({ ...base, person: 'staff', withLogo: true })
+      const alone = said({ ...base, person: 'none', withLogo: true })
+      expect(held).toContain('the plain carrier bag the person is holding')
+      expect(alone).toContain('a plain carrier bag standing in the frame')
+      expect(alone).not.toContain('the person is holding')
+    })
+  })
+
   it('carries the palette and the shape into every variant', () => {
     const prompt = said({ ...base, withScene: true })
     expect(prompt).toContain('#123456')

@@ -291,6 +291,46 @@ ${CHARACTER_RULES}`
  */
 export type CoverPerson = 'staff' | 'customer' | 'none'
 
+/**
+ * The shop's own logo in a cover, on the one surface that can carry it.
+ *
+ * **Written as an exception that names what it overrides**, rather than as one
+ * more instruction competing with them. A cover forbids branding three times —
+ * the goods rule, the props rule and the closing rule — and `logoRule` above
+ * already carries the reasoning: a prompt saying "no logo anywhere" and "put
+ * this logo on the bag" is one a model resolves by guessing, and the guess is
+ * usually the first one. Both of the other two change shape when this is
+ * present; this paragraph says out loud that it beats them.
+ *
+ * **A carrier bag and nothing else.** The other surfaces a cover offers are a
+ * sign, a window and a wall, and all three read as somewhere a shop's *name*
+ * goes — which is text, and text is the half of the old rule that does not
+ * bend. A bag is the shop's own object, held rather than built into the room,
+ * and it carries a mark at a size that survives being redrawn.
+ *
+ * **"The last attached image" rather than "the attached logo".** A cover may
+ * send six references: the character, the shop photographs, the owner's own
+ * references and this. `characterPrompt` can say "the attached logo image"
+ * because it sends at most a scene and a logo; here position is the only thing
+ * that identifies it, so `cover.job.ts` puts it last and this names that place.
+ */
+function coverLogoRule(person: CoverPerson): string {
+  const bag =
+    person === 'none'
+      ? `a plain carrier bag standing in the frame, on the counter or beside the goods`
+      : `the plain carrier bag the person is holding`
+
+  return `**THE SHOP'S LOGO — the last attached image.** It is printed on ${bag}.
+One mark, flat on the face of the bag turned toward the viewer, following the
+curve and the folds of the material. Reproduce it as closely as you can to the
+image supplied: do not redraw it, restyle it, add words to it, or put a second
+copy of it anywhere in the frame.
+
+**This bag is the one object added to the scene and the one mark in the
+picture.** It overrides the rules above about props and about branding. Nothing
+else in the frame carries a logo, a brand mark or a label.`
+}
+
 export function coverPrompt(input: {
   /**
    * The art direction, from `cover_prompts.scene` — a place, a person doing
@@ -319,6 +359,16 @@ export function coverPrompt(input: {
   withScene?: boolean
   /** The owner uploaded their own reference images for this cover. */
   withReference?: boolean
+  /**
+   * The shop's logo is attached, to be printed on a carrier bag in the scene.
+   *
+   * **Absent is the old behaviour and stays the default.** A cover's job is to
+   * leave the upper third clear so the name and logo can be typed over it in the
+   * editor, and that is still the right answer for a logo with words in it — a
+   * model redrawing a wordmark comes back with the letters wrong. This is for
+   * the mark an owner wants *in* the picture, on something being carried.
+   */
+  withLogo?: boolean
 }): string {
   /**
    * **The ratio as a number, not as a word.** "A tall portrait image" is a
@@ -353,7 +403,14 @@ export function coverPrompt(input: {
 labels, no recognisable packaging design of any kind — nothing that could be
 taken for a real product from a real company. Favour fresh, unpackaged goods in
 the foreground: fruit, vegetables, bread, herbs, things with no label on them.
-Where packaged goods appear at all, keep them plain, generic and out of focus.`
+Where packaged goods appear at all, keep them plain, generic and out of focus.${
+    input.withLogo
+      ? `
+
+The one exception is the shop's own carrier bag, described below. It carries the
+shop's logo; nothing else in the picture carries a mark of any kind.`
+      : ''
+  }`
 
   /**
    * **Take the treatment, not the picture.**
@@ -372,9 +429,21 @@ arranged, the overall feeling. Do not copy their contents, their layout or any
 mark in them; this is a new picture in that manner, of the scene described above.`
     : ''
 
+  /**
+   * **The cleared upper third, and what is said to be going in it.**
+   *
+   * The region is the same either way and it is named as a region on purpose: a
+   * model told to "leave space" centres the subject and leaves none.
+   *
+   * **What changes is the reason given.** Saying "the name and logo are placed
+   * over it afterwards" while `coverLogoRule` asks for a logo on a bag is a
+   * fourth voice in an argument this function exists to end — and it is the one
+   * that tells the model the logo belongs somewhere other than where it was just
+   * asked to put it. With a logo attached, the cleared band is for the name.
+   */
   const composition = `Composition: one dominant focal point, placed off-centre and low. **Keep the
 upper third of the image clear** — quiet ground, no detail, nothing that
-competes — because the shop's name and logo are placed over it afterwards.
+competes — because the shop's ${input.withLogo === true ? 'name is' : 'name and logo are'} placed over it afterwards.
 Generous empty space. Clean and confident rather than busy; a crowded cover reads
 as cheap.`
 
@@ -421,6 +490,32 @@ inside this shop, of this shop's own staff member.`
 inside this shop, of a customer shopping in it.`
         : `An image for the cover of a shop's offer book, of the shop itself.`
 
+  const bag = input.withLogo === true ? `\n\n${coverLogoRule(input.person)}` : ''
+
+  /**
+   * **The closing rule, in the two shapes it has.**
+   *
+   * Without a logo it is the original and it is absolute, which is what every
+   * cover drawn before this wanted. With one it still refuses all text and all
+   * *other* marks, and names the single thing it permits — because a blanket
+   * refusal here would be the third instruction arguing with `coverLogoRule`,
+   * and it is the last thing the model reads.
+   *
+   * **The name is typed in the editor either way.** That never moves: a model
+   * asked to render a shop's name produces misspelled text in a typeface nobody
+   * chose. A logo on a bag is a picture being copied, which is a different task
+   * from spelling.
+   */
+  const tail =
+    input.withLogo === true
+      ? `**No text of any kind.** No words, no letters, no numbers, in any language or
+script. The shop's logo on the bag is the only mark in the picture, and nothing
+else carries a logo or a brand mark. Leave room for the shop's name, which is
+placed on top afterwards.`
+      : `**No text of any kind.** No words, no letters, no numbers, in any language or
+script. No logo and no brand mark anywhere in the image. Leave room for the
+shop's name and logo, which are placed on top afterwards.`
+
   return `${opening}
 
 ${who}
@@ -428,14 +523,12 @@ ${who}
 **THE SCENE — where they are and what is happening. This is the shop around
 them, never something they wear:** ${input.scene}
 
-${goods}
+${goods}${bag}
 
 ${style}
 ${shape}${colors}${place}${reference}
 
 ${composition}${focal}
 
-**No text of any kind.** No words, no letters, no numbers, in any language or
-script. No logo and no brand mark anywhere in the image. Leave room for the
-shop's name and logo, which are placed on top afterwards.`
+${tail}`
 }

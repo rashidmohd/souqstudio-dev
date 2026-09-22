@@ -58,6 +58,7 @@ import { ImageBlurControl } from '@/components/card-designer/ImageBlurControl'
 import { Segmented, ToggleBar } from '@/components/ui/segmented'
 import { Slider } from '@/components/ui/slider'
 import { describe } from '@/components/card-designer/LayerList'
+import { drawnSize, type Canvas } from '@/lib/drawn-size'
 
 /**
  * The properties panel. E7.
@@ -91,6 +92,7 @@ type Props = {
   disabled: boolean
   palette: readonly BrandColor[]
   token: (ref: TokenRef) => string
+  canvas: Canvas
   onChange: (element: BlockElement) => void
   /**
    * Where an `assetId` becomes a URL. The blur control on an uploaded image
@@ -125,6 +127,7 @@ export function ElementProperties({
   disabled,
   palette,
   token,
+  canvas,
   onChange,
   assetBaseUrl,
   onSplit,
@@ -517,7 +520,7 @@ export function ElementProperties({
       ) : null}
 
       <Appearance element={element} disabled={disabled} onChange={onChange} />
-      <BoxFields element={element} disabled={disabled} onChange={onChange} />
+      <BoxFields element={element} canvas={canvas} disabled={disabled} onChange={onChange} />
     </div>
   )
 }
@@ -1846,18 +1849,27 @@ function OverflowField({
  * same design is 1080 square in a carousel post and a third of a column in a
  * booklet. `start` rather than `left`, so the field means the same thing in both
  * directions.
+ *
+ * **And a line underneath saying what the percentages come to**, because width
+ * and height are read against two edges that are not the same length: a circle
+ * reads 32.5 by 18.5 on a story, which looks like the tool losing the shape and
+ * leaves an owner no way to ask for a circle on purpose. See `drawnSize`.
  */
 function BoxFields({
   element,
+  canvas,
   disabled,
   onChange,
 }: {
   element: BlockElement
+  canvas: Canvas
   disabled: boolean
   onChange: (element: BlockElement) => void
 }) {
   const set = (patch: Partial<typeof element.box>) =>
     onChange({ ...element, box: { ...element.box, ...patch } } as BlockElement)
+
+  const drawn = drawnSize(element.box, canvas)
 
   return (
     <fieldset className="flex flex-col gap-3">
@@ -1890,6 +1902,9 @@ function BoxFields({
           onChange={(height) => set({ height })}
         />
       </div>
+      {drawn === null ? null : (
+        <p className="font-ui text-body-sm text-muted">{drawn}</p>
+      )}
     </fieldset>
   )
 }
