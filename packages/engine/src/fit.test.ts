@@ -52,6 +52,31 @@ describe('wrapText', () => {
       'supercalifragilistic',
     ])
   })
+
+  it('keeps a break the owner typed, in a box that had room for one line', () => {
+    // 200 wide at this measurer holds all four words. The break is not the
+    // wrapper running out of room, so it is not the wrapper's to remove.
+    expect(wrapText('one two\nthree four', 200, 20, 'x', measure)).toEqual([
+      'one two',
+      'three four',
+    ])
+  })
+
+  it('wraps inside a typed break rather than instead of it', () => {
+    expect(wrapText('one two three\nfour', 95, 20, 'x', measure)).toEqual([
+      'one two',
+      'three',
+      'four',
+    ])
+  })
+
+  it('keeps a blank line between paragraphs, and drops the ones at the ends', () => {
+    expect(wrapText('\n\none\n\ntwo\n\n', 200, 20, 'x', measure)).toEqual(['one', '', 'two'])
+  })
+
+  it('still returns nothing for text that is only breaks', () => {
+    expect(wrapText('\n \n', 100, 20, 'x', measure)).toEqual([])
+  })
 })
 
 describe('rung 0 — as designed', () => {

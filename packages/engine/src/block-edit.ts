@@ -44,8 +44,6 @@ export type Handle =
   | 'bottom'
   | 'end-bottom'
 
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
-
 export function snap(value: number, step: number = SNAP): number {
   return Math.round(value / step) * step
 }
@@ -84,39 +82,133 @@ export function moveBox(box: Box, dStart: number, dTop: number, step = SNAP): Bo
  * moves the same edge of the same box — mirroring happens once, in
  * `resolveBlock`, and doing it twice is how a design mirrors itself back.
  */
+export interface ResizeOptions {
+  /** The lattice edges land on. Defaults to `SNAP`. */
+  step?: number | undefined
+  /**
+   * Keep the box's width-to-height ratio.
+   *
+   * Only a corner can honour this — an edge handle moves one pair of sides by
+   * definition, and forcing the other pair to follow would move an edge the
+   * owner did not touch. It is ignored for the other four handles rather than
+   * refused, so a caller can pass one flag for every handle.
+   */
+  aspect?: boolean | undefined
+  /**
+   * How far past the block an edge may travel, as a fraction of it.
+   *
+   * **Zero is not the honest default for every element, which is why this
+   * exists.** A chip overhangs its block on purpose — E6 §7 reserves the bleed
+   * — and `validateBlock` already allows it a quarter of the block. Clamping
+   * its handles to the block anyway snapped it back inside the moment a drag
+   * began, which reads as the handle coming off the pointer.
+   *
+   * A box that is *already* outside is never pulled in tighter than it sits,
+   * whatever this says: a resize changes the edge under the pointer, and
+   * correcting an unrelated one at the same time is the jump again in a
+   * different place.
+   */
+  overhang?: number | undefined
+}
+
 export function resizeBox(
   box: Box,
   handle: Handle,
   dStart: number,
   dTop: number,
-  step = SNAP
+  options: ResizeOptions = {}
 ): Box {
+  const step = options.step ?? SNAP
+
+  const slack = Math.max(
+    options.overhang ?? 0,
+    -box.start,
+    -box.top,
+    box.start + box.width - 1,
+    box.top + box.height - 1,
+    0
+  )
+  const low = -slack
+  const high = 1 + slack
+  const hold = (value: number) => Math.min(high, Math.max(low, value))
+
   let { start, top, width, height } = box
 
-  if (handle.includes('start')) {
-    const next = Math.min(clamp01(snap(start + dStart, step)), start + width - MIN_ELEMENT)
+  const movesStart = handle.includes('start')
+  const movesEnd = handle.includes('end')
+  const movesTop = handle.includes('top')
+  const movesBottom = handle.includes('bottom')
+
+  if (movesStart) {
+    const next = Math.min(hold(snap(start + dStart, step)), start + width - MIN_ELEMENT)
     width = start + width - next
     start = next
   }
-  if (handle.includes('end')) {
-    const right = Math.max(clamp01(snap(start + width + dStart, step)), start + MIN_ELEMENT)
+  if (movesEnd) {
+    const right = Math.max(hold(snap(start + width + dStart, step)), start + MIN_ELEMENT)
     width = right - start
   }
-  if (handle.includes('top')) {
-    const next = Math.min(clamp01(snap(top + dTop, step)), top + height - MIN_ELEMENT)
+  if (movesTop) {
+    const next = Math.min(hold(snap(top + dTop, step)), top + height - MIN_ELEMENT)
     height = top + height - next
     top = next
   }
-  if (handle.includes('bottom')) {
-    const bottom = Math.max(clamp01(snap(top + height + dTop, step)), top + MIN_ELEMENT)
+  if (movesBottom) {
+    const bottom = Math.max(hold(snap(top + height + dTop, step)), top + MIN_ELEMENT)
     height = bottom - top
+  }
+
+  /*
+   * The ratio, restored from whichever axis the pointer moved further along.
+   *
+   * **Led by the dominant axis rather than by one named side.** Fixing the
+   * height to the width would make a corner drag straight down do nothing,
+   * which is the behaviour that makes an aspect lock feel broken; comparing the
+   * two *proportional* changes means the corner follows the pointer along
+   * whichever axis the owner is actually pulling.
+   *
+   * The opposite corner stays pinned, exactly as it does without the lock —
+   * everything below recomputes the moving edges from it rather than nudging
+   * the free result.
+   */
+  if (
+    options.aspect === true &&
+    (movesStart || movesEnd) &&
+    (movesTop || movesBottom) &&
+    box.width > 0 &&
+    box.height > 0
+  ) {
+    const ratio = box.width / box.height
+
+    if (Math.abs(width - box.width) / box.width >= Math.abs(height - box.height) / box.height) {
+      height = width / ratio
+    } else {
+      width = height * ratio
+    }
+
+    // The floor applies to the pair, not to one of them: shrinking past it on
+    // either axis stops the drag at the smallest box that still holds the
+    // ratio, rather than flattening the element on the way down.
+    const floor = Math.max(MIN_ELEMENT / width, MIN_ELEMENT / height, 1)
+    width *= floor
+    height *= floor
+
+    // And the same for the ceiling — the room left from the pinned corner.
+    const roomWide = movesStart ? box.start + box.width - low : high - box.start
+    const roomTall = movesTop ? box.top + box.height - low : high - box.top
+    const fit = Math.min(roomWide / width, roomTall / height, 1)
+    width *= fit
+    height *= fit
+
+    if (movesStart) start = box.start + box.width - width
+    if (movesTop) top = box.top + box.height - height
   }
 
   return {
     start: tidy(start),
     top: tidy(top),
-    width: tidy(Math.min(width, 1 - start)),
-    height: tidy(Math.min(height, 1 - top)),
+    width: tidy(Math.min(width, high - start)),
+    height: tidy(Math.min(height, high - top)),
   }
 }
 

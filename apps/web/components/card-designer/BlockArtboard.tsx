@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import type { BlockElement, BrandColor } from '@souqstudio/types'
+import type { BlockElement, Box, BrandColor } from '@souqstudio/types'
 import {
   isBound,
   moveBox,
@@ -20,6 +20,7 @@ import {
   drawElement,
   estimateWidth,
   measureText,
+  paintedRect,
   type ArtboardOffer,
   type DrawContext,
 } from '@/components/blocks/draw'
@@ -218,11 +219,48 @@ export function BlockArtboard({
     }
 
     if (active.kind === 'resize') {
-      const handle = active.handle
+      const chosen = active.origin.filter((element) => moving.has(element.id))
+      if (chosen.length === 0) return
+
+      /*
+       * **The selection is resized, and the elements follow it.**
+       *
+       * Every element used to be handed the same delta, which is only right
+       * when there is one of them: two elements a handle-width apart both grew
+       * by the full drag, so the pair spread past the frame that was supposed
+       * to be containing them and the handle came off the pointer within about
+       * a centimetre. Scaling the selection's own box and mapping each element
+       * into the result keeps the group's internal proportions — which is the
+       * same argument the move branch already makes for snapping.
+       *
+       * One element is a group of one, so this is the only arithmetic here.
+       * There is no second path to disagree with it.
+       */
+      const bounds = boundsOf(chosen.map((element) => element.box))
+      const next = resizeBox(bounds, active.handle, dStart, dTop, {
+        // **A corner holds the ratio unless Shift says otherwise.** Stretching
+        // a photograph or a logo by dragging its corner is the one thing a
+        // corner is never used for, and an owner who wants it has the edge
+        // handles as well as the modifier.
+        aspect: isCorner(active.handle) && !event.shiftKey,
+        overhang: overhangOf(chosen),
+      })
+
+      const sx = bounds.width === 0 ? 1 : next.width / bounds.width
+      const sy = bounds.height === 0 ? 1 : next.height / bounds.height
+
       onChange(
         active.origin.map((element) =>
           moving.has(element.id)
-            ? { ...element, box: resizeBox(element.box, handle, dStart, dTop) }
+            ? {
+                ...element,
+                box: {
+                  start: tidy(next.start + (element.box.start - bounds.start) * sx),
+                  top: tidy(next.top + (element.box.top - bounds.top) * sy),
+                  width: tidy(element.box.width * sx),
+                  height: tidy(element.box.height * sy),
+                },
+              }
             : element
         )
       )
@@ -355,7 +393,7 @@ export function BlockArtboard({
         ? resolved.map(({ element, rect }) => (
             <rect
               key={`hit-${element.id}`}
-              {...xywh(rect)}
+              {...xywh(grab(rect, Math.max(width, height)))}
               fill="transparent"
               className={element.locked === true ? 'outline-none' : 'cursor-move outline-none'}
               role="button"
@@ -412,6 +450,13 @@ export function BlockArtboard({
       {selectionRects.length > 0 ? (
         <Selection
           rects={selectionRects.map(({ rect }) => rect)}
+          /*
+           * Where the paint lands, for the two kinds whose box is not their
+           * picture — a line of text at the top of a tall box, a packshot inset
+           * inside its own. The ring stays on the box because the box is what a
+           * handle moves; this says what is actually in it.
+           */
+          content={selectionRects.map(({ element, rect }) => paintedRect(element, rect, ctx))}
           scale={Math.max(width, height)}
           interactive={interactive}
           onHandle={(handle, event) => startDrag(event, { kind: 'resize', handle })}
@@ -436,6 +481,71 @@ export function BlockArtboard({
 const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.height })
 
 const clampTurn = (value: number) => Math.min(180, Math.max(-180, value))
+
+/** Rounds away the floating-point tail scaling a group leaves behind. */
+const tidy = (value: number) => Math.round(value * 1e6) / 1e6
+
+/** A corner names both axes, and only a corner can hold a ratio. */
+const isCorner = (handle: Handle) => handle.includes('-')
+
+/**
+ * The smallest thing worth asking somebody to click, as a fraction of the
+ * artboard. About the width of a fingertip at the size the canvas is usually
+ * drawn, and a shade under the corner handles so it never hides them.
+ */
+const MIN_GRAB = 0.022
+
+/**
+ * The target for an element, which is its rectangle or a little more.
+ *
+ * **A hit area the size of the element is only fair for elements you can
+ * see.** A rule is two thousandths of the block tall and a caption on a dense
+ * card is not much more; both were drawn correctly, selectable in theory, and
+ * in practice reached by clicking four times and then giving up and using the
+ * layer list. Grown from the centre so the target stays over the thing it
+ * belongs to, and only ever grown — a full-bleed shape is already easy to hit
+ * and does not need to reach further.
+ */
+function grab(rect: Rect, scale: number): Rect {
+  const least = scale * MIN_GRAB
+  const width = Math.max(rect.width, least)
+  const height = Math.max(rect.height, least)
+  return {
+    x: rect.x - (width - rect.width) / 2,
+    y: rect.y - (height - rect.height) / 2,
+    width,
+    height,
+  }
+}
+
+/** The box that holds all of them, in block fractions. */
+function boundsOf(boxes: readonly Box[]): Box {
+  const start = Math.min(...boxes.map((box) => box.start))
+  const top = Math.min(...boxes.map((box) => box.top))
+  return {
+    start,
+    top,
+    width: Math.max(...boxes.map((box) => box.start + box.width)) - start,
+    height: Math.max(...boxes.map((box) => box.top + box.height)) - top,
+  }
+}
+
+/**
+ * How far past the block this selection's handles may travel.
+ *
+ * **A chip overhangs on purpose and everything else does not**, which is the
+ * same split `validateBlock` makes and the same quarter of a block it allows.
+ * Clamping a chip to the block pulled it back inside the moment a handle moved,
+ * so the corner stopped following the pointer on the one element in the library
+ * that is *designed* to sit over the edge.
+ *
+ * The most restrictive member wins: a chip dragged as part of a mixed selection
+ * is being resized as part of a group, and a group that can leave the block
+ * because one of its members may is not what anyone asked for.
+ */
+function overhangOf(elements: readonly BlockElement[]): number {
+  return Math.min(...elements.map((element) => (element.kind === 'chip' ? 0.25 : 0)))
+}
 
 const intersects = (a: Rect, b: Rect) =>
   a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
@@ -476,12 +586,15 @@ const HANDLES: { handle: Handle; fx: number; fy: number; cursor: string }[] = [
  */
 function Selection({
   rects,
+  content,
   scale,
   interactive,
   onHandle,
   onRotate,
 }: {
   rects: Rect[]
+  /** Where the paint lands, one per `rects` entry. Null means it fills its box. */
+  content: (Rect | null)[]
   scale: number
   interactive: boolean
   onHandle: (handle: Handle, event: React.PointerEvent) => void
@@ -526,16 +639,53 @@ function Selection({
    * every tool this is modelled on does — a corner resizes both axes and is the
    * one reached for most, so it earns the larger mark.
    *
-   * **Only the drawing shrinks.** Each handle keeps a transparent hit rect at
-   * the full size, so a smaller square is not a smaller target: shrinking the
-   * thing you have to grab is how "tidier" becomes "harder to use" on a
-   * trackpad, and none of this is visible in a screenshot.
+   * **Only the drawing shrinks.** Each handle keeps a transparent hit rect
+   * larger than the square, so a smaller mark is not a smaller target:
+   * shrinking the thing you have to grab is how "tidier" becomes "harder to
+   * use" on a trackpad, and none of this is visible in a screenshot. How much
+   * larger is `hit`, below.
    */
   const edgeSize = size * 0.62
-  const hit = size * 1.5
+
+  /**
+   * **The target shrinks with the element, down to a floor.** A fixed target is
+   * right up to the point where eight of them are wider than the thing they
+   * belong to: on a small element the four corners then cover it completely
+   * plus a margin all round, and the neighbour underneath cannot be clicked at
+   * all while it is selected. Two thirds of the shorter side keeps every handle
+   * inside its own half of the box, and the floor keeps it grabbable.
+   */
+  const hit = Math.max(size * 0.9, Math.min(size * 1.5, Math.min(box.width, box.height) * 0.66))
 
   return (
     <>
+      {/*
+        **Only when it is worth saying.** A mark that traces a ring already there
+        is two lines where one would do, so it is drawn only where the paint
+        falls meaningfully short of the box on one axis or the other — which on a
+        well-packed card is almost never, and on the tall caption box that
+        prompted this is every time.
+      */}
+      {content.map((rect, index) => {
+        const ring = rects[index]
+        if (rect === null || ring === undefined) return null
+        const short = scale * 0.03
+        if (ring.width - rect.width <= short && ring.height - rect.height <= short) return null
+
+        return (
+          <rect
+            key={`content-${index}`}
+            {...xywh(rect)}
+            fill="none"
+            stroke="var(--sq-ui-selected-ring)"
+            strokeWidth={stroke}
+            strokeOpacity={0.35}
+            strokeDasharray={`${scale * 0.008} ${scale * 0.008}`}
+            pointerEvents="none"
+          />
+        )
+      })}
+
       {rects.map((rect, index) => (
         <rect
           key={index}
@@ -582,7 +732,16 @@ function Selection({
 
             return (
               <g key={handle} style={{ cursor }} onPointerDown={(event) => onHandle(handle, event)}>
-                {/* The target, invisible and full size. */}
+                {/* Where the modifier is said out loud. A corner holding the
+                    proportions is the behaviour an owner expects and will not
+                    think to question; the way *out* of it is the part nobody
+                    guesses, so it is on the thing they are already pointing at. */}
+                <title>
+                  {edge
+                    ? 'Drag to resize'
+                    : 'Drag to resize. Hold Shift to change the proportions'}
+                </title>
+                {/* The target, invisible and larger than the mark. */}
                 <rect
                   x={cx - hit / 2}
                   y={cy - hit / 2}

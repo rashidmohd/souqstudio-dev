@@ -46,6 +46,7 @@ import { IMAGE_BINDINGS, TEXT_BINDINGS, bindingInScope, bindingKey, labelFor } f
 import type { OfferField } from '@souqstudio/engine'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { ColorControl } from '@/components/card-designer/ColorControl'
 import { ExtrudeControl } from '@/components/card-designer/ExtrudeControl'
@@ -1342,10 +1343,25 @@ function TextFields({
 
       {source.from === 'static' ? (
         <>
-          <Input
+          {/*
+            **A field you can press Return in.** It was an `Input`, which cannot
+            hold a line break at all — so a two-line headline could only be made
+            by narrowing the box until the wrap landed between the right two
+            words, and it moved again the moment the card was drawn at another
+            shape. `wrapText` keeps a typed break and wraps inside it, so the
+            two mechanisms compose: the owner says where the line must break and
+            the fit ladder still decides the rest.
+
+            Three rows rather than four: this sits in a panel beside a dozen
+            other controls, and a headline is rarely a paragraph.
+          */}
+          <Textarea
             label="Text"
+            rows={3}
             disabled={disabled}
             value={source.textEn}
+            hint="Return starts a new line."
+            maxLength={280}
             onChange={(event) =>
               onChange({ ...element, source: { ...source, textEn: event.target.value } })
             }
@@ -1353,12 +1369,14 @@ function TextFields({
           {/* Both languages, always. A line with no Arabic is a hole in the
               Arabic edition, and the owner who typed it will never see that
               edition. */}
-          <Input
+          <Textarea
             label="Arabic text"
+            rows={3}
             dir="rtl"
             disabled={disabled}
             value={source.textAr}
             hint="Shown in Arabic editions of a book."
+            maxLength={280}
             onChange={(event) =>
               onChange({ ...element, source: { ...source, textAr: event.target.value } })
             }

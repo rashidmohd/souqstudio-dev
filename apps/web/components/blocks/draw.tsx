@@ -1182,6 +1182,77 @@ export function fitTextElement(
   return { content, fitted, step }
 }
 
+/**
+ * Where an element's paint actually lands inside its box.
+ *
+ * **The box is the layout and it is not always the picture.** A caption in a
+ * tall box draws one line at the top of it; a packshot is inset by 12% and then
+ * letterboxed inside that. The designer's selection outline is the box —
+ * correctly, because the box is what a handle moves — so on those two kinds the
+ * ring can sit a long way from anything the owner can see, and the only way to
+ * tell what is selected is to drag it and watch what moves.
+ *
+ * This is the other half of that answer: the canvas draws it as a faint inner
+ * mark, so the ring keeps saying *what will resize* while the mark says *what
+ * is there*. It lives beside the painter rather than in the designer because it
+ * is a statement about what the painter does, and a second reading of that in a
+ * component is a second reading that will drift.
+ *
+ * `null` means the element fills its box, so there is nothing extra to say. A
+ * `contain` image is a third case and deliberately not answered: where it
+ * letterboxes depends on the file's own proportions, which nothing here has
+ * until the browser has fetched it.
+ */
+export function paintedRect(element: BlockElement, box: Rect, ctx: DrawContext): Rect | null {
+  if (element.kind === 'text') {
+    const measured = fitTextElement(element, box, ctx)
+    if (measured === null) return null
+
+    const { content, fitted, step } = measured
+    const family = fontStack(ctx.scale.families[step.family])
+    const { anchor, x, direction } = placeText(content, element.align, box, ctx.direction)
+
+    // The tracking, added here exactly as `advance` adds it in the engine — the
+    // measurer is told the weight and never the letter spacing, or the width
+    // would be counted twice.
+    const tracking = step.letterSpacing ?? 0
+    const widest = fitted.lines.reduce(
+      (widest, line) =>
+        Math.max(
+          widest,
+          ctx.measure(line, fitted.fontSize, family, { weight: step.weight }) +
+            tracking * fitted.fontSize * line.length
+        ),
+      0
+    )
+
+    // `start` is the start of the *string*, which is the right edge when the
+    // string reads right to left — the same reconciliation `placeText` makes,
+    // read back the other way.
+    const atLeft = (anchor === 'start') === (direction === 'ltr')
+    return {
+      x: anchor === 'middle' ? x - widest / 2 : atLeft ? x : x - widest,
+      y: box.y,
+      width: widest,
+      height: fitted.lines.length * fitted.fontSize * fitted.lineHeight,
+    }
+  }
+
+  // The packshot's breathing room, from `Packshot` — artwork and logos reach
+  // their box and are not inset, so they have nothing to report.
+  if (element.kind === 'image' && element.source.from === 'product') {
+    const inset = Math.min(box.width, box.height) * 0.12
+    return {
+      x: box.x + inset,
+      y: box.y + inset,
+      width: box.width - inset * 2,
+      height: box.height - inset * 2,
+    }
+  }
+
+  return null
+}
+
 function Text({
   element,
   box,

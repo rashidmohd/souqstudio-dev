@@ -112,6 +112,69 @@ describe('resizeBox', () => {
     expect(resized.start + resized.width).toBeLessThanOrEqual(1)
     expect(resized.top + resized.height).toBeLessThanOrEqual(1)
   })
+
+  it('lets an element past the edge when it is allowed to overhang', () => {
+    // A chip is designed to sit over the corner, and `validateBlock` allows it
+    // a quarter of the block. Clamping its handle to the block instead is the
+    // jump that took the corner off the pointer.
+    const resized = resizeBox(box(0.8, 0.1, 0.2, 0.2), 'end', 0.15, 0, { overhang: 0.25 })
+    expect(resized.start + resized.width).toBeCloseTo(1.15)
+  })
+
+  it('never pulls a box that already overhangs back inside', () => {
+    const resized = resizeBox(box(-0.1, 0.1, 0.3, 0.2), 'end', 0.05, 0)
+    expect(resized.start).toBeCloseTo(-0.1)
+  })
+
+  describe('with the ratio held', () => {
+    it('follows the axis the pointer moved further along', () => {
+      // A corner dragged mostly sideways: the width leads and the height comes
+      // with it, at the 2:1 the box started with.
+      const resized = resizeBox(box(0.1, 0.1, 0.4, 0.2), 'end-bottom', 0.2, 0.01, {
+        aspect: true,
+      })
+      expect(resized.width / resized.height).toBeCloseTo(2)
+      expect(resized.width).toBeCloseTo(0.6)
+    })
+
+    it('follows a drag straight down, which a width-led lock could not', () => {
+      const resized = resizeBox(box(0.1, 0.1, 0.4, 0.2), 'end-bottom', 0, 0.1, {
+        aspect: true,
+      })
+      expect(resized.width / resized.height).toBeCloseTo(2)
+      expect(resized.height).toBeCloseTo(0.3)
+    })
+
+    it('keeps the opposite corner pinned', () => {
+      const resized = resizeBox(box(0.3, 0.3, 0.4, 0.2), 'start-top', -0.2, 0, { aspect: true })
+      expect(resized.start + resized.width).toBeCloseTo(0.7)
+      expect(resized.top + resized.height).toBeCloseTo(0.5)
+      expect(resized.width / resized.height).toBeCloseTo(2)
+    })
+
+    it('holds the ratio at the floor rather than flattening the element', () => {
+      const resized = resizeBox(box(0.1, 0.1, 0.4, 0.2), 'end-bottom', -0.9, -0.9, {
+        aspect: true,
+      })
+      expect(resized.width / resized.height).toBeCloseTo(2)
+      expect(resized.height).toBeGreaterThanOrEqual(MIN_ELEMENT - 1e-9)
+    })
+
+    it('holds the ratio at the block edge too', () => {
+      const resized = resizeBox(box(0.1, 0.1, 0.4, 0.2), 'end-bottom', 0.9, 0.9, {
+        aspect: true,
+      })
+      expect(resized.width / resized.height).toBeCloseTo(2)
+      expect(resized.start + resized.width).toBeLessThanOrEqual(1 + 1e-9)
+      expect(resized.top + resized.height).toBeLessThanOrEqual(1 + 1e-9)
+    })
+
+    it('is ignored on an edge handle, which moves one pair of sides by definition', () => {
+      const resized = resizeBox(box(0.1, 0.1, 0.4, 0.2), 'end', 0.2, 0, { aspect: true })
+      expect(resized.height).toBeCloseTo(0.2)
+      expect(resized.width).toBeCloseTo(0.6)
+    })
+  })
 })
 
 describe('element lists', () => {

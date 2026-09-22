@@ -174,7 +174,20 @@ function sizeOf(scale: TypeScale, level: TypeLevel, blockSize: number): number {
   return scale.base * blockSize * scale.levels[level].size
 }
 
-/** Greedy word wrap. Words that do not fit alone are left long — rung 3's job. */
+/**
+ * Greedy word wrap. Words that do not fit alone are left long — rung 3's job.
+ *
+ * **A newline in the text is a break the owner asked for, and it is kept.** The
+ * split used to be `/\s+/`, which treats a line feed as a space — so a headline
+ * typed on three lines came back as one paragraph reflowed to the box, and the
+ * only way to get a second line was to make the box narrow enough to force one.
+ * Hard breaks are honoured first and each paragraph is wrapped inside them, so
+ * the two mechanisms compose rather than compete.
+ *
+ * An empty paragraph is a blank line and survives, because that is what it was
+ * typed for. Blank lines at the end do not: they are the trailing Return nobody
+ * meant, and they would eat the height the rest of the text is fitted against.
+ */
 export function wrapText(
   text: string,
   maxWidth: number,
@@ -183,22 +196,30 @@ export function wrapText(
   measure: TextMeasurer,
   style?: TextStyleMetrics | undefined
 ): string[] {
-  const words = text.split(/\s+/).filter((word) => word !== '')
-  if (words.length === 0) return []
-
   const lines: string[] = []
-  let line = ''
 
-  for (const word of words) {
-    const candidate = line === '' ? word : `${line} ${word}`
-    if (advance(candidate, fontSize, family, measure, style) <= maxWidth) {
-      line = candidate
-    } else {
-      if (line !== '') lines.push(line)
-      line = word
+  for (const paragraph of text.split(/\r\n|\r|\n/)) {
+    const words = paragraph.split(/\s+/).filter((word) => word !== '')
+    if (words.length === 0) {
+      lines.push('')
+      continue
     }
+
+    let line = ''
+    for (const word of words) {
+      const candidate = line === '' ? word : `${line} ${word}`
+      if (advance(candidate, fontSize, family, measure, style) <= maxWidth) {
+        line = candidate
+      } else {
+        if (line !== '') lines.push(line)
+        line = word
+      }
+    }
+    if (line !== '') lines.push(line)
   }
-  if (line !== '') lines.push(line)
+
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  while (lines.length > 0 && lines[0] === '') lines.shift()
 
   return lines
 }
