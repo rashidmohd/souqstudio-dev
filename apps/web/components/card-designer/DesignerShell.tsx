@@ -26,6 +26,7 @@ import {
 import { ElementProperties } from '@/components/card-designer/ElementProperties'
 import { splitPriceMark } from '@/lib/split-price-mark'
 import { LayerList } from '@/components/card-designer/LayerList'
+import { ShapesPanel } from '@/components/card-designer/ShapesPanel'
 import { StressPreview } from '@/components/card-designer/StressPreview'
 import { toArtboardOffer } from '@/lib/preview-offer'
 import { TYPICAL_PRODUCT } from '@/lib/preview-product'
@@ -210,7 +211,7 @@ export function DesignerShell({
    * navigation an owner rarely makes. If it turns out they collapse it every
    * session, `lib/rail-preference.ts` is the pattern to copy.
    */
-  const [layersOpen, setLayersOpen] = React.useState(true)
+  const [panelOpen, setPanelOpen] = React.useState(true)
   const [picking, setPicking] = React.useState(false)
 
   React.useEffect(() => {
@@ -515,7 +516,7 @@ export function DesignerShell({
           // owner opened on purpose, so it always shows the list — hiding it
           // there would leave a drawer containing a strip of tools they can
           // already reach.
-          lgWidth={layersOpen ? 'lg:w-pane-start' : 'lg:w-tool-rail'}
+          lgWidth={panelOpen ? 'lg:w-pane-start' : 'lg:w-tool-rail'}
         >
           <ToolRail
             repeats={repeats}
@@ -523,8 +524,8 @@ export function DesignerShell({
             uploading={uploading}
             idle={store.selectedIds.length === 0}
             onSelectNone={() => store.select([])}
-            layersOpen={layersOpen}
-            onToggleLayers={() => setLayersOpen((open) => !open)}
+            panelOpen={panelOpen}
+            onTogglePanel={() => setPanelOpen((open) => !open)}
             onUpload={editable ? () => setPicking(true) : undefined}
             onAdd={(element, atBottom) => {
               // Paint order is array order, so "behind everything" is the front
@@ -539,7 +540,7 @@ export function DesignerShell({
 
           <div
             className={
-              layersOpen
+              panelOpen
                 ? 'flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-3'
                 : 'flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-3 lg:hidden'
             }
@@ -559,10 +560,10 @@ export function DesignerShell({
                 </h2>
                 <button
                   type="button"
-                  aria-label="Hide layers"
-                  aria-expanded={layersOpen}
-                  title="Hide layers"
-                  onClick={() => setLayersOpen(false)}
+                  aria-label="Hide layers and shapes"
+                  aria-expanded={panelOpen}
+                  title="Hide layers and shapes"
+                  onClick={() => setPanelOpen(false)}
                   className="hidden rounded-control p-1 text-secondary hover:bg-stone-100 lg:block"
                 >
                   <PanelLeftClose className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -588,6 +589,23 @@ export function DesignerShell({
                 }}
               />
             </section>
+
+            {/*
+              **Under the layers, in the pane the rail opens.** The rail holds
+              one shape because it is a strip of icons that is already long;
+              the other twelve were reachable only through the variant grid in
+              the properties panel, which is a route an owner has to already
+              know about to take. A shape nobody can find is a shape nobody
+              uses, and the one they reach for instead is an uploaded picture
+              they cannot recolour.
+            */}
+            <ShapesPanel
+              disabled={!editable}
+              onAdd={(element) => {
+                store.setElements(addElement(elements, element))
+                store.select([element.id])
+              }}
+            />
           </div>
         </CanvasDrawer>
 

@@ -60,9 +60,9 @@ type Props = {
   /** True while nothing is selected — the pointer tool's resting state. */
   idle: boolean
   onSelectNone: () => void
-  /** Whether the layer list beside the rail is showing. */
-  layersOpen: boolean
-  onToggleLayers: () => void
+  /** Whether the pane beside the rail is showing. */
+  panelOpen: boolean
+  onTogglePanel: () => void
 }
 
 type Tool = {
@@ -103,8 +103,8 @@ export function ToolRail({
   uploading,
   idle,
   onSelectNone,
-  layersOpen,
-  onToggleLayers,
+  panelOpen,
+  onTogglePanel,
 }: Props) {
   return (
     <div
@@ -171,18 +171,22 @@ export function ToolRail({
         tool, and grouping it with the shapes would say it makes something.
 
         **It lives on the rail because the rail is what survives the collapse.**
-        A toggle inside the layer list can only ever close it; the way back has
+        A toggle inside the pane can only ever close it; the way back has
         to be somewhere that is still on screen, which is the same reason the
         dashboard navigation keeps its own toggle on the strip rather than in
         the panel.
       */}
       <Divider />
       <ToolButton
-        label={layersOpen ? 'Hide layers' : 'Show layers'}
-        icon={layersOpen ? PanelLeftClose : PanelLeftOpen}
-        active={!layersOpen}
+        // **Named for what the pane holds, like the book rail's is.** It was
+        // "layers" when layers were all that was in there; the shape kit is in
+        // there now, and a toggle that names half its contents is how an owner
+        // concludes the other half does not exist.
+        label={panelOpen ? 'Hide layers and shapes' : 'Show layers and shapes'}
+        icon={panelOpen ? PanelLeftClose : PanelLeftOpen}
+        active={!panelOpen}
         disabled={false}
-        onClick={onToggleLayers}
+        onClick={onTogglePanel}
       />
     </div>
   )

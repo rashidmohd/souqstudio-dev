@@ -55,6 +55,8 @@ import { ExtrudeControl } from '@/components/card-designer/ExtrudeControl'
 import { StrokeControl } from '@/components/card-designer/StrokeControl'
 import { ShadowControl } from '@/components/card-designer/ShadowControl'
 import { ImageBlurControl } from '@/components/card-designer/ImageBlurControl'
+import { ShapeMark } from '@/components/card-designer/ShapeMark'
+import { SHAPE_VARIANTS, type ShapeVariant } from '@/lib/block-elements'
 import { Segmented, ToggleBar } from '@/components/ui/segmented'
 import { Slider } from '@/components/ui/slider'
 import { describe } from '@/components/card-designer/LayerList'
@@ -176,7 +178,7 @@ export function ElementProperties({
               className="grid w-full grid-cols-3 rounded-control"
               disabled={disabled}
               value={element.variant ?? 'rect'}
-              options={SHAPE_OPTIONS.map((option) => ({
+              options={SHAPE_VARIANTS.map((option) => ({
                 value: option.value,
                 label: option.label,
                 render: () => <ShapePreview variant={option.value} element={element} />,
@@ -1311,28 +1313,16 @@ const PLACE_OPTIONS: { value: MarkPlace; label: string }[] = [
   { value: 'hidden', label: 'Hidden' },
 ]
 
-type ShapeVariant = NonNullable<Extract<BlockElement, { kind: 'shape' }>['variant']>
 
 /**
- * The three primitives first, then the six an offer card is made of. In that
- * order because a rectangle is what most owners reach for and a burst is what
- * they reach for next — not alphabetically, and not by how interesting it is.
+ * The box every shape mark in this panel is drawn in.
+ *
+ * Deliberately wider than it is tall: a ribbon and an arrow are length-shaped
+ * things and a square preview of one reads as a blob, while a burst and a star
+ * hold their proportion and centre themselves in it anyway — which is the
+ * behaviour being previewed as much as the outline is.
  */
-const SHAPE_OPTIONS: { value: ShapeVariant; label: string }[] = [
-  { value: 'rect', label: 'Rectangle' },
-  { value: 'ellipse', label: 'Circle' },
-  { value: 'line', label: 'Line' },
-  { value: 'burst', label: 'Burst' },
-  { value: 'star', label: 'Star' },
-  { value: 'ribbon', label: 'Ribbon' },
-  { value: 'tag', label: 'Tag' },
-  { value: 'flash', label: 'Corner flash' },
-  { value: 'arrow', label: 'Arrow' },
-  { value: 'polygon', label: 'Polygon' },
-  { value: 'arch', label: 'Curved panel' },
-  { value: 'wave', label: 'Wave' },
-  { value: 'bubble', label: 'Speech bubble' },
-]
+const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
 
 /**
  * Whether a corner radius means anything on this shape.
@@ -1347,15 +1337,17 @@ const hasCorners = (variant: ShapeVariant | undefined): boolean =>
   variant === 'bubble'
 
 /**
- * One shape, drawn at button size by the function that draws it on the card.
+ * One shape at button size, drawn by the shared mark.
  *
- * The box is deliberately wider than it is tall: a ribbon and an arrow are
- * length-shaped things and a square preview of one reads as a blob, while a
- * burst and a star hold their proportion and centre themselves in it anyway —
- * which is the behaviour being previewed as much as the outline is.
+ * **Each button draws the element's own settings**, so the picker stops being a
+ * picture of a hexagon on an element that is a triangle — and switching between
+ * the arch and the wave keeps the curve the owner already dialled in rather than
+ * appearing to reset it. The shapes that take no parameters ignore all of this.
+ *
+ * The drawing itself moved to `ShapeMark` the day the shapes panel needed the
+ * same thirteen marks. What is left here is the part that is about *this*
+ * element.
  */
-const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
-
 function ShapePreview({
   variant,
   element,
@@ -1365,35 +1357,15 @@ function ShapePreview({
   element: Extract<BlockElement, { kind: 'shape' }>
 }) {
   return (
-    <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
-      {variant === 'rect' ? (
-        <rect x={1} y={3} width={14} height={10} rx={2} fill="currentColor" />
-      ) : variant === 'ellipse' ? (
-        <ellipse cx={8} cy={8} rx={7} ry={5} fill="currentColor" />
-      ) : variant === 'line' ? (
-        <rect x={1} y={7} width={14} height={2} rx={1} fill="currentColor" />
-      ) : (
-        <path
-          // **Each button draws the element's own settings**, so the picker
-          // stops being a picture of a hexagon on an element that is a
-          // triangle — and switching between the arch and the wave keeps the
-          // curve the owner already dialled in rather than appearing to reset
-          // it. The shapes that take no parameters ignore all of this.
-          //
-          // The radius is left out: it is in artboard units and this box is
-          // sixteen of them across, so passing it would round a 16px button
-          // into a disc.
-          d={shapePath(variant, PREVIEW, 'ltr', {
-            sides: element.sides,
-            curve: element.curve,
-            waves: element.waves,
-            tail: element.tail,
-          })}
-          fill="currentColor"
-          {...(needsEvenOdd(variant) ? { fillRule: 'evenodd' as const } : {})}
-        />
-      )}
-    </svg>
+    <ShapeMark
+      variant={variant}
+      options={{
+        sides: element.sides,
+        curve: element.curve,
+        waves: element.waves,
+        tail: element.tail,
+      }}
+    />
   )
 }
 
