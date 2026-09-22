@@ -29,6 +29,9 @@ export type PathShape =
   | 'star'
   | 'arrow'
   | 'polygon'
+  | 'arch'
+  | 'wave'
+  | 'bubble'
 
 export const PATH_SHAPES: PathShape[] = [
   'burst',
@@ -38,7 +41,24 @@ export const PATH_SHAPES: PathShape[] = [
   'star',
   'arrow',
   'polygon',
+  'arch',
+  'wave',
+  'bubble',
 ]
+
+/**
+ * The shapes a price mark may sit on.
+ *
+ * **Named rather than subtracted**, and the difference matters every time this
+ * list grows: `Exclude<PathShape, …>` would have quietly admitted the arch, the
+ * wave and the bubble the moment they were added, each needing a `MARK_FIT` row
+ * describing how much of a *speech bubble* a price may use. A ground is a
+ * deliberate thing, so it is a deliberate list.
+ */
+export type MarkShape = Extract<
+  PathShape,
+  'burst' | 'star' | 'ribbon' | 'tag' | 'flash' | 'arrow'
+>
 
 /**
  * What a polygon's side count may be, and what it is when nobody said.
@@ -50,6 +70,29 @@ export const PATH_SHAPES: PathShape[] = [
  * the size a card is printed.
  */
 export const POLYGON_SIDES = { min: 3, max: 12, default: 6 } as const
+
+/**
+ * The parameters the parametric shapes take, and what they are when nobody
+ * said.
+ *
+ * **Every default is a shape rather than a degenerate one.** An arch at curve 0
+ * is a rectangle and a wave at 0 is a rectangle, so an owner who picked one
+ * from the grid and saw a plain box would reasonably conclude it was broken.
+ * The defaults are what the shape looks like when you point at it.
+ */
+export const SHAPE_BOUNDS = {
+  /** `polygon` — how many sides. */
+  sides: POLYGON_SIDES,
+  /**
+   * `arch` and `wave` — how deep the curve goes, as a fraction of the height.
+   * Negative turns it inside out: an arch that bulges becomes one that dips.
+   */
+  curve: { min: -1, max: 1, default: 0.35 },
+  /** `wave` — how many full waves run along the edge. */
+  waves: { min: 1, max: 8, default: 3 },
+  /** `bubble` — where the tail sits along the edge, from the reading start. */
+  tail: { min: 0, max: 1, default: 0.25 },
+} as const
 
 /**
  * Which shapes keep their proportion, and which fill whatever box they get.
@@ -66,6 +109,11 @@ export const POLYGON_SIDES = { min: 3, max: 12, default: 6 } as const
 export const HOLDS_PROPORTION: Record<PathShape, boolean> = {
   burst: true,
   star: true,
+  // A panel, a header band and a bubble are all things whose length is the
+  // point — the same side of this split as the ribbon, and for the same reason.
+  arch: false,
+  wave: false,
+  bubble: false,
   // **A regular polygon is only regular in a square.** Stretched to 3:1 a
   // hexagon's sides stop being equal and its angles stop matching, which is a
   // hexagon in the same sense a squashed circle is a circle — and the owner who
@@ -140,26 +188,199 @@ function spiked(rect: Rect, points: number, innerRatio: number): string {
  * where a shape drawn with two sides is an invisible element rather than an
  * error anybody sees.
  */
-function regular(rect: Rect, sides: number): string {
+function regular(rect: Rect, sides: number, corner = 0): string {
   const count = Math.max(POLYGON_SIDES.min, Math.min(POLYGON_SIDES.max, Math.round(sides)))
   const box = square(rect)
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2
-  const radius = box.width / 2
+  const reach = box.width / 2
 
-  const vertices: string[] = []
+  const vertices: { x: number; y: number }[] = []
   for (let index = 0; index < count; index += 1) {
     // Start at -90° so a vertex points up; SVG's y grows downward.
     const angle = (Math.PI * 2 * index) / count - Math.PI / 2
-    vertices.push(point(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)))
+    vertices.push({ x: cx + reach * Math.cos(angle), y: cy + reach * Math.sin(angle) })
   }
-  return polygon(vertices)
+
+  if (!(corner > 0)) {
+    return polygon(vertices.map((vertex) => point(vertex.x, vertex.y)))
+  }
+
+  /*
+   * **`corner` means what `rx` means on a rectangle**, and that is the whole
+   * reason this is arithmetic rather than a constant. A rounded corner is the
+   * circle tangent to both edges: the tangent points sit `trim` back from the
+   * vertex, and `radius = trim × tan(θ/2)` for an interior angle θ. On a
+   * square θ is 90°, the tangent is 1, and `trim` equals the radius — which is
+   * exactly `rx`. On a triangle θ is 60° and the same visual radius has to eat
+   * nearly twice as far along each edge, so a control that set `trim`
+   * directly would round a triangle far harder than a rectangle at the same
+   * number. The owner sets one radius and every shape obeys it.
+   *
+   * Clamped to half an edge, because two corners cannot each take more than
+   * their share of the side between them — past that a triangle turns into a
+   * disc, which is a shape that already exists.
+   */
+  const interior = (Math.PI * (count - 2)) / count
+  const tangent = Math.tan(interior / 2)
+  const edge = 2 * reach * Math.sin(Math.PI / count)
+  const trim = Math.min(corner / tangent, edge / 2)
+  const r = trim * tangent
+
+  const along = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    const dx = to.x - from.x
+    const dy = to.y - from.y
+    const length = Math.hypot(dx, dy) || 1
+    return { x: from.x + (dx / length) * trim, y: from.y + (dy / length) * trim }
+  }
+
+  let d = ''
+  for (let index = 0; index < count; index += 1) {
+    const vertex = vertices[index] as { x: number; y: number }
+    const before = vertices[(index + count - 1) % count] as { x: number; y: number }
+    const after = vertices[(index + 1) % count] as { x: number; y: number }
+    const enter = along(vertex, before)
+    const leave = along(vertex, after)
+
+    d += `${index === 0 ? 'M' : 'L'}${point(enter.x, enter.y)}`
+    // Sweep 1: the vertices run clockwise on screen — y grows downward — so
+    // every corner turns the same way, and an arc that swept the other way
+    // would bite into the shape and draw a flower.
+    d += `A${round(r)},${round(r)} 0 0,1 ${point(leave.x, leave.y)}`
+  }
+  return `${d}Z`
+}
+
+const clampTo = (value: number, bounds: { min: number; max: number }) =>
+  Math.min(bounds.max, Math.max(bounds.min, value))
+
+/**
+ * A panel whose top edge is one smooth curve — the band a leaflet lays its
+ * headline on, with a photograph above it.
+ *
+ * **One curve and not two, which is what keeps it a shape rather than a
+ * drawing.** The obvious generalisation is a left height, a right height and a
+ * bulge, and it is the wrong one: three numbers is a path editor with a bad
+ * interface, and an owner who wants the sweep to lean has the rotation control
+ * every element already carries. One control, and the shape is symmetric.
+ *
+ * **The whole of it stays inside the box at every setting.** A bulge lowers the
+ * edge's ends by the depth and reaches the top of the box at its apex; a dip
+ * keeps the ends at the top and sinks by the depth. That is not a detail — an
+ * element that draws outside its rectangle is clipped by its neighbour on
+ * screen and by the trim on paper, and the owner sized the box.
+ */
+function arch(rect: Rect, curve: number): string {
+  const { x, y, width: w, height: h } = rect
+  const amount = clampTo(curve, SHAPE_BOUNDS.curve)
+  const depth = Math.min(Math.abs(amount) * h, h * 0.9)
+  if (depth === 0) return polygon([point(x, y), point(x + w, y), point(x + w, y + h), point(x, y + h)])
+
+  const up = amount > 0
+  const top = up ? y + depth : y
+  // A quadratic passes through (P0 + 2·P1 + P2) / 4, so the control point sits
+  // twice as far out as the apex is meant to reach.
+  const control = up ? top - depth * 2 : top + depth * 2
+
+  return (
+    `M${point(x, top)}` +
+    `Q${point(x + w / 2, control)} ${point(x + w, top)}` +
+    `L${point(x + w, y + h)}L${point(x, y + h)}Z`
+  )
+}
+
+/**
+ * A panel whose top edge runs in waves — the scalloped header a grocery flyer
+ * has had since before anybody printed one on a computer.
+ *
+ * The edge oscillates about a centre line one amplitude below the top of the
+ * box, so a crest touches the top and a trough sits two amplitudes down and
+ * both stay inside. `curve`'s sign decides whether it opens on a crest or a
+ * trough, which is the difference between a scallop and a row of tabs.
+ */
+function wave(rect: Rect, curve: number, waves: number): string {
+  const { x, y, width: w, height: h } = rect
+  const count = Math.round(clampTo(waves, SHAPE_BOUNDS.waves))
+  const amount = clampTo(curve, SHAPE_BOUNDS.curve)
+  const amplitude = Math.min((Math.abs(amount) * h) / 2, h * 0.45)
+  if (amplitude === 0) {
+    return polygon([point(x, y), point(x + w, y), point(x + w, y + h), point(x, y + h)])
+  }
+
+  const centre = y + amplitude
+  const halves = count * 2
+  const span = w / halves
+
+  let d = `M${point(x, centre)}`
+  for (let index = 0; index < halves; index += 1) {
+    // Crest, then trough, then crest — and the sign flips which comes first.
+    const towardTop = (index % 2 === 0) === amount > 0
+    const control = centre + (towardTop ? -amplitude * 2 : amplitude * 2)
+    d += `Q${point(x + span * (index + 0.5), control)} ${point(x + span * (index + 1), centre)}`
+  }
+
+  return `${d}L${point(x + w, y + h)}L${point(x, y + h)}Z`
+}
+
+/**
+ * A speech bubble: a rounded box with a tail under it.
+ *
+ * **The tail mirrors and the box does not.** A bubble points at whoever is
+ * speaking, and in an Arabic edition that person is on the other side — so
+ * `tail` is a fraction measured from the *reading* start, which is the right
+ * edge there. Same rule as the corner flash, and the same reason.
+ *
+ * It reuses `radius` rather than growing a second corner control, because the
+ * corners of a bubble are the corners of a box and an owner who has already
+ * set that number on a panel means the same thing by it here.
+ */
+function bubble(rect: Rect, radius: number, tail: number, rtl: boolean): string {
+  const { x, y, width: w, height: h } = rect
+
+  // The tail takes a bounded share of the height, so a short wide bubble keeps
+  // a body to write in and a tall one does not grow a spike.
+  const drop = Math.min(h * 0.22, w * 0.18)
+  const bottom = y + h - drop
+  const body = bottom - y
+  const r = Math.max(0, Math.min(radius, w / 2, body / 2))
+  const half = Math.min(drop * 0.55, w * 0.1)
+
+  const along = clampTo(tail, SHAPE_BOUNDS.tail)
+  const from = rtl ? 1 - along : along
+  // Kept clear of the corners: a tail growing out of a rounded corner is a
+  // shape with a nick in it rather than a bubble.
+  const centre = Math.min(Math.max(x + from * w, x + r + half), x + w - r - half)
+
+  return (
+    `M${point(x + r, y)}` +
+    `L${point(x + w - r, y)}A${round(r)},${round(r)} 0 0,1 ${point(x + w, y + r)}` +
+    `L${point(x + w, bottom - r)}A${round(r)},${round(r)} 0 0,1 ${point(x + w - r, bottom)}` +
+    `L${point(centre + half, bottom)}L${point(centre, y + h)}L${point(centre - half, bottom)}` +
+    `L${point(x + r, bottom)}A${round(r)},${round(r)} 0 0,1 ${point(x, bottom - r)}` +
+    `L${point(x, y + r)}A${round(r)},${round(r)} 0 0,1 ${point(x + r, y)}Z`
+  )
 }
 
 /** What a shape needs to know beyond its rectangle. */
 export interface ShapeOptions {
   /** `polygon` only — how many sides. Defaults to `POLYGON_SIDES.default`. */
   sides?: number | undefined
+  /** `arch` and `wave` — how deep the curve runs. See `SHAPE_BOUNDS.curve`. */
+  curve?: number | undefined
+  /** `wave` — how many full waves. See `SHAPE_BOUNDS.waves`. */
+  waves?: number | undefined
+  /** `bubble` — where its tail sits, from the reading start. */
+  tail?: number | undefined
+  /**
+   * `polygon` and `bubble` — the corner radius, in the rect's own units and
+   * meaning exactly what `rx` means on a rectangle. Zero is a sharp corner.
+   *
+   * **The other path shapes do not take one and that is deliberate.** A burst's
+   * spikes and a tag's punched corner are the shape; rounding them is asking
+   * for a different shape, and the designer hides the control on them rather
+   * than offering a number that does nothing.
+   */
+  radius?: number | undefined
 }
 
 /**
@@ -194,7 +415,23 @@ export function shapePath(
      * Arabic edition would rotate the card's furniture for no reason.
      */
     case 'polygon':
-      return regular(rect, options.sides ?? POLYGON_SIDES.default)
+      return regular(rect, options.sides ?? POLYGON_SIDES.default, options.radius ?? 0)
+
+    /** The headline band, with a photograph sitting in the curve above it. */
+    case 'arch':
+      return arch(rect, options.curve ?? SHAPE_BOUNDS.curve.default)
+
+    /** The scalloped header. */
+    case 'wave':
+      return wave(
+        rect,
+        options.curve ?? SHAPE_BOUNDS.curve.default,
+        options.waves ?? SHAPE_BOUNDS.waves.default
+      )
+
+    /** A quote, a shout, or the shop's own aside. */
+    case 'bubble':
+      return bubble(rect, options.radius ?? 0, options.tail ?? SHAPE_BOUNDS.tail.default, rtl)
 
     /** Twelve spikes: enough to read as a splat, few enough to survive print. */
     case 'burst':
@@ -366,18 +603,6 @@ export const CHIP_FIT: Record<ChipShape, { width: number; height: number; square
  * they take the largest square in the box and centre; a ribbon, a tag and an
  * arrow are things whose length is the point.
  */
-/**
- * The path shapes a price mark may sit on.
- *
- * **Everything but the polygon, and the exclusion is structural rather than
- * taste.** A polygon is only a shape once somebody has said how many sides it
- * has, and `PriceMarkStyle` has nowhere to put that number — its ground is a
- * name, not an element. Offering it would mean offering a hexagon under a
- * control that promises a choice, so the type refuses it and the picker never
- * has to remember to.
- */
-export type MarkShape = Exclude<PathShape, 'polygon'>
-
 export const MARK_FIT: Record<
   'none' | 'box' | MarkShape,
   { width: number; height: number; square: boolean }

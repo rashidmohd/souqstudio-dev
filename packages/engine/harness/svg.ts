@@ -150,6 +150,22 @@ function neededHeight(
  * bug this package exists to prevent, and the harness is the renderer a design
  * is looked at in before anybody sees it in a browser.
  */
+/**
+ * What the owner set on a parametric shape. The harness's copy of
+ * `draw.tsx`'s `shapeParams`, and the pair existing is the point: the harness
+ * is here to catch the two renderers disagreeing, so it reads the element
+ * itself rather than importing the browser's answer.
+ */
+function shapeParams(element: Extract<BlockElement, { kind: 'shape' }>): ShapeOptions {
+  return {
+    sides: element.sides,
+    curve: element.curve,
+    waves: element.waves,
+    tail: element.tail,
+    radius: element.radius,
+  }
+}
+
 function renderElement(
   element: BlockElement,
   rect: Rect,
@@ -219,9 +235,13 @@ function castShadow(
       ? ` fill="none" stroke="${ink}" stroke-opacity="${alpha}"` +
         ` stroke-width="${element.stroke.width * blockEdge}"`
       : ` fill="${ink}" fill-opacity="${alpha}"`
+  // The three variants that have corners — the same rule as `radiusOf` in
+  // `draw.tsx`, and the harness exists to catch the two disagreeing.
   const radius =
     element.kind === 'shape'
-      ? element.variant === undefined
+      ? element.variant === undefined ||
+        element.variant === 'rect' ||
+        element.variant === 'polygon'
         ? element.radius
         : 0
       : element.kind === 'image'
@@ -242,9 +262,9 @@ function castShadow(
     element.kind === 'shape' && element.variant !== undefined && isPathShape(element.variant)
       ? element.variant
       : null
-  // A pentagon's shadow has five sides too.
-  const sides: ShapeOptions =
-    element.kind === 'shape' && element.sides !== undefined ? { sides: element.sides } : {}
+  // Every parameter travels, or the shadow is a different shape from the thing
+  // casting it. Same reader as `draw.tsx`'s `shapeParams`.
+  const params: ShapeOptions = element.kind === 'shape' ? shapeParams(element) : {}
 
   return rings
     .map((ring) => {
@@ -253,7 +273,7 @@ function castShadow(
         // A twelve-point burst offsets by growing its radius and the shadow
         // follows its points — which is what makes this work on any path.
         return (
-          `<path d="${shapePath(path, ring.rect, ctx.direction, sides)}"${alpha}` +
+          `<path d="${shapePath(path, ring.rect, ctx.direction, { ...params, radius: ring.radius })}"${alpha}` +
           (needsEvenOdd(path) && !outlineOnly ? ' fill-rule="evenodd"' : '') +
           '/>'
         )
@@ -377,7 +397,7 @@ function shape(
     // The side count travels with the shape, or the harness draws a hexagon
     // where the browser drew a triangle — which is exactly the drift this
     // harness exists to catch.
-    const d = shapePath(shape, rect, 'ltr', { sides: element.sides })
+    const d = shapePath(shape, rect, 'ltr', shapeParams(element))
     return defs + `<path d="${d}" fill="${fill}"${rule}${strokeAttrs}/>`
   }
 

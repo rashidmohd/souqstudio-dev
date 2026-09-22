@@ -11,7 +11,7 @@ import {
   type TextSource,
   type TypeLevel,
 } from '@souqstudio/types'
-import { POLYGON_SIDES } from './shapes'
+import { POLYGON_SIDES, SHAPE_BOUNDS } from './shapes'
 
 /**
  * The block document, validated wherever it enters. E7.
@@ -623,8 +623,9 @@ const elementSchema = z.discriminatedUnion('kind', [
     fill: colorSchema.optional(),
     // The three primitives, then the six an offer card is actually made of,
     // then the one whose geometry the owner sets rather than picks.
-    // `radius` applies to the rectangle alone; the paths compute their own
-    // corners, and a document that sets both is not wrong, just ignored.
+    // `radius` applies to the rectangle and the polygon; the other paths
+    // compute their own corners, and a document that sets one on a burst is
+    // not wrong, just ignored.
     variant: z
       .enum([
         'rect',
@@ -637,6 +638,9 @@ const elementSchema = z.discriminatedUnion('kind', [
         'star',
         'arrow',
         'polygon',
+        'arch',
+        'wave',
+        'bubble',
       ])
       .optional(),
     // **The bounds are the schema's, not the control's.** A block arrives here
@@ -649,6 +653,17 @@ const elementSchema = z.discriminatedUnion('kind', [
       .min(POLYGON_SIDES.min)
       .max(POLYGON_SIDES.max)
       .optional(),
+    // The parametric shapes' own numbers, each bounded by the same constant the
+    // geometry and the picker read. A curve deeper than the element is a shape
+    // drawn outside the box its owner dragged.
+    curve: z.number().min(SHAPE_BOUNDS.curve.min).max(SHAPE_BOUNDS.curve.max).optional(),
+    waves: z
+      .number()
+      .int()
+      .min(SHAPE_BOUNDS.waves.min)
+      .max(SHAPE_BOUNDS.waves.max)
+      .optional(),
+    tail: z.number().min(SHAPE_BOUNDS.tail.min).max(SHAPE_BOUNDS.tail.max).optional(),
     radius: z.number().min(0).max(64),
     stroke: strokeSchema.optional(),
     shadow: shadowSchema.optional(),

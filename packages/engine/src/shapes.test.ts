@@ -23,18 +23,56 @@ import {
 const BOX: Rect = { x: 10, y: 20, width: 200, height: 100 }
 
 /**
- * Every coordinate pair in a path.
+ * Points on the outline of a path.
  *
- * **Only the pairs that follow `M` or `L`.** The tag's hole is drawn with arcs,
- * whose parameters are radii, flags and *relative* deltas — a naive "every
- * number pair" reader takes `1,0` from a sweep flag and reports the tag as
- * escaping its box, which is a bug in the reader and not in the shape.
+ * **Read per command rather than by scanning for number pairs.** The tag's hole
+ * is drawn with *relative* arcs whose parameters are radii and flags — a naive
+ * reader takes `1,0` from a sweep flag and reports the tag as escaping its box,
+ * which is a bug in the reader and not in the shape. Lower-case commands are
+ * skipped for that reason; the body of every shape is absolute.
+ *
+ * **A quadratic is sampled, never read.** Its control point is deliberately
+ * outside the curve it draws — an arch reaching the top of its box has one
+ * above the box — so taking it for a point on the shape would report a correct
+ * arch as escaping. Sampling is also what makes the "stays inside its rect"
+ * check mean anything on a curved shape: before this it read the two ends of
+ * the arch and nothing in between.
  */
 function points(d: string): { x: number; y: number }[] {
-  return [...d.matchAll(/[ML](-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g)].map((match) => ({
-    x: Number(match[1]),
-    y: Number(match[2]),
-  }))
+  const out: { x: number; y: number }[] = []
+  let at = { x: 0, y: 0 }
+
+  for (const [, letter = '', rest = ''] of d.matchAll(/([MLQA])([^MLQAZa]*)/g)) {
+    const n = [...rest.matchAll(/-?\d+(?:\.\d+)?/g)].map(Number)
+
+    if (letter === 'M' || letter === 'L') {
+      at = { x: n[0] ?? 0, y: n[1] ?? 0 }
+      out.push(at)
+      continue
+    }
+
+    if (letter === 'A') {
+      // rx ry rotation large-arc sweep x y — the endpoint is the last pair.
+      at = { x: n[5] ?? 0, y: n[6] ?? 0 }
+      out.push(at)
+      continue
+    }
+
+    const cx = n[0] ?? 0
+    const cy = n[1] ?? 0
+    const end = { x: n[2] ?? 0, y: n[3] ?? 0 }
+    for (let step = 1; step <= 8; step += 1) {
+      const t = step / 8
+      const u = 1 - t
+      out.push({
+        x: u * u * at.x + 2 * u * t * cx + t * t * end.x,
+        y: u * u * at.y + 2 * u * t * cy + t * t * end.y,
+      })
+    }
+    at = end
+  }
+
+  return out
 }
 
 const extent = (drawn: { x: number; y: number }[]) => {
@@ -126,7 +164,11 @@ describe('the shapes that read in a direction', () => {
     expect(shapePath(shape, BOX, 'rtl')).not.toBe(shapePath(shape, BOX, 'ltr'))
   })
 
-  it.each<PathShape>(['burst', 'star', 'ribbon', 'polygon'])(
+  it.each<PathShape>(['bubble'])('%s mirrors in rtl', (shape) => {
+    expect(shapePath(shape, BOX, 'rtl')).not.toBe(shapePath(shape, BOX, 'ltr'))
+  })
+
+  it.each<PathShape>(['burst', 'star', 'ribbon', 'polygon', 'arch', 'wave'])(
     '%s is the same either way',
     (shape) => {
       expect(shapePath(shape, BOX, 'rtl')).toBe(shapePath(shape, BOX, 'ltr'))
@@ -161,6 +203,72 @@ describe('the polygon', () => {
     expect(top.y).toBeCloseTo(0)
   })
 
+  describe('rounded', () => {
+    /**
+     * **A radius means on a polygon what `rx` means on a rectangle.** Set both
+     * to 10 and the corner is the same circle — which is the whole reason one
+     * control governs both, and the property that breaks the moment somebody
+     * "simplifies" the trim distance to equal the radius.
+     */
+    it('trims a square by the radius, exactly as rx does', () => {
+      const drawn = shapePath('polygon', { x: 0, y: 0, width: 100, height: 100 }, 'ltr', {
+        sides: 4,
+        radius: 10,
+      })
+      // The top vertex is (50, 0); its tangent points sit 10 back along each
+      // edge, which on a 90° corner is 10 / tan(45°) = 10 in each direction.
+      expect(drawn.startsWith('M42.929,7.071')).toBe(true)
+      expect(drawn).toContain('A10,10 0 0,1')
+    })
+
+    /**
+     * A triangle's corner is 60°, so the same visual radius has to eat further
+     * along each edge — `radius / tan(30°)`, about 1.73 times as far. A control
+     * that set the trim directly would round a triangle nearly twice as hard as
+     * a rectangle at the same number.
+     */
+    it('eats further along the edge on a sharper corner', () => {
+      const trimOf = (sides: number) => {
+        const apex = { x: 50, y: 0 }
+        const first = points(
+          shapePath('polygon', { x: 0, y: 0, width: 100, height: 100 }, 'ltr', {
+            sides,
+            radius: 10,
+          })
+        )[0] ?? { x: 0, y: 0 }
+        return Math.hypot(first.x - apex.x, first.y - apex.y)
+      }
+      expect(trimOf(3)).toBeCloseTo(10 / Math.tan(Math.PI / 6), 2)
+      expect(trimOf(4)).toBeCloseTo(10, 2)
+      expect(trimOf(3)).toBeGreaterThan(trimOf(4))
+    })
+
+    it('stays inside its rect however hard it is rounded', () => {
+      for (const point of points(
+        shapePath('polygon', BOX, 'ltr', { sides: 3, radius: 900 })
+      )) {
+        expect(point.x).toBeGreaterThanOrEqual(BOX.x - 0.01)
+        expect(point.x).toBeLessThanOrEqual(BOX.x + BOX.width + 0.01)
+        expect(point.y).toBeGreaterThanOrEqual(BOX.y - 0.01)
+        expect(point.y).toBeLessThanOrEqual(BOX.y + BOX.height + 0.01)
+      }
+    })
+
+    it('is the sharp polygon at zero', () => {
+      expect(shapePath('polygon', BOX, 'ltr', { sides: 5, radius: 0 })).toBe(
+        shapePath('polygon', BOX, 'ltr', { sides: 5 })
+      )
+    })
+
+    /** Every other path computes its own corners and ignores the number. */
+    it.each<PathShape>(['burst', 'star', 'ribbon', 'tag', 'flash', 'arrow'])(
+      '%s is unchanged by a radius',
+      (shape) => {
+        expect(shapePath(shape, BOX, 'ltr', { radius: 20 })).toBe(shapePath(shape, BOX))
+      }
+    )
+  })
+
   /**
    * A count outside the range is brought inside it. This is reached by a
    * hand-written seed rather than by the designer — the schema stops those —
@@ -170,6 +278,104 @@ describe('the polygon', () => {
   it('brings an impossible count into range rather than drawing nothing', () => {
     expect(points(shapePath('polygon', BOX, 'ltr', { sides: 1 })).length).toBe(POLYGON_SIDES.min)
     expect(points(shapePath('polygon', BOX, 'ltr', { sides: 99 })).length).toBe(POLYGON_SIDES.max)
+  })
+})
+
+describe('the curved panel', () => {
+  const R: Rect = { x: 0, y: 0, width: 100, height: 100 }
+  const topOf = (d: string) => Math.min(...points(d).map((point) => point.y))
+  const bottomEdge = (d: string) => Math.max(...points(d).map((point) => point.y))
+
+  it('reaches the top of its box at the apex and no further', () => {
+    const drawn = shapePath('arch', R, 'ltr', { curve: 0.4 })
+    expect(topOf(drawn)).toBeCloseTo(0, 1)
+    expect(bottomEdge(drawn)).toBeCloseTo(100, 1)
+  })
+
+  /**
+   * The sign is the whole control: an arch and the dish it becomes are one
+   * continuous adjustment rather than a depth plus an up/down switch.
+   */
+  it('turns the other way below zero', () => {
+    const up = shapePath('arch', R, 'ltr', { curve: 0.4 })
+    const down = shapePath('arch', R, 'ltr', { curve: -0.4 })
+    expect(up).not.toBe(down)
+    // Bulging: the ends sit below the apex. Dipping: the ends are the top.
+    expect(points(up)[0]?.y).toBeGreaterThan(0)
+    expect(points(down)[0]?.y).toBeCloseTo(0, 5)
+  })
+
+  it('is a rectangle at zero, which is what a curve of nothing means', () => {
+    expect(shapePath('arch', R, 'ltr', { curve: 0 })).toBe(
+      shapePath('arch', R, 'ltr', { curve: -0 })
+    )
+    expect(points(shapePath('arch', R, 'ltr', { curve: 0 })).length).toBe(4)
+  })
+
+  it('stays inside its box at the deepest setting', () => {
+    for (const point of points(shapePath('arch', R, 'ltr', { curve: 1 }))) {
+      expect(point.y).toBeGreaterThanOrEqual(-0.01)
+      expect(point.y).toBeLessThanOrEqual(100.01)
+    }
+  })
+})
+
+describe('the wave', () => {
+  const R: Rect = { x: 0, y: 0, width: 120, height: 100 }
+
+  it('draws the number of waves it was asked for', () => {
+    // Two quadratics per wave — a crest and a trough — so the count of curve
+    // segments is what says whether the control did anything.
+    const count = (waves: number) =>
+      [...shapePath('wave', R, 'ltr', { curve: 0.4, waves }).matchAll(/Q/g)].length
+    expect(count(1)).toBe(2)
+    expect(count(3)).toBe(6)
+    expect(count(8)).toBe(16)
+  })
+
+  it('keeps every crest and trough inside the box', () => {
+    for (const point of points(shapePath('wave', R, 'ltr', { curve: 1, waves: 8 }))) {
+      expect(point.y).toBeGreaterThanOrEqual(-0.01)
+      expect(point.y).toBeLessThanOrEqual(100.01)
+    }
+  })
+
+  it('opens on the other side of the line below zero', () => {
+    expect(shapePath('wave', R, 'ltr', { curve: 0.4, waves: 3 })).not.toBe(
+      shapePath('wave', R, 'ltr', { curve: -0.4, waves: 3 })
+    )
+  })
+})
+
+describe('the speech bubble', () => {
+  const R: Rect = { x: 0, y: 0, width: 200, height: 100 }
+  const tipOf = (d: string) => points(d).reduce((low, point) => (point.y > low.y ? point : low))
+
+  it('points its tail down, at the bottom of the box', () => {
+    expect(tipOf(shapePath('bubble', R, 'ltr', { tail: 0.25 })).y).toBeCloseTo(100, 1)
+  })
+
+  it('moves the tail along the edge', () => {
+    const near = tipOf(shapePath('bubble', R, 'ltr', { tail: 0.2 })).x
+    const far = tipOf(shapePath('bubble', R, 'ltr', { tail: 0.8 })).x
+    expect(far).toBeGreaterThan(near)
+  })
+
+  /**
+   * A bubble points at whoever is speaking, and in an Arabic edition that
+   * person is on the other side — the same rule as the corner flash.
+   */
+  it('mirrors its tail in rtl, and only its tail', () => {
+    const ltr = tipOf(shapePath('bubble', R, 'ltr', { tail: 0.2 })).x
+    const rtl = tipOf(shapePath('bubble', R, 'rtl', { tail: 0.2 })).x
+    expect(ltr + rtl).toBeCloseTo(R.width, 0)
+  })
+
+  it('keeps the tail clear of the rounded corners', () => {
+    // Asked for the very start of the edge, with corners eating a quarter of
+    // the width: a tail growing out of a corner is a nick, not a bubble.
+    const tip = tipOf(shapePath('bubble', R, 'ltr', { tail: 0, radius: 50 }))
+    expect(tip.x).toBeGreaterThan(R.x + 20)
   })
 })
 

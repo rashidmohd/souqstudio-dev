@@ -87,11 +87,13 @@ export {
   HOLDS_PROPORTION,
   PATH_SHAPES,
   POLYGON_SIDES,
+  SHAPE_BOUNDS,
   chipPathShape,
   drawsGround,
   needsEvenOdd,
   shapePath,
   type ChipShape,
+  type MarkShape,
   type PathShape,
   type ShapeOptions,
 } from './shapes'

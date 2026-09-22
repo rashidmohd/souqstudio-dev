@@ -353,10 +353,10 @@ function ShadowLayer({
   })
   const path = element.kind === 'shape' ? asPathShape(element.variant) : null
   const ellipse = element.kind === 'shape' && element.variant === 'ellipse'
-  // The shadow of a pentagon has five sides. Passing the count here is what
-  // stops it being a hexagon behind one.
-  const shapeOptions: ShapeOptions =
-    element.kind === 'shape' && element.sides !== undefined ? { sides: element.sides } : {}
+  // The shadow of a pentagon has five sides, and the shadow of a three-wave
+  // header has three waves. Every parameter travels, or the shadow is a
+  // different shape from the thing casting it.
+  const shapeOptions: ShapeOptions = element.kind === 'shape' ? shapeParams(element) : {}
 
   /**
    * **An outline-only shape casts from its outline, not from its silhouette.**
@@ -399,7 +399,13 @@ function ShadowLayer({
           return (
             <path
               key={key}
-              d={shapePath(path, ring.rect, ctx.direction, shapeOptions)}
+              // `ring.radius` rather than the element's: a shadow ring is the
+              // shape grown outward, and a corner that did not grow with it
+              // draws a sharp shadow under a rounded polygon.
+              d={shapePath(path, ring.rect, ctx.direction, {
+                ...shapeOptions,
+                radius: ring.radius,
+              })}
               {...ink}
               {...alpha}
               {...(needsEvenOdd(path) && !outlineOnly ? { fillRule: 'evenodd' as const } : {})}
@@ -427,9 +433,24 @@ function ShadowLayer({
   )
 }
 
-/** What a shadow's corners have to follow. A path computes its own. */
+/**
+ * What a shadow's corners have to follow.
+ *
+ * **The three variants that have corners, rather than the absent variant
+ * alone.** A rectangle that says so — which is every rectangle the palette
+ * makes, since it writes `variant: 'rect'` — was answering 0 here and casting a
+ * square-cornered shadow out from under its rounded self. A polygon rounds
+ * through `shapePath`, so it needs the same number for the same reason. The
+ * rest compute their own corners and take none.
+ */
 function radiusOf(element: BlockElement): number {
-  if (element.kind === 'shape') return element.variant === undefined ? element.radius : 0
+  if (element.kind === 'shape') {
+    return element.variant === undefined ||
+      element.variant === 'rect' ||
+      element.variant === 'polygon'
+      ? element.radius
+      : 0
+  }
   if (element.kind === 'image') return element.radius ?? 0
   return 0
 }
@@ -610,7 +631,7 @@ function Shape({
       <>
         {defs}
         <path
-          d={shapePath(path, box, ctx.direction, { sides: element.sides })}
+          d={shapePath(path, box, ctx.direction, shapeParams(element))}
           fill={fill}
           {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
           {...strokeProps}
@@ -625,6 +646,25 @@ function Shape({
       <rect {...xywh(box)} rx={element.radius} fill={fill} {...strokeProps} />
     </>
   )
+}
+
+/**
+ * What the owner set on a parametric shape, as the path function takes it.
+ *
+ * **One reader, called by the shape and by its shadow.** They were two spellings
+ * of the same object and the shadow's was already a version behind — it carried
+ * the side count and not the corner radius, so a rounded hexagon cast a sharp
+ * one. A shape and its shadow disagreeing is the kind of thing nobody reports
+ * and everybody notices.
+ */
+function shapeParams(element: Extract<BlockElement, { kind: 'shape' }>): ShapeOptions {
+  return {
+    sides: element.sides,
+    curve: element.curve,
+    waves: element.waves,
+    tail: element.tail,
+    radius: element.radius,
+  }
 }
 
 /** The variant as a path shape, or null for the three that draw as elements. */

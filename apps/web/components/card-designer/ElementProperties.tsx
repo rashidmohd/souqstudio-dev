@@ -34,6 +34,7 @@ import {
   markRecipe,
   needsEvenOdd,
   POLYGON_SIDES,
+  SHAPE_BOUNDS,
   PRICE_MARK_RECIPES,
   resolveColor,
   shapePath,
@@ -175,7 +176,7 @@ export function ElementProperties({
               options={SHAPE_OPTIONS.map((option) => ({
                 value: option.value,
                 label: option.label,
-                render: () => <ShapePreview variant={option.value} sides={element.sides} />,
+                render: () => <ShapePreview variant={option.value} element={element} />,
               }))}
               onChange={(variant) => onChange({ ...element, variant })}
             />
@@ -198,6 +199,73 @@ export function ElementProperties({
             element already has — a triangle on its side is a rotated triangle,
             not an eleventh variant.
           */}
+          {/*
+            **Depth, as a slider, which is the split `Slider`'s own contract
+            draws.** A side count is a count — an owner reaching for a hexagon
+            has the number six in mind — and a curve is not: nobody wants "38%
+            of the height", they want the sweep that looks right against the
+            photograph above it. The result is the point, so the control is the
+            one you drag while watching the card.
+
+            It runs through zero to the negative side rather than pairing a
+            depth with an up/down switch: an arch and the dish it becomes are
+            one continuous adjustment, and a switch would make the owner find a
+            second control to discover that.
+          */}
+          {element.variant === 'arch' || element.variant === 'wave' ? (
+            <Slider
+              label="Curve"
+              min={Math.round(SHAPE_BOUNDS.curve.min * 100)}
+              max={Math.round(SHAPE_BOUNDS.curve.max * 100)}
+              step={1}
+              unit="%"
+              disabled={disabled}
+              value={Math.round((element.curve ?? SHAPE_BOUNDS.curve.default) * 100)}
+              hint="Below zero the curve turns the other way."
+              onValueChange={(curve) => onChange({ ...element, curve: curve / 100 })}
+            />
+          ) : null}
+
+          {element.variant === 'wave' ? (
+            <Input
+              label="Waves"
+              type="number"
+              min={SHAPE_BOUNDS.waves.min}
+              max={SHAPE_BOUNDS.waves.max}
+              step={1}
+              figure
+              disabled={disabled}
+              value={element.waves ?? SHAPE_BOUNDS.waves.default}
+              onChange={(event) =>
+                onChange({
+                  ...element,
+                  waves: clamp(
+                    Math.round(Number(event.target.value)),
+                    SHAPE_BOUNDS.waves.min,
+                    SHAPE_BOUNDS.waves.max
+                  ),
+                })
+              }
+            />
+          ) : null}
+
+          {/* Measured from the reading start, so it mirrors on its own in an
+              Arabic edition — a bubble points at whoever is speaking, and that
+              person is on the other side there. */}
+          {element.variant === 'bubble' ? (
+            <Slider
+              label="Tail"
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
+              disabled={disabled}
+              value={Math.round((element.tail ?? SHAPE_BOUNDS.tail.default) * 100)}
+              hint="How far along the edge the tail sits, from the reading start."
+              onValueChange={(tail) => onChange({ ...element, tail: tail / 100 })}
+            />
+          ) : null}
+
           {element.variant === 'polygon' ? (
             <Input
               label="Sides"
@@ -254,7 +322,21 @@ export function ElementProperties({
             allowBlur
             onChange={(shadow) => onChange({ ...element, shadow })}
           />
-          {element.variant === 'line' ? null : (
+          {/*
+            **Shown on the shapes that have corners, which is not "everything
+            but the line".** It was, and on the other seven it was a control an
+            owner could set to 40 and watch nothing happen — a burst computes
+            its spikes, a tag computes its cut, and a circle has no corner to
+            round. The polygon is the one that made that visible, because a
+            rounded hexagon is a thing people expect and the number was right
+            there promising it.
+
+            So the number now does what it says on the polygon too — `regular`
+            in the engine rounds its vertices to the same radius `rx` means on
+            the rectangle, which is why one control can govern both — and it is
+            absent on the shapes where it never could.
+          */}
+          {hasCorners(element.variant) ? (
             <Input
               label="Corner radius"
               type="number"
@@ -268,7 +350,7 @@ export function ElementProperties({
                 onChange({ ...element, radius: clamp(Number(event.target.value), 0, 64) })
               }
             />
-          )}
+          ) : null}
         </>
       ) : null}
 
@@ -1244,7 +1326,22 @@ const SHAPE_OPTIONS: { value: ShapeVariant; label: string }[] = [
   { value: 'flash', label: 'Corner flash' },
   { value: 'arrow', label: 'Arrow' },
   { value: 'polygon', label: 'Polygon' },
+  { value: 'arch', label: 'Curved panel' },
+  { value: 'wave', label: 'Wave' },
+  { value: 'bubble', label: 'Speech bubble' },
 ]
+
+/**
+ * Whether a corner radius means anything on this shape.
+ *
+ * Absent is a rectangle — the schema's own default — so it answers with the
+ * rectangle. Everything else computes its own outline and takes no radius.
+ */
+const hasCorners = (variant: ShapeVariant | undefined): boolean =>
+  variant === undefined ||
+  variant === 'rect' ||
+  variant === 'polygon' ||
+  variant === 'bubble'
 
 /**
  * One shape, drawn at button size by the function that draws it on the card.
@@ -1256,7 +1353,14 @@ const SHAPE_OPTIONS: { value: ShapeVariant; label: string }[] = [
  */
 const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
 
-function ShapePreview({ variant, sides }: { variant: ShapeVariant; sides?: number | undefined }) {
+function ShapePreview({
+  variant,
+  element,
+}: {
+  variant: ShapeVariant
+  /** The element being edited, so each button draws the settings it would keep. */
+  element: Extract<BlockElement, { kind: 'shape' }>
+}) {
   return (
     <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
       {variant === 'rect' ? (
@@ -1267,11 +1371,21 @@ function ShapePreview({ variant, sides }: { variant: ShapeVariant; sides?: numbe
         <rect x={1} y={7} width={14} height={2} rx={1} fill="currentColor" />
       ) : (
         <path
-          // **The polygon button shows the count the element is set to**, so the
-          // picker stops being a picture of a hexagon on an element that is a
-          // triangle. Every other option ignores it, because every other option
-          // is one shape.
-          d={shapePath(variant, PREVIEW, 'ltr', { sides })}
+          // **Each button draws the element's own settings**, so the picker
+          // stops being a picture of a hexagon on an element that is a
+          // triangle — and switching between the arch and the wave keeps the
+          // curve the owner already dialled in rather than appearing to reset
+          // it. The shapes that take no parameters ignore all of this.
+          //
+          // The radius is left out: it is in artboard units and this box is
+          // sixteen of them across, so passing it would round a 16px button
+          // into a disc.
+          d={shapePath(variant, PREVIEW, 'ltr', {
+            sides: element.sides,
+            curve: element.curve,
+            waves: element.waves,
+            tail: element.tail,
+          })}
           fill="currentColor"
           {...(needsEvenOdd(variant) ? { fillRule: 'evenodd' as const } : {})}
         />

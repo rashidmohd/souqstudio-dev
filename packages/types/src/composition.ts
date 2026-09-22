@@ -805,6 +805,9 @@ export type BlockElement =
         | 'star'
         | 'arrow'
         | 'polygon'
+        | 'arch'
+        | 'wave'
+        | 'bubble'
         | undefined
       /**
        * How many sides a `polygon` has. Ignored by every other variant.
@@ -821,6 +824,25 @@ export type BlockElement =
        * shown this control and the one that survives being small.
        */
       sides?: number | undefined
+      /**
+       * How deep an `arch`'s or a `wave`'s curve runs, as a fraction of the
+       * element's height. Negative turns it inside out — an arch that bulges
+       * becomes one that dips. Ignored by every other variant.
+       *
+       * **A fraction rather than a length, like every other geometry here.**
+       * The same design is a third of an A4 column and 1080 square in a
+       * carousel post, and a curve set in artboard units would be a gentle
+       * sweep in one and a fold in the other.
+       */
+      curve?: number | undefined
+      /** How many full waves a `wave` runs along its edge. */
+      waves?: number | undefined
+      /**
+       * Where a `bubble`'s tail sits along its edge, as a fraction from the
+       * **reading** start — so it mirrors in an Arabic edition, because a
+       * bubble points at whoever is speaking and that person has moved.
+       */
+      tail?: number | undefined
       radius: number
       stroke?: Stroke | undefined
       shadow?: Shadow | undefined
