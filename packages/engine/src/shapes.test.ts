@@ -177,6 +177,23 @@ describe('the shapes that read in a direction', () => {
 })
 
 describe('the polygon', () => {
+  /**
+   * **The box the owner dragged is the shape's own bounding box.** It was not:
+   * the ring sat on the largest circle inside the largest square inside the
+   * box, so a triangle drew into about a third of it and could not be dragged
+   * into a corner — the selection arrived there while the shape was still short
+   * of it.
+   */
+  it.each([3, 5, 6])('fills its box at %i sides', (sides) => {
+    const drawn = points(shapePath('polygon', BOX, 'ltr', { sides }))
+    const xs = drawn.map((point) => point.x)
+    const ys = drawn.map((point) => point.y)
+    expect(Math.min(...xs)).toBeCloseTo(BOX.x, 5)
+    expect(Math.max(...xs)).toBeCloseTo(BOX.x + BOX.width, 5)
+    expect(Math.min(...ys)).toBeCloseTo(BOX.y, 5)
+    expect(Math.max(...ys)).toBeCloseTo(BOX.y + BOX.height, 5)
+  })
+
   /** One vertex per side, and the path closes — `M` plus n−1 `L`. */
   it.each([3, 5, 6, 12])('draws %i corners', (sides) => {
     expect(points(shapePath('polygon', BOX, 'ltr', { sides })).length).toBe(sides)
@@ -222,10 +239,15 @@ describe('the polygon', () => {
     })
 
     /**
-     * A triangle's corner is 60°, so the same visual radius has to eat further
-     * along each edge — `radius / tan(30°)`, about 1.73 times as far. A control
-     * that set the trim directly would round a triangle nearly twice as hard as
-     * a rectangle at the same number.
+     * **A sharper corner eats further along its edges for the same visible
+     * radius**, and the trim is computed per corner rather than once for the
+     * shape — which is what makes the rounding correct on a polygon that is no
+     * longer regular because its box is not square.
+     *
+     * A triangle filling a 100 square has an apex half-angle of
+     * `atan(50 / 100)`, so ten units of radius costs `10 / tan(26.57°)` = 20
+     * along each edge. The four-sided case is a diamond, whose corners are
+     * right angles — and there the trim is the radius, exactly as `rx`.
      */
     it('eats further along the edge on a sharper corner', () => {
       const trimOf = (sides: number) => {
@@ -238,9 +260,40 @@ describe('the polygon', () => {
         )[0] ?? { x: 0, y: 0 }
         return Math.hypot(first.x - apex.x, first.y - apex.y)
       }
-      expect(trimOf(3)).toBeCloseTo(10 / Math.tan(Math.PI / 6), 2)
+      expect(trimOf(3)).toBeCloseTo(10 / Math.tan(Math.atan(50 / 100)), 2)
       expect(trimOf(4)).toBeCloseTo(10, 2)
       expect(trimOf(3)).toBeGreaterThan(trimOf(4))
+    })
+
+    /**
+     * The corners of a stretched polygon are not all the same, so one trim for
+     * the shape would round half of them wrong. Nothing about the drawing says
+     * which — this is the check that says it.
+     */
+    it('rounds every corner of a polygon whose box is not square', () => {
+      const wide = shapePath('polygon', { x: 0, y: 0, width: 300, height: 100 }, 'ltr', {
+        sides: 6,
+        radius: 12,
+      })
+      // One arc per corner, and every one the *same* circle — that is what "a
+      // corner radius" means and it is the property to hold on to.
+      const arcs = [...wide.matchAll(/A([\d.]+),/g)].map((match) => Number(match[1]))
+      expect(arcs.length).toBe(6)
+      expect(new Set(arcs.map((r) => r.toFixed(2))).size).toBe(1)
+
+      // What differs is how far each corner bites, which is the whole reason
+      // the trim is computed per corner. `points` yields each corner as its
+      // entry point followed by the arc's end, so the chord between them is the
+      // bite — and a hexagon in a 3:1 box has two blunt corners and four sharp
+      // ones, so it cannot be one number.
+      const drawn = points(wide)
+      const chords: string[] = []
+      for (let index = 0; index + 1 < drawn.length; index += 2) {
+        const enter = drawn[index] as { x: number; y: number }
+        const leave = drawn[index + 1] as { x: number; y: number }
+        chords.push(Math.hypot(leave.x - enter.x, leave.y - enter.y).toFixed(2))
+      }
+      expect(new Set(chords).size).toBeGreaterThan(1)
     })
 
     it('stays inside its rect however hard it is rounded', () => {

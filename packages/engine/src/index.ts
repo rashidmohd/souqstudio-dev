@@ -91,6 +91,7 @@ export {
   chipPathShape,
   drawsGround,
   needsEvenOdd,
+  shapeExtent,
   shapePath,
   type ChipShape,
   type MarkShape,
@@ -167,6 +168,7 @@ export {
   type Alignment,
 } from './snap'
 export {
+  BLEED,
   MIN_ELEMENT,
   SNAP,
   snap,

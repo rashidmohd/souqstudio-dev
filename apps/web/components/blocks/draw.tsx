@@ -31,6 +31,7 @@ import {
   resolveTextBinding,
   extrudeCopies,
   shadowRings,
+  shapeExtent,
   shapePath,
   type BindingSubjects,
   type OfferField,
@@ -1294,6 +1295,14 @@ export function paintedRect(element: BlockElement, box: Rect, ctx: DrawContext):
       width: widest,
       height: fitted.lines.length * fitted.fontSize * fitted.lineHeight,
     }
+  }
+
+  // **A shape that holds its proportion draws in the largest square in its
+  // box**, which on a 3:1 panel is the middle third of it. `shapeExtent` is the
+  // engine's own answer, so the mark cannot drift from the drawing.
+  if (element.kind === 'shape') {
+    const path = asPathShape(element.variant)
+    return path === null ? null : shapeExtent(path, box)
   }
 
   // The packshot's breathing room, from `Packshot` — artwork and logos reach

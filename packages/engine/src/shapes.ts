@@ -114,12 +114,20 @@ export const HOLDS_PROPORTION: Record<PathShape, boolean> = {
   arch: false,
   wave: false,
   bubble: false,
-  // **A regular polygon is only regular in a square.** Stretched to 3:1 a
-  // hexagon's sides stop being equal and its angles stop matching, which is a
-  // hexagon in the same sense a squashed circle is a circle — and the owner who
-  // wants that shape has the ellipse and the rectangle already. The box still
-  // sizes it; this decides what it does inside one.
-  polygon: true,
+  /*
+   * **It fills its box, and that is a reversal.** It held its proportion at
+   * first, on the argument that a hexagon stretched to 3:1 is a hexagon in the
+   * same sense a squashed circle is a circle. What that costs is a selection
+   * outline standing well clear of the shape on every side — a triangle drew
+   * into about a third of its box — and an element that cannot be dragged into
+   * a corner because its box arrives there first.
+   *
+   * The deciding argument is that keeping one regular is already the default
+   * gesture: a corner handle holds the ratio unless Shift says otherwise, so a
+   * square box is what an owner gets without asking. Regularity is a drag away;
+   * a selection that fits its shape is not.
+   */
+  polygon: false,
   flash: false,
   ribbon: false,
   tag: false,
@@ -174,81 +182,121 @@ function spiked(rect: Rect, points: number, innerRatio: number): string {
 }
 
 /**
- * A regular polygon — `sides` equal edges around the centre.
+ * Round the corners of a closed polygon, in the coordinates it is drawn in.
  *
- * **A vertex at twelve o'clock, for the same reason a burst has one.** The
- * alternative is a flat top, which puts a *point* at the bottom: a triangle
- * standing on its tip reads as falling over, and a pentagon drawn that way is
- * the one nobody recognises. Every polygon anybody draws by hand has its apex
- * up, and an owner who wants it turned has the rotation control.
+ * **`radius` means what `rx` means on a rectangle, at every corner.** A rounded
+ * corner is the circle tangent to both edges: the tangent points sit `trim`
+ * back from the vertex, and `radius = trim × tan(θ/2)` for an interior angle θ.
+ * On a square θ is 90°, the tangent is 1, and `trim` equals the radius — which
+ * is exactly `rx`. On a triangle θ is 60° and the same visual radius has to eat
+ * nearly twice as far along each edge, so a version that set `trim` directly
+ * would round a triangle almost twice as hard as a rectangle at the same
+ * number.
  *
- * A side count outside the bounds is brought inside them rather than refused.
- * This is called by four renderers on documents that a schema has already
- * checked, and the one case that reaches here dirty is a hand-written seed —
- * where a shape drawn with two sides is an invisible element rather than an
- * error anybody sees.
+ * **Per corner rather than once for the shape**, because the shape is not
+ * required to be regular: a hexagon in a wide box has two different interior
+ * angles and four different edge lengths, and one trim would round half of its
+ * corners wrong. Each corner takes at most half of each edge it sits on, so two
+ * corners can never eat past each other however hard they are rounded.
  */
-function regular(rect: Rect, sides: number, corner = 0): string {
-  const count = Math.max(POLYGON_SIDES.min, Math.min(POLYGON_SIDES.max, Math.round(sides)))
-  const box = square(rect)
-  const cx = box.x + box.width / 2
-  const cy = box.y + box.height / 2
-  const reach = box.width / 2
+function rounded(vertices: readonly { x: number; y: number }[], radius: number): string {
+  const count = vertices.length
 
-  const vertices: { x: number; y: number }[] = []
-  for (let index = 0; index < count; index += 1) {
-    // Start at -90° so a vertex points up; SVG's y grows downward.
-    const angle = (Math.PI * 2 * index) / count - Math.PI / 2
-    vertices.push({ x: cx + reach * Math.cos(angle), y: cy + reach * Math.sin(angle) })
-  }
-
-  if (!(corner > 0)) {
-    return polygon(vertices.map((vertex) => point(vertex.x, vertex.y)))
-  }
-
-  /*
-   * **`corner` means what `rx` means on a rectangle**, and that is the whole
-   * reason this is arithmetic rather than a constant. A rounded corner is the
-   * circle tangent to both edges: the tangent points sit `trim` back from the
-   * vertex, and `radius = trim × tan(θ/2)` for an interior angle θ. On a
-   * square θ is 90°, the tangent is 1, and `trim` equals the radius — which is
-   * exactly `rx`. On a triangle θ is 60° and the same visual radius has to eat
-   * nearly twice as far along each edge, so a control that set `trim`
-   * directly would round a triangle far harder than a rectangle at the same
-   * number. The owner sets one radius and every shape obeys it.
-   *
-   * Clamped to half an edge, because two corners cannot each take more than
-   * their share of the side between them — past that a triangle turns into a
-   * disc, which is a shape that already exists.
-   */
-  const interior = (Math.PI * (count - 2)) / count
-  const tangent = Math.tan(interior / 2)
-  const edge = 2 * reach * Math.sin(Math.PI / count)
-  const trim = Math.min(corner / tangent, edge / 2)
-  const r = trim * tangent
-
-  const along = (from: { x: number; y: number }, to: { x: number; y: number }) => {
-    const dx = to.x - from.x
-    const dy = to.y - from.y
-    const length = Math.hypot(dx, dy) || 1
-    return { x: from.x + (dx / length) * trim, y: from.y + (dy / length) * trim }
-  }
+  // Shoelace, in a coordinate system whose y grows downward: negative is
+  // clockwise on screen, and every corner of a convex shape then turns the same
+  // way. An arc that swept the other way would bite into the shape and draw a
+  // flower.
+  const area = vertices.reduce((sum, vertex, index) => {
+    const next = vertices[(index + 1) % count] as { x: number; y: number }
+    return sum + (next.x - vertex.x) * (next.y + vertex.y)
+  }, 0)
+  const sweep = area < 0 ? 1 : 0
 
   let d = ''
   for (let index = 0; index < count; index += 1) {
     const vertex = vertices[index] as { x: number; y: number }
     const before = vertices[(index + count - 1) % count] as { x: number; y: number }
     const after = vertices[(index + 1) % count] as { x: number; y: number }
-    const enter = along(vertex, before)
-    const leave = along(vertex, after)
+
+    const back = { x: before.x - vertex.x, y: before.y - vertex.y }
+    const on = { x: after.x - vertex.x, y: after.y - vertex.y }
+    const backLength = Math.hypot(back.x, back.y) || 1
+    const onLength = Math.hypot(on.x, on.y) || 1
+
+    const cosine = (back.x * on.x + back.y * on.y) / (backLength * onLength)
+    const interior = Math.acos(Math.min(1, Math.max(-1, cosine)))
+    const tangent = Math.tan(interior / 2)
+
+    const trim = Math.min(radius / tangent, backLength / 2, onLength / 2)
+    const r = trim * tangent
+
+    const enter = {
+      x: vertex.x + (back.x / backLength) * trim,
+      y: vertex.y + (back.y / backLength) * trim,
+    }
+    const leave = {
+      x: vertex.x + (on.x / onLength) * trim,
+      y: vertex.y + (on.y / onLength) * trim,
+    }
 
     d += `${index === 0 ? 'M' : 'L'}${point(enter.x, enter.y)}`
-    // Sweep 1: the vertices run clockwise on screen — y grows downward — so
-    // every corner turns the same way, and an arc that swept the other way
-    // would bite into the shape and draw a flower.
-    d += `A${round(r)},${round(r)} 0 0,1 ${point(leave.x, leave.y)}`
+    d += `A${round(r)},${round(r)} 0 0,${sweep} ${point(leave.x, leave.y)}`
   }
+
   return `${d}Z`
+}
+
+/**
+ * A polygon with `sides` equal corners, filling the box it was given.
+ *
+ * **A vertex at twelve o'clock, for the same reason a burst has one.** The
+ * alternative is a flat top, which puts a *point* at the bottom: a triangle
+ * standing on its tip reads as falling over, and a pentagon drawn that way is
+ * the one nobody recognises. An owner who wants it turned has the rotation
+ * control.
+ *
+ * **Its bounding box is the box the owner dragged, and that was not true at
+ * first.** The ring was laid out on the largest circle inside the largest
+ * square inside the box, so a triangle occupied about a third of it — the
+ * selection outline stood a long way off the shape on every side, and dragging
+ * the triangle into a corner was impossible because the *box* reached the
+ * corner while the triangle was still short of it. Normalising the ring onto
+ * the rect costs the shape its regularity in a box that is not square, and
+ * that is the right trade now that a corner drag holds the ratio by default:
+ * keeping a hexagon regular is what the handles already do, while a selection
+ * that does not fit its shape is wrong in a way nothing can work around.
+ *
+ * A side count outside the bounds is brought inside them rather than refused.
+ * This is called by four renderers on documents a schema has already checked,
+ * and the one case that reaches here dirty is a hand-written seed — where a
+ * shape drawn with two sides is an invisible element rather than an error
+ * anybody sees.
+ */
+function regular(rect: Rect, sides: number, corner = 0): string {
+  const count = Math.max(POLYGON_SIDES.min, Math.min(POLYGON_SIDES.max, Math.round(sides)))
+
+  const ring: { x: number; y: number }[] = []
+  for (let index = 0; index < count; index += 1) {
+    // Start at -90° so a vertex points up; SVG's y grows downward.
+    const angle = (Math.PI * 2 * index) / count - Math.PI / 2
+    ring.push({ x: Math.cos(angle), y: Math.sin(angle) })
+  }
+
+  const xs = ring.map((vertex) => vertex.x)
+  const ys = ring.map((vertex) => vertex.y)
+  const spanX = Math.max(...xs) - Math.min(...xs)
+  const spanY = Math.max(...ys) - Math.min(...ys)
+  const minX = Math.min(...xs)
+  const minY = Math.min(...ys)
+
+  const vertices = ring.map((vertex) => ({
+    x: rect.x + ((vertex.x - minX) / spanX) * rect.width,
+    y: rect.y + ((vertex.y - minY) / spanY) * rect.height,
+  }))
+
+  return corner > 0
+    ? rounded(vertices, corner)
+    : polygon(vertices.map((vertex) => point(vertex.x, vertex.y)))
 }
 
 const clampTo = (value: number, bounds: { min: number; max: number }) =>
@@ -274,7 +322,9 @@ function arch(rect: Rect, curve: number): string {
   const { x, y, width: w, height: h } = rect
   const amount = clampTo(curve, SHAPE_BOUNDS.curve)
   const depth = Math.min(Math.abs(amount) * h, h * 0.9)
-  if (depth === 0) return polygon([point(x, y), point(x + w, y), point(x + w, y + h), point(x, y + h)])
+  if (depth === 0) {
+    return polygon([point(x, y), point(x + w, y), point(x + w, y + h), point(x, y + h)])
+  }
 
   const up = amount > 0
   const top = up ? y + depth : y
@@ -533,6 +583,26 @@ export function shapePath(
       return polygon(points)
     }
   }
+}
+
+/**
+ * The rectangle a shape actually draws in, which is not always the one it was
+ * given.
+ *
+ * **A burst in a 3:1 box paints into the middle third of it** — `square` is
+ * what `HOLDS_PROPORTION` means — so the selection outline round that box
+ * stands a long way off the ink on both sides, and nothing on screen explains
+ * why. The designer draws this as a faint inner mark so the ring can go on
+ * saying *what a handle moves* while the mark says *what is there*.
+ *
+ * The square rather than the ink: a twelve-point burst has points at the top,
+ * the bottom and both sides so the two are the same thing, and a five-point
+ * star is within a few percent of it. Tracing the exact hull of every shape
+ * would be a second path implementation to keep in step with the first, for a
+ * difference no eye could find on a dashed line.
+ */
+export function shapeExtent(shape: PathShape, rect: Rect): Rect {
+  return HOLDS_PROPORTION[shape] ? square(rect) : rect
 }
 
 /** `tag` punches a hole, so it is the one shape that needs the even-odd rule. */

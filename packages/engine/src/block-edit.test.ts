@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Arrangement, BlockElement, Box, TextSource } from '@souqstudio/types'
 import {
+  BLEED,
   MIN_ELEMENT,
   addElement,
   isBound,
@@ -9,6 +10,7 @@ import {
   reorderElement,
   replaceElement,
   resizeBox,
+  SNAP,
   snap,
   validateBlock,
 } from './block-edit'
@@ -68,6 +70,46 @@ describe('moveBox', () => {
 
   it('does not move past the start edge', () => {
     expect(moveBox(box(0.1, 0.1, 0.2, 0.2), -0.5, -0.5)).toMatchObject({ start: 0, top: 0 })
+  })
+
+  describe('with a bleed allowed', () => {
+    /**
+     * A band running off both edges and a photograph filling the trim are what
+     * a flyer is made of, and clamping every box inside the block refused all
+     * of it.
+     */
+    it('lets a wide band hang off the edge', () => {
+      const moved = moveBox(box(0.5, 0.1, 0.5, 0.2), 0.5, 0, SNAP, BLEED)
+      expect(moved.start).toBeCloseTo(0.75)
+      expect(moved.start + moved.width).toBeCloseTo(1.25)
+    })
+
+    /**
+     * **The bleed is a ceiling, not a licence to lose things.** An element
+     * dragged fully past the edge is invisible, unselectable on the canvas and
+     * indistinguishable from one that was deleted — so a small element stops
+     * when it runs out of itself, before it runs out of bleed.
+     */
+    it('keeps a sliver of a small element on the card', () => {
+      const moved = moveBox(box(0.5, 0.5, 0.1, 0.1), 0.9, 0.9, SNAP, BLEED)
+      expect(moved.start + moved.width).toBeGreaterThan(1)
+      expect(moved.start).toBeLessThanOrEqual(1 - MIN_ELEMENT + 1e-9)
+
+      const back = moveBox(box(0.5, 0.5, 0.1, 0.1), -0.9, -0.9, SNAP, BLEED)
+      expect(back.start).toBeLessThan(0)
+      expect(back.start + back.width).toBeGreaterThanOrEqual(MIN_ELEMENT - 1e-9)
+    })
+
+    it('is the old rule exactly when no bleed is asked for', () => {
+      expect(moveBox(box(0.5, 0.5, 0.4, 0.4), 0.5, 0.5)).toMatchObject({
+        start: 0.6,
+        top: 0.6,
+      })
+      expect(moveBox(box(0.1, 0.1, 0.2, 0.2), -0.5, -0.5)).toMatchObject({
+        start: 0,
+        top: 0,
+      })
+    })
   })
 
   it('leaves width and height alone', () => {
@@ -279,6 +321,39 @@ describe('validateBlock', () => {
       arrangements: [arrangement([{ ...surface, box: box(0.8, 0.1, 0.5, 0.2) }, priceMark])],
     })
     expect(codes(escaped)).toContain('out-of-bounds')
+  })
+
+  /**
+   * **A bleed is a design when nothing is beside it and a collision when
+   * something is**, and `repeats` is exactly that question. A panel placed once
+   * owns the page; a card has twenty-three neighbours, and an element past its
+   * edge lands on the card beside it rather than vanishing.
+   */
+  it('allows a panel to bleed and still warns a card about it', () => {
+    const bled = { ...surface, box: box(-0.2, 0, 1.4, 0.4) }
+
+    const panel = validateBlock({ repeats: false, arrangements: [arrangement([bled])] })
+    expect(codes(panel)).not.toContain('out-of-bounds')
+
+    const card = validateBlock({
+      repeats: true,
+      arrangements: [arrangement([bled, priceMark])],
+    })
+    expect(codes(card)).toContain('out-of-bounds')
+  })
+
+  /**
+   * Cropped and gone are different things and they read differently: one
+   * element is cut off by the edge, the other is not on the card at all and no
+   * amount of looking at the card will say so.
+   */
+  it('says so differently when an element is entirely outside', () => {
+    const problems = validateBlock({
+      repeats: false,
+      arrangements: [arrangement([{ ...surface, box: box(1.2, 0.1, 0.3, 0.2) }])],
+    })
+    const gone = problems.find((problem) => problem.code === 'out-of-bounds')
+    expect(gone?.message).toContain('entirely outside')
   })
 
   it('reports a hole between two aspect ranges', () => {

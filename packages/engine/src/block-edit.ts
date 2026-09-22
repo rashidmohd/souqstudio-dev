@@ -34,6 +34,33 @@ export const MIN_ELEMENT = 0.04
  */
 export const SNAP = 0.005
 
+/**
+ * How far past the block an element may be dragged, as a fraction of it.
+ *
+ * **Because a bleed is a design, not a mistake.** Every flyer in the reference
+ * pile has a band running off both edges and a photograph filling the trim, and
+ * the editor refused all of it: `moveBox` clamped the whole box inside the
+ * block, so the only way to make a shape reach an edge was to land it exactly
+ * on the edge, and the only way to crop one was to not have it.
+ *
+ * **A quarter, and never the whole of it** — `keepInside` below is the other
+ * half of the rule. This is also the tolerance `validateBlock` allows before it
+ * warns, and the two are one constant on purpose: a gesture the designer offers
+ * must not produce a warning about itself.
+ */
+export const BLEED = 0.25
+
+/**
+ * How much of an element must stay in the block, as a fraction of the block.
+ *
+ * A bleed that can swallow the whole element is a way to lose one: a badge
+ * dragged fully past the edge is invisible, unselectable on the canvas, and
+ * indistinguishable from a badge that was deleted. `MIN_ELEMENT` is already the
+ * answer to "the smallest thing an owner can see and get hold of", so it is the
+ * answer here too.
+ */
+const keepInside = MIN_ELEMENT
+
 export type Handle =
   | 'start-top'
   | 'top'
@@ -48,8 +75,18 @@ export function snap(value: number, step: number = SNAP): number {
   return Math.round(value / step) * step
 }
 
-/** Rounds away the floating-point tail a chain of drags accumulates. */
-const tidy = (value: number) => Math.round(value * 1e6) / 1e6
+/**
+ * Rounds away the floating-point tail a chain of drags accumulates.
+ *
+ * **And negative zero with it.** `Math.max(-0, …)` is how an edge clamp
+ * answers when nothing was allowed past it, and `-0` is a value that is equal
+ * to `0`, prints as `-0`, and is not the same object to a deep comparison —
+ * so it reads as a change to anything diffing two documents.
+ */
+const tidy = (value: number) => {
+  const rounded = Math.round(value * 1e6) / 1e6
+  return rounded === 0 ? 0 : rounded
+}
 
 /**
  * Move a box by a delta, keeping the whole of it inside the block.
@@ -63,11 +100,44 @@ const tidy = (value: number) => Math.round(value * 1e6) / 1e6
  * element, applied at render time, so an authored box stays inside the block and
  * the overhang stays a property of the chip rather than of where it was dropped.
  */
-export function moveBox(box: Box, dStart: number, dTop: number, step = SNAP): Box {
+export function moveBox(
+  box: Box,
+  dStart: number,
+  dTop: number,
+  step = SNAP,
+  bleed = 0
+): Box {
+  /**
+   * The travel on one axis: as far as `bleed` past each edge, and never so far
+   * that the element has nothing left inside.
+   *
+   * **Two ceilings, and the tighter one wins.** The bleed is what the owner is
+   * allowed to hang off the edge; `keepInside` is what has to stay on the card
+   * whatever the bleed says, because an element dragged fully past the edge is
+   * invisible, unselectable, and indistinguishable from one that was deleted.
+   *
+   * Which of them binds depends on the element. A wide band runs out of bleed
+   * first and a quarter of the block hangs off; a small badge runs out of
+   * *itself* first and stops with a sliver showing.
+   *
+   * At `bleed = 0` this is the old rule exactly — `low` is 0 and `high` is
+   * `1 - size` — which is what keeps every caller that does not ask for a bleed
+   * where it was.
+   */
+  const span = (size: number) => ({
+    low: Math.max(-bleed, keepInside - size),
+    high: Math.min(1 - size + bleed, 1 - keepInside),
+  })
+
+  const across = span(box.width)
+  const down = span(box.height)
+
   return {
     ...box,
-    start: tidy(Math.min(Math.max(0, snap(box.start + dStart, step)), 1 - box.width)),
-    top: tidy(Math.min(Math.max(0, snap(box.top + dTop, step)), 1 - box.height)),
+    start: tidy(
+      Math.min(Math.max(across.low, snap(box.start + dStart, step)), across.high)
+    ),
+    top: tidy(Math.min(Math.max(down.low, snap(box.top + dTop, step)), down.high)),
   }
 }
 
@@ -413,20 +483,49 @@ function arrangementProblems(
       })
     }
 
-    // Chips overhang on purpose — the engine reserves the bleed in gap
-    // calculation, E6 §7 — so their box is allowed past the edge. Nothing else
-    // is: an element half outside a merged region is clipped by its neighbour
-    // on screen and by the trim on paper.
-    const tolerance = element.kind === 'chip' ? 0.25 : 0.001
-    if (
+    /*
+     * **Whether a bleed is a design or a collision depends on what is beside
+     * it, and `repeats` is exactly that question.**
+     *
+     * A block placed once is a cover, a header, a footer or a panel: it has the
+     * page to itself, and a band running off its edge is what every flyer in
+     * the reference pile does. Nothing is harmed, so nothing is said.
+     *
+     * A repeating card has twenty-three neighbours. An element past its edge
+     * does not vanish there — the page painter draws it where it was put — so
+     * it lands on the card beside it, and the owner sees it on the *other*
+     * product. That is worth a warning however deliberate the drag was, which
+     * is why this stayed at a hairline rather than following `BLEED`.
+     *
+     * The chip is the exception it always was: it overhangs by construction and
+     * E6 §7 reserves the room for it in the gap calculation.
+     *
+     * The drag itself is not limited by any of this. The designer lets an owner
+     * put an element where they want it and this says what it will cost — a
+     * tool that silently refuses is a tool with a bug, as far as anyone using
+     * it can tell.
+     */
+    const tolerance = repeats ? (element.kind === 'chip' ? BLEED : 0.001) : BLEED
+    const gone =
+      box.start + box.width <= 0 ||
+      box.top + box.height <= 0 ||
+      box.start >= 1 ||
+      box.top >= 1
+    const past =
       box.start < -tolerance ||
       box.top < -tolerance ||
       box.start + box.width > 1 + tolerance ||
       box.top + box.height > 1 + tolerance
-    ) {
+
+    if (gone || past) {
       problems.push({
         code: 'out-of-bounds',
-        message: 'This element falls outside the block and will be cut off',
+        // Two different things have gone wrong and they read differently to
+        // the owner: one element is cropped by the edge, the other is not on
+        // the card at all and no amount of looking at the card will say so.
+        message: gone
+          ? 'This element is entirely outside the block, so nothing of it draws'
+          : 'This element falls outside the block and will be cut off',
         arrangementIndex: index,
         elementIndex,
         severity: 'warning',

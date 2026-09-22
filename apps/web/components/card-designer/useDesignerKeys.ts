@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { SNAP, moveBox } from '@souqstudio/engine'
+import { BLEED, SNAP, moveBox } from '@souqstudio/engine'
 import { useDesignerStore } from '@/stores/designer-store'
 
 /**
@@ -115,7 +115,10 @@ export function useDesignerKeys(editable: boolean) {
           selected.includes(element.id)
             ? {
                 ...element,
-                box: moveBox(element.box, step.x * distance, step.y * distance, SNAP),
+                // The same travel the pointer has — an arrow key that stopped
+                // at the edge while a drag went past it would be two answers to
+                // the same question.
+                box: moveBox(element.box, step.x * distance, step.y * distance, SNAP, BLEED),
               }
             : element
         ),

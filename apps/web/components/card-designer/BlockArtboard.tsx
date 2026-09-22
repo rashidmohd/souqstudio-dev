@@ -3,8 +3,10 @@
 import * as React from 'react'
 import type { BlockElement, Box, BrandColor } from '@souqstudio/types'
 import {
+  BLEED,
   isBound,
   moveBox,
+  SNAP,
   resizeBox,
   resolveBlock,
   snapBox,
@@ -279,7 +281,11 @@ export function BlockArtboard({
       .filter((element) => !moving.has(element.id))
       .map((element) => element.box)
 
-    const dragged = moveBox(primary.box, dStart, dTop)
+    // **Past the edge is allowed now, up to `BLEED`.** A band running off both
+    // sides and a photograph filling the trim are what a flyer is made of, and
+    // clamping every box inside the block refused all of it. `moveBox` keeps a
+    // sliver of every element inside, so nothing can be dragged away and lost.
+    const dragged = moveBox(primary.box, dStart, dTop, SNAP, BLEED)
     const snapped = snapBox(dragged, others)
     setGuides(snapped.guides)
 
@@ -289,7 +295,7 @@ export function BlockArtboard({
     onChange(
       active.origin.map((element) => {
         if (!moving.has(element.id)) return element
-        const moved = moveBox(element.box, dStart, dTop)
+        const moved = moveBox(element.box, dStart, dTop, SNAP, BLEED)
         return {
           ...element,
           box: { ...moved, start: moved.start + adjustStart, top: moved.top + adjustTop },
