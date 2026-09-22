@@ -80,9 +80,20 @@ describe('moveBox', () => {
      * of it.
      */
     it('lets a wide band hang off the edge', () => {
-      const moved = moveBox(box(0.5, 0.1, 0.5, 0.2), 0.5, 0, SNAP, BLEED)
-      expect(moved.start).toBeCloseTo(0.75)
-      expect(moved.start + moved.width).toBeCloseTo(1.25)
+      const moved = moveBox(box(0.1, 0.1, 0.8, 0.2), 1, 0, SNAP, BLEED)
+      expect(moved.start).toBeCloseTo(1 - 0.8 + BLEED)
+      expect(moved.start + moved.width).toBeCloseTo(1 + BLEED)
+    })
+
+    /**
+     * The bleed is measured against the block, so a full-width row is the
+     * element that feels it: seven tenths of it may leave on either side, which
+     * is what a band running off the page looks like on the card it came from.
+     */
+    it('lets a full-width row travel the whole bleed', () => {
+      const row = box(0, 0.4, 1, 0.2)
+      expect(moveBox(row, 1, 0, SNAP, BLEED).start).toBeCloseTo(BLEED)
+      expect(moveBox(row, -1, 0, SNAP, BLEED).start).toBeCloseTo(-BLEED)
     })
 
     /**
@@ -158,8 +169,8 @@ describe('resizeBox', () => {
 
   it('lets an element past the edge when it is allowed to overhang', () => {
     // A chip is designed to sit over the corner, and `validateBlock` allows it
-    // a quarter of the block. Clamping its handle to the block instead is the
-    // jump that took the corner off the pointer.
+    // `CHIP_BLEED`. Clamping its handle to the block instead is the jump that
+    // took the corner off the pointer.
     const resized = resizeBox(box(0.8, 0.1, 0.2, 0.2), 'end', 0.15, 0, { overhang: 0.25 })
     expect(resized.start + resized.width).toBeCloseTo(1.15)
   })

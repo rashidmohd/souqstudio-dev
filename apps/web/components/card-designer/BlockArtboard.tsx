@@ -4,6 +4,7 @@ import * as React from 'react'
 import type { BlockElement, Box, BrandColor } from '@souqstudio/types'
 import {
   BLEED,
+  CHIP_BLEED,
   isBound,
   moveBox,
   recentre,
@@ -681,7 +682,9 @@ function boundsOf(boxes: readonly Box[]): Box {
  * How far past the block this selection's handles may travel.
  *
  * **A chip overhangs on purpose and everything else does not**, which is the
- * same split `validateBlock` makes and the same quarter of a block it allows.
+ * same split `validateBlock` makes and the same reserve it allows — `CHIP_BLEED`
+ * rather than the larger `BLEED` a move may use, because a resize that outruns
+ * the room the slot gap reserved is a chip on the neighbouring card.
  * Clamping a chip to the block pulled it back inside the moment a handle moved,
  * so the corner stopped following the pointer on the one element in the library
  * that is *designed* to sit over the edge.
@@ -691,7 +694,7 @@ function boundsOf(boxes: readonly Box[]): Box {
  * because one of its members may is not what anyone asked for.
  */
 function overhangOf(elements: readonly BlockElement[]): number {
-  return Math.min(...elements.map((element) => (element.kind === 'chip' ? 0.25 : 0)))
+  return Math.min(...elements.map((element) => (element.kind === 'chip' ? CHIP_BLEED : 0)))
 }
 
 const intersects = (a: Rect, b: Rect) =>

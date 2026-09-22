@@ -169,6 +169,7 @@ export {
 } from './snap'
 export {
   BLEED,
+  CHIP_BLEED,
   MIN_ELEMENT,
   SNAP,
   snap,

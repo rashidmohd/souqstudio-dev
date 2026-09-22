@@ -43,12 +43,33 @@ export const SNAP = 0.005
  * block, so the only way to make a shape reach an edge was to land it exactly
  * on the edge, and the only way to crop one was to not have it.
  *
- * **A quarter, and never the whole of it** — `keepInside` below is the other
+ * **Seven tenths, and never the whole of it** — `keepInside` below is the other
  * half of the rule. This is also the tolerance `validateBlock` allows before it
  * warns, and the two are one constant on purpose: a gesture the designer offers
  * must not produce a warning about itself.
+ *
+ * **It was a quarter, and a quarter was measured against the wrong thing.** A
+ * quarter of the block is a generous bleed for a chip and almost nothing for a
+ * full-width row: the row stopped with three quarters of itself still on the
+ * card, which is not a bleed, it is a row that is slightly too far along. The
+ * band that runs off the page and the photograph cropped to a sliver of sky are
+ * both past that point, so the ceiling is now the largest one the other half of
+ * the rule will tolerate for a full-width element.
  */
-export const BLEED = 0.25
+export const BLEED = 0.7
+
+/**
+ * How far past the block a chip may sit *without costing anything*, as a
+ * fraction of it.
+ *
+ * **Separate from `BLEED` because it is not a permission, it is a measurement.**
+ * A chip overhangs a repeating card on purpose (E6 §7) and the engine reserves
+ * exactly this much room for it when it calculates the slot gap. Raising the
+ * bleed an owner may drag into must not quietly raise what the gap was built to
+ * absorb, or a chip lands on the card beside it and `validateBlock` says
+ * nothing — so the reserve stays where the gap calculation put it.
+ */
+export const CHIP_BLEED = 0.25
 
 /**
  * How much of an element must stay in the block, as a fraction of the block.
@@ -116,8 +137,8 @@ export function moveBox(
    * whatever the bleed says, because an element dragged fully past the edge is
    * invisible, unselectable, and indistinguishable from one that was deleted.
    *
-   * Which of them binds depends on the element. A wide band runs out of bleed
-   * first and a quarter of the block hangs off; a small badge runs out of
+   * Which of them binds depends on the element. A full-width row runs out of
+   * bleed first and seven tenths of it hangs off; a small badge runs out of
    * *itself* first and stops with a sliver showing.
    *
    * At `bleed = 0` this is the old rule exactly — `low` is 0 and `high` is
@@ -169,7 +190,7 @@ export interface ResizeOptions {
    *
    * **Zero is not the honest default for every element, which is why this
    * exists.** A chip overhangs its block on purpose — E6 §7 reserves the bleed
-   * — and `validateBlock` already allows it a quarter of the block. Clamping
+   * — and `validateBlock` already allows it `CHIP_BLEED`. Clamping
    * its handles to the block anyway snapped it back inside the moment a drag
    * began, which reads as the handle coming off the pointer.
    *
@@ -540,14 +561,15 @@ function arrangementProblems(
      * is why this stayed at a hairline rather than following `BLEED`.
      *
      * The chip is the exception it always was: it overhangs by construction and
-     * E6 §7 reserves the room for it in the gap calculation.
+     * E6 §7 reserves the room for it in the gap calculation — `CHIP_BLEED`,
+     * which is that reserve rather than the larger bleed a free drag may use.
      *
      * The drag itself is not limited by any of this. The designer lets an owner
      * put an element where they want it and this says what it will cost — a
      * tool that silently refuses is a tool with a bug, as far as anyone using
      * it can tell.
      */
-    const tolerance = repeats ? (element.kind === 'chip' ? BLEED : 0.001) : BLEED
+    const tolerance = repeats ? (element.kind === 'chip' ? CHIP_BLEED : 0.001) : BLEED
     const gone =
       box.start + box.width <= 0 ||
       box.top + box.height <= 0 ||
