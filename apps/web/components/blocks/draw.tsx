@@ -695,7 +695,20 @@ function Packshot({
   }
 
   if (url !== null) {
-    const clip = `clip-${element.id}`
+    /**
+     * **`ctx.uid` is what keeps this unique, for the reason `fillPaint` states
+     * one screen above.** `element.id` is the *template's* id, so every card
+     * drawn from a repeating block carries the same one — `photo` on all nine
+     * cards of a page. Ids are document-global, so nine `clip-photo`
+     * definitions resolve to whichever came first, and every card after the
+     * first clipped its packshot to the *first card's* box. The box does not
+     * overlap them, so the image loaded, decoded and painted nothing.
+     *
+     * It only shows on a `cover` element: `contain` emits no clipPath at all,
+     * which is why the seeded blocks never tripped it and a full-bleed card
+     * does.
+     */
+    const clip = safeId(`${ctx.uid}-clip-${element.id}`)
     return (
       <>
         {/* `cover` crops, so it has to be clipped to its own box or the

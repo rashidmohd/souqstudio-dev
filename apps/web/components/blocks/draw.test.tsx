@@ -436,3 +436,59 @@ describe('the elements the palette makes', () => {
     expect(out).toBe('<svg></svg>')
   })
 })
+
+/**
+ * **The clip id a repeating block hands every card.** `element.id` belongs to
+ * the *template*, so nine cards on a page all call their packshot `photo`.
+ * Ids are document-global, `url(#…)` resolves to whichever definition came
+ * first, and the cards after the first were clipping their picture to the
+ * first card's box — which does not overlap them, so a correctly loaded and
+ * decoded image painted nothing. Only `cover` emits a clipPath, which is why
+ * the seeded `contain` blocks never showed it and a full-bleed card did.
+ *
+ * Rendering two cards and comparing is the only shape that catches it: one
+ * card in isolation is correct, and it is the collision that is the bug.
+ */
+describe('a cover packshot on a repeating card', () => {
+  const photo: BlockElement = {
+    id: 'photo',
+    kind: 'image',
+    source: { from: 'product' },
+    fit: 'cover',
+    box: { start: 0, top: 0, width: 1, height: 1 },
+  }
+
+  const idsFor = (uid: string): string[] => {
+    const out = renderToStaticMarkup(
+      <svg>{drawElement(photo, BOX, { ...CTX, uid })}</svg>
+    )
+    return [...out.matchAll(/<clipPath id="([^"]+)"/g)].map((match) => match[1] ?? '')
+  }
+
+  it('gives two cards drawn from the same element different clip ids', () => {
+    const [first] = idsFor('page-0')
+    const [second] = idsFor('page-1')
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(first).not.toBe(second)
+  })
+
+  it('points each card at its own definition', () => {
+    const out = renderToStaticMarkup(
+      <svg>{drawElement(photo, BOX, { ...CTX, uid: 'page-7' })}</svg>
+    )
+    const defined = out.match(/<clipPath id="([^"]+)"/)?.[1]
+    expect(defined).toBeDefined()
+    expect(out).toContain(`clip-path="url(#${defined})"`)
+  })
+
+  it('still emits no clipPath for a contain packshot', () => {
+    // The branch that was always correct, held in place: `contain` cannot
+    // overflow its box, so it needs no clip and cannot collide.
+    const out = renderToStaticMarkup(
+      <svg>{drawElement({ ...photo, fit: 'contain' }, BOX, CTX)}</svg>
+    )
+    expect(out).not.toContain('<clipPath')
+    expect(out).toContain('FIXTURE-packshot')
+  })
+})
