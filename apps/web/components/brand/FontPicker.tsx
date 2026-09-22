@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { isRecommended } from '@/lib/font-editorial'
 import type { OfferableFont } from '@/lib/font-catalog-server'
 
@@ -109,24 +109,24 @@ export function FontPicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="font-ui text-label font-medium text-secondary">Typeface</span>
-
-      <div className="relative">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-block-0 inset-inline-start-0 my-auto ms-3 size-icon text-muted"
-        />
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Search typefaces"
-          aria-label="Search typefaces"
-          aria-controls={listId}
-          className="h-control w-full rounded-control border-hairline border-border-subtle bg-surface ps-9 pe-3 font-ui text-body text-primary placeholder:text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
-        />
-      </div>
+      {/*
+        The `Input` primitive, not a hand-styled field with a leading icon.
+        The first attempt was the latter and it shipped a real defect: the
+        placeholder ran underneath the magnifier, because `ps-9` does not exist.
+        This config *replaces* the spacing scale rather than extending it, so the
+        only steps are 1/2/3/4/6/8/12, and anything else silently emits nothing.
+        The catalog's own search box is a plain labelled `Input` with no icon;
+        matching it is both correct and less code.
+      */}
+      <Input
+        label="Typeface"
+        type="search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Search typefaces"
+        aria-controls={listId}
+      />
 
       <ul
         ref={listRef}
