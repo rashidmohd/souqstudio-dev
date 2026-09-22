@@ -84,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!usesOnlyRoles(arrangements.data)) {
     return fail(
       'colors_not_roles',
-      'This block names a colour directly. A block in the shared library is drawn in whichever shop loads it, so every colour has to be a role from the brand kit — swap the fixed colours for roles and export again.',
+      'This block names a colour directly. A block in the shared library is drawn in whichever shop loads it, so every colour has to be a role from the brand kit. Swap the fixed colours for roles and export again.',
       422
     )
   }
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (id === null) {
     return fail(
       'invalid_request',
-      'Give the block a name with some letters in it before exporting — the name becomes its permanent id in the library.'
+      'Give the block a name with some letters in it before exporting. The name becomes its permanent id in the library.'
     )
   }
 

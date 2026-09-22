@@ -82,7 +82,7 @@ export function GeneratedPicker({ open, onOpenChange, aspect, onChosen }: Props)
       open={open}
       onOpenChange={onOpenChange}
       title="Your generated images"
-      description="Everything you have made in your brand kit — covers, characters and poses. Choose one for this page."
+      description="Everything you have made in your brand kit: covers, characters and poses. Choose one for this page."
       size="lg"
     >
       {images === null ? (
@@ -178,7 +178,7 @@ function mismatch(image: Generated, wanted: CoverShape): React.ReactNode {
           shapes we currently offer — a row naming an older one indexes to
           `undefined`, which is what the fallback is for. The assertion is how
           the lookup is spelled, not a claim that the value is one of them. */}
-      {COVER_SHAPE_NOTE[image.shape as CoverShape] ?? image.shape} — will be cropped on this page
+      {COVER_SHAPE_NOTE[image.shape as CoverShape] ?? image.shape} will be cropped on this page
     </span>
   )
 }

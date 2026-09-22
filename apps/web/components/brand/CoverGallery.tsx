@@ -97,7 +97,7 @@ export function CoverGallery() {
       ) : covers.length === 0 ? (
         <p className="font-ui text-body-sm text-secondary">
           No covers yet. Generating costs <span data-figure>5</span> credits and draws{' '}
-          <span data-figure>3</span> covers — all three are saved here.
+          <span data-figure>3</span> covers. All three are saved here.
         </p>
       ) : (
         <MachineOutput label="Generated from your character and your shop">
@@ -185,7 +185,7 @@ export function CoverGallery() {
           }
         }}
         title={removing === null ? 'Remove cover' : `Remove ${label(removing.campaign)} cover`}
-        description="It stops being offered here. Any page already using it keeps it — nothing you have printed or laid out changes."
+        description="It stops being offered here. Any page already using it keeps it. Nothing you have printed or laid out changes."
         primaryAction={{
           label: 'Remove cover',
           onClick: () => {

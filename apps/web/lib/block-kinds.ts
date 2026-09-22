@@ -25,9 +25,9 @@ export const KIND_LABEL: Readonly<Record<MagicCategory, string>> = {
 
 /** What each kind is, for an owner who has never heard our words for them. */
 export const KIND_NOTE: Readonly<Record<MagicCategory, string>> = {
-  'offer-card': 'One product with its price — the card that repeats down a page.',
+  'offer-card': 'One product with its price. The card that repeats down a page.',
   header: 'The band across the top of a page, a front cover, or a divider between sections.',
-  panel: 'A message among the offers — a note, a brand panel, an announcement.',
+  panel: 'A message among the offers: a note, a brand panel, an announcement.',
   footer: 'The last row of a page: your name, the contact line, the small print.',
   'social-post': 'One square post: an announcement, your opening hours, a thank-you.',
 }

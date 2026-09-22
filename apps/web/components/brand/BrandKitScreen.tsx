@@ -469,7 +469,7 @@ export function BrandKitScreen({
             <BrandCard
               icon={Tag}
               title="Offer tiers"
-              description="The badge on the price of every card — “Deal”, “Half price”. Chosen per offer in the editor, from this list."
+              description="The badge on the price of every card: “Deal”, “Half price”. Chosen per offer in the editor, from this list."
               state={
                 <>
                   <span data-figure>{tiers.length}</span> {tiers.length === 1 ? 'tier' : 'tiers'}

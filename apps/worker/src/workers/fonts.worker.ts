@@ -82,13 +82,13 @@ export const fontsWorker = new Worker(
 
     const font = await completeFamily(family, deps())
     if (font === null) {
-      console.log(`[fonts] ${family} has no registry row — nothing to finish`)
+      console.log(`[fonts] ${family} has no registry row, nothing to finish`)
       return
     }
 
     const families = await republishBrandCss()
     console.log(
-      `[fonts] ${family} completed in ${((Date.now() - started) / 1000).toFixed(1)}s — ` +
+      `[fonts] ${family} completed in ${((Date.now() - started) / 1000).toFixed(1)}s: ` +
         `${font.weights.length} weights, ${font.italicWeights.length} italic; ` +
         `brand.css republished over ${families} families`
     )

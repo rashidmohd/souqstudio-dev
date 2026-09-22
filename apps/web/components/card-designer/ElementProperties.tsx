@@ -525,7 +525,7 @@ function PartFields({
           <Slider
             label="Size"
             unit="%"
-            hint="Against the big number. Nothing here may rival the price — that ceiling is ours."
+            hint="Against the big number. Nothing here may rival the price. That ceiling is ours."
             disabled={disabled}
             min={Math.round(MARK_SATELLITE_SCALE.min * 100)}
             max={Math.round(MARK_SATELLITE_SCALE.max * 100)}
@@ -778,7 +778,7 @@ function PriceMarkFields({
 
       <Group
         label="Colour each part"
-        hint="Left alone, each one follows the three above — which is how this mark is drawn today."
+        hint="Left alone, each one follows the three above, which is how this mark is drawn today."
       >
         <ColorControl
           label="Big number"
@@ -875,7 +875,7 @@ function PriceMarkFields({
             { value: 'super-after', label: 'Small, trailing' },
             { value: 'above', label: 'Above the price' },
             { value: 'below', label: 'Below the price' },
-            { value: 'hidden', label: 'Somewhere else — I’ll place it' },
+            { value: 'hidden', label: 'Somewhere else, I’ll place it' },
           ]}
           onChange={(event) => patchCurrency({ place: event.target.value as MarkCurrencyPlace })}
           {...(recipe.currency.place === 'hidden'
@@ -943,7 +943,7 @@ function PriceMarkFields({
       <Select
         label="Fils"
         disabled={disabled}
-        hint="Raised fils sit on the cap line of the big number — that part is ours."
+        hint="Raised fils sit on the cap line of the big number. That part is ours."
         value={recipe.minor}
         options={[
           { value: 'raised', label: 'Raised' },
@@ -1002,7 +1002,7 @@ function PriceMarkFields({
       <PartFields
         label="Tier badge"
         part="tier"
-        hint="The little tab reading “HALF PRICE”. Nudge it as far as you like — it stays joined to the price."
+        hint="The little tab reading “HALF PRICE”. Nudge it as far as you like, it stays joined to the price."
         style={style}
         resolved={recipe.tier}
         disabled={disabled}
@@ -1048,7 +1048,7 @@ function PriceMarkFields({
         <Lock className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
         <span>
           Every part’s colour, size and position is yours. How the number is
-          set stays ours — raised fils land on the cap line, fils for Kuwait and
+          set stays ours, raised fils land on the cap line, fils for Kuwait and
           Bahrain get three digits, the price reads left to right in Arabic, the
           badge stays joined to the price however far you nudge it, and nothing
           in the mark grows to rival the price itself. Arrange it any way you

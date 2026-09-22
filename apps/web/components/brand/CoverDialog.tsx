@@ -317,7 +317,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
           </div>
 
           <p className="font-ui text-body-sm text-secondary">
-            This takes about a minute — <span data-figure>{elapsed}s</span> so far. You can close
+            This takes about a minute, <span data-figure>{elapsed}s</span> so far. You can close
             this and carry on: the covers are saved to your brand kit either way, and finished
             work is in the bell at the top of the rail.
           </p>
@@ -333,7 +333,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
         <div className="flex flex-col gap-3">
           <p className="font-ui text-body-sm text-secondary">
             <span data-figure>{phase.options.length}</span> covers,{' '}
-            {COVER_SHAPE_NOTE[shape].toLowerCase()}. They are in your covers already — you paid
+            {COVER_SHAPE_NOTE[shape].toLowerCase()}. They are in your covers already, you paid
             for all of them, so you keep all of them, and any book can use them.
           </p>
 
@@ -453,7 +453,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               maxLength={200}
               value={described}
               onChange={(event) => setDescribed(event.target.value)}
-              hint="Where it is and what is happening — not the words on it. Those are typed in the editor."
+              hint="Where it is and what is happening, not the words on it. Those are typed in the editor."
             />
           ) : null}
 
@@ -534,7 +534,7 @@ export function CoverDialog({ open, onOpenChange, onKept }: Props) {
               <div className="flex flex-col gap-2">
                 <p className="font-ui text-body-sm text-secondary">
                   Attach up to <span data-figure>4</span> pictures of the look you want. We take
-                  the colours, the light and the arrangement from them — not their contents, and
+                  the colours, the light and the arrangement from them, not their contents, and
                   never anything branded in them.
                 </p>
 
@@ -635,7 +635,7 @@ async function poll(jobId: string): Promise<Option[]> {
 
   for (;;) {
     if (Date.now() > deadline) {
-      throw new Error('That is taking longer than it should. Check the bell in a minute — it will be there.')
+      throw new Error('That is taking longer than it should. Check the bell in a minute. It will be there.')
     }
 
     await new Promise((resolve) => setTimeout(resolve, 2500))
@@ -656,7 +656,7 @@ async function poll(jobId: string): Promise<Option[]> {
             'The drawing service would not make that one. Try a different campaign.'
         )
       }
-      throw new Error('That did not finish. You were not charged — try again.')
+      throw new Error('That did not finish. You were not charged. Try again.')
     }
 
     if (job.status !== 'complete') continue

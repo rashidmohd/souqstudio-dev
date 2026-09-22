@@ -162,7 +162,7 @@ export function ShopCurrencyField({
             onChange={(event) => setCode(event.target.value as Currency)}
             hint={
               minorUnits(code) === 0
-                ? `${CURRENCY_LABEL[code]} prices are whole numbers — no decimal part.`
+                ? `${CURRENCY_LABEL[code]} prices are whole numbers, no decimal part.`
                 : `${CURRENCY_LABEL[code]} prices carry ${minorUnits(code)} decimal places. Books already made keep the currency they were priced in.`
             }
           />

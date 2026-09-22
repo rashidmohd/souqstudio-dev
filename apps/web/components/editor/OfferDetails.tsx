@@ -279,7 +279,7 @@ function OfferTypeField({ bookId, offer }: Props) {
         value={choice}
         disabled={busy}
         options={[
-          { value: 'none', label: 'No promotion — the prices say it' },
+          { value: 'none', label: 'No promotion, the prices say it' },
           ...offerTypeOptions().map((option) => ({
             value: option.key,
             label: option.labelEn,

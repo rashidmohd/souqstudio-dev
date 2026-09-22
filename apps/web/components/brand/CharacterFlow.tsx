@@ -293,7 +293,7 @@ export function CharacterFlow({
           </ul>
 
           <p className="font-ui text-body text-secondary">
-            This takes up to a minute — <span data-figure>{elapsed}s</span> so far. Leaving this
+            This takes up to a minute, <span data-figure>{elapsed}s</span> so far. Leaving this
             page cancels nothing: the characters will be waiting in your brand kit.
           </p>
         </div>
@@ -407,7 +407,7 @@ export function CharacterFlow({
                 : `Keep all ${phase.variations.length}`}
             </Button>
             <p className="font-ui text-body-sm text-muted">
-              Keeping all of them costs no extra credits — you have already paid for the
+              Keeping all of them costs no extra credits, you have already paid for the
               set. Anything you do not keep is discarded.
             </p>
           </div>
@@ -431,7 +431,7 @@ export function CharacterFlow({
         {step === 'uniform' ? (
           <>
             <p className="font-ui text-body-sm text-secondary">
-              One clear photo of the uniform. On a hanger is fine — and avoids photographing
+              One clear photo of the uniform. On a hanger is fine, and avoids photographing
               anyone.
             </p>
             <FileDropzone
@@ -448,7 +448,7 @@ export function CharacterFlow({
 
             <div className="flex flex-col gap-2 border-t border-border-subtle pt-4">
               <span className="font-ui text-label font-medium text-primary">
-                More angles — optional
+                More angles (optional)
               </span>
               <p className="font-ui text-body-sm text-muted">
                 A back, a sleeve, the logo close up. Up to{' '}
@@ -542,7 +542,7 @@ export function CharacterFlow({
                 <strong className="font-medium text-secondary">
                   Expect it to be approximate
                 </strong>{' '}
-                — a drawing service redraws a logo rather than pasting it, and one with
+                , a drawing service redraws a logo rather than pasting it, and one with
                 words in it usually comes back with the letters wrong.
               </p>
 
@@ -674,7 +674,7 @@ export function CharacterFlow({
             <ul className="flex flex-col gap-2">
               <li className="font-ui text-body-sm text-secondary">
                 Your uniform photos are sent to an outside AI service, outside the UAE, and
-                read once — for the clothing only.
+                read once, for the clothing only.
               </li>
               <li className="font-ui text-body-sm text-secondary">
                 <strong className="font-medium text-primary">
@@ -737,7 +737,7 @@ export function CharacterFlow({
                 disabled={!affordable}
                 onClick={() => void generate()}
               >
-                I agree — make the characters
+                I agree, make the characters
               </Button>
               <Button type="button" variant="ghost" onClick={() => go('style')}>
                 Back
@@ -899,7 +899,7 @@ async function poll(jobId: string): Promise<Outcome> {
       throw new Error(
         job.errorMessage === 'unreadable_uniform'
           ? 'We could not read that photo. Try a clearer one.'
-          : 'That did not finish. You were not charged — try again.'
+          : 'That did not finish. You were not charged. Try again.'
       )
     }
 

@@ -142,7 +142,7 @@ export function ToolRail({
 
       {onUpload ? (
         <ToolButton
-          label="Upload artwork — PNG, JPG, WebP or SVG"
+          label="Upload artwork (PNG, JPG, WebP or SVG)"
           icon={ImagePlus}
           disabled={disabled || uploading === true}
           onClick={onUpload}

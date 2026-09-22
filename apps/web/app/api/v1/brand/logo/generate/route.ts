@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   const family = resolveFont(brand.brandKit, 'headline', await loadFontCatalog())
 
   if (palette.length === 0) {
-    return fail('no_palette', 'Choose your colours first — the mark is drawn in them.', 409)
+    return fail('no_palette', 'Choose your colours first. The mark is drawn in them.', 409)
   }
 
   const cost = CREDIT_COSTS.logo_gen

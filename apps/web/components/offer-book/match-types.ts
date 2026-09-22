@@ -78,7 +78,7 @@ export function barcodeHint(stats: { valid: number; total: number } | null): str
     return 'Strongly recommended. A barcode is an exact match where a name is a guess.'
   }
   if (stats.valid === 0) {
-    return 'No value in this column is a barcode — it looks like an internal code. Those rows will be matched on their name instead.'
+    return 'No value in this column is a barcode. It looks like an internal code. Those rows will be matched on their name instead.'
   }
   if (stats.valid < stats.total) {
     return `${stats.valid} of ${stats.total} rows carry a barcode. The rest will be matched on their name.`

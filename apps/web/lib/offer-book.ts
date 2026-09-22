@@ -836,7 +836,7 @@ async function prepareBook(
   })
   if (tier === null) {
     throw new Error(
-      `createBook: organization "${organizationId}" has no promo tiers — run \`pnpm db:seed\``
+      `createBook: organization "${organizationId}" has no promo tiers, run \`pnpm db:seed\``
     )
   }
 

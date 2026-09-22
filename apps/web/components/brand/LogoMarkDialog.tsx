@@ -120,7 +120,7 @@ export function LogoMarkDialog({ open, onOpenChange, kit, credits, onAdopted }: 
       onOpenChange={onOpenChange}
       size="lg"
       title="Make a logo"
-      description="We draw a few marks from your shop's name and your own colours. Pick one and it becomes your logo — you can replace it with a real file any time."
+      description="We draw a few marks from your shop's name and your own colours. Pick one and it becomes your logo. You can replace it with a real file any time."
       {...(phase.at === 'picking' || phase.at === 'declined'
         ? { secondaryAction: { label: 'Start again', onClick: () => setPhase({ at: 'choose' }) } }
         : {})}
@@ -135,7 +135,7 @@ export function LogoMarkDialog({ open, onOpenChange, kit, credits, onAdopted }: 
 
             {palette.length === 0 ? (
               <p className="font-ui text-body-sm text-critical-fg">
-                Choose your colours first — the mark is drawn in them.
+                Choose your colours first. The mark is drawn in them.
               </p>
             ) : (
               <>
@@ -187,7 +187,7 @@ export function LogoMarkDialog({ open, onOpenChange, kit, credits, onAdopted }: 
             </p>
             <Notes notes={phase.notes} />
             <p className="font-ui text-body-sm text-muted">
-              You were not charged. A shorter shop name usually works — or upload a logo file
+              You were not charged. A shorter shop name usually works, or upload a logo file
               instead.
             </p>
           </div>
@@ -331,7 +331,7 @@ async function poll(jobId: string): Promise<Outcome> {
       if (job.errorMessage === 'no_mark') {
         return { kind: 'declined', notes: job.result?.notes ?? [] }
       }
-      throw new Error('That did not finish. You were not charged — try again.')
+      throw new Error('That did not finish. You were not charged. Try again.')
     }
 
     if (job.status !== 'complete') continue

@@ -402,7 +402,7 @@ function RemoveBackground({
         loading={state === 'working'}
         onClick={() => (shared ? setAsking(true) : void run())}
       >
-        Remove the background — <span data-figure>1</span> credit
+        Remove the background, <span data-figure>1</span> credit
       </Button>
       {error === null ? null : (
         <span className="font-ui text-body-sm text-critical-fg" role="alert">

@@ -117,7 +117,7 @@ export function BrandDirectionDialog({ open, onOpenChange, credits, onAccepted }
       onOpenChange={onOpenChange}
       size="lg"
       title="Find colours for your shop"
-      description="Show us your shop — a photo of the front, your signage, or a sentence about what you sell — and we propose a palette and a set of typefaces. Nothing is saved until you keep it."
+      description="Show us your shop (a photo of the front, your signage, or a sentence about what you sell) and we propose a palette and a set of typefaces. Nothing is saved until you keep it."
       {...(phase.at === 'proposed' || phase.at === 'declined'
         ? {
             secondaryAction: {
@@ -137,7 +137,7 @@ export function BrandDirectionDialog({ open, onOpenChange, credits, onAccepted }
              * that looking costs nothing and only keeping does.
              */}
             <p className="font-ui text-body-sm text-secondary">
-              Looking is free. Keeping a palette costs <span data-figure>{COST}</span> credits —
+              Looking is free. Keeping a palette costs <span data-figure>{COST}</span> credits,
               you have <span data-figure>{credits}</span>.
             </p>
 
@@ -162,7 +162,7 @@ export function BrandDirectionDialog({ open, onOpenChange, credits, onAccepted }
                 label="A photo of your shop"
                 accept={ACCEPT}
                 onFile={fromPhoto}
-                hint="PNG, JPG or WebP. The front of the shop, your signage, or a shelf — whatever shows the colours you already use."
+                hint="PNG, JPG or WebP. The front of the shop, your signage, or a shelf, whatever shows the colours you already use."
                 busy={phase.at === 'working'}
                 {...(phase.at === 'choose' && phase.error !== undefined
                   ? { error: phase.error }
@@ -223,7 +223,7 @@ export function BrandDirectionDialog({ open, onOpenChange, credits, onAccepted }
             <Notes notes={phase.notes} />
             <p className="font-ui text-body-sm text-muted">
               You were not charged. A photo of the shopfront in daylight usually works better
-              than one of a shelf — or describe the shop in a sentence instead.
+              than one of a shelf, or describe the shop in a sentence instead.
             </p>
           </div>
         ) : null}
@@ -292,7 +292,7 @@ function Proposed({
 
           <div className="flex flex-col gap-1">
             <span className="font-ui text-label text-primary">
-              Typefaces — {TYPE_MOOD_NOTE[proposal.mood]}
+              Typefaces: {TYPE_MOOD_NOTE[proposal.mood]}
             </span>
             <span className="font-ui text-body-sm text-secondary">
               {fonts.headline} for headlines, {fonts.display} for product names, {fonts.price}{' '}
@@ -315,7 +315,7 @@ function Proposed({
           onClick={() => onAccept(proposal)}
           className="inline-flex h-control w-fit items-center rounded-pill bg-action-primary px-3 font-ui text-label text-action-primary-fg hover:bg-action-primary-hover disabled:opacity-50"
         >
-          {saving ? 'Saving…' : `Keep these — ${cost} credits`}
+          {saving ? 'Saving…' : `Keep these (${cost} credits)`}
         </button>
         <p className="font-ui text-body-sm text-muted">
           You can change any of it afterwards. Nothing here is locked in.
@@ -434,7 +434,7 @@ async function poll(jobId: string): Promise<Outcome> {
       throw new Error(
         job.errorMessage === 'unusable_direction'
           ? 'We could not read that picture. Try a clearer one.'
-          : 'That did not finish. You were not charged — try again.'
+          : 'That did not finish. You were not charged. Try again.'
       )
     }
 
@@ -442,7 +442,7 @@ async function poll(jobId: string): Promise<Outcome> {
 
     const { palette, priceIndex, mood, notes } = job.result ?? {}
     if (palette === undefined || priceIndex === undefined || mood === undefined) {
-      throw new Error('That did not finish. You were not charged — try again.')
+      throw new Error('That did not finish. You were not charged. Try again.')
     }
 
     return { kind: 'proposal', proposal: { palette, priceIndex, mood, notes: notes ?? [] } }

@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     )
   }
 
-  console.log(`${families.length} families${dryRun ? ' — dry run' : ''}`)
+  console.log(`${families.length} families${dryRun ? ' (dry run)' : ''}`)
 
   const deps = makeDeps()
   let totalBytes = 0
@@ -167,7 +167,7 @@ async function main(): Promise<void> {
     `${registered.length} families, ${(totalBytes / 1024 / 1024).toFixed(1)} MB, ` +
       `${BRAND_CSS_KEY} ${(css.length / 1024).toFixed(1)} kB over ${all.length} families`
   )
-  if (dryRun) console.log('dry run — nothing written to R2 or the database')
+  if (dryRun) console.log('dry run, nothing written to R2 or the database')
 }
 
 main()

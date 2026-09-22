@@ -147,7 +147,7 @@ export async function ensurePlanPrices(plan: Plan): Promise<PlanPrices | null> {
       productId,
       lookupKey: `souqstudio_${plan.id}_base_monthly`,
       amount: Number(plan.basePrice),
-      nickname: `${plan.name} — base`,
+      nickname: `${plan.name} base`,
     }))
 
   const shopPriceId = !needsShopPrice
@@ -157,7 +157,7 @@ export async function ensurePlanPrices(plan: Plan): Promise<PlanPrices | null> {
         productId,
         lookupKey: `souqstudio_${plan.id}_shop_monthly`,
         amount: Number(plan.pricePerShop),
-        nickname: `${plan.name} — extra shop`,
+        nickname: `${plan.name} extra shop`,
       })))
 
   await prisma.plan.update({
@@ -215,7 +215,7 @@ async function ensurePrice(input: {
     if (existing.unit_amount !== toMinorUnits(input.amount)) {
       console.warn(
         `[plans] ${input.lookupKey} is ${existing.unit_amount} in Stripe but ` +
-          `${toMinorUnits(input.amount)} in the plans table. Stripe wins — ` +
+          `${toMinorUnits(input.amount)} in the plans table. Stripe wins. ` +
           'a price change needs a migration, not a silent swap.'
       )
     }

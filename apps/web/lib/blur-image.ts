@@ -103,7 +103,7 @@ export async function renderBlurred(
   const blob =
     (await encode(canvas, OUTPUT_TYPE)) ?? (await encode(canvas, 'image/png'))
   if (blob === null) {
-    console.error('[blur] the canvas would not encode a blob — neither WebP nor PNG')
+    console.error('[blur] the canvas would not encode a blob, neither WebP nor PNG')
     return null
   }
 
@@ -143,7 +143,7 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
     image.onload = () => resolve(image)
     image.onerror = () => {
       console.error(
-        `[blur] could not load ${url} — the bucket's CORS policy does not cover this origin, or the object is gone`
+        `[blur] could not load ${url}, the bucket's CORS policy does not cover this origin, or the object is gone`
       )
       resolve(null)
     }

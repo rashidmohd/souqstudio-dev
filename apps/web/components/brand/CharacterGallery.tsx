@@ -136,7 +136,7 @@ export function CharacterGallery({ characters }: { characters: Character[] }) {
                 </>
               ) : (
                 <p className="col-span-2 self-center font-ui text-body-sm text-muted sm:col-span-5">
-                  No poses yet. A pose library is generated from this character — it is built
+                  No poses yet. A pose library is generated from this character, it is built
                   and has no screen of its own yet.
                 </p>
               )}

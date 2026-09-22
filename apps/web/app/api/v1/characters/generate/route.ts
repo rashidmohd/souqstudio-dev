@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
   if (!isBrandSetupComplete(brand.brandKit)) {
     return fail(
       'brand_incomplete',
-      'Finish your brand kit first — the character is drawn to match it.',
+      'Finish your brand kit first. The character is drawn to match it.',
       409
     )
   }

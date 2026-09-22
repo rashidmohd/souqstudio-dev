@@ -73,7 +73,7 @@ const KIND_PHRASE: Readonly<Record<MagicCategory, string>> = {
 /** What is acceptable, said before the drop rather than as a rejection after. */
 const KIND_HINT: Readonly<Record<MagicCategory, string>> = {
   'offer-card':
-    'PNG, JPG or WebP, up to 10MB. One card rather than a whole page — a page of eight cards has no single price to read.',
+    'PNG, JPG or WebP, up to 10MB. One card rather than a whole page. A page of eight cards has no single price to read.',
   header: 'PNG, JPG or WebP, up to 10MB. Crop to the band itself if the picture is a whole page.',
   panel: 'PNG, JPG or WebP, up to 10MB. Crop to the panel itself if the picture is a whole page.',
   footer: 'PNG, JPG or WebP, up to 10MB. Crop to the last row if the picture is a whole page.',
@@ -169,7 +169,7 @@ export function MagicBlockDialog({ open, onOpenChange, kit, credits, onCreated }
       onOpenChange={change}
       size="lg"
       title="Match a design from a picture"
-      description="Upload something you like — from a flyer, a post, or last year's print run. Say what kind of thing it is, and we work out which of our designs it matches and add it to your blocks, drawn in your own colours."
+      description="Upload something you like, from a flyer, a post, or last year's print run. Say what kind of thing it is, and we work out which of our designs it matches and add it to your blocks, drawn in your own colours."
       {...(phase.at === 'done'
         ? { secondaryAction: { label: 'Try another picture', onClick: () => setPhase({ at: 'choose' }) } }
         : {})}
@@ -280,7 +280,7 @@ export function MagicBlockDialog({ open, onOpenChange, kit, credits, onCreated }
             <p className="font-ui text-body-sm text-secondary">
               You were not charged.{' '}
               {kind === 'offer-card'
-                ? 'Try one card on its own — a single product with its price.'
+                ? 'Try one card on its own, a single product with its price.'
                 : `Try a picture of just the ${KIND_LABEL[kind].toLowerCase()}, or choose a different kind above.`}
             </p>
           </div>
@@ -313,7 +313,7 @@ export function MagicBlockDialog({ open, onOpenChange, kit, credits, onCreated }
                   <Notes notes={phase.result.notes} />
                   {phase.result.confidence === 'high' ? null : (
                     <p className="font-ui text-body-sm text-secondary">
-                      Not certain about this one — worth a look before you use it.
+                      Not certain about this one. Worth a look before you use it.
                     </p>
                   )}
                 </div>
@@ -460,7 +460,7 @@ async function poll(jobId: string): Promise<Matched> {
       throw new Error(
         job.errorMessage === 'unreadable_design'
           ? 'We could not read that picture. Try a clearer one, or crop it to the design itself.'
-          : 'That did not finish. You were not charged — try again.'
+          : 'That did not finish. You were not charged. Try again.'
       )
     }
 

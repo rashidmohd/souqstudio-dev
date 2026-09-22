@@ -24,7 +24,14 @@ describe('typefaceOptions', () => {
     // written a note for; saying it about Cairo would be noise.
     const options = typefaceOptions([font('Cairo'), font('Amiri', { category: 'serif' })], '')
     expect(options.find((o) => o.value === 'Cairo')?.label).toBe('Cairo')
-    expect(options.find((o) => o.value === 'Amiri')?.label).toBe('Amiri — serif')
+    expect(options.find((o) => o.value === 'Amiri')?.label).toBe('Amiri (serif)')
+  })
+
+  it('uses no em dash in anything a person reads', () => {
+    // A standing preference: em dashes do not go in UI strings, and a label is
+    // assembled here rather than written out, so it is worth pinning.
+    const labels = typefaceOptions([font('Amiri', { category: 'serif' })], '').map((o) => o.label)
+    expect(labels.some((label) => label.includes('\u2014'))).toBe(false)
   })
 
   it('always includes the family already set, even if it is not offered', () => {

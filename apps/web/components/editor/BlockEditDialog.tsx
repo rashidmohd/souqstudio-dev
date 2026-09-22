@@ -53,7 +53,7 @@ export function BlockEditDialog({ step, onCancel, onFork, onEditShared }: Props)
           asking === null
             ? undefined
             : asking.usage.seeded
-              ? `${asking.usage.name} is one of ours, so it is read-only. We will make you a copy and this book will use it — the original stays as it is.`
+              ? `${asking.usage.name} is one of ours, so it is read-only. We will make you a copy and this book will use it. The original stays as it is.`
               : `${asking.usage.name} is also drawn by the books below. Changing it changes all of them.`
         }
       >

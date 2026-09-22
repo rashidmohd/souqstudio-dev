@@ -990,7 +990,7 @@ function SaveStatus({ blockId }: { blockId: string }) {
         setFlushing(false)
       }}
     >
-      {save === 'error' ? 'Not saved — try again' : 'Save now'}
+      {save === 'error' ? 'Not saved, try again' : 'Save now'}
     </Button>
   )
 }

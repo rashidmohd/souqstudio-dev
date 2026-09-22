@@ -139,7 +139,7 @@ const withEndpointCheck = schema.superRefine((value, ctx) => {
       code: z.ZodIssueCode.custom,
       path: ['R2_ENDPOINT'],
       message:
-        `must be the bare account endpoint with no path and no bucket — ` +
+        `must be the bare account endpoint with no path and no bucket. ` +
         `https://<account>.r2.cloudflarestorage.com. ` +
         `"${bucket}" belongs in R2_BUCKET_NAME and nowhere else.`,
     })

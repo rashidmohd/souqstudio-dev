@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
   if (id === null) {
     return fail(
       'invalid_request',
-      'This block has a generated id. Give it a library id — "id": "blk_ramadan_band" — because a library id is permanent and a cuid means nothing.'
+      'This block has a generated id. Give it a library id ("id": "blk_ramadan_band") because a library id is permanent and a cuid means nothing.'
     )
   }
 

@@ -194,7 +194,7 @@ async function patchOffer(
     return fail(
       'invalid_request',
       allowed === 0
-        ? `${currency} prices are whole numbers — enter ${misfit.split('.')[0] ?? ''}.`
+        ? `${currency} prices are whole numbers. Enter ${misfit.split('.')[0] ?? ''}.`
         : `${currency} prices carry ${allowed} decimal places. Enter a price like ${(1.5).toFixed(allowed)}.`,
       422
     )

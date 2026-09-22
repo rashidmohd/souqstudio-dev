@@ -150,7 +150,7 @@ export function ShopProfileField({
         label="Business segment"
         required
         max={MAX_TRADES}
-        hint="What the shop mainly sells — a grocery with a bakery counter is both. It decides what a generated character and cover look like."
+        hint="What the shop mainly sells. A grocery with a bakery counter is both. It decides what a generated character and cover look like."
         disabled={!canEdit || saving}
         value={tradeValue}
         options={SHOP_TRADES.map((value) => ({
@@ -163,7 +163,7 @@ export function ShopProfileField({
       <Textarea
         label="About the shop"
         required
-        hint={`A few sentences in your own words — what you sell, who shops with you, anything that makes the shop itself. At least ${MIN_BIO} characters.`}
+        hint={`A few sentences in your own words: what you sell, who shops with you, anything that makes the shop itself. At least ${MIN_BIO} characters.`}
         maxLength={MAX_BIO}
         disabled={!canEdit || saving}
         value={bioValue}
@@ -231,7 +231,7 @@ export function ShopProfileField({
 
       {complete ? null : (
         <p className="font-ui text-body-sm text-caution-fg">
-          Fill both of these in before making a character — we cannot make one that looks
+          Fill both of these in before making a character, we cannot make one that looks
           like your shop without them.
         </p>
       )}
