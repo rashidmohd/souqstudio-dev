@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import type { BrandColor, BrandKit, LogoStatus, TextStyle } from '@souqstudio/types'
-import { ROLE_SLOT, type FontRole } from '@/lib/brand-fonts'
+import { ROLE_SLOT, type FontRole } from '@/lib/font-catalog'
 
 /**
  * The brand kit as the setup wizard and its live preview see it. E1-04, E4-02.

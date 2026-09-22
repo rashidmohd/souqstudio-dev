@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fontFileKey, fontSlug, fontWoff2Key, googleFontsDir } from '@souqstudio/types'
-import { cssApiUrl, parseFontFaceCss, parseVariant } from '@/lib/font-mirror'
+import { cssApiUrl, parseFontFaceCss, parseVariant } from './font-mirror'
 
 /**
  * The parsing, not the fetching. Everything here is what stands between Google's

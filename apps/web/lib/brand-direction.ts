@@ -7,7 +7,7 @@ import {
   type ProposedColor,
   type TypeMood,
 } from '@souqstudio/engine'
-import { findFont, type FontRole } from '@/lib/brand-fonts'
+import { EDITORIAL, type FontRole } from '@/lib/font-editorial'
 import { palettePatch } from '@/lib/brand-palette'
 
 /**
@@ -72,15 +72,25 @@ const MOOD_FONTS: Readonly<Record<TypeMood, Record<FontRole, string>>> = {
  * a table that names a font we do not load — the deploy is wrong, and it should
  * be wrong loudly in CI rather than quietly in one owner's brand kit.
  */
+/**
+ * Checked against the **editorial** map, not the registry.
+ *
+ * The registry is a database table now and this runs at import; a module that
+ * queried Postgres to load would be a module that cannot be imported by a test,
+ * a script or the build. What can still be checked here is the thing this guard
+ * was always really about: that a mood names a family we have an opinion about,
+ * in a slot that opinion allows. Whether the files are mirrored is a *runtime*
+ * question, and `resolveFont()` already falls back on it rather than drawing a
+ * face it does not hold.
+ */
 const MOOD_FONTS_ARE_REAL = TYPE_MOODS.every((mood) =>
-  (Object.entries(MOOD_FONTS[mood]) as [FontRole, string][]).every(([role, family]) => {
-    const font = findFont(family)
-    return font !== undefined && font.roles.includes(role)
-  })
+  (Object.entries(MOOD_FONTS[mood]) as [FontRole, string][]).every(([role, family]) =>
+    (EDITORIAL[family]?.roles ?? []).includes(role)
+  )
 )
 
 if (!MOOD_FONTS_ARE_REAL) {
-  throw new Error('brand-direction: MOOD_FONTS names a family the catalog does not offer')
+  throw new Error('brand-direction: MOOD_FONTS names a family the editorial catalog does not offer')
 }
 
 /** The four faces a mood resolves to. */

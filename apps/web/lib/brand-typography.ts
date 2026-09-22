@@ -1,6 +1,12 @@
 import type { BrandKit, TextStyle, TypeLevel } from '@souqstudio/types'
 import { nanoid } from 'nanoid'
-import { DEFAULT_FONTS, DEFAULT_TYPE_BASE, resolveFonts, supportsItalic } from '@/lib/brand-fonts'
+import {
+  DEFAULT_FONTS,
+  DEFAULT_TYPE_BASE,
+  resolveFonts,
+  supportsItalic,
+  type FontCatalog,
+} from '@/lib/font-catalog'
 
 /**
  * The shop's text styles — reading them, growing them, and keeping the four
@@ -36,8 +42,8 @@ export const SIZE_STEPS = [0.58, 0.72, 0.85, 1, 1.25, 1.5, 1.7, 2.2, 2.8] as con
  * What a shop starts with. Eight styles, each bound to the slot a seeded block
  * reaches it through, and named for what they are rather than how big they are.
  */
-export function defaultTextStyles(kit: BrandKit): TextStyle[] {
-  const fonts = resolveFonts(kit)
+export function defaultTextStyles(kit: BrandKit, catalog: FontCatalog): TextStyle[] {
+  const fonts = resolveFonts(kit, catalog)
 
   const style = (
     slot: TypeLevel,
@@ -73,9 +79,9 @@ export function defaultTextStyles(kit: BrandKit): TextStyle[] {
 }
 
 /** The styles a kit resolves to. Stored wins; otherwise the defaults. */
-export function resolveTextStyles(kit: BrandKit): TextStyle[] {
+export function resolveTextStyles(kit: BrandKit, catalog: FontCatalog): TextStyle[] {
   if (kit.textStyles && kit.textStyles.length > 0) return kit.textStyles
-  return defaultTextStyles(kit)
+  return defaultTextStyles(kit, catalog)
 }
 
 /**
@@ -85,11 +91,11 @@ export function resolveTextStyles(kit: BrandKit): TextStyle[] {
  * deletes the style bound to `h3` has not deleted every block that uses it, and
  * a card with no product name is worse than one in a fallback face.
  */
-export function styleForSlot(kit: BrandKit, slot: TypeLevel): TextStyle {
-  const found = resolveTextStyles(kit).find((style) => style.slot === slot)
+export function styleForSlot(kit: BrandKit, slot: TypeLevel, catalog: FontCatalog): TextStyle {
+  const found = resolveTextStyles(kit, catalog).find((style) => style.slot === slot)
   if (found) return found
 
-  const fallback = defaultTextStyles(kit).find((style) => style.slot === slot)
+  const fallback = defaultTextStyles(kit, catalog).find((style) => style.slot === slot)
   // Every slot has a default, so this is unreachable; the throw is what keeps
   // the return type honest rather than optional.
   if (!fallback) throw new Error(`No default text style for slot "${slot}"`)
@@ -117,11 +123,15 @@ export function typographyPatch(styles: readonly TextStyle[]): Partial<BrandKit>
   }
 }
 
-export function newTextStyle(kit: BrandKit, styles: readonly TextStyle[]): TextStyle {
+export function newTextStyle(
+  kit: BrandKit,
+  styles: readonly TextStyle[],
+  catalog: FontCatalog
+): TextStyle {
   return {
     id: nanoid(8),
     name: `Style ${styles.length + 1}`,
-    family: resolveFonts(kit).body,
+    family: resolveFonts(kit, catalog).body,
     size: 1,
     weight: 400,
     italic: false,
@@ -143,8 +153,15 @@ export function canRemoveStyle(styles: readonly TextStyle[], style: TextStyle): 
 }
 
 /** Whether italic on this style will be real or synthesised. */
-export function italicIsSynthetic(style: TextStyle): boolean {
-  return style.italic && !supportsItalic(style.family)
+/**
+ * Whether choosing italic on this style gets a real one or a synthesised slant.
+ *
+ * Needs the catalog because "does this family ship an italic" is now a fact read
+ * from Google's metadata on the registry row, rather than a boolean somebody
+ * typed into a literal — where it could be, and was liable to be, wrong.
+ */
+export function italicIsSynthetic(style: TextStyle, catalog: FontCatalog): boolean {
+  return style.italic && !supportsItalic(style.family, catalog)
 }
 
 export const TYPE_BASE = DEFAULT_TYPE_BASE

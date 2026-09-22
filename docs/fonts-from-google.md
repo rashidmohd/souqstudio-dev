@@ -83,20 +83,34 @@ Mirror Cairo at 400/700 because one shop bound those, and the next shop binding
 the worker each have to test presence per weight instead of per family. That
 conditional would live in eight places.
 
-**Measured, 21 September 2026**, running `mirrorFamily()` against Google with the
-uploads discarded:
+**Measured, 22 September 2026** — `fonts:mirror --dry-run` over the ten, against
+Google, with the uploads discarded:
 
-| Family | Variants | Subsets | Files | Size | Fetch |
-| --- | --- | --- | --- | --- | --- |
-| Lalezar | 1 | 3 | 6 | 0.33 MB | 0.5s |
-| Cairo | 8 | 3 | 33 | 1.32 MB | 0.9s |
-| Rubik | 14 | 6 | 99 | 4.03 MB | 1.8s |
+| Family | Version | Faces | Files | Size | Fetch | Subsets |
+| --- | --- | --- | --- | --- | --- | --- |
+| Lalezar | v16 | 1 | 6 | 0.3 MB | 0.5s | ar · latin · latin-ext · vi |
+| Almarai | v19 | 4 | 13 | 0.8 MB | 0.5s | ar · latin |
+| Reem Kufi | v28 | 4 | 21 | 0.6 MB | 0.5s | ar · latin · latin-ext · vi |
+| Tajawal | v12 | 7 | 22 | 0.5 MB | 0.6s | ar · latin |
+| Baloo Bhaijaan 2 | v21 | 5 | 26 | 1.4 MB | 0.7s | ar · latin · latin-ext · vi |
+| Changa | v29 | 7 | 29 | 0.9 MB | 0.8s | ar · latin · latin-ext |
+| Readex Pro | v27 | 6 | 31 | 1.1 MB | 0.8s | ar · latin · latin-ext · vi |
+| Cairo | v31 | 8 | 33 | 1.3 MB | 1.2s | ar · latin · latin-ext |
+| Noto Sans Arabic | v33 | 9 | 55 | 3.8 MB | 1.7s | ar · latin · latin-ext · math · symbols |
+| Rubik | v31 | 14 | 99 | 4.5 MB | 1.6s | ar · cyrillic(+ext) · he · latin(+ext) |
 
-**The file count is variants × subsets, not variants × 2.** An earlier draft of
-this note said "~9 weights × 2 formats is 18 fetches"; Rubik is 99 files,
-because woff2 is split per script and Rubik carries six. Three hundred families
-ever chosen is closer to 600 MB than the 350 MB guessed at — still nothing, and
-still cheaper than a per-weight presence check in eight call sites.
+**65 faces, 335 files, 15.1 MB, every family OFL-1.1.**
+
+**The file count is faces × subsets, not faces × 2.** An earlier draft of this
+note said "~9 weights × 2 formats is 18 fetches"; Rubik is 99 files, because
+woff2 is split per script and Rubik carries six. At 1.5 MB a family, three
+hundred families ever chosen is ~450 MB — still nothing, and still cheaper than
+a per-weight presence check in eight call sites.
+
+**The coverage claim in `brand-fonts.ts` is confirmed against Google's own
+metadata** rather than against the picker's assertion about itself: all ten carry
+`arabic` and `latin`. That is the first time the entry requirement for the
+curated catalog has been checked by anything but a person reading a table.
 
 Taking every variant also makes `hasItalic` a fact read from Google's metadata
 rather than a boolean typed by hand in the catalog, where it can already be
@@ -105,9 +119,9 @@ wrong.
 **First-pick latency holds at under 2s** — the number the blocking save in B2
 depends on. `mirror-fonts.mjs` did these sequentially, which was the 8–10s
 problem; at a concurrency cap of 6 the worst family in the recommended ten is
-1.8s. The measurement covers the fetch from Google only: the R2 uploads were
-discarded, so a real cold pick adds 99 PUTs at the same cap and the figure to
-trust for B2 is whatever A1's first real run prints.
+1.7s and the median is 0.75s. The measurement covers the fetch from Google only:
+the uploads were discarded, so a real cold pick adds up to 99 PUTs at the same
+cap and the figure to trust for B2 is whatever the first real run prints.
 
 ---
 
@@ -246,13 +260,30 @@ Required by `apps/web/CLAUDE.md` and called nowhere in the repo today.
 - **Exit:** re-measure on font change, and an artboard that switches families
   mid-session lays out identically to one loaded with that family from cold.
 
-### A4. The worker and the shaper read files · **M**
+### A4. The export path reads files · **M**
 
-Manifest pinned at boot, faces read from R2 as bytes. Neither Playwright nor
-HarfBuzz touches Google.
+**Scoped down on contact with the repo, and the reason matters.** This phase was
+written as "the worker and the shaper read files from R2", which assumed both
+existed. Neither does: `apps/worker/src/workers/pdf.worker.ts` is a stub that
+throws `Not yet implemented`, and the HarfBuzz measurer is E14 Phase 2, which is
+unstarted. There was no export to point at R2.
 
-- **Exit:** export runs with outbound access to `fonts.googleapis.com` blocked
-  and the PDF is byte-identical to one produced with it open.
+So A4 builds the substrate they will both take, and proves the property they
+exist to guarantee:
+
+- `apps/worker/src/lib/fonts.ts` — faces loaded from R2 as bytes, cached on disk
+  between jobs (safe because the keys are immutable, §2a), nearest-weight
+  resolution for a kit that binds a weight a family does not ship, and
+  `@font-face` rules pointing at `file://` rather than at the network.
+- `pnpm --filter @souqstudio/worker fonts:check` — renders each mirrored family
+  to PDF through real Chromium **with DNS blackholed**, and reads the PDF back.
+
+The engine stays free of database imports, as `packages/db`'s rules require: the
+measurer will take font bytes as an argument the way `measure` is already
+injected, and the worker is what loads them.
+
+- **Exit:** every mirrored family embeds a font program, draws as text rather
+  than a picture, and rasterizes nothing — with no name resolution available.
 
 ---
 
@@ -286,6 +317,29 @@ silently. A spinner is a cheap price for never testing this at render time.
 
 ---
 
+## 7a. What Part B actually cost, as built
+
+**B1 and B2 are in.** The picker offers all 57 families, mirror-on-select is
+blocking and scoped, a `fonts` queue finishes each family, and
+`familiesNotExportable()` is the single gate. Four defects were found by running
+it rather than by reading it, and all four were silent:
+
+1. **The weight scope matched everything.** The route passed `WEIGHTS`, the seven
+   weights the editor offers, so a cold Rubik still mirrored all fourteen faces.
+   57 files instead of 17 — a fifth of the intended saving. `weightsInPatch`.
+2. **`complete` was inferred, not measured.** It asked whether a filter had been
+   *passed*, not whether it excluded anything, so a family that happened to ship
+   exactly the required scripts registered as incomplete — queueing a job that
+   could only be a no-op and blocking export until it ran.
+3. **The blocking path downloaded the whole catalog** — ~1 MB of JSON to read one
+   family. `fetchGoogleFamily` uses the API's `family` parameter instead.
+4. **BullMQ rejects a job id containing `:`**, and the rejection failed the entire
+   save — a font that had just been mirrored successfully came back as
+   `font_not_available`. The id is slugged now, and a queue failure no longer
+   fails a save: the face is in R2 and drawable, which is what was asked for.
+
+---
+
 ## 8. What is still not true
 
 - **A fallback policy is owed.** 19 to 125 catalog strings per face are in
@@ -294,31 +348,127 @@ silently. A spinner is a cheap price for never testing this at render time.
   the chosen face cannot draw the string. It should be settled in this pass,
   not bolted on.
 
-- **A shop that adds a language after picking its fonts breaks its own kit.**
-  The coverage filter runs at pick time. An English-only shop that picks four
-  Latin-only faces and later enables Arabic now holds a kit that cannot render
-  its own catalog. Adding a language must re-check the four slots against the
-  registry and force a re-pick on any that fail — refusing the language change
-  is the wrong answer, and warning-only reproduces the tofu this design set out
-  to make impossible.
+- ~~**A shop that adds a language after picking its fonts breaks its own kit.**~~
+  **This cannot happen, and the premise was wrong.** There is no per-shop
+  language column, and that is not an omission: the block document schema refuses
+  a static string carrying `textEn` without `textAr`, so **every shop's book is
+  bilingual** whether or not its owner thinks of it that way. There is no
+  language to add later. The coverage filter is therefore a constant —
+  `REQUIRED_SUBSETS` — rather than a per-shop lookup, which is simpler than §3
+  assumed and removes this whole failure mode.
 
-- **`fonts/brand.css` is a stopgap and is known to be one.** It works at ten
-  families and not at two hundred; §4 says what replaces it. A1 ships it because
-  the specimen needs a stylesheet to link; B1 should not ship on top of it.
+- **The library is 57 families, not fifteen hundred.** Measured against the
+  Developer API: 1,955 families in Google Fonts, **57 covering both Arabic and
+  Latin** (28 sans-serif, 15 serif, 13 display, 1 handwriting). §3 reasoned about
+  an English-only shop seeing ~1,500 and needing search and virtualization; with
+  every shop bilingual, the filtered list is small enough for a plain control
+  with the ten pinned on top. It is still a **5.7× widening** of what a shop can
+  choose from.
 
-- **The upload half of a cold mirror is still unmeasured.** The fetch from
-  Google is 1.8s at worst across the recommended ten, but the R2 PUTs were
-  discarded in that run — 99 of them for Rubik. A1's first real run is what
-  settles whether B2's blocking save is tolerable.
+- **`fonts/brand.css` survives, as a link rather than an inline.** It was
+  written off as a stopgap on a size argument, and looking at a real page
+  corrected that. Inlining all ten families into the typography screen measured
+  **148 kB that arrived twice** — React serializes a server component's markup
+  into the RSC flight payload as well as the HTML — taking the page to 480 kB.
+  Linking the stylesheet instead brought it to 182 kB, and it is cached across
+  navigations besides. So the split is: the layout **inlines** the four faces a
+  shop draws in, because four is small and a link is a round trip before first
+  paint; the browse surface **links** the whole sheet.
+
+  What remains true is that the sheet grows with the library, so **B1 must not
+  assume it stays linkable** — at two hundred families it is megabytes and the
+  picker needs specimens fetched per visible row instead.
+
+- **The layout's inline is duplicated too**, for the same RSC reason — ~70 kB on
+  every dashboard page for a four-family kit. Under the cap where a link would
+  cost more than it saves, but it is not free, and a per-shop stylesheet in R2
+  would remove it.
+
+- **Measured, and it is worse than B2 assumed.** The first real run went in on
+  22 September 2026 — 335 objects, 15.1 MB, 10 rows. With the uploads included a
+  family costs **1.6s to 7.8s**, against 0.5–1.7s for the fetch alone:
+
+  | Family | Fetch only | With uploads | Files |
+  | --- | --- | --- | --- |
+  | Lalezar | 0.5s | 1.6s | 6 |
+  | Cairo | 0.9s | 3.1s | 33 |
+  | Noto Sans Arabic | 1.7s | 5.5s | 55 |
+  | Rubik | 1.6s | 7.8s | 99 |
+
+  **The uploads dominate, and concurrency barely helps.** `CONCURRENCY` is now
+  `FONT_MIRROR_CONCURRENCY`, and raising it was measured rather than assumed:
+  Cairo goes 3.3s → 2.6s → 2.4s at 6 / 16 / 32. Diminishing immediately, because
+  the cost is per-object round trips to R2 rather than bandwidth. Tuning alone
+  does not rescue a blocking save.
+
+  **A 7.8s blocking save is not acceptable, and neither proposed rescue works.**
+  Both were measured on 22 September 2026 and both failed:
+
+  *Raising concurrency does nothing.* Rubik is 7.2s / 7.0s / 7.3s at 6 / 16 / 32.
+  The cost is per-object round trips to R2, not bandwidth, and 32 is marginally
+  worse than 16.
+
+  *Blocking on woff2 only was backwards.* An earlier draft of this note proposed
+  waiting for the woff2 and finishing the TTFs in the background, on the reasoning
+  that the browser needs only woff2 while the TTFs serve the shaper and the PDF.
+  But woff2 is split **per script**, so Rubik's 99 files are 14 TTF, 84 woff2 and
+  one licence — the woff2 *are* the bulk. That split saves about 15%.
+
+  **The real lever is object count, and it is subsets and weights rather than
+  formats.** Built and measured on 22 September 2026:
+
+  | Family | Whole family | Scoped to what the kit draws with |
+  | --- | --- | --- |
+  | Cairo | 33 files · 2.6s | **9 files · 1.2s** |
+  | Noto Sans Arabic | 55 files · 5.1s | **9 files · 1.6s** |
+  | Rubik | 99 files · 7.7s | **17 files · 2.6s** |
+
+  Rubik is the outlier because it carries six scripts; a typical family lands
+  near 1.2–1.6s. An intermediate run pins where the saving comes from — Rubik
+  scoped by subset but with all seven scale weights is 57 files and 6.1s, barely
+  better than taking it whole.
+
+  **That intermediate run is the trap the first implementation fell into.** The
+  route passed `WEIGHTS` — the seven weights the editor *offers* — which matches
+  every face a family ships, so only the subset filter bit and the saving was a
+  fifth of what it should be. Scoping to the weights the kit's text styles
+  actually bind is what makes it 3×. Corrected in `weightsInPatch`.
+
+  The 1.5s an earlier draft estimated turns out to be right for a typical family
+  and optimistic for the worst one. All of it measured from a laptop rather than
+  from a server beside the bucket.
+
+  **This is the decision, and it is not ours to make by default.** It weakens
+  B2's invariant from *"a family in a kit is fully in R2"* to *"a family in a kit
+  is drawable in this shop's languages at the weights it binds"* — and that
+  reintroduces exactly the per-weight, per-subset presence question §2b set out
+  to kill, now on the export gate. The alternative is accepting a spinner of up
+  to ~8s on a font change. Both are defensible; one of them has to be chosen
+  before B1 ships, because a picker that offers families the render path cannot
+  load is the failure this whole document exists to prevent.
 
 - **Google's version moves and the plan's examples are already stale.** Cairo
   was `v28` when the earlier draft of this note was written and is `v31` today.
   That is the argument for §1 rather than a problem with it, but it means no
   version string in this document should be read as current.
 
-- **Nothing here has been run.** `fonts:mirror` has never executed against a
-  real bucket, and the parity in §1 was measured in a harness rather than
-  through the app.
+- **Part A is built through A3 and `/brand` has been rendered against it.**
+  The migration is applied, the ten families are mirrored, and the page serves
+  670 `@font-face` rules with **zero references to `gstatic` or
+  `fonts.googleapis.com`** — every byte from R2. What has *not* been done is
+  looking at it with human eyes: this was verified by fetching the HTML and
+  reading it, so nothing has confirmed the faces actually paint correctly, only
+  that they are declared and served. The parity in §1 also remains measured in a
+  harness rather than through the app.
+
+- **A4's substrate is built and its property is proven; the consumers do not
+  exist.** `fonts:check` renders all ten families to PDF through real Chromium
+  with DNS blackholed, and every one embeds a subset font program (7–11 kB out of
+  a ~90 kB face), draws as text, and rasterizes nothing. That is §1's claim
+  demonstrated rather than argued. But `pdf.worker.ts` is still a stub and the
+  HarfBuzz measurer is still E14 Phase 2 — **nothing in the product exports a PDF
+  yet**, so what is proven is that the bytes are correct and loadable, not that a
+  shipping export uses them.
 
 ---
 

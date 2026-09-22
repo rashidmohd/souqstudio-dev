@@ -8,6 +8,9 @@ import { readEffectiveBrand, isBrandSetupComplete } from '@/lib/brand-kit'
 import { BrandKitScreen } from '@/components/brand/BrandKitScreen'
 import { NoShopBrandKit } from '@/components/brand/NoShopBrandKit'
 import { PageContainer } from '@/components/shared/page-container'
+import { BRAND_CSS_KEY } from '@souqstudio/types'
+import { offerableFamilies } from '@/lib/font-catalog-server'
+import { publicUrl } from '@/lib/r2'
 
 export const metadata: Metadata = { title: 'Brand kit · SouqStudio' }
 
@@ -113,8 +116,38 @@ export default async function BrandKitPage() {
   const canEdit = shop.role === 'owner' || shop.role === 'manager'
   const isOwner = toRole(session.user.role) === 'owner'
 
+  /**
+   * Every mirrored family, not just this shop's four — **linked, not inlined.**
+   *
+   * The dashboard layout inlines the four faces a shop draws in, because four is
+   * small and a `<style>` costs no round trip. This screen needs all ten: every
+   * row in the typeface list is specimen-rendered in its own face, and a
+   * specimen needs its face declared.
+   *
+   * Inlining that was measured at **148 kB, and it arrives twice** — React
+   * serializes a server component's markup into the RSC flight payload as well
+   * as the HTML, so the page went to 480 kB on the wire. A stylesheet link is
+   * fetched once, cached across navigations, and never enters the payload.
+   *
+   * `unicode-range` still travels inside each rule, so an English-only page
+   * downloads no Arabic — the size of the stylesheet is not the size of the
+   * fonts. `docs/fonts-from-google.md` §4.
+   */
+  const specimenSheet = publicUrl(BRAND_CSS_KEY)
+
+  /**
+   * The typefaces this shop may pick from — 57 of Google's 1,955, the ones
+   * covering both Arabic and Latin. Cached for an hour in the module, so this is
+   * a Google round trip once an hour rather than once a page.
+   */
+  const offerableFonts = await offerableFamilies()
+
   return (
     <PageContainer>
+      {/* eslint-disable-next-line @next/next/no-css-tags -- not a build asset:
+          this stylesheet is written to R2 by `fonts:mirror` and changes when a
+          family is mirrored, not when the app is deployed. */}
+      <link rel="stylesheet" href={specimenSheet} />
       <Header />
 
       <BrandKitScreen
@@ -129,6 +162,7 @@ export default async function BrandKitPage() {
         credits={credits.total}
         characters={characters}
       tiers={tiers}
+        offerableFonts={offerableFonts}
       />
     </PageContainer>
   )

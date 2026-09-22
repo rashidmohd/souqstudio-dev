@@ -10,7 +10,9 @@ import {
   ONBOARDING_STEPS,
 } from '@/lib/brand-kit'
 import { isValidHex, EXAMPLE_HEX } from '@/lib/color'
-import { findFont } from '@/lib/brand-fonts'
+import { getFonts } from '@souqstudio/db'
+import { ROLE_SLOT, FONT_ROLES } from '@/lib/font-catalog'
+import { ensureFamilies } from '@/lib/font-ensure-server'
 import { MAX_PALETTE, MIN_PALETTE } from '@/lib/brand-palette'
 import { MAX_STYLES, MIN_STYLES } from '@/lib/brand-typography'
 
@@ -38,14 +40,18 @@ const hex = z
   .refine(isValidHex, `Use a colour like ${EXAMPLE_HEX}.`)
 
 /**
- * A font is valid only if it is in the catalog. The value reaches a JSONB
- * column and then a stylesheet request, and a family we do not load renders as
- * something else without ever failing.
+ * Shape only. **Whether the family exists is checked against the registry after
+ * parsing**, not here.
+ *
+ * It used to be a `.refine()` against a hand-written array, which was possible
+ * because the array was in the bundle. The catalog is a table now and `refine`
+ * is synchronous, so membership moved to `assertFontsMirrored()` below. The
+ * check itself got stricter in the move: it used to mean "a name we listed",
+ * and now means "a family whose files are in R2" — which is the condition that
+ * actually matters, because a name we cannot draw renders as something else
+ * without ever failing.
  */
-const fontFamily = z
-  .string()
-  .trim()
-  .refine((value) => findFont(value) !== undefined, 'Choose one of the offered typefaces.')
+const fontFamily = z.string().trim().min(1).max(120)
 
 /**
  * A palette is a definition, not a usage map — see `lib/brand-palette.ts`. The
@@ -117,6 +123,53 @@ export async function GET() {
   })
 }
 
+/**
+ * The weights this kit will actually draw in.
+ *
+ * **Not `WEIGHTS`, the palette of weights the editor offers.** That is all seven,
+ * and passing it made the weight scope match every face a family ships — so a
+ * cold Rubik still mirrored all fourteen and the blocking save only shed the
+ * subsets it did not need: 99 files to 57, 7.6s to 6.1s, a fifth of what the
+ * split was supposed to buy.
+ *
+ * A brand kit binds two or three weights in practice. Taking them from the text
+ * styles being saved is what makes a cold save ~17 objects instead of ~57.
+ *
+ * 400 and 700 are always included: they are what `DEFAULT_STEPS` falls back to
+ * for any level the kit does not override, so a style added later has something
+ * to draw in without waiting for the completion job.
+ */
+function weightsInPatch(patch: { textStyles?: readonly { weight: number }[] | undefined }): number[] {
+  const bound = (patch.textStyles ?? [])
+    .map((style) => style.weight)
+    .filter((weight): weight is number => typeof weight === 'number')
+  return [...new Set([400, 700, ...bound])].sort((a, b) => a - b)
+}
+
+/** The families this patch sets. A slot it leaves alone is not touched. */
+function fontsInPatch(patch: Partial<Record<string, unknown>>): string[] {
+  return [
+    ...new Set(
+      FONT_ROLES.map((role) => patch[ROLE_SLOT[role]]).filter(
+        (value): value is string => typeof value === 'string' && value !== ''
+      )
+    ),
+  ]
+}
+
+/**
+ * Which of them we do not yet hold files for.
+ *
+ * One query for all four. This validates what is being *written*, not what is
+ * already stored: a shop whose old font somehow left the registry must still be
+ * able to save a colour.
+ */
+async function unmirroredFonts(wanted: readonly string[]): Promise<string[]> {
+  if (wanted.length === 0) return []
+  const held = new Set((await getFonts([...wanted])).map((font) => font.family))
+  return wanted.filter((family) => !held.has(family))
+}
+
 export async function PATCH(req: NextRequest) {
   const { session, response } = await requireApiSession({ allowPendingTwoFactor: true })
   if (!session) return response
@@ -131,6 +184,39 @@ export async function PATCH(req: NextRequest) {
   const parsed = schema.safeParse(body)
   if (!parsed.success) {
     return fail('invalid_input', 'Check the highlighted fields and try again.', 422)
+  }
+
+  /**
+   * **Any family this patch names is in R2 before the patch is accepted.**
+   *
+   * A family nobody has ever picked is mirrored here, now, while the owner
+   * waits — only the weights the type scale can bind and the scripts the product
+   * ships in, which is ~16 objects rather than ~99 and lands near 1.5s. The rest
+   * of the family is finished in the background and `fonts.complete` says
+   * whether it has. `docs/fonts-from-google.md` §7 B2.
+   *
+   * This is deliberately *before* the shop read and the role check. Mirroring is
+   * platform-level work with no tenant in it — the family is shared by every
+   * shop — and a cold family is the slow path whoever is asking.
+   */
+  const wanted = fontsInPatch(parsed.data as Record<string, unknown>)
+  const failures = await ensureFamilies(wanted, weightsInPatch(parsed.data))
+  if (failures.length > 0) {
+    return fail('font_not_available', failures.map((f) => f.reason).join(' '), 422)
+  }
+
+  // The backstop. `ensureFamilies` reports its own failures, so reaching this
+  // means a family was registered and then vanished — never expected, and much
+  // better as a refusal than as a brand kit naming a face nothing can draw.
+  const missing = await unmirroredFonts(wanted)
+  if (missing.length > 0) {
+    return fail(
+      'font_not_available',
+      missing.length === 1
+        ? `${missing[0]} is not available. Choose one of the offered typefaces.`
+        : `These typefaces are not available: ${missing.join(', ')}.`,
+      422
+    )
   }
 
   const shop = await getActiveShop(session)

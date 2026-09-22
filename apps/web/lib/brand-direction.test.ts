@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TYPE_MOODS } from '@souqstudio/engine'
-import { findFont, FONT_ROLES } from '@/lib/brand-fonts'
+import { FONT_ROLES, findFont } from '@/lib/font-catalog'
+import { TEST_CATALOG } from '@/lib/font-catalog.fixture'
 import { fontsForMood, isProposal, patchFromProposal, type DirectionProposal } from '@/lib/brand-direction'
 
 /**
@@ -38,7 +39,7 @@ describe('fontsForMood', () => {
     for (const mood of TYPE_MOODS) {
       const fonts = fontsForMood(mood)
       for (const role of FONT_ROLES) {
-        const font = findFont(fonts[role])
+        const font = findFont(fonts[role], TEST_CATALOG)
         expect(font, `${mood}/${role}`).toBeDefined()
         expect(font?.roles, `${mood}/${role}`).toContain(role)
       }

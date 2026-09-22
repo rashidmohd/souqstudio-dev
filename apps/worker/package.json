@@ -9,6 +9,7 @@
     "start": "tsx src/index.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
+    "fonts:check": "tsx --env-file-if-exists=.env src/scripts/fonts-check.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "magic:check": "tsx --env-file-if-exists=.env src/scripts/magic-check.ts",

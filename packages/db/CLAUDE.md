@@ -48,6 +48,33 @@ and leaving it out of the project meant `pnpm typecheck` had no opinion on any o
 
 ---
 
+## Never point `--shadow-database-url` at a real database
+
+`prisma migrate diff --from-migrations ... --shadow-database-url <url>` **resets
+the database it is given.** That is what a shadow database is for: Prisma wipes
+it, replays every migration into it, and compares the result with the schema.
+
+Passing `DATABASE_URL` to it therefore destroys the development database —
+silently, with a cheerful `No difference detected.` as the only output. It
+happened on 22 September 2026 and cost every seeded row, the catalog, and the
+one real account on the box. Nothing about the command's output suggests a write
+occurred.
+
+To check a migration against the schema without a database, diff the two
+directly — no shadow needed, because neither side is a live database:
+
+```
+npx prisma migrate diff \
+  --from-schema-datasource prisma/schema.prisma \
+  --to-schema-datamodel  prisma/schema.prisma
+```
+
+If a replay genuinely is needed, start a throwaway Postgres for it and pass
+*that* url. `prisma validate` and `prisma migrate status` are both safe and
+answer most questions.
+
+---
+
 ## Schema rules
 
 - One `schema.prisma` file. Never split the schema.

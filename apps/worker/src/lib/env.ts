@@ -81,6 +81,15 @@ const schema = z.object({
   R2_BUCKET_NAME:       z.string(),
   R2_PUBLIC_URL:        z.string().url(),
   R2_ENDPOINT:          z.string().url(),
+  /**
+   * The Web Fonts Developer API key, for finishing a family a save mirrored only
+   * part of. `docs/fonts-from-google.md` §7 B2.
+   *
+   * **Optional, and its absence is a queue that fails loudly rather than a
+   * worker that will not boot.** Nothing else the worker does needs it, and a
+   * deployment that never widens the font library never enqueues the job.
+   */
+  GOOGLE_FONTS_API_KEY: z.string().min(1).optional(),
 })
 
 /**

@@ -7,7 +7,8 @@ import { requireApiSession } from '@/lib/api-session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { resolvePalette } from '@/lib/brand-palette'
-import { resolveFont } from '@/lib/brand-fonts'
+import { resolveFont } from '@/lib/font-catalog'
+import { loadFontCatalog } from '@/lib/font-catalog-server'
 
 /**
  * Generate logo marks. E8-09.
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
    * resolved rather than read, so a kit that has not chosen one yet gets the
    * catalog's default instead of an empty `font-family`.
    */
-  const family = resolveFont(brand.brandKit, 'headline')
+  const family = resolveFont(brand.brandKit, 'headline', await loadFontCatalog())
 
   if (palette.length === 0) {
     return fail('no_palette', 'Choose your colours first — the mark is drawn in them.', 409)

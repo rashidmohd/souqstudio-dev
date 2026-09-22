@@ -15,7 +15,9 @@ import {
   type Rect,
 } from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
-import { resolveScale } from '@/lib/brand-fonts'
+import { resolveScale } from '@/lib/font-catalog'
+import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
+import { useFontsReady } from '@/lib/use-fonts-ready'
 import {
   contentFor,
   drawElement,
@@ -159,14 +161,30 @@ export function BookPage({
   // responds to, or listen for clicks on cells that were never drawn.
   const editingCells = cells !== undefined && onSelectCell !== undefined
   const palette = resolvePalette(kit)
-  const scale = resolveScale(kit)
+  const scale = resolveScale(kit, useFontCatalog())
 
   // Estimate on the server and the first client paint, real metrics after mount
   // — otherwise the two renders break lines differently and React flags the
   // mismatch. Same reasoning as `BlockPreview`.
   const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => setMounted(true), [])
-  const measure = mounted ? measureText : estimateWidth
+  /**
+   * The real measurer only once the shop's faces can actually be measured.
+   *
+   * `measureText` asks a canvas for a width using a shorthand that names the
+   * brand family; before that face has loaded the canvas answers for the
+   * fallback, and every wrap on the card is decided against the wrong metrics.
+   * A font change re-runs this, which is what re-measures the artboard.
+   */
+  const fontsReady = useFontsReady(
+    React.useMemo(() => Object.values(scale.families), [scale.families]),
+    React.useMemo(
+      () => Object.values(scale.levels).map((step) => step.weight),
+      [scale.levels]
+    )
+  )
+
+  const measure = mounted && fontsReady ? measureText : estimateWidth
 
   // Collected during render into a plain array — no state is written here — and
   // reported from an effect below. The alternative, a second pass over the same

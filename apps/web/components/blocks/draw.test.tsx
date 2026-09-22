@@ -22,7 +22,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { BlockElement, BrandKit, TextSource } from '@souqstudio/types'
 import { TEXT_BINDINGS, IMAGE_BINDINGS, labelFor } from '@souqstudio/engine'
 import { toPriceMark } from '@souqstudio/engine'
-import { resolveScale } from '@/lib/brand-fonts'
+import { resolveScale } from '@/lib/font-catalog'
+import { TEST_CATALOG } from '@/lib/font-catalog.fixture'
 import { artboardIdentity } from '@/lib/artboard-identity'
 import { toArtboardOffer } from '@/lib/preview-offer'
 import { TYPICAL_PRODUCT } from '@/lib/preview-product'
@@ -59,7 +60,7 @@ const OFFER: ArtboardOffer = {
 const CTX: DrawContext = {
   uid: 'test',
   token: () => '#1B4D3E',
-  scale: resolveScale(KIT),
+  scale: resolveScale(KIT, TEST_CATALOG),
   blockSize: 400,
   ar: false,
   direction: 'ltr',

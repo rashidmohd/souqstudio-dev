@@ -4,7 +4,9 @@ import * as React from 'react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { resolveBlock } from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '@/lib/brand-palette'
-import { resolveScale } from '@/lib/brand-fonts'
+import { resolveScale } from '@/lib/font-catalog'
+import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
+import { useFontsReady } from '@/lib/use-fonts-ready'
 import { toArtboardOffer } from '@/lib/preview-offer'
 import { PREVIEW_IDENTITY } from '@/lib/artboard-identity'
 import { PREVIEW_PRODUCT } from '@/lib/preview-product'
@@ -55,7 +57,7 @@ export function BlockPreview({
   className,
 }: Props) {
   const palette = resolvePalette(kit)
-  const scale = resolveScale(kit)
+  const scale = resolveScale(kit, useFontCatalog())
   const blockSize = Math.sqrt(width * height)
 
   // Real font metrics need a canvas, and a canvas needs a browser. Measuring
@@ -81,6 +83,22 @@ export function BlockPreview({
     direction
   )
 
+  /**
+   * The real measurer only once the shop's faces can actually be measured.
+   *
+   * `measureText` asks a canvas for a width using a shorthand that names the
+   * brand family; before that face has loaded the canvas answers for the
+   * fallback, and every wrap on the card is decided against the wrong metrics.
+   * A font change re-runs this, which is what re-measures the artboard.
+   */
+  const fontsReady = useFontsReady(
+    React.useMemo(() => Object.values(scale.families), [scale.families]),
+    React.useMemo(
+      () => Object.values(scale.levels).map((step) => step.weight),
+      [scale.levels]
+    )
+  )
+
   const ctx: DrawContext = {
     // Unique per mounted preview — the library page draws every block the shop
     // owns, and two imported from the same seed carry identical element ids.
@@ -90,7 +108,7 @@ export function BlockPreview({
     blockSize,
     ar: direction === 'rtl',
     direction,
-    measure: mounted ? measureText : estimateWidth,
+    measure: mounted && fontsReady ? measureText : estimateWidth,
     // Adapted through the one place that turns a sample product into what an
     // artboard draws — the designer's canvas and its stress panel use the same
     // function, so three previews cannot disagree about what a card shows.

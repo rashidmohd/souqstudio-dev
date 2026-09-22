@@ -31,6 +31,8 @@ export interface FontRegistration {
   italicWeights: number[]
   license: string
   css: string
+  /** False when only the faces a shop needed right away were mirrored. */
+  complete: boolean
 }
 
 export async function getFont(family: string): Promise<Font | null> {

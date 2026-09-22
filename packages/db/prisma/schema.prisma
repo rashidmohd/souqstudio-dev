@@ -154,7 +154,15 @@ model Shop {
   /// A scalar list rather than JSONB: it is a set of short enum-shaped strings
   /// with no structure to it, and `String[]` is queryable where a JSON array is
   /// not. `storePhotoKeys` beside it stays JSONB because it may grow fields.
-  trades         String[]
+  /// **`@default([])` is load-bearing and was missing here for six days.**
+  /// `20260916130000_shop_trades_list` created this column `NOT NULL DEFAULT
+  /// '{}'` so that "no segments chosen" is an empty array rather than a null
+  /// every reader has to remember to handle — but the default was never written
+  /// into this schema, so it read as drift. The first `migrate dev` to run
+  /// afterwards reconciled it the wrong way, dropped the database default, and
+  /// broke signup: `POST /api/v1/auth/signup` omits `trades` from its INSERT and
+  /// met a null constraint. Restored by `20260922000000_shops_trades_default`.
+  trades         String[] @default([])
   /// E8-01. A few sentences the owner writes about the shop. Optional detail on
   /// top of `trade`, never a substitute for it.
   bio            String?
@@ -1577,6 +1585,24 @@ model Font {
   /// concatenated.
   css String
 
+  /// Whether every face of this family is in R2, or only the ones a shop needed
+  /// in a hurry.
+  ///
+  /// **Checked in exactly one place: the export gate.** A save that had to mirror
+  /// a cold family waits only for the weights the kit binds and the subsets the
+  /// shop's languages need — ~16 files for Rubik rather than 99, which is 1.5s
+  /// instead of 7.2s — and the rest of the family is finished by a background
+  /// job. That is the decision recorded in `docs/fonts-from-google.md` §8.
+  ///
+  /// **No reader consults this.** The specimen, the artboard and the picker draw
+  /// with whatever is mirrored; they never test it. That is deliberate and it is
+  /// what keeps §2b's objection answered — the concern was never one flag, it was
+  /// per-weight presence checks spreading through eight call sites.
+  ///
+  /// An export against an incomplete family would embed a fallback for any weight
+  /// still missing, silently. So the gate is not advisory.
+  complete Boolean @default(true)
+
   mirroredAt DateTime @default(now())
 
   /// The picker's only filter — which families cover the scripts this shop sells
@@ -1585,6 +1611,11 @@ model Font {
   /// reason `idx_catalog_fts` is: a raw index Prisma does not know about shows
   /// up as drift on every `migrate diff` and eventually gets "fixed" away.
   @@index([subsets], type: Gin, map: "fonts_subsets_idx")
+  /// The background job's worklist. The migration makes this partial — `WHERE
+  /// NOT complete` — which Prisma cannot express; declared here so the column is
+  /// indexed in the model and `migrate diff` does not report drift forever, the
+  /// way `shops.trades` did until it broke signup.
+  @@index([complete], map: "fonts_complete_idx")
   @@map("fonts")
 }
 

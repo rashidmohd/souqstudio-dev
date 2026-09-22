@@ -8,6 +8,7 @@ import { aiWorker }     from './workers/ai.worker'
 import { bgWorker }     from './workers/bg.worker'
 import { emailWorker }  from './workers/email.worker'
 import { enrichWorker } from './workers/enrich.worker'
+import { fontsWorker }  from './workers/fonts.worker'
 import { env } from './lib/env'
 import http from 'node:http'
 
@@ -29,6 +30,7 @@ async function shutdown() {
     bgWorker.close(),
     emailWorker.close(),
     enrichWorker.close(),
+    fontsWorker.close(),
   ])
   server.close()
   process.exit(0)

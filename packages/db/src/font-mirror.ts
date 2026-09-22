@@ -1,4 +1,4 @@
-import type { FontRegistration } from '@souqstudio/db'
+import type { FontRegistration } from './fonts'
 import {
   fontFileKey,
   fontLicenseKey,
@@ -10,12 +10,14 @@ import {
 /**
  * Pulling a typeface out of Google Fonts and into R2. `docs/fonts-from-google.md`.
  *
- * **No `server-only` here, deliberately.** Two callers: `PATCH /api/v1/brand`
- * when an owner picks a face nobody has picked before, and
- * `scripts/mirror-fonts.ts` pre-warming the likely ones from a terminal. A
- * `server-only` import would make the second impossible, and a second
- * implementation for the CLI is how the pre-warm and the live path come to
- * produce different bytes under the same key.
+ * **In `packages/db` because there are three callers now**, and they live in
+ * different apps: `PATCH /api/v1/brand` when an owner picks a face nobody has
+ * picked before, `scripts/mirror-fonts.ts` pre-warming the likely ones from a
+ * terminal, and the worker finishing a family in the background after a save has
+ * already returned. The worker cannot import from `apps/web`, and a second
+ * implementation is how a pre-warmed family comes to differ from a lazily
+ * mirrored one under the same key — the failure `library-sync.ts` is here to
+ * avoid, for the same reason.
  *
  * **R2 access is injected rather than imported.** `lib/r2.ts` is `server-only`
  * and reads the validated `env`, neither of which a `tsx` script can use. The
@@ -59,13 +61,17 @@ const MODERN_UA =
 /**
  * How many fetches are in flight at once.
  *
- * A whole family is ~18 requests — nine weights across two formats — and the
- * previous script did them in a sequential loop, which is 8–10s and too long to
- * block a save on. Six brings a family in at 2–3s. Higher is not obviously
- * better: these are Google's servers and a pre-warm run walks thirty families
- * through here back to back.
+ * A whole family is far more requests than it looks — woff2 is split per script,
+ * so Rubik's 14 faces across 6 subsets is 99 files, not 28. The previous script
+ * did them in a sequential loop, which is where the 8–10s came from.
+ *
+ * **A parameter rather than a constant, but do not expect much from it.** The
+ * uploads dominate — Rubik is 1.6s to fetch and 7.2s end to end — and raising
+ * this was measured: 7.2s / 7.0s / 7.3s at 6 / 16 / 32. The cost is per-object
+ * round trips to R2 rather than bandwidth, so concurrency is not the lever that
+ * makes B2's blocking save tolerable. §8 says what is.
  */
-const CONCURRENCY = 6
+export const DEFAULT_CONCURRENCY = 6
 
 /**
  * Immutable because the key names a family, a weight and a format, and we never
@@ -91,10 +97,28 @@ export interface GoogleFamily {
 }
 
 export interface MirrorResult {
+  /** Whether every face and subset Google offers is now in R2. */
+  complete: boolean
   registration: FontRegistration
   /** Every key written, for a CLI to print and a test to assert on. */
   keys: string[]
   bytes: number
+}
+
+/**
+ * What to take, when taking the whole family costs more time than there is.
+ *
+ * **Omit both and the family is taken whole**, which is what a pre-warm run and
+ * the background completion job both do. A save that had to mirror a cold family
+ * passes them, because 99 files is 7.2s and 16 is 1.5s — see
+ * `docs/fonts-from-google.md` §8 for why that is not solvable with concurrency.
+ */
+export interface MirrorScope {
+  concurrency?: number
+  /** Only these weights. Italics of the same weight come along. */
+  weights?: readonly number[]
+  /** Only these scripts — `['arabic', 'latin', 'latin-ext']` for a Gulf shop. */
+  subsets?: readonly string[]
 }
 
 /* ── Google's catalog ───────────────────────────────────────────────────── */
@@ -149,6 +173,36 @@ export async function fetchGoogleCatalog(apiKey: string): Promise<GoogleFamily[]
     throw new Error('Google Fonts catalog: no items in the reply.')
   }
   return body.items
+}
+
+/**
+ * One family, rather than the whole catalog.
+ *
+ * **The Developer API takes a `family` parameter, and not using it cost 4s on
+ * every cold font change.** `fetchGoogleCatalog` returns ~1 MB of JSON
+ * describing every family Google has; the blocking path needs one of them.
+ * Measured: mirroring Amiri — 4 variants, 3 subsets, 17 objects — took 5.3s end
+ * to end, of which the catalog download was the majority. The mirroring itself
+ * was never the problem for a small family.
+ *
+ * Returns null when the family does not exist, which the caller reports as a
+ * bad family name rather than as a failure to mirror.
+ */
+export async function fetchGoogleFamily(
+  apiKey: string,
+  family: string
+): Promise<GoogleFamily | null> {
+  const url =
+    `https://www.googleapis.com/webfonts/v1/webfonts?key=${encodeURIComponent(apiKey)}` +
+    `&family=${encodeURIComponent(family)}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Google Fonts (${family}): ${response.status}.`)
+  }
+  const body = (await response.json()) as { items?: GoogleFamily[] }
+  // The filter matches on exact name, but it is Google's match rather than ours;
+  // confirm it rather than trusting the first row.
+  return body.items?.find((item) => item.family === family) ?? null
 }
 
 /**
@@ -374,17 +428,38 @@ function assertTrueType(bytes: Buffer, what: string): void {
  */
 export async function mirrorFamily(
   entry: GoogleFamily,
-  deps: MirrorDeps
+  deps: MirrorDeps,
+  options: MirrorScope = {}
 ): Promise<MirrorResult> {
+  const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY
   const slug = fontSlug(entry.family)
 
-  const faces = entry.variants
+  const all = entry.variants
     .map(parseVariant)
     .filter((face): face is { weight: number; italic: boolean } => face !== null)
 
-  if (faces.length === 0) {
+  if (all.length === 0) {
     throw new Error(`${entry.family}: no recognisable variants in ${JSON.stringify(entry.variants)}`)
   }
+
+  /**
+   * Narrowing to the asked-for weights, **without ever narrowing to nothing.**
+   *
+   * A kit can bind 500 to a family that ships only 400. Taking the intersection
+   * literally would mirror zero faces and register a family with no files, which
+   * is worse than the problem being solved — so an empty intersection falls back
+   * to the whole family and the save pays for it.
+   */
+  const wanted = options.weights
+  const faces =
+    wanted === undefined
+      ? all
+      : (() => {
+          const kept = all.filter((face) => wanted.includes(face.weight))
+          return kept.length > 0 ? kept : all
+        })()
+
+  const subsetFilter = options.subsets
 
   const keys: string[] = []
   let bytes = 0
@@ -400,7 +475,7 @@ export async function mirrorFamily(
   // Straight from the API's `files` map, which is the same file the CSS API
   // hands an ancient user agent — without the user-agent trick. Google still
   // serves some of these as `http://`.
-  await mapWithConcurrency(faces, CONCURRENCY, async (face) => {
+  await mapWithConcurrency(faces, concurrency, async (face) => {
     const variant = face.italic
       ? face.weight === 400
         // eslint-disable-next-line no-restricted-syntax -- Google names this variant `italic`.
@@ -433,9 +508,39 @@ export async function mirrorFamily(
     return response.text()
   })
 
-  const blocks = parseFontFaceCss(css)
+  const parsed = parseFontFaceCss(css)
 
-  const rewritten = await mapWithConcurrency(blocks, CONCURRENCY, async (block) => {
+  /**
+   * Only the scripts this shop reads in.
+   *
+   * Rubik carries six — Arabic, Hebrew, both Cyrillics and both Latins — and a
+   * Gulf shop draws in three of them. This is where most of the 99 files go:
+   * woff2 is split per script, so it is 84 of them, and the format split an
+   * earlier draft proposed would have saved 15% while this saves half.
+   *
+   * An unknown subset name narrows to nothing, so the filter is ignored when it
+   * would leave the family undrawable.
+   */
+  const blocks = (() => {
+    if (subsetFilter === undefined) return parsed
+    const kept = parsed.filter((block) => subsetFilter.includes(block.subset))
+    return kept.length > 0 ? kept : parsed
+  })()
+
+  /**
+   * Whether this run left anything behind — **measured, not inferred from
+   * whether a filter was passed.**
+   *
+   * The first version asked `subsets === undefined`, so a scoped run that
+   * happened to cover the whole family still registered as incomplete. Amiri
+   * ships exactly the three scripts the blocking set asks for and both weights
+   * the scale binds, so its row came back `complete: false` with a css string
+   * byte-identical to the one the completion job would write — a queued job that
+   * could only ever be a no-op, and an export needlessly refused until it ran.
+   */
+  const complete = faces.length === all.length && blocks.length === parsed.length
+
+  const rewritten = await mapWithConcurrency(blocks, concurrency, async (block) => {
     const what = `${entry.family} ${block.weight}${block.italic ? 'i' : ''} ${block.subset}`
     const body = await fetchBytes(block.src, what)
     const key = fontWoff2Key(slug, block.weight, block.subset, block.italic)
@@ -455,10 +560,15 @@ export async function mirrorFamily(
   )
   keys.push(fontLicenseKey(slug, licence.filename))
 
+  // **The row describes what is in R2, never what Google offers.** A partial run
+  // registers the weights it actually mirrored, so nothing downstream can bind a
+  // weight whose file is missing; the completion job widens both lists when it
+  // finishes the family.
   const upright = [...new Set(faces.filter((f) => !f.italic).map((f) => f.weight))].sort((a, b) => a - b)
   const italics = [...new Set(faces.filter((f) => f.italic).map((f) => f.weight))].sort((a, b) => a - b)
 
   return {
+    complete,
     registration: {
       family: entry.family,
       slug,
@@ -469,6 +579,7 @@ export async function mirrorFamily(
       italicWeights: italics,
       license: licence.id,
       css: rewritten.join('\n'),
+      complete,
     },
     keys,
     bytes,

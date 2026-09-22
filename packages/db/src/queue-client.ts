@@ -12,6 +12,15 @@ export const queues = {
   bg:     new Queue('bg',     { connection }),
   email:  new Queue('email',  { connection }),
   enrich: new Queue('enrich', { connection }),
+  /**
+   * Finishing a typeface a shop picked in a hurry.
+   *
+   * Its own queue rather than a job on `enrich`, because the two fail
+   * differently and should not share a retry policy: an enrich failure costs a
+   * product row some metadata, while this one leaves a family drawable but not
+   * exportable until it succeeds. `docs/fonts-from-google.md` §7 B2.
+   */
+  fonts:  new Queue('fonts',  { connection }),
 }
 
 // ─── Job payload types ────────────────────────────────────────────────────────
@@ -414,6 +423,32 @@ export async function enqueueBrandDirection(payload: BrandDirectionPayload) {
     // by a retry — see `brand-direction.job.ts`.
     attempts: 2,
     backoff: { type: 'exponential', delay: 10000 },
+  })
+}
+
+export interface FontCompletePayload {
+  /** The Google family name, as it is stored on the row. */
+  family: string
+}
+
+/**
+ * Finish a family that a save mirrored only part of.
+ *
+ * **Keyed on the family name**, so two shops picking the same cold typeface
+ * within seconds of each other enqueue one job rather than two. The work is
+ * idempotent either way — every key is deterministic and re-uploading writes the
+ * same bytes — but doing it twice is a few megabytes of pointless traffic.
+ */
+export async function enqueueFontComplete(payload: FontCompletePayload) {
+  return queues.fonts.add('font.complete', payload, {
+    // **No colons, and no spaces.** BullMQ rejects a custom job id containing
+    // `:` — it is the separator in its own Redis keys — with
+    // `Custom Id cannot contain :`, and a family name like `Aref Ruqaa` needs
+    // flattening anyway. The slug is stable and unique per family.
+    jobId: `font-complete-${payload.family.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5_000 },
+    removeOnComplete: true,
   })
 }
 

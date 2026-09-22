@@ -55,6 +55,7 @@ export {
   enqueueMagicBlock,
   enqueueBrandDirection,
   enqueueLogoGen,
+  enqueueFontComplete,
   enqueueCharacterGen,
   enqueuePoseGen,
   enqueueCoverGen,
@@ -68,6 +69,7 @@ export type {
   MagicBlockPayload,
   BrandDirectionPayload,
   LogoGenPayload,
+  FontCompletePayload,
   CharacterGenPayload,
   PoseGenPayload,
   CoverGenPayload,
@@ -95,3 +97,28 @@ export {
   assembleBrandCss,
 } from './fonts'
 export type { Font, FontRegistration, BrandCssSource } from './fonts'
+/**
+ * Mirroring a typeface from Google into R2, and the on-demand path a font change
+ * goes through. In this package rather than an app because three callers in two
+ * apps need one implementation — the web route, the pre-warm CLI and the worker
+ * that finishes a family in the background. `docs/fonts-from-google.md`.
+ */
+export {
+  fetchGoogleCatalog,
+  fetchGoogleFamily,
+  mirrorFamily,
+  parseVariant,
+  cssApiUrl,
+  parseFontFaceCss,
+  fetchLicence,
+  DEFAULT_CONCURRENCY,
+} from './font-mirror'
+export type { MirrorDeps, MirrorResult, MirrorScope, GoogleFamily, Licence } from './font-mirror'
+export {
+  ensureFamily,
+  completeFamily,
+  incompleteFamilies,
+  familiesNotExportable,
+  REQUIRED_SUBSETS,
+} from './font-ensure'
+export type { EnsureDeps, EnsureResult } from './font-ensure'

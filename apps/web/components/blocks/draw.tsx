@@ -37,7 +37,7 @@ import {
   type Rect,
   type TextMeasurer,
 } from '@souqstudio/engine'
-import { fontStack, type resolveScale } from '@/lib/brand-fonts'
+import { fontStack, type resolveScale } from '@/lib/font-catalog'
 import { ARTBOARD_PLACEHOLDER, fromHex, readableInkOn } from '@/lib/color'
 import type { ComposedOffer } from '@/lib/offer-book-compose'
 

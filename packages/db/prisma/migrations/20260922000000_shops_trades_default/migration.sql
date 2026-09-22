@@ -1,0 +1,23 @@
+-- Restore the default `20260921221201_font` dropped.
+--
+-- `20260916130000_shop_trades_list` created this column as
+-- `TEXT[] NOT NULL DEFAULT '{}'`, and said why in its own comment: "no segments
+-- chosen" should be an empty array rather than a null every reader has to
+-- remember to handle. That default was never written into `schema.prisma`, so
+-- from Prisma's point of view the database had a default the model did not —
+-- drift, reported by `migrate diff` for six days and ignored as cosmetic.
+--
+-- It was not cosmetic. The next `migrate dev` reconciled it in the only
+-- direction it can, by making the database match the schema, and dropped the
+-- default. **`POST /api/v1/auth/signup` creates a shop without `trades`**,
+-- relying on that default, so every signup then failed with P2011 —
+-- `Null constraint violation on the fields: (trades)` — and the transaction
+-- rolled back an organization, its promo tiers and its owner.
+--
+-- The lesson is not about this column. **A default that lives only in a
+-- migration is a decision waiting to be reverted**, because `migrate dev`
+-- rewrites the database to match the schema and never the reverse. Any column
+-- given a default in raw SQL must carry `@default(...)` in `schema.prisma` in
+-- the same change.
+
+ALTER TABLE "shops" ALTER COLUMN "trades" SET DEFAULT '{}';

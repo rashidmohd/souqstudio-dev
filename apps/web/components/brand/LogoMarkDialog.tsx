@@ -13,7 +13,8 @@ import type { BrandKit } from '@souqstudio/types'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { MachineOutput } from '@/components/ui/machine-output'
-import { resolveFont } from '@/lib/brand-fonts'
+import { resolveFont } from '@/lib/font-catalog'
+import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
 import { resolvePalette } from '@/lib/brand-palette'
 
 /**
@@ -78,7 +79,7 @@ export function LogoMarkDialog({ open, onOpenChange, kit, credits, onAdopted }: 
   }, [open])
 
   const palette = React.useMemo(() => resolvePalette(kit).map((color) => color.hex), [kit])
-  const family = resolveFont(kit, 'headline')
+  const family = resolveFont(kit, 'headline', useFontCatalog())
   const affordable = credits >= COST
 
   async function generate() {

@@ -13,9 +13,10 @@
  * never pays the 2–3s a cold family costs. Named families, or the ten by
  * default. `docs/fonts-from-google.md` §6 A1.
  *
- * **The work is in `lib/font-mirror.ts`, not here.** A CLI with its own copy of
- * the fetching is how a pre-warmed family comes to differ from a lazily
- * mirrored one under the same key.
+ * **The work is in `@souqstudio/db`, not here.** A CLI with its own copy of the
+ * fetching is how a pre-warmed family comes to differ from a lazily mirrored one
+ * under the same key — and the worker that finishes a family in the background
+ * is a third caller of the same code, in another app.
  *
  * Credentials come from `apps/web/.env.local` if it is there — the same trick
  * `r2:cors` and `blocks:publish` use, for the same reason: the R2 keys live in
@@ -23,14 +24,16 @@
  */
 
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
-import { assembleBrandCss, listFonts, registerFont } from '@souqstudio/db'
-import { BRAND_CSS_KEY } from '@souqstudio/types'
 import {
+  assembleBrandCss,
   fetchGoogleCatalog,
+  listFonts,
   mirrorFamily,
+  registerFont,
   type GoogleFamily,
   type MirrorDeps,
-} from '../lib/font-mirror'
+} from '@souqstudio/db'
+import { BRAND_CSS_KEY } from '@souqstudio/types'
 
 /**
  * The ten that were the whole catalog until this landed — every one covering

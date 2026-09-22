@@ -8,7 +8,10 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { useBrandStore } from '@/stores/brand-store'
-import { BRAND_FONTS, fontStack, googleFontsHref } from '@/lib/brand-fonts'
+import { fontStack, type FontCatalog } from '@/lib/font-catalog'
+import { isRecommended } from '@/lib/font-editorial'
+import type { OfferableFont } from '@/lib/font-catalog-server'
+import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
 import { resolvePalette } from '@/lib/brand-palette'
 import {
   MAX_STYLES,
@@ -40,15 +43,18 @@ import {
  *
  * Changes land in the store on save. Persisting the kit is the caller's.
  */
-export function TypographyFields() {
+export function TypographyFields({ offerable }: { offerable: OfferableFont[] }) {
   const { kit, setTextStyles } = useBrandStore()
-  const styles = resolveTextStyles(kit)
+  // Every mirrored family, from the dashboard layout. The `@font-face` rules
+  // themselves are already in the document head — the layout emits the four this
+  // shop draws in, and this screen's page emits the rest so every row in the
+  // picker can be specimen-rendered. Nothing here fetches a stylesheet.
+  const catalog = useFontCatalog()
+  const styles = resolveTextStyles(kit, catalog)
   const palette = resolvePalette(kit)
 
   /** The style being edited, as a draft. Null when the dialog is closed. */
   const [draft, setDraft] = React.useState<TextStyle | null>(null)
-
-  useGoogleFonts(styles.map((style) => style.family))
 
   return (
     <div className="flex flex-col gap-4">
@@ -71,7 +77,7 @@ export function TypographyFields() {
           type="button"
           variant="secondary"
           disabled={!canAddStyle(styles)}
-          onClick={() => setDraft(newTextStyle(kit, styles))}
+          onClick={() => setDraft(newTextStyle(kit, styles, catalog))}
         >
           <Plus className="size-4" aria-hidden="true" />
           Add a style
@@ -90,6 +96,8 @@ export function TypographyFields() {
         <StyleDialog
           draft={draft}
           palette={palette}
+          catalog={catalog}
+          offerable={offerable}
           onChange={setDraft}
           onCancel={() => setDraft(null)}
           onSave={() => {
@@ -166,12 +174,16 @@ function summarise(style: TextStyle, color: BrandColor | undefined): string {
 function StyleDialog({
   draft,
   palette,
+  catalog,
+  offerable,
   onChange,
   onSave,
   onCancel,
 }: {
   draft: TextStyle
   palette: BrandColor[]
+  catalog: FontCatalog
+  offerable: OfferableFont[]
   onChange: (style: TextStyle) => void
   onSave: () => void
   onCancel: () => void
@@ -204,7 +216,8 @@ function StyleDialog({
           label="Typeface"
           value={draft.family}
           onChange={(event) => set({ family: event.target.value })}
-          options={BRAND_FONTS.map((font) => ({ value: font.family, label: font.family }))}
+          options={typefaceOptions(offerable, draft.family)}
+          hint={typefaceHint(offerable, draft.family)}
         />
 
         <div className="grid grid-cols-2 gap-3">
@@ -234,7 +247,7 @@ function StyleDialog({
             ]}
             // Stated, never blocked: it is the shop's brand.
             hint={
-              italicIsSynthetic(draft)
+              italicIsSynthetic(draft, catalog)
                 ? `${draft.family} has no italic, so this will be slanted`
                 : undefined
             }
@@ -285,27 +298,67 @@ function specimenCss(style: TextStyle, hex: string | undefined): React.CSSProper
 }
 
 /**
- * Load the chosen families from Google's CDN, for the previews only.
+ * The typeface list: the ones we have an opinion about, then the rest.
  *
- * **Chrome only.** The export pipeline must self-host — Playwright cannot depend
- * on an external network on a critical path, and PDF embedding needs the real
- * file. See `lib/brand-fonts.ts`.
+ * **57 families, which is why this is a plain list and not a search box.** Every
+ * offer book carries Arabic and Latin — the block schema refuses a static string
+ * with `textEn` and no `textAr` — so a family that cannot draw both was never
+ * offerable, and that single requirement takes Google's 1,955 down to 57. §3 of
+ * `docs/fonts-from-google.md` planned for virtualization and a search field on
+ * the assumption an English-only shop would see ~1,500; there is no such shop.
+ *
+ * The ten we wrote notes for stay pinned on top. A picker that opens on 57 names
+ * with no opinion serves a shop owner worse than one that opens on ten good ones
+ * with the rest underneath — and the notes are the part a category cannot
+ * reproduce, because "narrow enough for a long price in a tight cell" is not
+ * derivable from `sans-serif`.
+ *
+ * A family already on the style is always included even if it is somehow not in
+ * the list, so opening the dialog can never silently change what is set.
  */
-function useGoogleFonts(families: readonly string[]): void {
-  const href = googleFontsHref(families)
+export function typefaceOptions(
+  offerable: readonly OfferableFont[],
+  current: string
+): { value: string; label: string }[] {
+  const known = new Set(offerable.map((font) => font.family))
+  const rows = [
+    ...offerable,
+    ...(current && !known.has(current)
+      ? [{ family: current, category: '', subsets: [], mirrored: true }]
+      : []),
+  ]
 
-  React.useEffect(() => {
-    if (href === '') return
-    if (document.querySelector(`link[data-brand-fonts][href="${href}"]`)) return
+  return rows
+    .sort((a, b) => {
+      const ar = isRecommended(a.family)
+      const br = isRecommended(b.family)
+      if (ar !== br) return ar ? -1 : 1
+      return a.family.localeCompare(b.family)
+    })
+    .map((font) => ({
+      value: font.family,
+      // The category is the only thing we can honestly say about a family
+      // nobody has written a note for.
+      label: isRecommended(font.family)
+        ? font.family
+        : `${font.family}${font.category ? ` — ${font.category.replace('-', ' ')}` : ''}`,
+    }))
+}
 
-    for (const stale of document.querySelectorAll('link[data-brand-fonts]')) {
-      stale.remove()
-    }
-
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = href
-    link.dataset.brandFonts = 'true'
-    document.head.appendChild(link)
-  }, [href])
+/**
+ * What to say under the control.
+ *
+ * **Choosing an unmirrored family is the slow path and the owner should know.**
+ * It is 1.2s to 2.6s while the face is pulled from Google into our own storage,
+ * once for the whole platform — the next shop to choose it waits for nothing.
+ * Saying so turns an unexplained pause into an expected one.
+ */
+export function typefaceHint(
+  offerable: readonly OfferableFont[],
+  current: string
+): string | undefined {
+  if (offerable.length === 0) return 'No typefaces are available yet. Run the font mirror.'
+  const font = offerable.find((f) => f.family === current)
+  if (font && !font.mirrored) return 'New typeface — saving will take a moment the first time.'
+  return undefined
 }

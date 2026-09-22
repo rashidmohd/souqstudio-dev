@@ -11,6 +11,8 @@ import { ColorFields, firstInvalidColorSlot } from '@/components/brand/ColorFiel
 import { PromoTiers, type Tier } from '@/components/brand/PromoTiers'
 import { palettePatch, resolvePalette } from '@/lib/brand-palette'
 import { TypographyFields } from '@/components/brand/TypographyFields'
+import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
+import type { OfferableFont } from '@/lib/font-catalog-server'
 import { Card } from '@/components/ui/card'
 import { IconChip } from '@/components/ui/icon-chip'
 import { BrandDirectionDialog } from '@/components/brand/BrandDirectionDialog'
@@ -58,6 +60,15 @@ type Props = {
    * office changed.
    */
   tiers: Tier[]
+  /**
+   * Every typeface this shop may choose — the 57 Google families covering both
+   * Arabic and Latin, mirrored or not.
+   *
+   * **Loaded on this page alone.** The layout hands every screen the *mirrored*
+   * catalog, which is what resolving a kit needs; only the picker needs to see
+   * what could still be added, and finding that out costs a call to Google.
+   */
+  offerableFonts: OfferableFont[]
 }
 
 /** Which section a save or an error belongs to. */
@@ -104,6 +115,7 @@ export function BrandKitScreen({
   credits,
   characters,
   tiers,
+  offerableFonts,
 }: Props) {
   const router = useRouter()
   const { kit, hydrate } = useBrandStore()
@@ -155,8 +167,9 @@ export function BrandKitScreen({
       return was === undefined || was.hex !== color.hex || was.name !== color.name
     })
 
-  const styles = resolveTextStyles(kit)
-  const baselineStyles = resolveTextStyles(baseline)
+  const fontCatalog = useFontCatalog()
+  const styles = resolveTextStyles(kit, fontCatalog)
+  const baselineStyles = resolveTextStyles(baseline, fontCatalog)
   const typographyDirty =
     styles.length !== baselineStyles.length ||
     styles.some((style, index) => {
@@ -369,7 +382,7 @@ export function BrandKitScreen({
               note={brandOverride === 'inherit' ? null : sourceNote(source.typography)}
               feedback={feedback?.section === 'typography' ? feedback : null}
             >
-              <TypographyFields />
+              <TypographyFields offerable={offerableFonts} />
 
               {typographyDirty ? (
                 <div className="flex gap-2">
