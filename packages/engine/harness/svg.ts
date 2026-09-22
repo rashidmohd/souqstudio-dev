@@ -12,13 +12,13 @@
 
 import type { Block, BlockElement, Currency, FlatColor, TokenRef } from '@souqstudio/types'
 import {
-  CHIP_FIT,
   chipPathShape,
   compactBlock,
   drawsGround,
   fitPolicy,
   fitText,
   fromHex,
+  layoutChipStack,
   layoutPriceMark,
   markGround,
   markRecipe,
@@ -32,6 +32,7 @@ import {
   resolveColor,
   resolvePaint,
   shapePath,
+  type ChipStackRow,
   type CompactionPolicy,
   type MarkPiece,
   type PathShape,
@@ -493,7 +494,6 @@ function chip(
   product: HarnessProduct,
   ctx: RenderContext
 ): string {
-  const label = ctx.direction === 'rtl' ? product.tier.labelAr : product.tier.labelEn
   /**
    * **The badge's shape, through the same three helpers `draw.tsx` calls.**
    *
@@ -506,38 +506,75 @@ function chip(
    * misreported.
    */
   const shape = element.shape ?? 'pill'
-  const fit = CHIP_FIT[shape]
-  const size = fitLabel(label, rect.width * fit.width, rect.height * fit.height, 0.56)
-  // The tier's own colour unless the block named one. A seeded card that puts
-  // the pill on a coloured tab needs it to stop being the tier colour there.
-  const badge =
-    element.fill === undefined ? color(product.tier.token) : resolveColor(element.fill, color)
-  // With no ground behind it the badge's colour becomes the label's, rather
-  // than a contrast computed against a rectangle nobody can see.
-  const rgb = fromHex(badge)
-  const labelInk =
-    element.ink !== undefined
-      ? resolveColor(element.ink, color)
-      : !drawsGround(shape)
-        ? badge
-        : rgb === null
-          ? KIT.surface
-          : readableInkOn(rgb)
+  const rtl = ctx.direction === 'rtl'
 
-  const path = chipPathShape(shape)
-  const ground = !drawsGround(shape)
-    ? ''
-    : path === null
-      ? rounded(rect, badge, rect.height / 2)
-      : `<path d="${shapePath(path, rect, ctx.direction)}" fill="${badge}"` +
-        `${needsEvenOdd(path) ? ' fill-rule="evenodd"' : ''}/>`
+  /**
+   * **The slot holds a stack, and this drew only its first row.**
+   *
+   * An offer carries a tier *and* a promotion mechanic — "Buy 1 get 1 free" —
+   * and the mechanic is the loudest thing a grocery card says. The harness knew
+   * nothing about it, so the badge that matters most in the product was the one
+   * thing the gallery could not show, and nobody ever looked at the stack.
+   * `docs/offer-chip-design.md` §3.
+   *
+   * The geometry is `layoutChipStack`'s, shared with `draw.tsx`, because this
+   * file quietly disagreed with it about square badges for as long as both
+   * existed.
+   */
+  const rows: ChipStackRow[] = [
+    { key: 'tier', label: rtl ? product.tier.labelAr : product.tier.labelEn, align: 'start' },
+  ]
+  const fills = new Map<string, string>([
+    // The tier's own colour unless the block named one. A seeded card that puts
+    // the pill on a coloured tab needs it to stop being the tier colour there.
+    [
+      'tier',
+      element.fill === undefined ? color(product.tier.token) : resolveColor(element.fill, color),
+    ],
+  ])
 
-  return [
-    ground,
-    `<text x="${mid(rect.x, rect.width)}" y="${mid(rect.y, rect.height)}" font-size="${size}"`,
-    ` font-weight="700" fill="${labelInk}" text-anchor="middle"`,
-    ` dominant-baseline="middle">${esc(label)}</text>`,
-  ].join('')
+  if (product.mechanic != null) {
+    rows.push({
+      key: 'mechanic',
+      label: rtl ? product.mechanic.labelAr : product.mechanic.labelEn,
+      align: 'start',
+    })
+    // What `draw.tsx` paints it. That it is the chrome's secondary tone rather
+    // than a colour of the mechanic's own is the finding, not the design.
+    fills.set('mechanic', KIT.secondary)
+  }
+
+  return layoutChipStack(rows, rect, shape, ctx.direction, estimateWidth)
+    .map((row) => {
+      const badge = fills.get(row.key) ?? KIT.secondary
+      // With no ground behind it the badge's colour becomes the label's, rather
+      // than a contrast computed against a rectangle nobody can see.
+      const rgb = fromHex(badge)
+      const labelInk =
+        element.ink !== undefined
+          ? resolveColor(element.ink, color)
+          : !drawsGround(shape)
+            ? badge
+            : rgb === null
+              ? KIT.surface
+              : readableInkOn(rgb)
+
+      const path = chipPathShape(shape)
+      const ground = !drawsGround(shape)
+        ? ''
+        : path === null
+          ? rounded(row.rect, badge, row.rect.height / 2)
+          : `<path d="${shapePath(path, row.rect, ctx.direction)}" fill="${badge}"` +
+            `${needsEvenOdd(path) ? ' fill-rule="evenodd"' : ''}/>`
+
+      return [
+        ground,
+        `<text x="${mid(row.rect.x, row.rect.width)}" y="${mid(row.rect.y, row.rect.height)}"`,
+        ` font-size="${row.fontSize}" font-weight="700" fill="${labelInk}" text-anchor="middle"`,
+        ` dominant-baseline="middle">${esc(row.label)}</text>`,
+      ].join('')
+    })
+    .join('')
 }
 
 /** Largest font size at which a short label fits. Not the fit ladder — a chip

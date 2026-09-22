@@ -8,6 +8,7 @@ import {
   POLYGON_SIDES,
   chipPathShape,
   drawsGround,
+  layoutChipStack,
   needsEvenOdd,
   shapePath,
   type PathShape,
@@ -517,5 +518,122 @@ describe('badge shapes', () => {
       expect(CHIP_FIT[shape].width).toBeLessThan(CHIP_FIT.pill.width)
       expect(CHIP_FIT[shape].height).toBeLessThan(CHIP_FIT.pill.height)
     }
+  })
+})
+
+/**
+ * The stack, and the reason it is in the engine at all.
+ *
+ * These are properties rather than recorded numbers, with one exception: the
+ * tier's badge is pinned, because the whole point of the change that created
+ * this function is that a short label draws exactly as it did before and only a
+ * long one improves. A regression there is sixty-six blocks redrawn.
+ *
+ * The measurer is the estimator the harness uses. A real one is a font away and
+ * the engine does not have one — `fit.ts` says why.
+ */
+describe('layoutChipStack', () => {
+  const measure = (content: string, fontSize: number) => content.length * fontSize * 0.52
+  // The slot the seeded library actually draws: 53 of its 75 are wider than 2:1
+  // and this is the commonest of them.
+  const SLOT: Rect = { x: 0.04, y: 0.03, width: 0.34, height: 0.09 }
+  const TIER = { key: 'tier', label: 'Deal', align: 'start' as const }
+  const BOGO = { key: 'mechanic', label: 'Buy 1 get 1 free', align: 'start' as const }
+
+  it('sets a short label at the height cap, which is what it always did', () => {
+    const [row] = layoutChipStack([TIER], SLOT, 'pill', 'ltr', measure)
+    expect(row?.fontSize).toBeCloseTo(SLOT.height * CHIP_FIT.pill.height, 10)
+  })
+
+  /**
+   * The defect this was extracted to fix. The badge was allowed to grow to twice
+   * the slot and the label was fitted to one slot, so a mechanic came out at
+   * about 70% of the size it could have been — smaller than the tier above it,
+   * on the line that carries the actual promotion.
+   */
+  it('sets a long label as large as a short one when the badge may grow', () => {
+    const [tier] = layoutChipStack([TIER], SLOT, 'pill', 'ltr', measure)
+    const [bogo] = layoutChipStack([BOGO], SLOT, 'pill', 'ltr', measure)
+    expect(bogo?.fontSize).toBeCloseTo(tier?.fontSize ?? 0, 10)
+  })
+
+  it('grows the badge for the longer label rather than the type', () => {
+    const [tier] = layoutChipStack([TIER], SLOT, 'pill', 'ltr', measure)
+    const [bogo] = layoutChipStack([BOGO], SLOT, 'pill', 'ltr', measure)
+    expect(bogo?.rect.width).toBeGreaterThan(tier?.rect.width ?? 0)
+  })
+
+  /** Twice the slot, and never past it. A badge overhangs by design; a badge
+   *  three times its slot is a block with a different design in it. */
+  it('never exceeds twice the slot, at any label length', () => {
+    const long = { key: 'x', label: 'x'.repeat(200), align: 'start' as const }
+    for (const shape of CHIP_SHAPES) {
+      for (const row of layoutChipStack([TIER, BOGO, long], SLOT, shape, 'ltr', measure)) {
+        expect(row.rect.width).toBeLessThanOrEqual(SLOT.width * 2 + 1e-9)
+      }
+    }
+  })
+
+  /**
+   * The divergence between the two painters. `draw.tsx` squared a burst and the
+   * harness stretched it, so one document drew two different badges — and the
+   * label was fitted to the *slot* in both, which on a wide slot set it about
+   * twice as wide as the burst holding it.
+   */
+  it('keeps a square badge square and fits the label to that', () => {
+    const [row] = layoutChipStack([BOGO], SLOT, 'burst', 'ltr', measure)
+    expect(row?.rect.width).toBeCloseTo(SLOT.height, 10)
+    expect(measure(BOGO.label, row?.fontSize ?? 0)).toBeLessThanOrEqual(SLOT.height)
+  })
+
+  /** The label plus the air its ground needs stays inside the badge. A label
+   *  clipped by its own pill is the defect the padding exists to prevent. */
+  it('leaves room for the ground’s padding inside every drawn badge', () => {
+    for (const shape of CHIP_SHAPES.filter((entry) => entry !== 'none')) {
+      for (const row of layoutChipStack([TIER, BOGO], SLOT, shape, 'ltr', measure)) {
+        expect(measure(row.label, row.fontSize)).toBeLessThanOrEqual(row.rect.width)
+      }
+    }
+  })
+
+  it('stacks downward from the slot, gapped, at the slot’s height', () => {
+    const rows = layoutChipStack([TIER, BOGO], SLOT, 'pill', 'ltr', measure)
+    expect(rows[0]?.rect.y).toBe(SLOT.y)
+    expect(rows[1]?.rect.y).toBeGreaterThan((rows[0]?.rect.y ?? 0) + SLOT.height)
+    for (const row of rows) expect(row.rect.height).toBe(SLOT.height)
+  })
+
+  /**
+   * The box has already been mirrored by `resolveBlock`, so alignment here is
+   * about which edge of the slot a badge hangs from and not about direction.
+   */
+  it('hangs an end-aligned badge off the slot’s end edge', () => {
+    const [row] = layoutChipStack([{ ...BOGO, align: 'end' }], SLOT, 'pill', 'ltr', measure)
+    expect((row?.rect.x ?? 0) + (row?.rect.width ?? 0)).toBeCloseTo(SLOT.x + SLOT.width, 10)
+  })
+
+  /**
+   * The defect the gallery found the first time it drew a mechanic in Arabic.
+   * A start-aligned badge grew rightward in both editions, so in an Arabic one
+   * it ran off the card away from the corner it was anchored to. The box is
+   * already mirrored; the growth was not.
+   */
+  it('grows an overflowing badge inward from the start edge in both editions', () => {
+    const [ltr] = layoutChipStack([BOGO], SLOT, 'pill', 'ltr', measure)
+    const [rtl] = layoutChipStack([BOGO], SLOT, 'pill', 'rtl', measure)
+
+    // Wider than the slot, or this proves nothing.
+    expect(ltr?.rect.width).toBeGreaterThan(SLOT.width)
+
+    // English: anchored at the slot's start, which is its left edge.
+    expect(ltr?.rect.x).toBeCloseTo(SLOT.x, 10)
+    // Arabic: anchored at the slot's start, which is its right edge — so it
+    // reaches back across the card rather than off it.
+    expect((rtl?.rect.x ?? 0) + (rtl?.rect.width ?? 0)).toBeCloseTo(SLOT.x + SLOT.width, 10)
+    expect(rtl?.rect.x).toBeLessThan(SLOT.x)
+  })
+
+  it('places nothing for no rows', () => {
+    expect(layoutChipStack([], SLOT, 'pill', 'ltr', measure)).toEqual([])
   })
 })

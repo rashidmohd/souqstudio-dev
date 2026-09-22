@@ -18,6 +18,7 @@
  * Nothing here knows about pixels, and nothing here knows about the block.
  */
 
+import type { TextMeasurer } from './fit'
 import type { Direction, Rect } from './geometry'
 
 /** The shapes that are a path. `rect`, `ellipse` and `line` are not. */
@@ -628,8 +629,16 @@ export const CHIP_SHAPES: ChipShape[] = ['none', 'pill', 'burst', 'ribbon', 'tag
  * outline comes from `shapePath`, so every renderer already agrees about the
  * drawing — but a label centred in the *bounding box* of a burst runs straight
  * over the spikes, and each painter guessing its own padding is two badges that
- * disagree about where the text sits. The formula stays with the renderer; the
- * numbers do not.
+ * disagree about where the text sits.
+ *
+ * **It used to say the numbers were shared and the formula was each renderer's
+ * own. That was the wrong line to draw.** The two painters had already
+ * diverged: `draw.tsx` honoured `square` and the harness did not, so one
+ * document drew a squat badge on the page and a stretched one in the gallery,
+ * and nothing caught it because no seeded block asks for a burst.
+ * `layoutChipStack` below is the formula, shared, and a painter does no badge
+ * arithmetic of its own — the move `layoutPriceMark` made for the price mark,
+ * for the same reason.
  *
  * `width` and `height` are fractions of the badge's rect. `pill`'s reproduce
  * exactly what the pill did before it had company, so nothing that already
@@ -703,3 +712,130 @@ export function chipPathShape(shape: ChipShape): PathShape | null {
 
 /** Whether the badge paints anything behind its label. */
 export const drawsGround = (shape: ChipShape): boolean => shape !== 'none'
+
+/**
+ * How far a badge may outgrow the slot the block drew for it, and how far it may
+ * fall short of it.
+ *
+ * A chip element is a slot sized for the tier, and a tier is a word: "Deal",
+ * "New", "Half price". The mechanic that stacks under it is a sentence — "Buy 1
+ * get 1 free", half again as long in Arabic — so a badge that could only ever be
+ * as wide as its slot would set the most important line on the card in the
+ * smallest type on it.
+ *
+ * Growing to twice the slot is what the painter always intended. It simply never
+ * let the *label* use the room. See `layoutChipStack`.
+ */
+const CHIP_GROWTH = 2
+const CHIP_FLOOR = 0.5
+
+/** The gap between stacked badges, as a fraction of the slot's height. */
+const CHIP_GAP = 0.25
+
+/**
+ * The air a ground needs around its label, as a multiple of the label's size.
+ *
+ * Zero without a ground: the words are the whole badge then, and a pill's worth
+ * of air would push an end-aligned badge off the corner it was anchored to.
+ */
+const CHIP_PADDING = 1.6
+
+/**
+ * The per-character estimate the size is chosen against.
+ *
+ * Deliberately not the measurer. A size has to be picked *before* anything can
+ * be measured at it, and this is the same 0.56 the fit ladder uses elsewhere.
+ * The measurer then decides the badge's real width at the size this picked.
+ */
+const CHIP_PER_CHAR = 0.56
+
+/** One badge waiting to be placed. `align` is the slot edge it hangs from. */
+export interface ChipStackRow {
+  key: string
+  label: string
+  align: 'start' | 'end'
+}
+
+/** Where that badge goes, and how big its label is set. */
+export interface ChipStackRowLayout extends ChipStackRow {
+  rect: Rect
+  fontSize: number
+}
+
+/**
+ * The badges of one chip slot, placed.
+ *
+ * **The slot holds a stack, not a badge.** A block carries one chip element; an
+ * offer may carry the tier, a promotion mechanic and authored notes. The first
+ * draws in the box the block gave it and the rest stack below, one box height
+ * plus a gap apart. Stacking downward is direction-neutral — the box has already
+ * been mirrored by `resolveBlock`, so an Arabic edition puts the whole stack on
+ * the correct corner with no second rule.
+ *
+ * **The label is fitted to the width the badge may occupy, not to the slot.**
+ * That is the defect this was extracted to fix. The width ceiling was
+ * `box.width * CHIP_GROWTH` and the size ceiling was `box.width`, so the type
+ * was shrunk as though the badge could never grow, and then the badge was grown
+ * to fit type that had already been shrunk. A sixteen-character mechanic in a
+ * slot cut for a four-character tier came out at 70% of the size it could have
+ * been, and an Arabic one at 50% — the promotion set smaller than the word above
+ * it. The room the one line granted, the other had spent.
+ *
+ * `CHIP_PADDING` is inside the denominator rather than subtracted afterwards, so
+ * a label plus the air its ground needs cannot exceed the ceiling and be clipped
+ * back to it.
+ *
+ * A square shape is its own ceiling: a burst holds its proportion, so it stays
+ * the slot's height across and the label fits to *that*, which is what the fit
+ * ladder does everywhere else in this system.
+ */
+export function layoutChipStack(
+  rows: ChipStackRow[],
+  box: Rect,
+  shape: ChipShape,
+  direction: Direction,
+  measure: TextMeasurer
+): ChipStackRowLayout[] {
+  const fit = CHIP_FIT[shape]
+  const ground = drawsGround(shape)
+  const gap = box.height * CHIP_GAP
+  const ceiling = fit.square ? box.height : box.width * CHIP_GROWTH
+  const usable = ceiling * fit.width
+
+  return rows.map((row, index) => {
+    const fontSize = Math.min(
+      box.height * fit.height,
+      usable / (row.label.length * CHIP_PER_CHAR + (ground ? CHIP_PADDING : 0))
+    )
+    const padding = ground ? fontSize * CHIP_PADDING : 0
+    const width = fit.square
+      ? box.height
+      : Math.min(ceiling, Math.max(box.width * CHIP_FLOOR, measure(row.label, fontSize, '') + padding))
+
+    /**
+     * **Which edge the badge hangs from, and which way it grows.**
+     *
+     * The *stack* is direction-neutral, because `resolveBlock` has already
+     * mirrored the box — but the growth is not, and this read `align` as though
+     * it were. A start-aligned badge sat at `box.x` and grew to the right in
+     * both editions, which is correct in English and backwards in Arabic: it
+     * grows away from the corner it is anchored to and off the edge of the card.
+     *
+     * Invisible until the size ceiling was fixed, because a badge that only ever
+     * reached 1.01 slot widths had nothing to grow *with*. The gallery found it
+     * the first time a mechanic was drawn in an Arabic edition.
+     */
+    const fromLeft = (row.align === 'start') === (direction === 'ltr')
+
+    return {
+      ...row,
+      fontSize,
+      rect: {
+        x: fromLeft ? box.x : box.x + box.width - width,
+        y: box.y + index * (box.height + gap),
+        width,
+        height: box.height,
+      },
+    }
+  })
+}

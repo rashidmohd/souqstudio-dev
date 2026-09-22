@@ -22,17 +22,35 @@ import type { HarnessProduct, HarnessTier } from './product'
 export type DummyTier = HarnessTier
 export type DummyProduct = HarnessProduct
 
+/**
+ * The promotion mechanics, in the words a card prints.
+ *
+ * **Copied from `apps/web/lib/offer-types.ts`, which this cannot import** —
+ * `apps/web` is not reachable from `packages/`, the same constraint `product.ts`
+ * records about the display fallbacks. Two of the four, because what the gallery
+ * is checking is a long label in a slot cut for a short one, and `buy2get1` is
+ * the same length as `bogo`.
+ *
+ * The Arabic is the case that matters: half again as long as the English, and
+ * the one the fit has to survive.
+ */
+export const BOGO = { labelEn: 'Buy 1 get 1 free', labelAr: 'اشترِ 1 واحصل على 1 مجاناً' }
+export const BUY3 = { labelEn: 'Buy 3 get 1 free', labelAr: 'اشترِ 3 واحصل على 1 مجاناً' }
+
 export const DEAL: DummyTier = { labelEn: 'Deal', labelAr: 'عرض', token: 'accent' }
 export const HALF: DummyTier = { labelEn: 'Half price', labelAr: 'نصف السعر', token: 'primary' }
 export const NEW: DummyTier = { labelEn: 'New', labelAr: 'جديد', token: 'secondary' }
 
 export const FRIENDLY: DummyProduct[] = [
-  p('Basmati rice', 'أرز بسمتي', '5 kg', '٥ كجم', 'Tilda', '24', '50', 'AED', DEAL, '32.00'),
+  // Two of the twelve carry a mechanic, which is about the rate a real grocery
+  // page runs at — and it has to be a minority, or the gallery stops showing
+  // what a card looks like without one.
+  promo(p('Basmati rice', 'أرز بسمتي', '5 kg', '٥ كجم', 'Tilda', '24', '50', 'AED', DEAL, '32.00'), BOGO),
   p('Olive oil', 'زيت زيتون', '1 L', '١ لتر', 'Rahma', '18', '75', 'AED', HALF, '37.50'),
   p('Greek yoghurt', 'زبادي يوناني', '500 g', '٥٠٠ جم', 'Almarai', '9', '25', 'AED', DEAL),
   p('Chicken breast', 'صدور دجاج', '1 kg', '١ كجم', 'Sadia', '21', '00', 'AED', DEAL, '26.00'),
   p('Orange juice', 'عصير برتقال', '1.5 L', '١٫٥ لتر', 'Lacnor', '11', '50', 'AED', NEW),
-  p('Cheddar cheese', 'جبن شيدر', '400 g', '٤٠٠ جم', 'Puck', '16', '00', 'AED', DEAL),
+  promo(p('Cheddar cheese', 'جبن شيدر', '400 g', '٤٠٠ جم', 'Puck', '16', '00', 'AED', DEAL), BUY3),
   p('Laundry powder', 'مسحوق غسيل', '3 kg', '٣ كجم', 'Tide', '32', '75', 'AED', HALF, '65.50'),
   p('Mineral water', 'مياه معدنية', '12 × 1.5 L', '١٢ × ١٫٥ لتر', 'Masafi', '13', '25', 'AED', DEAL),
   p('Sunflower oil', 'زيت دوار الشمس', '1.8 L', '١٫٨ لتر', 'Noor', '14', '95', 'AED', DEAL),
@@ -47,17 +65,22 @@ export const FRIENDLY: DummyProduct[] = [
  * block design holds.
  */
 export const WORST_CASE: DummyProduct[] = [
-  p(
-    'Automatic laundry detergent powder with lemon fragrance',
-    'مسحوق غسيل أوتوماتيك بالليمون للغسالات الأوتوماتيكية',
-    'Front load, 3 kg, concentrated formula',
-    'تحميل أمامي، ٣ كجم، تركيبة مركزة',
-    'Ariel',
-    '12',
-    '750',
-    'KWD',
-    HALF,
-    '25.500'
+  // The longest name in the set *and* a mechanic, on one card. Either alone is
+  // a card that holds; the pair is the one to look at.
+  promo(
+    p(
+      'Automatic laundry detergent powder with lemon fragrance',
+      'مسحوق غسيل أوتوماتيك بالليمون للغسالات الأوتوماتيكية',
+      'Front load, 3 kg, concentrated formula',
+      'تحميل أمامي، ٣ كجم، تركيبة مركزة',
+      'Ariel',
+      '12',
+      '750',
+      'KWD',
+      HALF,
+      '25.500'
+    ),
+    BOGO
   ),
   p(
     'Extra virgin olive oil, cold pressed, first harvest',
@@ -84,6 +107,17 @@ export const WORST_CASE: DummyProduct[] = [
   ),
   ...FRIENDLY.slice(3),
 ]
+
+/**
+ * The same product, carrying a promotion.
+ *
+ * A helper rather than a tenth positional argument to `p`: the call sites are
+ * nine wide already, and the mechanic is the thing a reader of this file is
+ * looking for.
+ */
+function promo(product: DummyProduct, mechanic: { labelEn: string; labelAr: string }): DummyProduct {
+  return { ...product, mechanic }
+}
 
 function p(
   nameEn: string,

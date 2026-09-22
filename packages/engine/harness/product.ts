@@ -41,6 +41,16 @@ export interface HarnessProduct {
   comparePrice?: string
   tier: HarnessTier
   /**
+   * The offer's promotion mechanic — "Buy 1 get 1 free".
+   *
+   * **A property of the offer rather than of the product**, and the harness has
+   * no offer, so it rides here beside `tier` for the same reason `tier` does.
+   * It is what `offer_chips` holds with kind `SCALE`; `apps/web/lib/offer-types.ts`
+   * is the closed set the words come from, and the Arabic is half again as long
+   * as the English, which is the case worth drawing.
+   */
+  mechanic?: { labelEn: string; labelAr: string } | null
+  /**
    * The country of origin — "Product of Spain". `catalog_products.originEn` and
    * `originAr`, and a real column with a real binding behind it.
    *

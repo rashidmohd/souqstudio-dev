@@ -12,10 +12,10 @@ import type {
 } from '@souqstudio/types'
 import { SHADOW_PRESET_SPECS } from '@souqstudio/types'
 import {
-  CHIP_FIT,
   chipPathShape,
   drawsGround,
   fitPolicy,
+  layoutChipStack,
   fitText,
   layoutPriceMark,
   markGround,
@@ -34,6 +34,7 @@ import {
   shapeExtent,
   shapePath,
   type BindingSubjects,
+  type ChipStackRow,
   type OfferField,
   type PathShape,
   type Rect,
@@ -843,12 +844,14 @@ function Chip({
   //
   // This is a rendering decision rather than something the model states, and the
   // alternative is a `chipStack` element kind in the block designer — see
-  // `docs/E6-pending.md`. Stacking downward is direction-neutral: the box itself
-  // has already been mirrored by `resolveBlock`, so an Arabic edition puts the
-  // whole stack on the correct corner with no second rule.
+  // `docs/E6-pending.md` and `docs/offer-chip-design.md`. The geometry itself is
+  // `layoutChipStack`'s, in the engine, so the gallery cannot draw this one way
+  // and the page another. It used to be here, and they did.
   const shape = element.shape ?? 'pill'
-  const gap = box.height * 0.25
-  const rows: { key: string; label: string; fill: string; align: 'start' | 'end' }[] = []
+  const rows: ChipStackRow[] = []
+  // Colour stays the painter's: it resolves brand and template tokens the engine
+  // has no access to. Keyed by row, so the two lists cannot fall out of step.
+  const fills = new Map<string, string>()
 
   /**
    * What the label reads in.
@@ -877,83 +880,61 @@ function Chip({
   }
 
   if (tier !== '') {
-    rows.push({
-      key: 'tier',
-      label: tier,
-      // The element's own fill wins over the tier's colour: an owner who
-      // picked one has said what they want, and the tier token is the default
-      // for a block that has never met this shop.
-      fill:
-        element.fill !== undefined
-          ? paint(ctx, element.fill)
-          : ctx.offer?.tierToken
-            ? `var(${ctx.offer.tierToken})`
-            : ctx.token('accent'),
-      align: 'start',
-    })
+    rows.push({ key: 'tier', label: tier, align: 'start' })
+    // The element's own fill wins over the tier's colour: an owner who picked
+    // one has said what they want, and the tier token is the default for a
+    // block that has never met this shop.
+    fills.set(
+      'tier',
+      element.fill !== undefined
+        ? paint(ctx, element.fill)
+        : ctx.offer?.tierToken
+          ? `var(${ctx.offer.tierToken})`
+          : ctx.token('accent')
+    )
   }
 
   for (const chip of extra) {
     rows.push({
       key: chip.id,
       label: chip.label,
-      // Not the tier's colour. A "Half price" flash and a "Limit 2" note are
-      // different kinds of statement, and giving them one colour makes the
-      // discount look like small print.
-      fill: ctx.token('secondary'),
       align: chip.anchor === 'TOP_END' ? 'end' : 'start',
     })
+    // Not the tier's colour. A "Half price" flash and a "Limit 2" note are
+    // different kinds of statement, and giving them one colour makes the
+    // discount look like small print.
+    fills.set(chip.id, ctx.token('secondary'))
   }
+
+  const placed = layoutChipStack(rows, box, shape, ctx.direction, ctx.measure)
 
   return (
     <>
-      {rows.map((row, index) => {
-        const y = box.y + index * (box.height + gap)
-        // Sized to its own label rather than to the slot: "Limit 2 per customer"
-        // and "Halal" are not the same width, and a stack of identical pills
-        // padded to the longest reads as a table.
-        //
-        // **How much of the badge the label may use comes from `CHIP_FIT`**, not
-        // from a number here: a word centred in the *bounding box* of a burst
-        // runs over the spikes, and every renderer inventing its own padding is
-        // two badges that disagree about where the text sits.
-        const fit = CHIP_FIT[shape]
-        const size = Math.min(box.height * fit.height, (box.width * fit.width) / (row.label.length * 0.56))
-
-        // A burst holds its proportion, so a wide rect would draw the same burst
-        // with empty space beside it. It stays square and the label shrinks —
-        // the fit ladder's answer everywhere else in this system.
-        // No ground means no padding to leave room for: the words are the whole
-        // element, and a pill's worth of air around them would push a
-        // right-aligned badge off the corner it was anchored to.
-        const padding = drawsGround(shape) ? size * 1.6 : 0
-        const width = fit.square
-          ? box.height
-          : Math.min(
-              box.width * 2,
-              Math.max(box.width * 0.5, ctx.measure(row.label, size, '') + padding)
-            )
-        const x = row.align === 'end' ? box.x + box.width - width : box.x
-        const badge: Rect = { x, y, width, height: box.height }
+      {placed.map((row) => {
+        // Every number here is `layoutChipStack`'s. The painter's job is paint:
+        // a badge whose geometry is decided in two places is a badge the gallery
+        // and the page draw differently, which is what this had become.
+        const badge: Rect = row.rect
         const path = chipPathShape(shape)
+        const fill = fills.get(row.key) ?? ctx.token('secondary')
 
         return (
           <React.Fragment key={row.key}>
             {!drawsGround(shape) ? null : path === null ? (
-              <rect {...xywh(badge)} rx={box.height / 2} fill={row.fill} />
+              <rect {...xywh(badge)} rx={box.height / 2} fill={fill} />
             ) : (
               <path
                 d={shapePath(path, badge, ctx.direction)}
-                fill={row.fill}
+                fill={fill}
                 {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
               />
             )}
             <text
-              x={x + width / 2}
-              y={y + box.height / 2}
-              fontSize={size}
+              x={badge.x + badge.width / 2}
+              y={badge.y + badge.height / 2}
+              fontSize={row.fontSize}
               fontWeight={700}
-              fill={inkFor(row.fill)}
+              fill={inkFor(fill)}
               textAnchor="middle"
               dominantBaseline="middle"
             >
