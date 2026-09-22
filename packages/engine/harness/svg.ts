@@ -24,6 +24,7 @@ import {
   markRecipe,
   needsEvenOdd,
   PATH_SHAPES,
+  type ShapeOptions,
   placeText,
   readableInkOn,
   resolveBlock,
@@ -241,6 +242,9 @@ function castShadow(
     element.kind === 'shape' && element.variant !== undefined && isPathShape(element.variant)
       ? element.variant
       : null
+  // A pentagon's shadow has five sides too.
+  const sides: ShapeOptions =
+    element.kind === 'shape' && element.sides !== undefined ? { sides: element.sides } : {}
 
   return rings
     .map((ring) => {
@@ -249,7 +253,7 @@ function castShadow(
         // A twelve-point burst offsets by growing its radius and the shadow
         // follows its points — which is what makes this work on any path.
         return (
-          `<path d="${shapePath(path, ring.rect, ctx.direction)}"${alpha}` +
+          `<path d="${shapePath(path, ring.rect, ctx.direction, sides)}"${alpha}` +
           (needsEvenOdd(path) && !outlineOnly ? ' fill-rule="evenodd"' : '') +
           '/>'
         )
@@ -370,7 +374,11 @@ function shape(
   if (element.variant !== undefined && (PATH_SHAPES as string[]).includes(element.variant)) {
     const shape = element.variant as PathShape
     const rule = needsEvenOdd(shape) ? ' fill-rule="evenodd"' : ''
-    return defs + `<path d="${shapePath(shape, rect)}" fill="${fill}"${rule}${strokeAttrs}/>`
+    // The side count travels with the shape, or the harness draws a hexagon
+    // where the browser drew a triangle — which is exactly the drift this
+    // harness exists to catch.
+    const d = shapePath(shape, rect, 'ltr', { sides: element.sides })
+    return defs + `<path d="${d}" fill="${fill}"${rule}${strokeAttrs}/>`
   }
 
   return (

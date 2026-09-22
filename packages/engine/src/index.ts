@@ -86,12 +86,14 @@ export {
   CHIP_SHAPES,
   HOLDS_PROPORTION,
   PATH_SHAPES,
+  POLYGON_SIDES,
   chipPathShape,
   drawsGround,
   needsEvenOdd,
   shapePath,
   type ChipShape,
   type PathShape,
+  type ShapeOptions,
 } from './shapes'
 // `logo` stops being an element kind — it is a picture, and making it a kind of
 // its own meant every image property had to be added to it separately. The

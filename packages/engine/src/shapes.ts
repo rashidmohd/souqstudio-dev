@@ -21,9 +21,35 @@
 import type { Direction, Rect } from './geometry'
 
 /** The shapes that are a path. `rect`, `ellipse` and `line` are not. */
-export type PathShape = 'burst' | 'ribbon' | 'tag' | 'flash' | 'star' | 'arrow'
+export type PathShape =
+  | 'burst'
+  | 'ribbon'
+  | 'tag'
+  | 'flash'
+  | 'star'
+  | 'arrow'
+  | 'polygon'
 
-export const PATH_SHAPES: PathShape[] = ['burst', 'ribbon', 'tag', 'flash', 'star', 'arrow']
+export const PATH_SHAPES: PathShape[] = [
+  'burst',
+  'ribbon',
+  'tag',
+  'flash',
+  'star',
+  'arrow',
+  'polygon',
+]
+
+/**
+ * What a polygon's side count may be, and what it is when nobody said.
+ *
+ * **Two is a line and thirteen is a circle**, and both of those already exist
+ * as cheaper elements. The ceiling is the more interesting of the two: a
+ * twenty-sided polygon is an ellipse drawn as forty coordinates that every
+ * renderer carries and the PDF stores, and no reader could tell them apart at
+ * the size a card is printed.
+ */
+export const POLYGON_SIDES = { min: 3, max: 12, default: 6 } as const
 
 /**
  * Which shapes keep their proportion, and which fill whatever box they get.
@@ -40,6 +66,12 @@ export const PATH_SHAPES: PathShape[] = ['burst', 'ribbon', 'tag', 'flash', 'sta
 export const HOLDS_PROPORTION: Record<PathShape, boolean> = {
   burst: true,
   star: true,
+  // **A regular polygon is only regular in a square.** Stretched to 3:1 a
+  // hexagon's sides stop being equal and its angles stop matching, which is a
+  // hexagon in the same sense a squashed circle is a circle — and the owner who
+  // wants that shape has the ellipse and the rectangle already. The box still
+  // sizes it; this decides what it does inside one.
+  polygon: true,
   flash: false,
   ribbon: false,
   tag: false,
@@ -94,6 +126,43 @@ function spiked(rect: Rect, points: number, innerRatio: number): string {
 }
 
 /**
+ * A regular polygon — `sides` equal edges around the centre.
+ *
+ * **A vertex at twelve o'clock, for the same reason a burst has one.** The
+ * alternative is a flat top, which puts a *point* at the bottom: a triangle
+ * standing on its tip reads as falling over, and a pentagon drawn that way is
+ * the one nobody recognises. Every polygon anybody draws by hand has its apex
+ * up, and an owner who wants it turned has the rotation control.
+ *
+ * A side count outside the bounds is brought inside them rather than refused.
+ * This is called by four renderers on documents that a schema has already
+ * checked, and the one case that reaches here dirty is a hand-written seed —
+ * where a shape drawn with two sides is an invisible element rather than an
+ * error anybody sees.
+ */
+function regular(rect: Rect, sides: number): string {
+  const count = Math.max(POLYGON_SIDES.min, Math.min(POLYGON_SIDES.max, Math.round(sides)))
+  const box = square(rect)
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  const radius = box.width / 2
+
+  const vertices: string[] = []
+  for (let index = 0; index < count; index += 1) {
+    // Start at -90° so a vertex points up; SVG's y grows downward.
+    const angle = (Math.PI * 2 * index) / count - Math.PI / 2
+    vertices.push(point(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)))
+  }
+  return polygon(vertices)
+}
+
+/** What a shape needs to know beyond its rectangle. */
+export interface ShapeOptions {
+  /** `polygon` only — how many sides. Defaults to `POLYGON_SIDES.default`. */
+  sides?: number | undefined
+}
+
+/**
  * The path for a shape, in the rect's own coordinates.
  *
  * `direction` mirrors the shapes that have a reading direction — the corner
@@ -103,11 +172,30 @@ function spiked(rect: Rect, points: number, innerRatio: number): string {
  * that corner, while an owner who put a flash "in the corner" meant the corner
  * the eye lands on first, and that corner moves.
  */
-export function shapePath(shape: PathShape, rect: Rect, direction: Direction = 'ltr'): string {
+export function shapePath(
+  shape: PathShape,
+  rect: Rect,
+  direction: Direction = 'ltr',
+  options: ShapeOptions = {}
+): string {
   const { x, y, width: w, height: h } = rect
   const rtl = direction === 'rtl'
 
   switch (shape) {
+    /**
+     * **The one shape the owner sets the geometry of**, rather than picking a
+     * drawing somebody else made. Three is a triangle, six a hexagon, twelve a
+     * coin — which is the range a panel, a badge ground and a seal between them
+     * actually want, and it is one control instead of eight more pictures in
+     * the shape picker.
+     *
+     * It does not mirror. A regular polygon has no reading direction: there is
+     * no corner it sits in and nothing it points at, so flipping it in an
+     * Arabic edition would rotate the card's furniture for no reason.
+     */
+    case 'polygon':
+      return regular(rect, options.sides ?? POLYGON_SIDES.default)
+
     /** Twelve spikes: enough to read as a splat, few enough to survive print. */
     case 'burst':
       return spiked(rect, 12, 0.76)
@@ -278,8 +366,20 @@ export const CHIP_FIT: Record<ChipShape, { width: number; height: number; square
  * they take the largest square in the box and centre; a ribbon, a tag and an
  * arrow are things whose length is the point.
  */
+/**
+ * The path shapes a price mark may sit on.
+ *
+ * **Everything but the polygon, and the exclusion is structural rather than
+ * taste.** A polygon is only a shape once somebody has said how many sides it
+ * has, and `PriceMarkStyle` has nowhere to put that number — its ground is a
+ * name, not an element. Offering it would mean offering a hexagon under a
+ * control that promises a choice, so the type refuses it and the picker never
+ * has to remember to.
+ */
+export type MarkShape = Exclude<PathShape, 'polygon'>
+
 export const MARK_FIT: Record<
-  'none' | 'box' | PathShape,
+  'none' | 'box' | MarkShape,
   { width: number; height: number; square: boolean }
 > = {
   /** No ground. The digits own the whole box — this is `frame: 'plain'`. */

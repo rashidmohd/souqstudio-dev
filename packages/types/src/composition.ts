@@ -804,7 +804,23 @@ export type BlockElement =
         | 'flash'
         | 'star'
         | 'arrow'
+        | 'polygon'
         | undefined
+      /**
+       * How many sides a `polygon` has. Ignored by every other variant.
+       *
+       * **One control instead of eight shapes.** A triangle, a pentagon and a
+       * hexagon are the same construction with a different count, and shipping
+       * them as separate variants would be eight more pictures in the shape
+       * picker for one idea — and still no heptagon for the owner who wanted
+       * one. Three is the floor because two sides is a line, and twelve is the
+       * ceiling because above it a polygon is a circle drawn expensively: the
+       * ellipse is one element and this would be twenty-six path points.
+       *
+       * Absent is a hexagon, which is the one most people picture when they are
+       * shown this control and the one that survives being small.
+       */
+      sides?: number | undefined
       radius: number
       stroke?: Stroke | undefined
       shadow?: Shadow | undefined

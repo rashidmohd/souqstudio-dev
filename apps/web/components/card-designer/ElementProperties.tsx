@@ -33,6 +33,7 @@ import {
   markGround,
   markRecipe,
   needsEvenOdd,
+  POLYGON_SIDES,
   PRICE_MARK_RECIPES,
   resolveColor,
   shapePath,
@@ -158,7 +159,7 @@ export function ElementProperties({
         <>
           <Field label="Shape">
             {/*
-              **Nine in a 3×3 grid, and every mark is the shape itself.** A row
+              **Ten in a 3×3 grid, and every mark is the shape itself.** A row
               of nine will not fit a 288px pane — the direction picker taught
               that the hard way — and an icon set has nothing that means "burst"
               other than a picture somebody drew of one, which would be a second
@@ -174,11 +175,52 @@ export function ElementProperties({
               options={SHAPE_OPTIONS.map((option) => ({
                 value: option.value,
                 label: option.label,
-                render: () => <ShapePreview variant={option.value} />,
+                render: () => <ShapePreview variant={option.value} sides={element.sides} />,
               }))}
               onChange={(variant) => onChange({ ...element, variant })}
             />
           </Field>
+
+          {/*
+            **Only under the polygon, because it means nothing anywhere else.**
+            A side count sitting permanently in the panel is a control an owner
+            has to work out does not apply to the rectangle they have selected.
+
+            A number field rather than a slider, which `Slider`'s own contract
+            settles: it is for a bounded quantity an owner adjusts by eye, and
+            explicitly not for a count. An owner reaching for this has a shape
+            in mind and that shape has a number — "a hexagon" is six, and
+            hunting for six on a ten-stop track is worse than typing it. It sits
+            beside the corner radius, which is the same kind of control for the
+            same reason.
+
+            Turning it is the rotation control in Appearance, which every
+            element already has — a triangle on its side is a rotated triangle,
+            not an eleventh variant.
+          */}
+          {element.variant === 'polygon' ? (
+            <Input
+              label="Sides"
+              type="number"
+              min={POLYGON_SIDES.min}
+              max={POLYGON_SIDES.max}
+              step={1}
+              figure
+              disabled={disabled}
+              value={element.sides ?? POLYGON_SIDES.default}
+              hint="Three is a triangle, six a hexagon. Rotate it under Appearance."
+              onChange={(event) =>
+                onChange({
+                  ...element,
+                  sides: clamp(
+                    Math.round(Number(event.target.value)),
+                    POLYGON_SIDES.min,
+                    POLYGON_SIDES.max
+                  ),
+                })
+              }
+            />
+          ) : null}
           {/* **"None" is a real answer now**, and it is what makes an
               outline-only shape possible — a hairline rule box around a price,
               which used to be faked with one filled rectangle sitting on
@@ -1201,6 +1243,7 @@ const SHAPE_OPTIONS: { value: ShapeVariant; label: string }[] = [
   { value: 'tag', label: 'Tag' },
   { value: 'flash', label: 'Corner flash' },
   { value: 'arrow', label: 'Arrow' },
+  { value: 'polygon', label: 'Polygon' },
 ]
 
 /**
@@ -1213,7 +1256,7 @@ const SHAPE_OPTIONS: { value: ShapeVariant; label: string }[] = [
  */
 const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
 
-function ShapePreview({ variant }: { variant: ShapeVariant }) {
+function ShapePreview({ variant, sides }: { variant: ShapeVariant; sides?: number | undefined }) {
   return (
     <svg width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
       {variant === 'rect' ? (
@@ -1224,7 +1267,11 @@ function ShapePreview({ variant }: { variant: ShapeVariant }) {
         <rect x={1} y={7} width={14} height={2} rx={1} fill="currentColor" />
       ) : (
         <path
-          d={shapePath(variant, PREVIEW)}
+          // **The polygon button shows the count the element is set to**, so the
+          // picker stops being a picture of a hexagon on an element that is a
+          // triangle. Every other option ignores it, because every other option
+          // is one shape.
+          d={shapePath(variant, PREVIEW, 'ltr', { sides })}
           fill="currentColor"
           {...(needsEvenOdd(variant) ? { fillRule: 'evenodd' as const } : {})}
         />

@@ -5,6 +5,7 @@ import {
   CHIP_SHAPES,
   HOLDS_PROPORTION,
   PATH_SHAPES,
+  POLYGON_SIDES,
   chipPathShape,
   drawsGround,
   needsEvenOdd,
@@ -125,8 +126,50 @@ describe('the shapes that read in a direction', () => {
     expect(shapePath(shape, BOX, 'rtl')).not.toBe(shapePath(shape, BOX, 'ltr'))
   })
 
-  it.each<PathShape>(['burst', 'star', 'ribbon'])('%s is the same either way', (shape) => {
-    expect(shapePath(shape, BOX, 'rtl')).toBe(shapePath(shape, BOX, 'ltr'))
+  it.each<PathShape>(['burst', 'star', 'ribbon', 'polygon'])(
+    '%s is the same either way',
+    (shape) => {
+      expect(shapePath(shape, BOX, 'rtl')).toBe(shapePath(shape, BOX, 'ltr'))
+    }
+  )
+})
+
+describe('the polygon', () => {
+  /** One vertex per side, and the path closes — `M` plus n−1 `L`. */
+  it.each([3, 5, 6, 12])('draws %i corners', (sides) => {
+    expect(points(shapePath('polygon', BOX, 'ltr', { sides })).length).toBe(sides)
+  })
+
+  it('is a hexagon when nobody said', () => {
+    expect(shapePath('polygon', BOX)).toBe(
+      shapePath('polygon', BOX, 'ltr', { sides: POLYGON_SIDES.default })
+    )
+    expect(POLYGON_SIDES.default).toBe(6)
+  })
+
+  /**
+   * Apex up. A triangle standing on its point reads as falling over, and it is
+   * the one polygon where the difference is unmistakable — so it is the one
+   * worth pinning rather than asserting over the whole range.
+   */
+  it('puts a vertex at the top', () => {
+    const drawn = points(shapePath('polygon', { x: 0, y: 0, width: 100, height: 100 }, 'ltr', {
+      sides: 3,
+    }))
+    const top = drawn.reduce((lowest, point) => (point.y < lowest.y ? point : lowest))
+    expect(top.x).toBeCloseTo(50)
+    expect(top.y).toBeCloseTo(0)
+  })
+
+  /**
+   * A count outside the range is brought inside it. This is reached by a
+   * hand-written seed rather than by the designer — the schema stops those —
+   * and a two-sided polygon is an invisible element rather than an error
+   * anybody sees.
+   */
+  it('brings an impossible count into range rather than drawing nothing', () => {
+    expect(points(shapePath('polygon', BOX, 'ltr', { sides: 1 })).length).toBe(POLYGON_SIDES.min)
+    expect(points(shapePath('polygon', BOX, 'ltr', { sides: 99 })).length).toBe(POLYGON_SIDES.max)
   })
 })
 

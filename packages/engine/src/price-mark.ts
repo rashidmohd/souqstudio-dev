@@ -52,7 +52,7 @@ import {
   minorUnits,
 } from '@souqstudio/types'
 import type { Rect } from './geometry'
-import { MARK_FIT, type PathShape } from './shapes'
+import { MARK_FIT, type MarkShape } from './shapes'
 
 /**
  * Cap height as a fraction of font size.
@@ -199,7 +199,7 @@ export interface PriceMarkOptions {
   recipe?: ResolvedRecipe | undefined
 }
 
-export type MarkGround = 'none' | 'box' | PathShape
+export type MarkGround = 'none' | 'box' | MarkShape
 
 /**
  * Which ground a style asks for, old spelling included.

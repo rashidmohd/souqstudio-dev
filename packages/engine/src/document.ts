@@ -11,6 +11,7 @@ import {
   type TextSource,
   type TypeLevel,
 } from '@souqstudio/types'
+import { POLYGON_SIDES } from './shapes'
 
 /**
  * The block document, validated wherever it enters. E7.
@@ -620,11 +621,33 @@ const elementSchema = z.discriminatedUnion('kind', [
     // on a printed ticket — had to be faked with one filled rectangle on
     // another. E14 §2.4.
     fill: colorSchema.optional(),
-    // The three primitives, then the six an offer card is actually made of.
+    // The three primitives, then the six an offer card is actually made of,
+    // then the one whose geometry the owner sets rather than picks.
     // `radius` applies to the rectangle alone; the paths compute their own
     // corners, and a document that sets both is not wrong, just ignored.
     variant: z
-      .enum(['rect', 'ellipse', 'line', 'burst', 'ribbon', 'tag', 'flash', 'star', 'arrow'])
+      .enum([
+        'rect',
+        'ellipse',
+        'line',
+        'burst',
+        'ribbon',
+        'tag',
+        'flash',
+        'star',
+        'arrow',
+        'polygon',
+      ])
+      .optional(),
+    // **The bounds are the schema's, not the control's.** A block arrives here
+    // from an import, a seed and an AI reply as well as from the designer, and
+    // a two-sided polygon is an element nobody can see. `POLYGON_SIDES` is the
+    // one statement of the range; the picker reads the same constant.
+    sides: z
+      .number()
+      .int()
+      .min(POLYGON_SIDES.min)
+      .max(POLYGON_SIDES.max)
       .optional(),
     radius: z.number().min(0).max(64),
     stroke: strokeSchema.optional(),

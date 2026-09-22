@@ -22,6 +22,7 @@ import {
   markRecipe,
   needsEvenOdd,
   PATH_SHAPES,
+  type ShapeOptions,
   placeText,
   PREFIX_TEXT,
   resolveColor,
@@ -352,6 +353,10 @@ function ShadowLayer({
   })
   const path = element.kind === 'shape' ? asPathShape(element.variant) : null
   const ellipse = element.kind === 'shape' && element.variant === 'ellipse'
+  // The shadow of a pentagon has five sides. Passing the count here is what
+  // stops it being a hexagon behind one.
+  const shapeOptions: ShapeOptions =
+    element.kind === 'shape' && element.sides !== undefined ? { sides: element.sides } : {}
 
   /**
    * **An outline-only shape casts from its outline, not from its silhouette.**
@@ -394,7 +399,7 @@ function ShadowLayer({
           return (
             <path
               key={key}
-              d={shapePath(path, ring.rect, ctx.direction)}
+              d={shapePath(path, ring.rect, ctx.direction, shapeOptions)}
               {...ink}
               {...alpha}
               {...(needsEvenOdd(path) && !outlineOnly ? { fillRule: 'evenodd' as const } : {})}
@@ -605,7 +610,7 @@ function Shape({
       <>
         {defs}
         <path
-          d={shapePath(path, box, ctx.direction)}
+          d={shapePath(path, box, ctx.direction, { sides: element.sides })}
           fill={fill}
           {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
           {...strokeProps}
