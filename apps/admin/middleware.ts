@@ -39,12 +39,26 @@ export function middleware(req: NextRequest) {
   if (pathname === '/api/health') return NextResponse.next()
 
   const allowlist = parseAllowlist(process.env.ADMIN_IP_ALLOWLIST)
-  if (!isAllowed(clientIp(req.headers), allowlist)) {
+  const ip = clientIp(req.headers)
+  if (!isAllowed(ip, allowlist)) {
     /*
      * A flat 404 with no body. A 403 confirms that an admin panel is here and
      * that the caller simply came from the wrong network, which is a fact worth
      * nothing to a colleague and something to a stranger.
+     *
+     * **But it is logged.** The silent version of this cost a deployment: every
+     * page answered 404, the health check answered `ok` because it is exempt,
+     * and there was nothing anywhere saying an address had been refused. The
+     * response stays blank and the operator gets the sentence — which is the
+     * split the client/server boundary exists for. `x-forwarded-for` is echoed
+     * raw so that a malformed one is visible as itself.
      */
+    console.warn(
+      `[admin] refused ${pathname} from ${ip ?? 'an unresolvable address'}` +
+        ` — ADMIN_IP_ALLOWLIST has ${allowlist.length} entr${allowlist.length === 1 ? 'y' : 'ies'}.` +
+        ` x-forwarded-for: ${req.headers.get('x-forwarded-for') ?? '(none)'}.` +
+        ` Unset the variable to allow every address.`
+    )
     return new NextResponse(null, { status: 404 })
   }
 

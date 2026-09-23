@@ -44,14 +44,33 @@ export function clientIp(headers: Headers): string | null {
 }
 
 /**
- * IPv4-mapped IPv6 (`::ffff:127.0.0.1`) is the same address as its IPv4 form,
- * and a Node server listening on a dual-stack socket reports localhost that
- * way. An allowlist that did not fold them would reject `127.0.0.1` on a
- * machine where it was written `::ffff:127.0.0.1`.
+ * Reduce an address to the form an allowlist entry is written in.
+ *
+ * Three shapes arrive and all three have bitten:
+ *
+ * - **IPv4-mapped IPv6** (`::ffff:127.0.0.1`) is the same address as its IPv4
+ *   form, and a Node server on a dual-stack socket reports localhost that way.
+ * - **A trailing port** (`203.0.113.9:54321`). Some proxies append the client's
+ *   source port, and an address carrying one matches no entry ever written by
+ *   hand — which, behind a flat 404, looks exactly like a correct refusal.
+ *   Stripped only when what precedes the colon is a complete IPv4 address, so
+ *   that `::1` is never mistaken for a host and a port.
+ * - **A bracketed IPv6 with a port** (`[2a09::1]:443`), which is how a host and
+ *   port are disambiguated when the host itself contains colons.
  */
 function normalize(ip: string): string {
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip)
-  return mapped?.[1] ?? ip.toLowerCase()
+  const trimmed = ip.trim()
+
+  // [2a09::1]:443 or [2a09::1]
+  const bracketed = /^\[([^\]]+)\](?::\d+)?$/.exec(trimmed)
+  if (bracketed?.[1] !== undefined) return normalize(bracketed[1])
+
+  // 203.0.113.9:54321 — only when the left side is a whole IPv4 address.
+  const ported = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(trimmed)
+  if (ported?.[1] !== undefined) return ported[1]
+
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(trimmed)
+  return mapped?.[1] ?? trimmed.toLowerCase()
 }
 
 function ipv4ToInt(ip: string): number | null {
@@ -107,6 +126,7 @@ function matchesCidr(ip: string, cidr: string): boolean {
 export function isAllowed(ip: string | null, allowlist: readonly string[]): boolean {
   if (allowlist.length === 0) return true
   if (ip === null) return false
+
 
   const candidate = normalize(ip)
   return allowlist.some((entry) =>

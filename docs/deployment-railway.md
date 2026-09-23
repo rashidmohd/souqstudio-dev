@@ -280,7 +280,10 @@ REMBG_SERVICE_URL=http://rembg.railway.internal:8000   # §2a — matches PORT p
 
 ```bash
 ADMIN_SESSION_SECRET=                 # openssl rand -base64 32 — must NOT equal NEXTAUTH_SECRET
-ADMIN_IP_ALLOWLIST=                   # comma-separated; empty allows all
+ADMIN_IP_ALLOWLIST=                   # comma-separated; EMPTY ALLOWS ALL — leave it
+                                      # empty unless you know your public address.
+                                      # A list that does not contain you makes every
+                                      # page 404, login included.
 R2_PUBLIC_URL=https://assets.souqstudio.com
 ```
 
@@ -464,9 +467,23 @@ root `CLAUDE.md` under Known gaps:
 - **The email logo is not on R2.** Every email renders with a broken image until
   `apps/web/public/brand/email/logo-dark.png` is uploaded to
   `https://assets.souqstudio.com/email/logo-dark.png`.
-- **`apps/admin` has no pages.** Its route directories are empty; the build produces a 404
-  and a health endpoint. The config file is here and correct, but creating the service now
-  buys an always-on container that serves nothing. Create it when admin has screens.
+- ~~**`apps/admin` has no pages.**~~ **It has them since 22 September** — login, an
+  overview, catalog, the block library console, AI prompts and the audit log. The service
+  is worth creating. See the admin variables above, and the 404 note below.
+
+- **A 404 on every admin page is almost always `ADMIN_IP_ALLOWLIST`.** The middleware
+  answers a flat 404 to any address not on the list, deliberately: a 403 would confirm an
+  admin panel is there and that the caller merely came from the wrong network.
+
+  **`/api/health` is exempt.** That is the diagnostic: if health answers `{"status":"ok"}`
+  and `/login` answers 404, the app is up and serving and the allowlist refused you. The
+  refusal is also logged — `[admin] refused /login from …` — with the address and the
+  number of entries configured.
+
+  **Leave the variable empty until you know what to put in it.** Empty allows every
+  address. `127.0.0.1` is right only for a local `next start`; on Railway the address that
+  arrives is the public one your browser came from, so a list of localhost entries refuses
+  everybody including you.
 - **When the PDF handler lands, the worker needs a different builder.** Playwright browsers
   do not install under the builder's default Node image. That service moves to a Dockerfile
   based on `mcr.microsoft.com/playwright`, and the `builder` field in

@@ -27,7 +27,14 @@ and nothing had ever read either one.
 | Overview | `/` — counts, and what is off on this deployment |
 | Primitives | `components/ui/` — nine components, built against the tokens directly |
 
-Thirty-one tests across `ip-allowlist`, `block-summary`, `prompt-schema` and `admin-roles`.
+Thirty-five tests across `ip-allowlist`, `block-summary`, `prompt-schema` and
+`admin-roles`.
+
+**The role gate is verified live**, not only by unit test. Against a real `support_agent`
+account: the four read screens answer 200, `/prompts` and `/catalog/new` bounce to
+`/?denied=1`, and all four write routes answer 403 naming both roles. A refused write
+created nothing. Setting `isActive` false ended that session on the next request with the
+session row untouched, which is the behaviour the re-read exists for.
 
 ---
 

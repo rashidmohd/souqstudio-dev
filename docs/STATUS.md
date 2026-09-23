@@ -1202,18 +1202,22 @@ would reach for to check a migration against the history.
 ### Two worker handlers throw — blocks E9, and most of E8
 
 `apps/worker/src/workers/` has five workers. `email` and `bg` are implemented — `bg` now
-for logos *and* catalog cutouts. **`ai` is implemented for one job**, E8-07's
-`ai.magicBlock`; its other four names still throw, as do **`pdf` and `enrich`**.
+for logos *and* catalog cutouts. **`ai` is now implemented for every job name it has** —
+`magic-block`, `brand-direction`, `logo-gen`, `character`, `pose` and `cover` all have
+handlers. **`pdf` and `enrich` are the two that do not exist at all**: there is no
+`pdf.job.ts` and no `enrich.job.ts` in `src/jobs/`.
 
 - `pdf` blocks E9 export, and with it the editor's export button. **It is the only thing on
   the critical path now**: a book can be created, priced, adjusted, laid out, pinned,
   duplicated and designed for, and it cannot leave the product. Everything built since
   5 September has widened the gap between what an owner can make and what they can send.
-- `ai` no longer blocks E8 entirely. `ai.magicBlock` is implemented and **credits are
+- `ai` no longer blocks E8 at all. `ai.magicBlock` is implemented and **credits are
   now actually spent** — `consumeCredits()` in `packages/db/src/credits.ts` has a caller
-  at last, and two real charges against the dev organization to show for it. The four
-  image jobs — character, pose, cover, prompt — still throw, and they are the ones that
-  need a diffusion model rather than a vision one, which is a different provider decision
+  at last, and two real charges against the dev organization to show for it. The image
+  jobs — character, pose, cover — have handlers too, behind `IMAGE_PROVIDER`; what is
+  still owed there is UI for E8-02, E8-03 and E8-04 rather than a worker. The provider
+  decision is made: a diffusion model rather than a vision one, which is a different
+  provider decision
   that has not been made.
 - `enrich` blocks E5's multilingual synonym pipeline **and, now specifically, every
   Arabic name in the universal catalog.** The Open Food Facts CSV export has no language

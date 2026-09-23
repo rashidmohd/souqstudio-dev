@@ -29,6 +29,33 @@ describe('clientIp', () => {
   it('folds an IPv4-mapped IPv6 address to its IPv4 form', () => {
     expect(clientIp(new Headers({ 'x-real-ip': '::ffff:127.0.0.1' }))).toBe('127.0.0.1')
   })
+
+  /*
+   * A proxy that appends the client's source port produces an address that
+   * matches no hand-written entry. Behind a flat 404 that looks exactly like a
+   * correct refusal, which is how it survived a deployment.
+   */
+  it('strips a port from an IPv4 address', () => {
+    expect(clientIp(new Headers({ 'x-forwarded-for': '203.0.113.9:54321' }))).toBe('203.0.113.9')
+  })
+
+  it('strips a port from a bracketed IPv6 address', () => {
+    expect(clientIp(new Headers({ 'x-forwarded-for': '[2a09:8280:1::1]:443' }))).toBe(
+      '2a09:8280:1::1'
+    )
+  })
+
+  it('unwraps a bracketed IPv6 address with no port', () => {
+    expect(clientIp(new Headers({ 'x-forwarded-for': '[::1]' }))).toBe('::1')
+  })
+
+  it('never mistakes a bare IPv6 address for a host and a port', () => {
+    // `::1` ends in `:1`, which a naive port strip would eat.
+    expect(clientIp(new Headers({ 'x-forwarded-for': '::1' }))).toBe('::1')
+    expect(clientIp(new Headers({ 'x-forwarded-for': '2a09:8280:1::1:443' }))).toBe(
+      '2a09:8280:1::1:443'
+    )
+  })
 })
 
 describe('isAllowed', () => {
@@ -73,6 +100,15 @@ describe('isAllowed', () => {
   it('matches IPv6 literally and never by range', () => {
     expect(isAllowed('::1', ['::1'])).toBe(true)
     expect(isAllowed('2001:db8::1', ['::1'])).toBe(false)
+  })
+
+  it('matches an allowlist entry when the request carried a port', () => {
+    expect(isAllowed('203.0.113.9:54321', ['203.0.113.9'])).toBe(true)
+    expect(isAllowed('203.0.113.9:54321', ['203.0.113.0/24'])).toBe(true)
+  })
+
+  it('matches a bracketed IPv6 entry written plainly', () => {
+    expect(isAllowed('[2a09:8280:1::1]:443', ['2a09:8280:1::1'])).toBe(true)
   })
 
   it('rejects a malformed CIDR rather than matching it', () => {
