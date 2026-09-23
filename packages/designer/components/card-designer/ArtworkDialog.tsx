@@ -72,7 +72,8 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Adds an element for this asset and closes. */
-  onPick: (assetId: string) => void
+  /** The size where the listing knows it; the designer measures it otherwise. */
+  onPick: (assetId: string, size?: { width: number; height: number }) => void
   /** Uploads a new file, records it, and returns its key. */
   onUpload: (file: File) => Promise<string | null>
 }
@@ -221,7 +222,7 @@ function Group({
 }: {
   label: string
   assets: Artwork[]
-  onPick: (assetId: string) => void
+  onPick: (assetId: string, size?: { width: number; height: number }) => void
 }) {
   if (assets.length === 0) return null
 
@@ -233,7 +234,7 @@ function Group({
           <li key={asset.id}>
             <button
               type="button"
-              onClick={() => onPick(asset.key)}
+              onClick={() => onPick(asset.key, { width: asset.width, height: asset.height })}
               className={cn(
                 'flex w-full flex-col gap-2 rounded-card border-hairline border-border-subtle p-2 text-start',
                 'hover:bg-stone-100'
@@ -280,7 +281,7 @@ function GeneratedGroup({
 }: {
   label: string
   images: Generated[]
-  onPick: (assetId: string) => void
+  onPick: (assetId: string, size?: { width: number; height: number }) => void
 }) {
   if (images.length === 0) return null
 

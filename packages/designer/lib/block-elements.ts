@@ -314,16 +314,96 @@ export const FREE_ELEMENTS = {
     radius: 3,
   }),
   /**
-   * Artwork the owner uploaded. It lands `cover` and full-bleed, because the
-   * overwhelming reason to place one is as a background — and an owner who
-   * wanted a small decorative image can drag it smaller in one gesture, where
-   * one who wanted a background would otherwise have to drag all four edges.
+   * Artwork the owner uploaded. **It lands whole, at its own proportions.**
+   *
+   * It used to land `cover` and full-bleed, on the theory that most artwork is
+   * a background. In practice that cropped every picture to the block's shape
+   * the moment it arrived, so a logo or a badge came in with its edges cut off
+   * and had to be dragged back out before it could even be judged. `contain` in
+   * a box of the picture's own shape shows the whole thing; the caller sizes
+   * the box with `proportioned`, because only it knows the picture's size and
+   * the block's shape. Dragging it to the edges still makes it a background.
    */
   artwork: (assetId: string): BlockElement => ({
     id: newElementId(),
     kind: 'image',
-    box: { start: 0, top: 0, width: 1, height: 1 },
+    box: { start: 0.2, top: 0.2, width: 0.6, height: 0.6 },
     source: { from: 'asset', assetId },
-    fit: 'cover',
+    fit: 'contain',
   }),
 } as const
+
+/**
+ * Shapes that are round or square by nature: a circle is only a circle while
+ * its box is as tall as it is wide *on the page*. The rest (a ribbon, a band,
+ * an arrow) are meant to stretch with the block.
+ */
+const SQUARE_SHAPES: ReadonlySet<ShapeVariant> = new Set<ShapeVariant>([
+  'ellipse',
+  'burst',
+  'star',
+  'polygon',
+  'flash',
+])
+
+/**
+ * The width-over-height an element should be drawn at, if it has one of its
+ * own: an uploaded outline's, or 1 for the round and square shapes. Null for
+ * everything that is meant to take the shape of its box.
+ */
+export function intrinsicAspect(element: BlockElement): number | null {
+  if (element.kind !== 'shape') return null
+  if (element.variant === 'art') {
+    return element.art === undefined || element.art.height <= 0
+      ? null
+      : element.art.width / element.art.height
+  }
+  return element.variant !== undefined && SQUARE_SHAPES.has(element.variant) ? 1 : null
+}
+
+/**
+ * Resize a new element's box so it is drawn at `content` proportions on a
+ * block of `block` proportions (both width over height).
+ *
+ * **Why this is needed at all:** a box is in fractions of the block, so a box
+ * 0.4 by 0.4 is a square only on a square block. On a half page (1.4) it draws
+ * 1.4 times wider than tall, which is how a circle arrived as an oval and an
+ * uploaded drawing arrived squashed. The fraction that looks right is
+ * `width / height = content / block`.
+ *
+ * The result fits inside the box the element was minted with, so a shape never
+ * lands bigger than its seed. It keeps an edge the seed touched (the corner
+ * flash stays in its corner) and is otherwise centred on the seed.
+ *
+ * **Only for placing something new.** A repeating card is drawn at a range of
+ * shapes, so no fraction box is square at all of them; this makes it right at
+ * the shape on screen, which is the one the owner is judging.
+ */
+export function proportioned<T extends BlockElement>(element: T, content: number, block: number): T {
+  if (!(content > 0) || !(block > 0)) return element
+  const seed = element.box
+  // The fraction ratio that draws at `content` on this block.
+  const ratio = content / block
+  let width = seed.width
+  let height = width / ratio
+  if (height > seed.height) {
+    height = seed.height
+    width = height * ratio
+  }
+
+  const EDGE = 0.001
+  const place = (from: number, span: number, size: number) =>
+    from <= EDGE ? from : from + span >= 1 - EDGE ? from + span - size : from + (span - size) / 2
+
+  return {
+    ...element,
+    box: {
+      ...seed,
+      start: place(seed.start, seed.width, width),
+      top: place(seed.top, seed.height, height),
+      width,
+      height,
+    },
+  }
+}
+

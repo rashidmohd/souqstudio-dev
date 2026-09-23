@@ -7,7 +7,8 @@ import type { Alignment, BlockProblem } from '@souqstudio/engine'
 import type { Arrangement, BlockElement, BrandKit } from '@souqstudio/types'
 import { addElement, alignBoxes, reorderElement, validateBlock } from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '../../lib/brand-palette'
-import { FREE_ELEMENTS } from '../../lib/block-elements'
+import { FREE_ELEMENTS, intrinsicAspect, proportioned } from '../../lib/block-elements'
+import { measureImage } from '../../lib/measure-image'
 import { assetResolver } from '../../lib/block-assets'
 import { uploadArtwork } from '../../lib/upload-artwork'
 import { useDesignerHost, type DesignerHost } from '../../lib/designer-host'
@@ -352,9 +353,35 @@ export function DesignerShell({
     }
   }
 
-  function addArtwork(assetId: string) {
-    const element = FREE_ELEMENTS.artwork(assetId)
-    store.setElements(addElement(elements, element))
+  /**
+   * A new element at its own proportions on the block as it is drawn now. A
+   * box is in fractions of the block, so without this a circle lands as an
+   * oval on any block that is not square. See `proportioned`.
+   */
+  function place(element: BlockElement, content?: number | null): BlockElement {
+    const own = content ?? intrinsicAspect(element)
+    return own === null ? element : proportioned(element, own, aspect)
+  }
+
+  /**
+   * Artwork at the picture's own shape. The size comes with a library asset,
+   * or is read from the picture when it does not (a generated image, a file
+   * just uploaded). If it cannot be read the picture still lands whole, since
+   * it is drawn `contain`.
+   */
+  async function addArtwork(assetId: string, size?: { width: number; height: number } | null) {
+    let known = size ?? null
+    if (known === null) {
+      const url = asset(assetId)
+      known = url === null ? null : await measureImage(url)
+    }
+    const element = place(
+      FREE_ELEMENTS.artwork(assetId),
+      known === null ? null : known.width / known.height
+    )
+    // Read at call time: the list may have changed while the picture loaded.
+    const now = useDesignerStore.getState()
+    store.setElements(addElement(now.arrangements[now.arrangementIndex]?.elements ?? [], element))
     store.select([element.id])
   }
 
@@ -485,13 +512,16 @@ export function DesignerShell({
       <ArtworkDialog
         open={picking}
         onOpenChange={setPicking}
-        onPick={(assetId) => {
-          addArtwork(assetId)
+        onPick={(assetId, size) => {
+          void addArtwork(assetId, size)
           setPicking(false)
         }}
         onUpload={async (file) => {
+          // Measured from the file itself: an SVG is stored as a PNG at a size
+          // the server picks, but its proportions survive.
+          const size = await measureImage(file)
           const assetId = await upload(file)
-          if (assetId !== null) addArtwork(assetId)
+          if (assetId !== null) void addArtwork(assetId, size)
           return assetId
         }}
       />
@@ -528,7 +558,8 @@ export function DesignerShell({
             panelOpen={panelOpen}
             onTogglePanel={() => setPanelOpen((open) => !open)}
             onUpload={editable ? () => setPicking(true) : undefined}
-            onAdd={(element, atBottom) => {
+            onAdd={(added, atBottom) => {
+              const element = place(added)
               // Paint order is array order, so "behind everything" is the front
               // of the list. A background appended like anything else covers
               // the card.
@@ -602,7 +633,8 @@ export function DesignerShell({
             */}
             <ShapesPanel
               disabled={!editable}
-              onAdd={(element) => {
+              onAdd={(added) => {
+                const element = place(added)
                 store.setElements(addElement(elements, element))
                 store.select([element.id])
               }}

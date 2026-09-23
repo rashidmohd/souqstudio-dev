@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { Arrangement, BlockElement } from '@souqstudio/types'
 import { PATH_SHAPES, usesOnlyRoles } from '@souqstudio/engine'
 import { arrangementsSchema } from '@souqstudio/engine'
-import { FREE_ELEMENTS, SHAPE_VARIANTS, artShapeElement, shapeElement } from './block-elements'
+import {
+  FREE_ELEMENTS,
+  SHAPE_VARIANTS,
+  artShapeElement,
+  intrinsicAspect,
+  proportioned,
+  shapeElement,
+} from './block-elements'
 
 /**
  * The shape kit, as the two things that mint it have to agree about it.
@@ -179,5 +186,63 @@ describe('artShapeElement', () => {
   it('refuses the variant without an outline', () => {
     const { art: _dropped, ...element } = shape(artShapeElement(ART))
     expect(() => arrangementsSchema.parse(arrangement([element]))).toThrow()
+  })
+})
+
+describe('proportioned', () => {
+  // What a box actually draws at on a block of the given shape.
+  const drawn = (box: { width: number; height: number }, block: number) =>
+    (box.width * block) / box.height
+
+  it('draws a circle round on a wide, a tall and a square block', () => {
+    for (const block of [1.4, 0.56, 1, 3.2]) {
+      const circle = proportioned(shapeElement('ellipse'), 1, block)
+      expect(drawn(circle.box, block)).toBeCloseTo(1, 6)
+    }
+  })
+
+  it('keeps an uploaded drawing at its own shape', () => {
+    const art = { width: 300, height: 100, paths: [{ d: 'M0 0 L300 0 L300 100 Z' }] }
+    for (const block of [1.4, 0.56]) {
+      const shape = proportioned(artShapeElement(art), 3, block)
+      expect(drawn(shape.box, block)).toBeCloseTo(3, 6)
+    }
+  })
+
+  it('never lands bigger than the seed box', () => {
+    const seed = shapeElement('star')
+    const star = proportioned(seed, 1, 0.56)
+    expect(star.box.width).toBeLessThanOrEqual(seed.box.width + 1e-9)
+    expect(star.box.height).toBeLessThanOrEqual(seed.box.height + 1e-9)
+  })
+
+  it('keeps the corner flash in its corner', () => {
+    const flash = proportioned(shapeElement('flash'), 1, 1.4)
+    expect(flash.box.start).toBe(0)
+    expect(flash.box.top).toBe(0)
+  })
+
+  it('leaves the element alone for a nonsense aspect', () => {
+    const seed = shapeElement('ellipse')
+    expect(proportioned(seed, 0, 1.4)).toBe(seed)
+    expect(proportioned(seed, 1, Number.NaN)).toBe(seed)
+  })
+})
+
+describe('intrinsicAspect', () => {
+  it('is 1 for round and square shapes and null for stretchy ones', () => {
+    expect(intrinsicAspect(shapeElement('ellipse'))).toBe(1)
+    expect(intrinsicAspect(shapeElement('burst'))).toBe(1)
+    expect(intrinsicAspect(shapeElement('ribbon'))).toBeNull()
+    expect(intrinsicAspect(shapeElement('rect'))).toBeNull()
+  })
+
+  it("is an uploaded drawing's own width over height", () => {
+    const art = { width: 200, height: 50, paths: [{ d: 'M0 0 L200 0 L200 50 Z' }] }
+    expect(intrinsicAspect(artShapeElement(art))).toBe(4)
+  })
+
+  it('is null for artwork, which the designer measures instead', () => {
+    expect(intrinsicAspect(FREE_ELEMENTS.artwork('a/b'))).toBeNull()
   })
 })
