@@ -118,12 +118,32 @@ It should not be decided while building a screen.
 **The 2FA lockout gap in the root CLAUDE.md is still open.** An owner who loses both their
 device and their backup codes needs a Super Admin action that does not exist here yet.
 
-### 3b. E13-02, the image and enrichment halves
+### 3b. E13-02, the image half — **built 23 September**
 
-Bulk CSV import, image upload, the matte review queue (`image_assets` with
-`reviewState = PENDING`), synonym editing and AI enrichment triggers are all unbuilt. The
-product detail screen says so where the absence would otherwise read as "this product has
-no images".
+The product screen shows every image, replaces one, re-runs background removal and
+reviews a matte. `lib/r2.ts` signs the PUT, `POST …/images` records the object and queues
+`bg.remove`, `POST …/images/[id]/recut` is the manual re-run, and
+`PATCH …/catalog/images/[id]` approves or rejects.
+
+Four decisions in it:
+
+- **The bytes never pass through the panel.** A presigned PUT straight to R2, the shape
+  E5-04 already uses, because a serverless body cap is well under the 10 MB a phone camera
+  produces.
+- **The cutout is queued on upload, not offered as a choice.** E5 §3 makes removal an
+  ingest stage; a photo that arrives on white stays on white unless something asks.
+- **Nothing is charged.** The shop-owner route checks a credit balance because a tenant is
+  spending. An admin improving the shared catalog is not a tenant and there is no
+  organization to bill.
+- **A checkerboard behind every thumbnail.** A cutout on white and an uncut photo on white
+  are indistinguishable, and telling them apart is the one thing this screen exists for.
+
+**What is still unbuilt in E13-02:** bulk CSV import, synonym editing, AI enrichment
+triggers, and duplicate detection by name similarity — the pg_trgm indexes exist and
+nothing calls them.
+
+**The catalog has 1,000 originals and zero cutouts.** Background removal has never run
+against it, which is what the re-run button is for.
 
 Duplicate detection is barcode equality only. E13-02 asks for name similarity over
 pg_trgm at 85%, which the trigram indexes support and nothing calls.

@@ -26,6 +26,12 @@ importers:
 
   apps/admin:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3
+        version: 3.1107.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3
+        version: 3.1107.0
       '@souqstudio/db':
         specifier: workspace:*
         version: link:../../packages/db

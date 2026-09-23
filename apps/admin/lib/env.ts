@@ -26,6 +26,26 @@ const schema = z.object({
    * role instead of a bearer header anybody could hold.
    */
   LIBRARY_PUBLISH_TOKEN: z.string().min(16).optional(),
+
+  /**
+   * R2 write credentials, for replacing a catalog product's photo. E13-02.
+   *
+   * **Optional as a group.** `R2_PUBLIC_URL` above is enough to *show* an image
+   * and is required; these four are what it takes to *put* one, and a
+   * deployment without them runs everything else with the upload control
+   * saying so. The alternative is an admin panel that refuses to boot because
+   * nobody has set up a bucket yet, which is the failure the library console
+   * already avoids the same way.
+   *
+   * `lib/r2.ts` is the one place that reads them, and `r2Config()` is what
+   * turns "four optional strings" into "configured, or a sentence saying why
+   * not" so no route has to check them one at a time.
+   */
+  R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  R2_BUCKET_NAME: z.string().min(1).optional(),
+  /** The bare account endpoint, with no bucket in it. See apps/web/lib/env.ts. */
+  R2_ENDPOINT: z.string().url().optional(),
 })
 
 export type Env = z.infer<typeof schema>

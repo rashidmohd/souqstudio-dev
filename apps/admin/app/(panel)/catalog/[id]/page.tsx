@@ -4,8 +4,10 @@ import { requireAdmin } from '@/lib/admin-auth'
 import { listCategoryNames } from '@/lib/catalog-list'
 import { toFormValues } from '@/lib/catalog-schema'
 import { ProductForm } from '@/components/catalog/ProductForm'
+import { ProductImages, type ProductImage } from '@/components/catalog/ProductImages'
 import { ProductStateActions } from '@/components/catalog/ProductStateActions'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { publicUrl, r2Config } from '@/lib/r2'
 import { Card } from '@/components/ui/card'
 import { Figure } from '@/components/ui/figure'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -53,8 +55,20 @@ export default async function ProductPage({ params }: { params: { id: string } }
         updatedAt: true,
         organization: { select: { name: true } },
         images: {
-          select: { id: true, kind: true, reviewState: true, createdAt: true },
-          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            kind: true,
+            reviewState: true,
+            r2Key: true,
+            width: true,
+            height: true,
+            quality: true,
+            derivedFrom: true,
+            createdAt: true,
+          },
+          // Cutouts first: it is the one a card actually draws, so it is the one
+          // somebody opening this screen came to look at.
+          orderBy: [{ kind: 'asc' }, { createdAt: 'desc' }],
         },
         synonyms: { select: { id: true, synonym: true, language: true } },
       },
@@ -65,6 +79,25 @@ export default async function ProductPage({ params }: { params: { id: string } }
   if (product === null) notFound()
 
   const mayEdit = admin.role !== 'support_agent'
+  const upload = r2Config()
+
+  /*
+   * The URL is built here rather than stored. `image_assets.r2Key` is an object
+   * key and always will be — the same rule `blocks` follows for artwork — so
+   * that the bucket can move without rewriting every row.
+   */
+  const images: ProductImage[] = product.images.map((image) => ({
+    id: image.id,
+    kind: image.kind,
+    reviewState: image.reviewState,
+    url: publicUrl(image.r2Key),
+    width: image.width,
+    height: image.height,
+    quality: image.quality,
+    derivedFrom: image.derivedFrom,
+    createdAt: image.createdAt.toISOString(),
+  }))
+
   const values = toFormValues({
     ...product,
     // Decimal to number, so the form holds the same type the schema validates.
@@ -127,36 +160,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
         </Card>
 
         <Card className="flex flex-col gap-2">
-          <h2 className="text-label font-medium text-secondary">Images</h2>
-          {product.images.length === 0 ? (
-            <p className="text-body-sm text-muted">No image. Cards fall back to a placeholder.</p>
-          ) : (
-            <ul className="flex flex-col gap-1 text-body-sm">
-              {product.images.map((image) => (
-                <li key={image.id} className="flex items-center justify-between gap-2">
-                  <span className="text-primary">{image.kind}</span>
-                  {image.reviewState === 'PENDING' ? (
-                    <StatusPill tone="caution">Pending</StatusPill>
-                  ) : image.reviewState === 'REJECTED' ? (
-                    <StatusPill tone="critical">Rejected</StatusPill>
-                  ) : (
-                    <StatusPill tone="positive">Approved</StatusPill>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {/*
-            Uploading and the matte review queue are E13-02's image half and are
-            not built. Said here rather than left as an absence, so nobody
-            concludes the product simply has no images.
-          */}
-          <p className="text-body-sm text-muted">
-            Upload and matte review are not built yet. Images arrive through import.
-          </p>
-        </Card>
-
-        <Card className="flex flex-col gap-2">
           <h2 className="text-label font-medium text-secondary">Synonyms</h2>
           {product.synonyms.length === 0 ? (
             <p className="text-body-sm text-muted">
@@ -175,6 +178,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
           )}
         </Card>
       </div>
+
+      <ProductImages
+        productId={product.id}
+        images={images}
+        canUpload={upload.ok}
+        uploadOffReason={upload.ok ? null : upload.reason}
+        mayEdit={mayEdit}
+      />
 
       {mayEdit ? (
         <>
