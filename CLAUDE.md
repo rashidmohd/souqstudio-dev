@@ -272,7 +272,9 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   this on E14's critical path as well as E9's, because `hug` means measuring a
   string. `pnpm --filter @souqstudio/web fonts:mirror -- --dry-run` is written
   (10 families, 31 faces, 3.8 MB, every one verified OFL against google/fonts)
-  and **has never been run for real**. **Subsetting turned out not to be owed**:
+  and **was first run for real on 22 September 2026** — 335 objects, 15.1 MB,
+  10 families. `docs/fonts-from-google.md` §7a and §8 carry what that measured,
+  including the four silent defects only a real run found. **Subsetting turned out not to be owed**:
   Chromium subsets on embed — a bilingual page of Cairo carries a 9 kB font
   program out of a 91 kB face — and Google already splits by script for the
   specimen. Mirroring the files into R2 is still required before export ships —
@@ -282,14 +284,18 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   **The plan is `docs/fonts-from-google.md`**, written 21 September 2026: R2
   becomes the only source of font bytes after selection, each family is mirrored
   once for the whole platform, and the curated ten become a *Recommended* group
-  in front of the library filtered by the shop's languages. Part A moves the
-  bytes and ships alone; it is what unblocks E14 Phase 2 and E9.
+  in front of the library filtered by the shop's languages. **Part A and Part B
+  are both in**, and the picker now offers all 57 families that cover Arabic and
+  Latin. E14 Phase 2 is unblocked and built; E9 still waits on the export path
+  reading files. The one thing §8 says is still owed is a **fallback policy**:
+  19 to 125 catalog strings per face are in scripts the face cannot draw, and
+  nothing decides what gets drawn instead.
 - **The layout engine is what everything draws through.** `packages/engine` carries track
   resolution, span geometry with RTL mirroring, arrangement selection, grid validation, the
   flow engine, the fit ladder, the price mark, bounded overrides, snapping, the block
   document schema, **the binding vocabulary and its one resolver**, **shadow ring
-  expansion**, **starter blocks** and the seeded block library of **66 blocks** —
-  **661 tests**. Four surfaces render from it and all four share one
+  expansion**, **starter blocks**, **E14's frame solver** and the seeded block
+  library of **66 blocks** — **896 tests**. Four surfaces render from it and all four share one
   painter, `components/blocks/draw.tsx`: `/brand`'s block preview, the editor's page, the
   designer's canvas and its worst-case panel. `pnpm --filter @souqstudio/engine harness`
   draws sample pages to SVG from the seeded blocks and both invented products and **real

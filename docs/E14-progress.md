@@ -8,16 +8,16 @@ is `docs/E14-implementation-plan.md`; Phase 0's answers are
 | --- | --- |
 | **0 — Prove the three risky things · GATE** | **Done. Gate passed.** |
 | **1 — The data map** | **Done. Ships alone.** |
-| 2 — Frames in the engine | Not started |
+| **2 — Frames in the engine** | **Done. Types, solver, placement, 104 tests.** |
 | **3 — Paint** | **Done.** |
-| 4 — Three blocks by hand · GATE | Not started |
-| 5 — The converter | Not started |
-| 6 — Regenerate the seeded library | Not started |
+| **4 — Three blocks by hand · GATE** | **Done. Gate passed, three defects found.** |
+| **5 — The converter** | **Done for the 759 ordinary elements. 179 composites deferred to 6.** |
+| 6 — Regenerate the seeded library | **Next, and it now has a defined worklist.** |
 | 7 — Designer UI | **Paint controls built** — frames are Phase 2's |
 | 8 — Delete the old path | Not started |
 
-`pnpm lint`, `pnpm typecheck` and `pnpm test` are green: **1,526 tests**, up from
-1,349. `pnpm build`, `check:classes` and `export:check` (11/11) pass. The gallery
+`pnpm lint`, `pnpm typecheck` and `pnpm test` are green: **1,942 tests** across
+the workspace, **896 of them in the engine**, up from 772 before Phase 2. `pnpm build`, `check:classes` and `export:check` (11/11) pass. The gallery
 is byte-identical apart from two files, both `blk_post_split`, where a static
 placeholder became a real binding.
 
@@ -44,6 +44,242 @@ follows:
 
 New in the repo: `packages/engine/src/shadow.ts` (+15 tests) and
 `pnpm --filter @souqstudio/engine export:check`.
+
+---
+
+## Phase 5 — the converter, and a contradiction in its own exit
+
+**Done for everything that can be done losslessly**, 23 September 2026.
+`pnpm --filter @souqstudio/engine convert:check`.
+
+```
+66 blocks, 1876 element rects compared in both editions
+worst drift: 0.00e+0
+geometry is identical through both paths
+```
+
+**Zero. Not "within a rounding error" — exactly zero**, across every block, every
+arrangement and both editions. That is not a lucky test result; it is true by
+construction, and the construction is the point of the phase.
+
+### Why it is exact
+
+An arrangement becomes a **`free` frame holding one leaf per element, each
+carrying the box it already had**. `resolveBlock` maps a fractional box onto a
+container with one mirroring rule; `boxRect` in `solve.ts` runs the same
+arithmetic with the same rule for a child of a `free` frame. Same input, same
+formula, same float.
+
+This is why `free` frames were kept in the design as "the `groupId` migration
+path" rather than dropped once rows and columns existed. **Phase 5 is a
+migration, not a redesign**: no hugging row, no filling child, nothing
+re-authored. Getting 66 blocks across the boundary without moving a pixel is the
+entire job, and turning a card into a real frame tree is Phase 6.
+
+### Three things the survey found before any code was written
+
+- **`groupId` is used by nothing.** The plan's "every `groupId` run becomes a
+  `free` frame" is a no-op: 144 arrangements, 938 elements, **zero** group runs.
+  `Frame.children` replaces a feature nothing had adopted.
+- **`logo` is already gone**, folded into `image` by Phase 1.3 as the plan said.
+- **The library is 66 blocks, not 83.** The plan and §6 both say 83; that number
+  predates the library moving to R2. `convert:check` counts what is there.
+
+### The contradiction, stated plainly
+
+Phase 5's two instructions cannot both hold:
+
+> Every `priceMark` becomes a frame holding a price text plus whatever its
+> recipe said was visible.
+>
+> **Exit:** the gallery renders all the blocks before and after and the two are
+> byte-identical.
+
+**`layoutPriceMark` positions its pieces from the amount being drawn.** A mark's
+internal geometry is a function of the price, so there is no fixed set of boxes
+to bake in and no way for a differently-fitting frame to land on the same
+numbers for every offer. The same is true of `chip` and `layoutChipStack`. Either
+the composite stays composite, or the geometry moves.
+
+So the converter **leaves both as leaves at their own boxes and records a note
+naming why**. The exit holds exactly for the 759 ordinary elements; the 179
+composites are counted, not converted:
+
+| Kind | Instances | Owed |
+| --- | --- | --- |
+| `priceMark` | 104 | a frame, authored in Phase 6 |
+| `chip` | 75 | a frame with a fill and a text, §4 |
+
+That is a real worklist rather than a deferral: §4 already says what each becomes,
+and Phase 6 rewrites `library-cards.ts` and its siblings by hand anyway. Doing
+it in the converter would mean writing the frame version of every price mark
+*twice* — once mechanically and once by hand a phase later.
+
+### Rects, not bytes
+
+`convert:check` diffs **geometry**, not rendered SVG. Byte-identical SVG is a
+proxy for "the geometry did not change", and comparing the geometry directly
+tests the same claim without coupling the answer to a renderer — which matters
+here, because a converted tree cannot go through `harness/svg.ts` at all until
+`LayoutFrame` joins `BlockElement`. It is also the stricter instrument: it
+compares floats rather than their printed forms.
+
+---
+
+## Phase 4 — the gate, and what looking at it found
+
+**Passed, 23 September 2026.** Six renders of five block kinds, each in both
+editions: `pnpm --filter @souqstudio/engine frames` writes
+`harness/out/frames.html`.
+
+**The model survives.** The shelf ticket's row anchored at its end does the thing
+the design was written for — a longer price makes the row wider and it extends to
+the left, and the name and spec beside it reflow rather than being pushed off.
+The star *is* the frame, so recolouring it is one field. The 3-up band with a
+spanning card works, and mirrors.
+
+### Three defects, none of which a unit test caught
+
+All three were found by looking at a picture, which is the entire argument for
+this phase existing.
+
+**1. Out-of-flow children were reordered, so they painted underneath.**
+`positionFlow` emitted every `ignoreLayout` child before the in-flow ones. The
+burst card authors its star last so it paints on top of the packshot; it solved
+first and the packshot covered it, leaving a gold sliver where a badge should be.
+The geometry was correct the whole time — `flattenSolved` showed the star at
+exactly the right box — which is why nothing failed. Paint order derives from
+flow order, so the authored order is now preserved and three tests pin it.
+
+**2. A column never wrapped its text.** The re-measure that makes a hugging
+height respond to the width the flow assigned fired only for rows. A column is
+the commonest layout there is — name over spec over price — and a text sized
+`fill` took the column's width and then reported the height of a single
+unwrapped line, so it drew straight through the price beside it.
+
+The fix is a rule worth stating: **the horizontal axis is resolved first,
+whichever axis that is.** Text height depends on text width and never the
+reverse. In a row the width is the main axis and was already first; in a column
+it is the cross axis and is now resolved before the main sizes.
+
+**3. The harness measured one way and drew another.** The measurer divided a
+natural width by the available one; the renderer drew a single `<text>`. So the
+gallery showed a name running through a price while the solver believed it had
+wrapped. Both now call one `wrapText`. A harness whose picture disagrees with the
+geometry behind it is worse than no harness, because the picture is what somebody
+reviews.
+
+### Two findings the model should absorb, not defects
+
+**A hugging frame hugs its bounding box, not the shape's usable interior.**
+`SAVE 25%` nearly escapes the star's points: padding is measured against the
+frame's rectangle, and a five-point star's inscribed area is a fraction of that.
+The engine already knows this — `MARK_FIT` in `shapes.ts` exists precisely
+because "a burst's usable area is a fraction of its box", and `layoutPriceMark`
+reports the inset interior so that a price looking small inside one reads as
+fitting correctly rather than misbehaving. **A frame with `shape` set needs the
+same inset**, and it should reuse that table rather than grow a second one.
+
+**`baselineAlign` is still only recorded.** The ticket aligns its currency and
+price with `align: 'end'`, which reads as approximately baseline and is not.
+Getting it right needs a font metric, so it is Phase 3's painter or a measurer
+that reports one. It is the next thing a designer will notice.
+
+### What Phase 5 inherits
+
+The three depth levels a 3-up band with a spanning card costs — band, column,
+card — put it **exactly at §8's cap of three**. A span is expressed as *a column
+that does not subdivide*, which works; anything wanting a card subdivided again
+has nowhere to go. That is the measurement §8 asked for before deciding whether
+`grid` becomes a third `Layout` mode, and it says: not needed for these five, and
+one level short for anything past them.
+
+---
+
+## Phase 2 — frames, the solver and placement
+
+**Done, 23 September 2026.** Three modules and 104 tests, and nothing renders —
+which is the exit criterion, not a shortfall.
+
+| Piece | Where | Tests |
+| --- | --- | --- |
+| `Frame`, `Layout`, `Sizing`, the Zod schema, the validity rules | `packages/engine/src/frame.ts` | 27 |
+| The two-pass solver | `packages/engine/src/solve.ts` | 54 |
+| `designSize` → region: the scalar, per slot class, the legibility floor | `packages/engine/src/place.ts` | 23 |
+
+`export:check` still reports 11/11 and the whole suite is green, which is what
+says this is additive: nothing that draws today reads any of it yet.
+
+### The frame tree is not in `BlockElement`, and that is on purpose
+
+§2 writes `Frame` as a member of `BlockElement` with `children: BlockElement[]`,
+and that is where it ends up. It is **not** there yet.
+
+**72 call sites switch on `element.kind`** across the engine, the harness,
+`draw.tsx` and the designer, and adding a union member turns every one of them
+into a compile error. Phase 2's exit is "the solver has tests for every rule in
+§5, nothing renders yet", so joining the union is Phase 5's job — the converter
+is the thing that has somewhere to convert *into*, and Phase 3's painter is what
+can draw the result.
+
+What it costs is one indirection: `LayoutLeaf` stands for the element being
+positioned and carries only what layout reads, with `ref` holding the element's
+id so the converter's mapping is a lookup rather than a rewrite. What it buys is
+that this phase was finishable and testable on its own.
+
+### Two things the design did not settle, settled here
+
+**`stretch` does not override a cross size set by hand.** The design says
+`align: 'stretch'` takes the whole cross axis and does not say what happens when
+the child already has a fixed height. Flexbox stretches only items whose cross
+size is `auto`, and Figma behaves the same way; the solver follows both. The
+alternative makes an explicit height a suggestion, with no way for an author to
+say they meant it. Found by a test that asserted the opposite and was wrong.
+
+**`hug` is refused on a `free` frame.** §2 says hug is valid on frames, and the
+`free` frame is the case that cannot work: its children are positioned by
+fractions *of the frame*, so hugging them has no fixed point — the same
+circularity §2.2 uses to keep `gap` in design units. `validateFrame` reports
+`hug-on-free-frame` and `measureFrame` returns zero rather than inventing a
+number. This is not in the design and is added rather than discovered later.
+
+### §8's open question, closed one way
+
+**`between` on a hugging axis is refused, not cut.** §8 left it between the two
+and leaned cut. Refusing keeps the value available on the wide band that wanted
+it, and the outcome neither option wanted — a silent fallback to `start` —
+is what a solver does if nothing refuses it. `validateFrame` reports
+`between-on-hug`.
+
+### Direction: the trap, and why this is not a transform
+
+§5.5 asks for two things that pull against each other: lay out from the other
+end, and do not write a pass that rewrites boxes. Both hold here.
+
+Each child's offset is computed **along the logical main axis**, and `physical()`
+converts it to a coordinate exactly once, as the rect is written. There is no
+second traversal over finished boxes — that traversal is the one that printed a
+pack label backwards, and it does not exist in this module.
+
+The trap itself is mirroring by *field name* rather than by *axis*. `justify` and
+`align` are both spelled `start`/`end`, and only the one addressing the
+horizontal axis mirrors: `justify` on a row, `align` on a column. `mirrorMain`
+and `mirrorCross` are derived from the mode and are the only place direction is
+consulted. Four tests pin all four combinations, because three of them passing
+is what a by-name implementation looks like.
+
+### What Phase 4 should expect to find
+
+The solver has never seen a real block. The three things most likely to move:
+
+- **Nesting depth.** Capped at three per §8, and the 3-up band with a spanning
+  card is the one that will argue with it.
+- **The re-measure.** A hugging height re-measures against the width the flow
+  gave it, which is the paragraph case. It fires only for a leaf in a row whose
+  height hugs; a wrapped text in a column has not been exercised.
+- **`between` and `reserve` together.** Both are tested alone. A row that
+  reserves a missing was-price *and* spreads its slack is the offer card, and it
+  is the first place they meet.
 
 ---
 

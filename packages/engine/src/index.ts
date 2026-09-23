@@ -357,3 +357,74 @@ export {
   type ShopProfile,
   type ShopTrade,
 } from './shop-profile'
+/**
+ * Frames, sizing and the two-pass solver. E14 Phase 2 —
+ * `docs/E14-layout-frames.md` §2 and §5.
+ *
+ * **Not yet joined to `BlockElement`.** The frame tree is its own type until
+ * Phase 5's converter, because adding a member to that union turns 72 call
+ * sites into compile errors and Phase 2's exit is "nothing renders yet". See
+ * the note at the top of `frame.ts`.
+ */
+export {
+  MAX_FRAME_DEPTH,
+  NO_PADDING,
+  designSizeSchema,
+  fill,
+  fillWeight,
+  fixed,
+  frameSchema,
+  hug,
+  isFlow,
+  nodeSchema,
+  validateFrame,
+  type Align,
+  type DesignSize,
+  type FlowLayout,
+  type FrameProblem,
+  type Justify,
+  type Layout,
+  type LayoutFrame,
+  type LayoutLeaf,
+  type LayoutNode,
+  type LayoutNodeBase,
+  type Padding,
+  type ResolveContext,
+  type Sizing,
+} from './frame'
+export {
+  findSolved,
+  flattenSolved,
+  measureNode,
+  paintOrder,
+  solve,
+  solvedBounds,
+  type IntrinsicSize,
+  type MeasureLeaf,
+  type SolvedNode,
+} from './solve'
+// Fitting a solved block into a region: one scalar, per slot class, with the
+// legibility floor that triggers reflow rather than further scaling. §5.2, §5.3.
+export {
+  MIN_LEGIBLE_PT,
+  classScale,
+  fitScale,
+  place,
+  placeRect,
+  points,
+  sourcePixels,
+  type BlockPlacement,
+  type Size,
+  type TextFloor,
+} from './place'
+// The flat element list, as a frame tree. E14 Phase 5 — a lossless migration,
+// not a redesign: an arrangement becomes a `free` frame holding one leaf per
+// element at the box it already had, which is identical by construction.
+export {
+  conversionNotes,
+  convertArrangement,
+  convertBlock,
+  type ConversionNote,
+  type ConvertedArrangement,
+  type ConvertedBlock,
+} from './convert'

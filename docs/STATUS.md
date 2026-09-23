@@ -3,16 +3,43 @@
 Read this before starting an epic. It says what is built, what is blocking, and what each
 of the remaining epics needs before it can begin.
 
-Last updated 20 September 2026.
+Last updated 23 September 2026. What changed on 22–23 September, and why some of it is
+not what the plan said: `docs/worklog-2026-09-23.md`.
 
-**E14 is under way. Its first gate is passed and three of its nine phases are
+**E14 is under way. Both gates are passed and six of its nine phases are
 built.** `docs/E14-layout-frames.md` is the design, `docs/E14-implementation-plan.md`
 the phased work, **`docs/E14-progress.md` what is actually done**, and
 `docs/E14-phase-0-findings.md` the measurements that changed the plan. §1.9.
 
 Built: **Phase 0** (the gate), **Phase 1** (the data map, which ships alone),
-**Phase 3** (paint), and Phase 7's paint controls early. **Phase 2 — frames and
-the solver — is the next real work and nothing after it is startable.**
+**Phase 2** (frames, the solver and placement), **Phase 3** (paint), **Phase 4**
+(the second gate, passed), **Phase 5** (the converter) and Phase 7's paint
+controls early. **Phase 6 — regenerating the seeded library — is the next real
+work**, and Phase 5 handed it a defined worklist: 104 price marks and 75 chips
+to author as frames.
+
+**Both gates are passed and the layout model is proven.** Phase 4 built five
+blocks by hand and looked at them: `pnpm --filter @souqstudio/engine frames`.
+A row anchored at its end extends to the left as the price grows, the star *is*
+the frame, and the 3-up band with a spanning card works in both editions. Three
+defects fell out of looking, none of which a unit test caught — the worst being
+that a column never wrapped its text.
+
+**The library converts with zero geometry drift.**
+`pnpm --filter @souqstudio/engine convert:check` resolves all 66 blocks through
+the old path and the frame path and compares 1,876 rects in both editions: the
+worst difference is exactly 0. Phase 5 found that its own exit criterion cannot
+hold for `priceMark` and `chip` — their geometry is a function of the amount
+being drawn, so there is nothing to bake in — and those 179 elements are counted
+and deferred to Phase 6 rather than silently moved. `docs/E14-progress.md`.
+
+**Phase 2 solves and nothing draws yet, deliberately.** The frame tree is its own
+type rather than a member of `BlockElement`: 72 call sites switch on
+`element.kind`, and joining that union is Phase 5's job, when the converter has
+somewhere to convert into and Phase 3's painter can draw the result.
+`docs/E14-progress.md` carries what Phase 2 settled that the design had left
+open — `stretch` against an explicit cross size, `hug` on a `free` frame, and
+`between` on a hugging axis.
 
 Four findings from Phase 0 changed the plan and are worth knowing before
 touching any of it:
@@ -146,14 +173,16 @@ editor widens that gap**, and the last two were.
 | **E6** Offer book editor | **Built, and the front of it rebuilt on 10–12 September.** Creating a book is four steps rather than one form — pick what you are making (booklet, post, status, poster), pick the offer card from the seeded twenty-five, add products by search *or* by dropping a price list in, then preview what you made and keep it or discard it. Nobody is asked for a name; the editor renames. Then: draw it, price it, set tiers, reorder by drag, add and remove offers, join two products with an `or`/`and`, set unit price, chips, footnotes, extra charges and per-book product names, nudge a card within bounded limits, undo and redo, autosave, change the master grid, **set the page margin, its header and footer bands, and a page background of a colour, a gradient or an image**, pin a panel, and duplicate the whole book. **Since 12–13 September a page is something an owner lays out**: select cells and merge them, give one page its own paper, and put any block in any single cell — a brand panel in a cell stops it taking a product and the products route around it rather than being dropped. All three belong to the page they were made on, not to the book. The start pane is a tool rail grouped by scope — Offers, Layout, Background, **Page**, Pins. Not written: dragging track edges, and the two block element kinds the unit-price line and footnote markers would need to *print*. Still no Fabric anywhere. See `E6-create-flow.md`, `E6-pending.md` §8 and §10, and §1.5. |
 | **E7** Block designer | **Built, rebuilt, and then made to look like the tools it is competing with.** `/brand/blocks` is the library; `/card-designer/[blockId]` is the designer. A tool rail of the conventional glyphs on the start edge, a layer list that drags to reorder with front-most at the top, and a canvas that opens fitted. Multi-select and marquee, group, align, distribute, snap with guides, drag, resize, rotate, opacity, any colour from the palette or a hex, any type size, weight, case and italics, rectangles, circles, lines and strokes, uploaded artwork, a price mark whose colour and frame are the shop's, keyboard nudge and clipboard, undo, autosave, version history. A block placed once is designed at a page shape rather than a card. **The seeded library is sixty-five blocks** — twenty-five offer cards, seven headers and covers, nine panels, five footers, eight square social posts and eleven seasonal bands — and the screen changed shape with it: `/brand/blocks` is now the shop's own blocks alone, with "Add from library" opening a filtered, multi-select picker. Gradients shipped on shape fills. **The price mark now draws from the shape kit too** — a burst, a tag, a ribbon or nothing, fitted by `layoutPriceMark` rather than hand-placed behind it — and the library was pulled apart so twenty-five cards stop reading as one card in costumes. See §1.3. Not written: seasonal *scheduling* (the blocks are marked `isSeasonal` and carry no dates, because Ramadan and both Eids move against the Gregorian calendar). See `E7-pending.md` §8. |
 | **E8** AI features | **Eight of nine built, and the image half is running against a live model.** E8-07 magic block, E8-08 brand direction, E8-09 logo mark, E8-05 background removal — now including the manual action and the credit that had never been charged — and E8-01 to E8-04: characters, poses, described poses and covers, behind `IMAGE_PROVIDER` (Gemini default, Qwen second). **E8-06 `enrich` is the one that is not built**, and it is E5's Arabic blocker. **E8-01 was rebuilt the day it shipped** — see §1.7. What is still owed: **E8-02 and E8-03 have routes and workers but no UI** — `CharacterGallery` renders poses and cannot make one. **E8-04 shipped on 16 September** as "Generate a ground" in the editor's page-background control: a drawn background reaches a page through `PageBackground`, which needed no schema change because a cover key already satisfies that route's org-prefix check. The *composite* — name, logo and character on top — is still E9's. See `E8-pending.md` §3, §3a and §3c. |
+| **E13** Admin panel | **Partly built, 22–23 September.** Staff auth against `admin_users` (sessions in `admin_sessions`, 8h absolute and 1h idle, `ADMIN_SESSION_SECRET` keying the stored hash so rotating it ends every session), an IP allowlist in middleware, three nesting roles, and an audit log written by one module on every mutation. Three surfaces on top: **catalog** (both collections, search and filters, add, edit, archive, restore, promote), the **block library console** (list every block, publish one to the shared library and sync it, super admin only), and **AI prompt management** (the 19 `cover_prompts` rows, which moved into the database in September so the art direction could be tuned and until now were editable only with SQL). Plus an overview and the audit log itself. **Not built: E13-01's organization half and impersonation, E13-03's contribution queue, bulk import, the matte review queue, E13-05, E13-06 and E13-07.** No sign-up and deliberately no bootstrap route: `pnpm --filter @souqstudio/db admin:create`. See `E13-pending.md`. |
 | **E4** Brand setup | Built, and **reshaped by the composition model**. `/brand` is four cards — logo, colours, typography, blocks. The kit holds *identity only*: an open-ended named palette, definable text styles with a Google Fonts picker, and no layout at all. The setup wizard dropped from five steps to three. See §1.1. |
 
 **Not an epic, but built:** the layout engine, the block schema and the first renderer.
 See §1.2 — it is most of what E6 and E7 were scoped to do.
 
-Everything else is unstarted: **E9, E10, E11, E12, E13**. Their route directories
-exist and are empty. E8 now has eight features in it and one that is not — `enrich`,
-which is also what is holding up E5's Arabic editions.
+Everything else is unstarted: **E9, E10, E11, E12**. Their route directories
+exist and are empty. **E13 is no longer among them** — see its row above. E8 now has
+eight features in it and one that is not — `enrich`, which is also what is holding up
+E5's Arabic editions.
 
 `apps/web/lib/features.ts` is the machine-readable version of this table. A control whose
 destination is not built renders disabled with the reason visible, or is omitted. **Flip
@@ -1129,12 +1158,14 @@ permission only — covers logos, which are also trademarks. `logoKey` and `logo
 on the row and stay null until permissioned assets exist; cards fall back to the brand
 name, which is what they render today.
 
-**The curation side is unbuilt and this is where it bites.** `apps/admin` has seven route
-directories and **zero `.tsx` files** — no screen to merge two spellings, write an Arabic
-name, attach a logo, or promote a brand to canonical. Everything the importer creates
-arrives `unreviewed`, and the Open Food Facts run will create thousands of them. They are
-usable immediately, so nothing breaks; they simply accumulate uncurated until E13 / E5-08
-builds the admin auth path against `admin_users` and the screens on top of it.
+**The curation side is still unbuilt, and it is now the only part of this that is.**
+`apps/admin` stopped being empty on 22 September: it has staff auth, an audit log and a
+catalog screen. What that screen administers is *products* — there is still no screen to
+merge two brand spellings, write an Arabic brand name, attach a logo, or promote a brand
+to canonical, and `product_brands` has no admin surface at all. Everything the importer
+creates arrives `unreviewed` and simply accumulates. Nothing breaks, because an unknown
+brand never blocks an owner; the rows just stay uncurated. The auth path they were waiting
+on exists now, so this is a screen rather than a foundation.
 
 ### The tsvector migration is applied — full-text search is unblocked
 
@@ -1494,11 +1525,33 @@ security-alert mail at all — enabling, disabling or resetting two-factor notif
 The `Notification` and `NotificationPreference` models exist; there is no in-app
 notification UI and no `stores/notification-store.ts`.
 
-### E13 — Admin panel (MVP for catalog and org management)
+### E13 — Admin panel — the foundation and three surfaces built, 22–23 September
 
-**Needs first:** E5, for anything to administer. `apps/admin` is scaffolded and empty.
-Admin auth is a separate path against `admin_users` with its own session secret — never
-the shop-owner session layer.
+**No longer scaffolded.** Staff auth, the IP allowlist, roles and the audit log are in,
+and so are catalog management, the block library publish console and AI prompt editing.
+`docs/E13-pending.md` is the record of what was built, what was decided and what is not
+there.
+
+**What to pick up, in the order the decisions are ready:**
+
+- **The two review queues** — E13-03's product contributions and E13-02's matte queue
+  (`image_assets` with `reviewState = PENDING`). Both have tables, neither has a screen,
+  and neither carries an open design question.
+- **Brand curation**, which is the gap the §2 note above describes and which nothing else
+  covers.
+- **E13-01's organization half.** Search, detail, plan changes, credit adjustments,
+  suspension. **Impersonation carries a real design question and should not be decided
+  while building a screen**: it means `apps/admin` writing to `sessions`, the table
+  `apps/web/lib/session.ts` documents itself as the sole writer of, and that rule exists
+  because rotation and theft detection stop being trustworthy with a second writer. Either
+  it goes through a route in `apps/web` that the panel calls — the shape the library
+  console already uses — or the rule changes deliberately.
+- **Bulk import**, and duplicate detection by name similarity: the pg_trgm indexes exist
+  and nothing calls them.
+
+**Rate limiting is absent on every route here, including login.** The IP allowlist is
+doing that work and is not a substitute — it is a network control and says nothing about
+how fast a request from inside the network may arrive.
 
 ### E7 — Block designer — built 7 September, opened up 8 September
 

@@ -12,7 +12,9 @@
     "harness": "tsx harness/main.ts",
     "gallery": "tsx harness/gallery.ts",
     "export:check": "tsx harness/export-check.ts",
-    "blocks:publish": "tsx --env-file-if-exists=../../apps/web/.env.local scripts/publish-library.ts"
+    "blocks:publish": "tsx --env-file-if-exists=../../apps/web/.env.local scripts/publish-library.ts",
+    "frames": "tsx harness/frames.ts",
+    "convert:check": "tsx harness/convert-check.ts"
   },
   "dependencies": {
     "@souqstudio/types": "workspace:*",
