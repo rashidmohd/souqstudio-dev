@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { prisma, Prisma } from '@souqstudio/db'
+import { publicUrl } from '@/lib/r2'
 
 /**
  * The catalog list query. E13-02.
@@ -21,12 +22,33 @@ export type Collection = 'all' | 'universal' | 'private'
 export type ArchivedFilter = 'active' | 'archived' | 'all'
 export type ImageFilter = 'any' | 'with' | 'without'
 
+/**
+ * The orders the list offers.
+ *
+ * **Only non-null columns.** Prisma's cursor pagination seeks from the cursor
+ * row's values in every `orderBy` field, and a null in one of them (brand,
+ * category, barcode) makes the seek skip or repeat rows at the boundary. Every
+ * option here also ends on `id`, so the order is total.
+ */
+export const SORTS = {
+  updated: { label: 'Recently updated', orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }] },
+  created: { label: 'Recently added', orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
+  'name-asc': { label: 'Name, A to Z', orderBy: [{ nameEn: 'asc' }, { id: 'asc' }] },
+  'name-desc': { label: 'Name, Z to A', orderBy: [{ nameEn: 'desc' }, { id: 'desc' }] },
+} as const satisfies Record<
+  string,
+  { label: string; orderBy: Prisma.CatalogProductOrderByWithRelationInput[] }
+>
+
+export type Sort = keyof typeof SORTS
+
 export type CatalogFilters = {
   q: string
   collection: Collection
   category: string
   archived: ArchivedFilter
   image: ImageFilter
+  sort: Sort
   cursor: string | null
 }
 
@@ -44,6 +66,7 @@ export function parseFilters(params: Record<string, string | string[] | undefine
   const collection = one('collection')
   const archived = one('archived')
   const image = one('image')
+  const sort = one('sort')
 
   return {
     q: one('q').trim(),
@@ -52,6 +75,8 @@ export function parseFilters(params: Record<string, string | string[] | undefine
     category: one('category'),
     archived: archived === 'archived' || archived === 'all' ? archived : 'active',
     image: image === 'with' || image === 'without' ? image : 'any',
+    // The assertion is what `hasOwn` just proved; it does not narrow on its own.
+    sort: Object.hasOwn(SORTS, sort) ? (sort as Sort) : 'updated',
     cursor: one('cursor') === '' ? null : one('cursor'),
   }
 }
@@ -69,6 +94,8 @@ export type CatalogRow = {
   enrichedAt: Date | null
   imageCount: number
   pendingImages: number
+  /** The picture a shop would see on a card, or null when there is none. */
+  thumbnailUrl: string | null
 }
 
 function where(filters: CatalogFilters): Prisma.CatalogProductWhereInput {
@@ -128,9 +155,9 @@ export async function listProducts(filters: CatalogFilters): Promise<CatalogPage
     // counting the whole table.
     take: PAGE_SIZE + 1,
     ...(filters.cursor === null ? {} : { cursor: { id: filters.cursor }, skip: 1 }),
-    // `id` breaks ties on `updatedAt`, so the cursor is total and a page cannot
+    // `id` breaks ties in every sort, so the cursor is total and a page cannot
     // repeat a row when two were saved in the same millisecond.
-    orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+    orderBy: [...SORTS[filters.sort].orderBy],
     select: {
       id: true,
       nameEn: true,
@@ -143,7 +170,7 @@ export async function listProducts(filters: CatalogFilters): Promise<CatalogPage
       enrichedAt: true,
       organization: { select: { name: true } },
       brand: { select: { nameEn: true } },
-      images: { select: { reviewState: true } },
+      images: { select: { kind: true, reviewState: true, r2Key: true } },
     },
   })
 
@@ -167,8 +194,25 @@ export async function listProducts(filters: CatalogFilters): Promise<CatalogPage
       enrichedAt: row.enrichedAt,
       imageCount: row.images.length,
       pendingImages: row.images.filter((image) => image.reviewState === 'PENDING').length,
+      thumbnailUrl: thumbnail(row.images),
     })),
   }
+}
+
+/**
+ * The cutout first, then the original, matching `pickImage` in `apps/web`, so
+ * the list shows what a card draws. A rejected matte is skipped: showing it
+ * here would make the row look finished when a shop is getting the original.
+ */
+function thumbnail(
+  images: readonly { kind: 'ORIGINAL' | 'CUTOUT' | 'THUMB'; reviewState: string; r2Key: string }[]
+): string | null {
+  const usable = images.filter((image) => image.reviewState !== 'REJECTED')
+  const pick =
+    usable.find((image) => image.kind === 'CUTOUT') ??
+    usable.find((image) => image.kind === 'ORIGINAL') ??
+    usable[0]
+  return pick === undefined ? null : publicUrl(pick.r2Key)
 }
 
 /** The categories as seeded, for the filter. Read from the table, not a constant. */

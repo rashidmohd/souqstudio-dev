@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
-import type { CatalogFilters as Filters } from '@/lib/catalog-list'
+import type { CatalogFilters as Filters, Sort } from '@/lib/catalog-list'
 
 /**
  * The catalog filter bar. E13-02.
@@ -20,9 +20,12 @@ import type { CatalogFilters as Filters } from '@/lib/catalog-list'
 export function CatalogFilters({
   filters,
   categories,
+  sorts,
 }: {
   filters: Filters
   categories: readonly string[]
+  /** Passed in rather than imported: `catalog-list` is server-only. */
+  sorts: readonly { value: Sort; label: string }[]
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -130,6 +133,24 @@ export function CatalogFilters({
             <option value="active">Active</option>
             <option value="archived">Archived</option>
             <option value="all">Both</option>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="catalog-sort" className="text-label font-medium text-primary">
+            Sort
+          </label>
+          <Select
+            id="catalog-sort"
+            className="w-field-select"
+            value={filters.sort}
+            onChange={(event) => apply({ sort: event.target.value })}
+          >
+            {sorts.map((sort) => (
+              <option key={sort.value} value={sort.value}>
+                {sort.label}
+              </option>
+            ))}
           </Select>
         </div>
 

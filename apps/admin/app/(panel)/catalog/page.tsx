@@ -1,6 +1,7 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { requireAdmin } from '@/lib/admin-auth'
-import { listCategoryNames, listProducts, parseFilters } from '@/lib/catalog-list'
+import { listCategoryNames, listProducts, parseFilters, SORTS, type Sort } from '@/lib/catalog-list'
 import { CatalogFilters } from '@/components/catalog/CatalogFilters'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ButtonLink } from '@/components/ui/button'
@@ -54,7 +55,15 @@ export default async function CatalogPage({
         }
       />
 
-      <CatalogFilters filters={filters} categories={categories} />
+      <CatalogFilters
+        filters={filters}
+        categories={categories}
+        // `Object.keys` widens to string[]; SORTS is a literal, so its keys are Sort.
+        sorts={(Object.keys(SORTS) as Sort[]).map((value) => ({
+          value,
+          label: SORTS[value].label,
+        }))}
+      />
 
       {page.rows.length === 0 ? (
         filtered ? (
@@ -83,6 +92,9 @@ export default async function CatalogPage({
         <>
           <Table>
             <Thead>
+              <Th>
+                <span className="sr-only">Image</span>
+              </Th>
               <Th>Name</Th>
               <Th>Brand</Th>
               <Th>Category</Th>
@@ -94,6 +106,29 @@ export default async function CatalogPage({
             <Tbody>
               {page.rows.map((row) => (
                 <Tr key={row.id} className="hover:bg-surface-hover">
+                  <Td>
+                    {/*
+                      Optimised by Next rather than read from the `@sm` variant:
+                      only the bulk ingest writes the variant ladder, so a photo
+                      uploaded from this panel has none, and the full-size object
+                      fifty times over is the page weight the variants exist to
+                      avoid.
+                    */}
+                    {row.thumbnailUrl === null ? (
+                      <div
+                        aria-hidden
+                        className="size-control-lg rounded-chip border border-border-subtle bg-stone-100"
+                      />
+                    ) : (
+                      <Image
+                        src={row.thumbnailUrl}
+                        alt=""
+                        width={48}
+                        height={48}
+                        className="size-control-lg rounded-chip border border-border-subtle bg-stone-100 object-contain"
+                      />
+                    )}
+                  </Td>
                   <Td>
                     <Link
                       href={`/catalog/${row.id}`}

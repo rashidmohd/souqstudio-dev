@@ -1134,6 +1134,29 @@ the error surfaced in the worker's build on Railway instead. That is exactly how
 Note that `pnpm check` is `typecheck + lint + stylelint` and still does not include
 `build`. Railway runs `build`.
 
+### The admin panel 404s unless two variables are right — cost one deployment
+
+Both are set-and-forget, both were wrong on the first Railway deploy, and both fail in a
+way that looks like something else.
+
+**`ADMIN_IP_ALLOWLIST` must be empty** unless you know your public address. The middleware
+answers a flat 404 to any address not on the list, deliberately — a 403 would confirm an
+admin panel is there. `.env.example` used to ship `127.0.0.1,::1`, which is right for a
+local `next start` and refuses every real browser.
+
+**`/api/health` is exempt, and that is the diagnostic.** Health answering `ok` while every
+page answers 404 *is* the allowlist. Refusals are now logged — `[admin] refused /login
+from …` with the address and the entry count — so the next one is findable.
+
+**`R2_PUBLIC_URL` must match the web service.** The scaffold shipped
+`assets.souqstudio.com`, which 403s; the dev bucket is served from
+`blocks-dev.souqstudio.com`. Wrong, every product photo in the panel is a broken image
+with no error anywhere. `next.config.mjs` now derives the allowed image host from the
+variable rather than listing it, because the list had already drifted from the value.
+
+**With the allowlist empty, the password is the only control on the panel**, and there is
+no rate limiting on any admin route including login. See the rate-limiting note below.
+
 ### Row-level security has no policy — blocks nothing, endangers everything
 
 The baseline migration exists and `withOrg()` ships, but **not one policy has been
@@ -1267,6 +1290,11 @@ backfill.
 No route has any, including the public tracking endpoints E11 will add, which are
 unauthenticated and trivially floodable. `POST /api/v1/auth/2fa/enroll` runs bcrypt
 unthrottled behind a valid session.
+
+**The admin panel is now the sharpest edge of this.** Its login route runs bcrypt
+unthrottled, and with `ADMIN_IP_ALLOWLIST` empty — which is what a working deployment
+needs today — nothing but the password stands in front of a panel that reaches every
+organization. Redis is already a dependency of that service, so the fix is small.
 
 ---
 
