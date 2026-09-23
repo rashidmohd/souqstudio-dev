@@ -1,7 +1,10 @@
 import 'server-only'
 
+// Shared by `apps/web` and `apps/admin`: both designers take artwork, and a
+// second copy of the density arithmetic below is a second answer to how sharp
+// an uploaded badge prints.
+
 import sharp from 'sharp'
-import { VECTOR_RASTER_EDGE } from '@/lib/r2'
 
 /**
  * Turn uploaded vector artwork into a PNG. E7.
@@ -21,6 +24,45 @@ import { VECTOR_RASTER_EDGE } from '@/lib/r2'
  * disappoint. If the export worker ever wants true vector, this is the decision
  * to revisit, and it will need a sanitiser to do it.
  */
+/**
+ * How large a rasterised vector may be, on its longest edge.
+ *
+ * A4 at 300dpi is 2480px across and a badge occupies a fraction of it, so 2048
+ * is past anything this prints — and the cost of guessing high is bytes rather
+ * than a visible defect, which is the right way round.
+ */
+export const VECTOR_RASTER_EDGE = 2048
+
+/**
+ * A filename as a name an owner recognises.
+ *
+ * The extension goes because it is noise in a picker, and a long name is cut
+ * rather than refused — the file is already uploaded by the time this runs, and
+ * losing an owner's artwork over its title would be absurd.
+ */
+export function assetName(filename: string): string {
+  const trimmed = filename.replace(/\.[^./\\]+$/, '').trim()
+  return trimmed === '' ? 'Artwork' : trimmed.slice(0, 80)
+}
+
+/**
+ * Measure a stored PNG.
+ *
+ * **From the bytes rather than from what the client said.** A picker draws each
+ * asset at its own proportion, and a client-supplied width is a number that can
+ * be wrong in a way nothing else would catch — the tile would simply be the
+ * wrong shape, which reads as a rendering bug.
+ */
+export async function measurePng(bytes: Buffer): Promise<{ width: number; height: number } | null> {
+  try {
+    const meta = await sharp(bytes).metadata()
+    if (meta.width === undefined || meta.height === undefined) return null
+    return { width: meta.width, height: meta.height }
+  } catch {
+    return null
+  }
+}
+
 export async function rasteriseVector(input: Buffer): Promise<Buffer | null> {
   try {
     /**

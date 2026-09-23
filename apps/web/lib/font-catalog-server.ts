@@ -2,10 +2,10 @@ import 'server-only'
 
 import { fetchGoogleCatalog, listFonts, REQUIRED_SUBSETS, type Font } from '@souqstudio/db'
 import { fontWoff2Key } from '@souqstudio/types'
-import { noteFor, rolesFor, isRecommended } from '@souqstudio/designer/lib/font-editorial'
+import { toCatalogFont, fontsForKit } from '@souqstudio/designer/lib/font-registry'
 import { env } from '@/lib/env'
 import type { BrandKit } from '@souqstudio/types'
-import { resolveFonts, type CatalogFont, type FontCatalog } from '@souqstudio/designer/lib/font-catalog'
+import type { FontCatalog } from '@souqstudio/designer/lib/font-catalog'
 
 /**
  * Loading the font registry for a request, and turning it into the small thing
@@ -20,25 +20,9 @@ import { resolveFonts, type CatalogFont, type FontCatalog } from '@souqstudio/de
  * `docs/fonts-from-google.md` §4 and §6 A2.
  */
 
-export function toCatalogFont(font: Font): CatalogFont {
-  return {
-    family: font.family,
-    slug: font.slug,
-    // Our opinion where we have one, Google's category where we do not. Read
-    // here rather than stored on the row: a re-mirror must never be able to
-    // overwrite an editorial decision. See lib/font-editorial.ts.
-    roles: rolesFor(font.family, font.category),
-    weights: font.weights,
-    italicWeights: font.italicWeights,
-    subsets: font.subsets,
-    category: font.category,
-    note: noteFor(font.family, font.category),
-    // A fact from Google, not a boolean typed by hand — which is what it was,
-    // and what could therefore be wrong.
-    hasItalic: font.italicWeights.length > 0,
-    recommended: isRecommended(font.family),
-  }
-}
+// Moved to the designer package so `apps/admin` builds the same catalog for the
+// same designer. Re-exported because every caller here imports it from this file.
+export { toCatalogFont }
 
 /**
  * Every mirrored family.
@@ -89,18 +73,7 @@ export async function fontFaceCss(families: readonly string[]): Promise<string> 
 export async function loadFontsForKit(
   kit: BrandKit | null | undefined
 ): Promise<{ catalog: FontCatalog; css: string }> {
-  const rows = await listFonts()
-  const catalog = rows.map(toCatalogFont)
-
-  if (!kit) return { catalog, css: '' }
-
-  const wanted = new Set(Object.values(resolveFonts(kit, catalog)))
-  const css = rows
-    .filter((font) => wanted.has(font.family))
-    .map((font) => font.css.trim())
-    .join('\n')
-
-  return { catalog, css }
+  return fontsForKit(await listFonts(), kit)
 }
 
 /**

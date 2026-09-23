@@ -36,6 +36,8 @@ souqstudio/
 │
 ├── packages/
 │   ├── db/        CLAUDE.md           # Prisma schema, client, queue producers
+│   ├── designer/                      # Block designer, painter and their primitives.
+│   │                                  #   Mounted by apps/web and apps/admin.
 │   ├── email/     CLAUDE.md           # React Email templates
 │   ├── types/                         # Shared TypeScript types
 │   └── config/                        # Shared tsconfig bases
@@ -60,7 +62,8 @@ asked to.
 | Shop-owner page | `apps/web/app/(dashboard)/[feature]/page.tsx` |
 | Auth / onboarding page | `apps/web/app/(auth)/[page]/page.tsx` |
 | Offer book editor | `apps/web/app/(dashboard)/editor/[id]/page.tsx` |
-| Block designer | `apps/web/app/(dashboard)/card-designer/[blockId]/page.tsx` |
+| Block designer (shop) | `apps/web/app/(dashboard)/card-designer/[blockId]/page.tsx` |
+| Block designer (library) | `apps/admin/app/(designer)/blocks/[id]/edit/page.tsx` |
 | Public offer book viewer | `apps/web/app/o/[code]/page.tsx` |
 | Admin page | `apps/admin/app/[feature]/page.tsx` |
 
@@ -71,6 +74,7 @@ asked to.
 | API route | `apps/web/app/api/v1/[resource]/route.ts` | File is always `route.ts`. Export `GET`, `POST`, `PATCH`, `DELETE`. |
 | Feature component | `apps/web/components/[feature]/Name.tsx` | PascalCase file, named export, one component per file |
 | Design system primitive | `apps/web/components/ui/name.tsx` | **kebab-case**, matching shadcn. The file path and prop signature are owned by `souqstudio-design` → `references/component-inventory.md` — build to the signature there, never invent one. |
+| Designer component, painter, or a primitive either uses | `packages/designer/components/…` | The block designer is one component tree mounted by two apps. Anything it imports lives here, imports inside the package are relative, and an app's own `@/` never appears in it. What differs between the apps goes through `DesignerHost` (`packages/designer/lib/designer-host.tsx`), not a fork. |
 | Untouched shadcn output | `apps/web/components/ui/` | If the CLI's component is used as-is, do not hand-edit it. Fix it through the shadcn bridge in `souqstudio-tokens.css`. |
 | Zustand store | `apps/web/stores/[feature]-store.ts` | Export as `use[Feature]Store` |
 | Utility / client | `apps/web/lib/[thing].ts` | |

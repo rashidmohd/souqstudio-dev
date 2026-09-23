@@ -6,7 +6,7 @@ import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
 import { toArrangements } from '@souqstudio/designer/lib/block-document'
-import { blockErrorMessage, blockErrors } from '@/lib/block-write'
+import { blockErrorMessage, blockErrors } from '@souqstudio/designer/lib/block-write'
 
 /**
  * Version history for one block. E7-01.

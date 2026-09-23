@@ -7,6 +7,7 @@ import { SHAPE_VARIANTS, artShapeElement, shapeElement } from '../../lib/block-e
 import { ShapeMark } from './ShapeMark'
 import { Button } from '../ui/button'
 import { toast } from '../ui/toast'
+import { useDesignerHost } from '../../lib/designer-host'
 
 /**
  * Every shape, on a visible surface. E7.
@@ -50,6 +51,7 @@ type Props = {
 export function ShapesPanel({ disabled, onAdd }: Props) {
   const file = React.useRef<HTMLInputElement>(null)
   const [reading, setReading] = React.useState(false)
+  const { shapeUrl } = useDesignerHost()
 
   /**
    * **The file is read here and posted as text.** It goes to the server because
@@ -64,7 +66,7 @@ export function ShapesPanel({ disabled, onAdd }: Props) {
   async function upload(chosen: File) {
     setReading(true)
     try {
-      const response = await fetch('/api/v1/blocks/shape', {
+      const response = await fetch(shapeUrl, {
         method: 'POST',
         headers: { 'content-type': 'image/svg+xml' },
         body: await chosen.text(),

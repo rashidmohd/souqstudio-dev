@@ -1,11 +1,11 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { Trash2 } from 'lucide-react'
-import type { Arrangement } from '@souqstudio/types'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Select } from '../ui/select'
+import * as React from "react";
+import { Trash2 } from "lucide-react";
+import type { Arrangement } from "@souqstudio/types";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Select } from "../ui/select";
 
 /**
  * What the properties pane shows when nothing on the card is selected: the
@@ -20,22 +20,25 @@ import { Select } from '../ui/select'
  */
 
 type Props = {
-  name: string
-  status: string
-  repeats: boolean
-  disabled: boolean
-  arrangement: Arrangement | undefined
-  arrangementCount: number
-  canRemoveArrangement: boolean
-  onName: (name: string) => void
-  onStatus: (status: string) => void
-  onAspect: (min: number, max: number) => void
-  onRemoveArrangement: () => void
-}
+  name: string;
+  status: string;
+  /** False where availability is decided outside the designer. See `DesignerHost`. */
+  availability: boolean;
+  repeats: boolean;
+  disabled: boolean;
+  arrangement: Arrangement | undefined;
+  arrangementCount: number;
+  canRemoveArrangement: boolean;
+  onName: (name: string) => void;
+  onStatus: (status: string) => void;
+  onAspect: (min: number, max: number) => void;
+  onRemoveArrangement: () => void;
+};
 
 export function BlockProperties({
   name,
   status,
+  availability,
   repeats,
   disabled,
   arrangement,
@@ -52,8 +55,8 @@ export function BlockProperties({
         <h2 className="font-display text-subhead text-primary">This block</h2>
         <p className="font-ui text-body-sm text-muted">
           {repeats
-            ? 'Drawn once for every product in a book.'
-            : 'Placed once: a header, a footer, a message.'}
+            ? "Drawn once for every product in a book."
+            : "Placed once: a header, a footer, a message."}
         </p>
       </div>
 
@@ -69,18 +72,20 @@ export function BlockProperties({
           fields would invalidate the design in place — the copy path is where
           that choice is made, before anything has been drawn. */}
 
-      <Select
-        label="Availability"
-        disabled={disabled}
-        value={status}
-        hint="Books already made keep the block they were made with."
-        options={[
-          { value: 'published', label: 'Available in new books' },
-          { value: 'draft', label: 'Hidden while you work on it' },
-          { value: 'archived', label: 'Retired' },
-        ]}
-        onChange={(event) => onStatus(event.target.value)}
-      />
+      {availability ? (
+        <Select
+          label="Availability"
+          disabled={disabled}
+          value={status}
+          hint="Books already made keep the block they were made with."
+          options={[
+            { value: "published", label: "Available in new books" },
+            { value: "draft", label: "Hidden while you work on it" },
+            { value: "archived", label: "Retired" },
+          ]}
+          onChange={(event) => onStatus(event.target.value)}
+        />
+      ) : null}
 
       {arrangement === undefined ? null : (
         <fieldset className="flex flex-col gap-3 rounded-control border-hairline border-border-subtle p-3">
@@ -96,8 +101,8 @@ export function BlockProperties({
               reaches a shape the picker does not name. */}
           <p className="font-ui text-body-sm text-muted">
             {repeats
-              ? 'Used when the space it lands in is between these shapes. Shape is width divided by height. A tall booklet cell is about 0.7, a square post is 1, a two-column merge is 2.'
-              : 'The shape this layout was drawn at, which the picker above the canvas sets. Shape is width divided by height, so a story is about 0.56, an A4 page 0.7 and a band across a page 3.2.'}
+              ? "Used when the space it lands in is between these shapes. Shape is width divided by height. A tall booklet cell is about 0.7, a square post is 1, a two-column merge is 2."
+              : "The shape this layout was drawn at, which the picker above the canvas sets. Shape is width divided by height, so a story is about 0.56, an A4 page 0.7 and a band across a page 3.2."}
           </p>
 
           <div className="grid grid-cols-2 gap-3">
@@ -110,7 +115,9 @@ export function BlockProperties({
               figure
               disabled={disabled}
               value={arrangement.aspectMin}
-              onChange={(event) => onAspect(Number(event.target.value), arrangement.aspectMax)}
+              onChange={(event) =>
+                onAspect(Number(event.target.value), arrangement.aspectMax)
+              }
             />
             <Input
               label="To"
@@ -121,7 +128,9 @@ export function BlockProperties({
               figure
               disabled={disabled}
               value={arrangement.aspectMax}
-              onChange={(event) => onAspect(arrangement.aspectMin, Number(event.target.value))}
+              onChange={(event) =>
+                onAspect(arrangement.aspectMin, Number(event.target.value))
+              }
             />
           </div>
 
@@ -133,18 +142,22 @@ export function BlockProperties({
               onClick={onRemoveArrangement}
               className="self-start"
             >
-              <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              <Trash2
+                className="size-4"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
               Remove this layout
             </Button>
           ) : (
             <p className="font-ui text-body-sm text-muted">
               {arrangementCount === 1
-                ? 'A block needs at least one layout.'
-                : 'This layout cannot be removed.'}
+                ? "A block needs at least one layout."
+                : "This layout cannot be removed."}
             </p>
           )}
         </fieldset>
       )}
     </div>
-  )
+  );
 }

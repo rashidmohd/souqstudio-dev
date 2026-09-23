@@ -10,6 +10,7 @@ import { resolvePalette, resolveToken } from '../../lib/brand-palette'
 import { FREE_ELEMENTS } from '../../lib/block-elements'
 import { assetResolver } from '../../lib/block-assets'
 import { uploadArtwork } from '../../lib/upload-artwork'
+import { useDesignerHost, type DesignerHost } from '../../lib/designer-host'
 import { MAX_ARRANGEMENTS } from '../../lib/block-document'
 import { ArtworkDialog } from './ArtworkDialog'
 import { CanvasToolbar } from './CanvasToolbar'
@@ -312,7 +313,8 @@ export function DesignerShell({
     [repeats, store.arrangements]
   )
 
-  useAutosave(blockId, editable)
+  const host = useDesignerHost()
+  useAutosave(host.blockUrl(blockId), editable)
   useDesignerKeys(editable)
 
   const palette = React.useMemo(() => resolvePalette(kit), [kit])
@@ -344,7 +346,7 @@ export function DesignerShell({
     try {
       // The three-step handshake — authorise, PUT to R2, record — lives in
       // `lib/upload-artwork.ts` now that the page background needs the same one.
-      return await uploadArtwork(file)
+      return await uploadArtwork(file, host)
     } finally {
       setUploading(false)
     }
@@ -382,11 +384,11 @@ export function DesignerShell({
         */}
         {onClose === undefined ? (
           <Link
-            href="/blocks"
+            href={host.exit.href}
             className="flex items-center gap-2 rounded-pill px-2 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100"
           >
             <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" strokeWidth={1.75} />
-            Blocks
+            {host.exit.label}
           </Link>
         ) : null}
 
@@ -448,7 +450,7 @@ export function DesignerShell({
               <SaveStatus blockId={blockId} />
             </>
           ) : (
-            <DuplicateButton blockId={blockId} name={store.name} />
+            <DuplicateButton blockId={blockId} name={store.name} host={host} />
           )}
 
           {onClose === undefined ? null : (
@@ -459,8 +461,7 @@ export function DesignerShell({
 
       {!editable ? (
         <p className="border-b-hairline border-border-subtle bg-sand-tint px-4 py-2 font-ui text-body-sm text-secondary">
-          This block comes with every account, so it is read-only. Duplicate it
-          to make a version of your own.
+          {host.readOnlyNote}
         </p>
       ) : null}
 
@@ -768,6 +769,7 @@ export function DesignerShell({
             <BlockProperties
               name={store.name}
               status={store.status}
+              availability={host.availability}
               repeats={repeats}
               disabled={!editable}
               arrangement={arrangement}
@@ -1085,6 +1087,7 @@ function CloseButton({
   onClose: () => void
 }) {
   const [closing, setClosing] = React.useState(false)
+  const blockUrl = useDesignerHost().blockUrl(blockId)
 
   return (
     <Button
@@ -1093,7 +1096,7 @@ function CloseButton({
       loading={closing}
       onClick={async () => {
         setClosing(true)
-        const ok = await flushBlock(blockId, editable)
+        const ok = await flushBlock(blockUrl, editable)
         setClosing(false)
         if (ok) onClose()
       }}
@@ -1121,6 +1124,7 @@ function CloseButton({
  * saving is something the product is already doing.
  */
 function SaveStatus({ blockId }: { blockId: string }) {
+  const blockUrl = useDesignerHost().blockUrl(blockId)
   const save = useDesignerStore((state) => state.save)
   const editable = useDesignerStore((state) => state.editable)
   const [flushing, setFlushing] = React.useState(false)
@@ -1168,7 +1172,7 @@ function SaveStatus({ blockId }: { blockId: string }) {
       className={save === 'error' ? 'text-critical-fg' : undefined}
       onClick={async () => {
         setFlushing(true)
-        await flushBlock(blockId, true)
+        await flushBlock(blockUrl, true)
         setFlushing(false)
       }}
     >
@@ -1177,7 +1181,15 @@ function SaveStatus({ blockId }: { blockId: string }) {
   )
 }
 
-function DuplicateButton({ blockId, name }: { blockId: string; name: string }) {
+function DuplicateButton({
+  blockId,
+  name,
+  host,
+}: {
+  blockId: string
+  name: string
+  host: DesignerHost
+}) {
   const [busy, setBusy] = React.useState(false)
 
   return (
@@ -1187,14 +1199,14 @@ function DuplicateButton({ blockId, name }: { blockId: string; name: string }) {
       loading={busy}
       onClick={async () => {
         setBusy(true)
-        const response = await fetch('/api/v1/blocks', {
+        const response = await fetch(host.createUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fromId: blockId, name }),
         })
         const body = (await response.json()) as { data: { id: string } | null }
         setBusy(false)
-        if (body.data) window.location.assign(`/card-designer/${body.data.id}`)
+        if (body.data) window.location.assign(host.designerHref(body.data.id))
       }}
     >
       <Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -1211,7 +1223,7 @@ function DuplicateButton({ blockId, name }: { blockId: string; name: string }) {
  * and a partial write of a design is a design that is half one version and half
  * another.
  */
-function useAutosave(blockId: string, editable: boolean) {
+function useAutosave(blockUrl: string, editable: boolean) {
   const save = useDesignerStore((state) => state.save)
   const arrangements = useDesignerStore((state) => state.arrangements)
   const name = useDesignerStore((state) => state.name)
@@ -1222,11 +1234,11 @@ function useAutosave(blockId: string, editable: boolean) {
     if (!editable || save !== 'dirty') return
 
     const timer = setTimeout(() => {
-      void writeBlock(blockId)
+      void writeBlock(blockUrl)
     }, 2000)
 
     return () => clearTimeout(timer)
-  }, [blockId, editable, save, arrangements, name, status, setSave])
+  }, [blockUrl, editable, save, arrangements, name, status, setSave])
 }
 
 /**
@@ -1241,12 +1253,12 @@ function useAutosave(blockId: string, editable: boolean) {
  *
  * Returns whether the document landed, which only the flush has any use for.
  */
-async function writeBlock(blockId: string): Promise<boolean> {
+async function writeBlock(blockUrl: string): Promise<boolean> {
   const state = useDesignerStore.getState()
   state.setSave('saving')
 
   try {
-    const response = await fetch(`/api/v1/blocks/${blockId}`, {
+    const response = await fetch(blockUrl, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1281,11 +1293,11 @@ async function writeBlock(blockId: string): Promise<boolean> {
  * window open: closing over a refusal would drop the design *and* the only
  * message saying why.
  */
-async function flushBlock(blockId: string, editable: boolean): Promise<boolean> {
+async function flushBlock(blockUrl: string, editable: boolean): Promise<boolean> {
   if (!editable) return true
   const save = useDesignerStore.getState().save
   if (save !== 'dirty' && save !== 'error') return true
-  return writeBlock(blockId)
+  return writeBlock(blockUrl)
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))

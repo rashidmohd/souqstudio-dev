@@ -1,7 +1,10 @@
 import 'server-only'
 
-import sharp from 'sharp'
 import { prisma } from '@souqstudio/db'
+
+// Moved to the designer package with the rasteriser; re-exported for this
+// file's callers.
+export { assetName, measurePng } from '@souqstudio/designer/lib/artwork-raster'
 
 /**
  * Recording and listing block artwork. E7-C.
@@ -28,35 +31,7 @@ export type StoredAsset = {
   seeded: boolean
 }
 
-/**
- * A filename as a name an owner recognises.
- *
- * The extension goes because it is noise in a picker, and a long name is cut
- * rather than refused — the file is already uploaded by the time this runs, and
- * losing an owner's artwork over its title would be absurd.
- */
-export function assetName(filename: string): string {
-  const trimmed = filename.replace(/\.[^./\\]+$/, '').trim()
-  return trimmed === '' ? 'Artwork' : trimmed.slice(0, 80)
-}
 
-/**
- * Measure a stored PNG.
- *
- * **From the bytes rather than from what the client said.** A picker draws each
- * asset at its own proportion, and a client-supplied width is a number that can
- * be wrong in a way nothing else would catch — the tile would simply be the
- * wrong shape, which reads as a rendering bug.
- */
-export async function measurePng(bytes: Buffer): Promise<{ width: number; height: number } | null> {
-  try {
-    const meta = await sharp(bytes).metadata()
-    if (meta.width === undefined || meta.height === undefined) return null
-    return { width: meta.width, height: meta.height }
-  } catch {
-    return null
-  }
-}
 
 /**
  * Record an upload, or leave the existing row alone.

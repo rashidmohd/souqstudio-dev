@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
-import { parseSvgShape } from '@/lib/svg-shape'
+import { parseSvgShape } from '@souqstudio/designer/lib/svg-shape'
 
 /**
  * An uploaded drawing, read as a shape. E7.

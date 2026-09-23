@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
-import { assetName, measurePng } from '@/lib/block-asset-store'
+import { assetName, measurePng } from './artwork-raster'
 
 /**
  * The pure half. `recordAsset` and `listAssets` are Prisma against a live

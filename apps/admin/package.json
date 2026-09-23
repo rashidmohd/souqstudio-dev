@@ -29,7 +29,8 @@
     "tailwind-merge": "^2.6.1",
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/s3-request-presigner": "^3",
-    "@souqstudio/designer": "workspace:*"
+    "@souqstudio/designer": "workspace:*",
+    "sharp": "^0.33.0"
   },
   "devDependencies": {
     "@souqstudio/config": "workspace:*",

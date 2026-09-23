@@ -106,9 +106,10 @@ per-service configuration: `docs/deployment-railway.md` and `railway/*.json`.
 Each app has its own `CLAUDE.md` — load it when working in that app.
 
 **`apps/admin` is no longer a scaffold.** Staff auth against `admin_users`, an
-IP allowlist, an audit log, catalog management, the block library publish console
-and cover prompt editing are built; organizations, contributions, analytics and
-broadcasts are not. `docs/E13-pending.md` is the boundary. Staff accounts are
+IP allowlist, an audit log, catalog management, the block library publish console,
+cover prompt editing and **library block authoring** (the shop app's designer,
+mounted from `packages/designer`) are built; organizations, contributions,
+analytics and broadcasts are not. `docs/E13-pending.md` is the boundary. Staff accounts are
 created with `pnpm --filter @souqstudio/db admin:create` and there is
 deliberately no sign-up.
 
@@ -296,8 +297,10 @@ Tracked, not forgotten. Raise rather than inventing an answer.
   document schema, **the binding vocabulary and its one resolver**, **shadow ring
   expansion**, **starter blocks**, **E14's frame solver** and the seeded block
   library of **66 blocks** — **896 tests**. Four surfaces render from it and all four share one
-  painter, `components/blocks/draw.tsx`: `/brand`'s block preview, the editor's page, the
-  designer's canvas and its worst-case panel. `pnpm --filter @souqstudio/engine harness`
+  painter, `packages/designer/components/blocks/draw.tsx`: `/brand`'s block preview, the
+  editor's page, the designer's canvas and its worst-case panel. **The designer and the
+  painter live in `packages/designer`** (since 23 September 2026), so `apps/admin` mounts
+  the same designer for SouqStudio's library drafts rather than a second one. `pnpm --filter @souqstudio/engine harness`
   draws sample pages to SVG from the seeded blocks and both invented products and **real
   catalog rows** — `pnpm --filter @souqstudio/db catalog:harness-export` writes those to a
   gitignored JSON file, which is what keeps the engine free of any database import. Prices

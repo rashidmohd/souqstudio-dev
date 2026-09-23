@@ -20,6 +20,14 @@ exists to prevent.
 
 **If what you need is not listed:** stop. See "Adding a component" at the bottom.
 
+**Two roots.** Paths starting `components/` are in `apps/web`. Paths starting
+`packages/designer/` are in the shared package that `apps/web` and `apps/admin`
+both mount: the block designer, the painter, and the primitives they use. Import
+those as `@souqstudio/designer/components/ui/button`, never by copying. The
+admin panel keeps its own small primitive set for its console screens
+(`apps/admin/components/ui/`); inside the designer, the designer's primitives
+are the only ones.
+
 ---
 
 ## Conventions
@@ -44,7 +52,7 @@ Status: `spec` — specified, not built · `built` — implemented · `verified`
 
 | | |
 | --- | --- |
-| File | `components/ui/button.tsx` |
+| File | `packages/designer/components/ui/button.tsx` |
 | Status | `built` — apps/web only. Not yet in apps/admin. |
 | Governs | SKILL.md → Components → Buttons |
 
@@ -68,7 +76,7 @@ type ButtonProps = {
 
 | | |
 | --- | --- |
-| File | `components/ui/input.tsx` |
+| File | `packages/designer/components/ui/input.tsx` |
 | Status | `built` — apps/web only. Not yet in apps/admin. |
 | Governs | SKILL.md → Components → Inputs, and → Forms |
 
@@ -94,7 +102,7 @@ default. The native `size` attribute is omitted so it cannot collide.
 
 | | |
 | --- | --- |
-| File | `components/ui/textarea.tsx` |
+| File | `packages/designer/components/ui/textarea.tsx` |
 | Status | `built` — apps/web only, E8-01 |
 | Governs | SKILL.md → Components → Inputs (shares the input's shape rules) |
 
@@ -354,7 +362,7 @@ spec and a three-decimal Kuwaiti price. A preview built from friendly data tells
 an owner their card works and lets the real catalog prove otherwise.
 
 **The block designer's canvas is `BlockArtboard`, not this** —
-`components/card-designer/BlockArtboard.tsx`, same painter, plus selection, drag
+`packages/designer/components/card-designer/BlockArtboard.tsx`, same painter, plus selection, drag
 and eight resize handles. Use `BlockPreview` wherever a block is only looked at;
 it takes no interaction props at all, so a read-only surface cannot grow half of
 one by accident.
@@ -363,7 +371,7 @@ one by accident.
 
 | | |
 | --- | --- |
-| File | `components/card-designer/BlockArtboard.tsx` |
+| File | `packages/designer/components/card-designer/BlockArtboard.tsx` |
 | Status | `built` — apps/web only |
 | Governs | E7 block designer canvas, and its worst-case panel |
 
@@ -403,7 +411,7 @@ anything has changed; `onChange` fires per pointer move and never commits.
 
 | | |
 | --- | --- |
-| File | `components/ui/color-field.tsx` |
+| File | `packages/designer/components/ui/color-field.tsx` |
 | Status | `built` — apps/web only |
 | Governs | SKILL.md → Components → Inputs (shares the input's shape rules) |
 
@@ -517,7 +525,7 @@ Rows are name plus `ColorField`, add and remove, bounded by `MIN_PALETTE` (3, wh
 setup completion and the seeded block slots need) and `MAX_PALETTE` (8, a product
 judgement — nothing breaks at twenty, but twenty is not an identity). The three
 `TokenRef` slots a seeded block names bind to the first three entries;
-`lib/brand-palette.ts` owns that and the legacy mirror.
+`packages/designer/lib/brand-palette.ts` owns that and the legacy mirror.
 
 **The three brand choices, without any navigation around them.** Each was
 extracted from the wizard step of the same name when E4-05 needed the same
@@ -737,7 +745,7 @@ about.
 
 | | |
 | --- | --- |
-| File | `components/ui/segmented.tsx` |
+| File | `packages/designer/components/ui/segmented.tsx` |
 | Status | `built` — apps/web only |
 | Governs | one-of-these and any-of-these choices in a canvas chrome |
 
@@ -803,7 +811,7 @@ Not `Tabs`. Tabs navigate between panels and are underlined; this sets a value.
 
 | | |
 | --- | --- |
-| File | `components/ui/slider.tsx` |
+| File | `packages/designer/components/ui/slider.tsx` |
 | Status | `built` — apps/web only |
 | Governs | a bounded quantity an owner sets by eye |
 
@@ -847,7 +855,7 @@ not shared.
 
 | | |
 | --- | --- |
-| File | `components/ui/inline-select.tsx` |
+| File | `packages/designer/components/ui/inline-select.tsx` |
 | Status | `built` — apps/web only |
 | Governs | a choice on a toolbar, where a labelled field would not fit |
 
@@ -914,7 +922,7 @@ what state a thing is in. Decide before a third screen invents a fourth treatmen
 
 | | |
 | --- | --- |
-| File | `components/ui/select.tsx` |
+| File | `packages/designer/components/ui/select.tsx` |
 | Status | `built` — apps/web only, E2 |
 | Governs | SKILL.md → Components → Inputs (shares the input's shape rules) |
 
@@ -1003,7 +1011,7 @@ type DataTableProps<T> = {
 
 | | |
 | --- | --- |
-| File | `components/ui/dialog.tsx` |
+| File | `packages/designer/components/ui/dialog.tsx` |
 | Status | `built` — apps/web only |
 | Governs | SKILL.md → Components → Dialogs, and → Destructive actions |
 
@@ -1121,7 +1129,7 @@ document, which is what the app already scopes.
 
 | | |
 | --- | --- |
-| File | `components/ui/toast.tsx` |
+| File | `packages/designer/components/ui/toast.tsx` |
 | Status | `built` — apps/web only |
 | Governs | SKILL.md → Components → Toasts, and → Destructive actions |
 
@@ -1235,7 +1243,7 @@ before building it.
 
 | | |
 | --- | --- |
-| File | `components/ui/figure.tsx` |
+| File | `packages/designer/components/ui/figure.tsx` |
 | Status | `built` — apps/web only, E2 |
 | Governs | SKILL.md → Typography → figures; Bilingual → numerals |
 
@@ -1255,7 +1263,7 @@ the rule mechanical instead of remembered.
 
 | | |
 | --- | --- |
-| File | `components/ui/machine-output.tsx` |
+| File | `packages/designer/components/ui/machine-output.tsx` |
 | Status | `built` — apps/web only, E8-07 |
 | Governs | SKILL.md → AI output must be visibly marked |
 

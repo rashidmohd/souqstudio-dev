@@ -1,5 +1,5 @@
 import { prisma } from '@souqstudio/db'
-import { requireAdmin } from '@/lib/admin-auth'
+import { requireAdmin, roleAtLeast } from '@/lib/admin-auth'
 import { libraryConfig } from '@/lib/library-client'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ButtonLink } from '@/components/ui/button'
@@ -11,25 +11,22 @@ import { Table, Tbody, Td, Th, Thead, Tr } from '@/components/ui/table'
 /**
  * The block library console. E13-04.
  *
- * **Authoring stays in the designer.** `/card-designer/[blockId]` in `apps/web`
- * is where a block is drawn, and this screen does not reimplement it: the
- * designer is around 7,200 lines across twenty components, and every one of
- * them draws through the one painter that also renders the editor, the brand
- * preview and, when E9 lands, the PDF. A second designer here would be a second
- * painter, which CLAUDE.md names repeatedly as how the print output stops
- * matching the screen.
+ * Every block on the platform at once, including every organization's own,
+ * and the way into SouqStudio's own authoring: "New block" starts a library
+ * draft and opens the designer on it.
  *
- * What this screen is for is the half the designer cannot do: seeing every
- * block on the platform at once, including every organization's own, and
- * putting one into the shared library. That was previously a bearer token and
- * a curl command.
+ * **The designer is the shop app's designer**, mounted from
+ * `@souqstudio/designer` at `/blocks/[id]/edit`, not a reimplementation. It
+ * draws through the one painter that also renders the editor, the brand preview
+ * and, when E9 lands, the PDF, because a second painter is how the print output
+ * stops matching the screen.
  */
 export const dynamic = 'force-dynamic'
 
 const LIBRARY_ID = /^blk_[a-z0-9_]+$/
 
 export default async function BlocksPage() {
-  await requireAdmin()
+  const { admin } = await requireAdmin()
 
   const [blocks, config] = await Promise.all([
     prisma.block.findMany({
@@ -54,14 +51,28 @@ export default async function BlocksPage() {
     Promise.resolve(libraryConfig()),
   ])
 
-  const seeded = blocks.filter((block) => block.organizationId === null)
+  // SouqStudio's drafts are platform rows too, but they are work in progress
+  // rather than library, so they are counted apart. See `lib/library-drafts.ts`.
+  const seeded = blocks.filter(
+    (block) => block.organizationId === null && block.status !== 'draft'
+  )
+  const drafts = blocks.filter(
+    (block) => block.organizationId === null && block.status === 'draft'
+  )
   const authored = blocks.filter((block) => block.organizationId !== null)
 
   return (
     <>
       <PageHeader
         title="Block library"
-        description="Every block on the platform. Designing one happens in the card designer."
+        description="Every block on the platform. Design a new one here, then publish it to the library."
+        action={
+          roleAtLeast(admin.role, 'catalog_manager') ? (
+            <ButtonLink href="/blocks/new" variant="primary">
+              New block
+            </ButtonLink>
+          ) : undefined
+        }
       />
 
       {config.configured ? null : (
@@ -78,8 +89,9 @@ export default async function BlocksPage() {
 
       <div className="flex flex-wrap gap-2">
         <StatusPill tone="neutral">
-          {seeded.length} seeded
+          {seeded.length} in the library
         </StatusPill>
+        <StatusPill tone="caution">{drafts.length} SouqStudio drafts</StatusPill>
         <StatusPill tone="quiet">{authored.length} authored by an organization</StatusPill>
       </div>
 

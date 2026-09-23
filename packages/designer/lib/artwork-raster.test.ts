@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
-import { rasteriseVector } from '@/lib/artwork'
+import { rasteriseVector } from './artwork-raster'
 
 /**
  * The security claim this route rests on is that **nothing but a bitmap reaches

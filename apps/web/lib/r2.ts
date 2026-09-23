@@ -113,14 +113,8 @@ export const ACCEPTED_VECTOR_TYPES = ['image/svg+xml'] as const
 /** Generous for a drawing, and far under the body cap a route can accept. */
 export const MAX_VECTOR_BYTES = 2 * 1024 * 1024
 
-/**
- * How large a rasterised vector may be, on its longest edge.
- *
- * A4 at 300dpi is 2480px across and a badge occupies a fraction of it, so 2048
- * is past anything this prints — and the cost of guessing high is bytes rather
- * than a visible defect, which is the right way round.
- */
-export const VECTOR_RASTER_EDGE = 2048
+// Moved beside the rasteriser it sizes; re-exported for this file's callers.
+export { VECTOR_RASTER_EDGE } from '@souqstudio/designer/lib/artwork-raster'
 
 export type AcceptedProductImageType = (typeof ACCEPTED_PRODUCT_IMAGE_TYPES)[number]
 

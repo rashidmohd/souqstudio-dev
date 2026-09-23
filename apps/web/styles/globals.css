@@ -2,6 +2,7 @@
    relative paths inside SKILL.md resolve. Do not copy it here — import it.
    One file, one location, no drift. */
 @import '../../../.claude/skills/souqstudio-design/assets/souqstudio-tokens.css';
+@import '../../../packages/designer/styles/controls.css';
 
 /* ── Font binding ──────────────────────────────────────────────────────────
    The token file declares which family plays which role. next/font generates
@@ -48,110 +49,4 @@ html, body {
   font-family: var(--sq-font-ui);
   font-size: var(--sq-text-body);
   line-height: var(--sq-leading-body);
-}
-
-/* ── Colour swatch ─────────────────────────────────────────────────────────
-   A native `<input type="color">` renders its swatch inset inside a bordered
-   box that no utility class reaches — the border and padding are vendor
-   pseudo-elements. Stripping them lets the swatch fill its tile edge to edge,
-   so the control reads as a block of the shop's colour rather than as a small
-   square rattling inside a form field.
-
-   Native rather than a JS picker on purpose, and for the same reason `Select`
-   wraps a native `<select>`: on the phone a shop owner is actually holding,
-   this opens the platform colour picker with its own accessibility tree.
-
-   Here rather than as Tailwind arbitrary variants, which the design system
-   forbids — same reasoning as `.sq-wordmark` above.                          */
-.sq-swatch {
-  appearance: none;
-  -webkit-appearance: none;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.sq-swatch::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.sq-swatch::-webkit-color-swatch {
-  border: 0;
-}
-
-.sq-swatch::-moz-color-swatch {
-  border: 0;
-}
-
-/* ── Slider ────────────────────────────────────────────────────────────────
-   A native `<input type="range">` draws its track and thumb as vendor
-   pseudo-elements, which no utility class can reach — the same problem
-   `.sq-swatch` above solves for the colour input, and the same answer.
-
-   Native rather than a JS control on purpose: the platform already has the
-   drag, the keyboard steps and the accessibility tree, and this is a control a
-   shop owner will mostly use with a thumb on a phone.
-
-   Every value is a token. The thumb is `--sq-h-control` tall at half width so
-   it stays a comfortable target without becoming a slab, and the focus ring
-   matches every other control's rather than the browser's.                  */
-.sq-slider {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 100%;
-  height: var(--sq-space-4);
-  background: transparent;
-  cursor: pointer;
-}
-
-.sq-slider::-webkit-slider-runnable-track {
-  height: var(--sq-space-1);
-  border-radius: var(--sq-radius-pill);
-  background: var(--sq-stone-200);
-}
-
-.sq-slider::-moz-range-track {
-  height: var(--sq-space-1);
-  border-radius: var(--sq-radius-pill);
-  background: var(--sq-stone-200);
-}
-
-.sq-slider::-webkit-slider-thumb {
-  appearance: none;
-  -webkit-appearance: none;
-  width: var(--sq-space-4);
-  height: var(--sq-space-4);
-  /* Centres the thumb on a 4px track: half the thumb, less half the track. */
-  margin-top: calc((var(--sq-space-1) - var(--sq-space-4)) / 2);
-  border: 0.5px solid var(--sq-ui-border-strong);
-  border-radius: var(--sq-radius-pill);
-  background: var(--sq-ui-surface);
-}
-
-.sq-slider::-moz-range-thumb {
-  width: var(--sq-space-4);
-  height: var(--sq-space-4);
-  border: 0.5px solid var(--sq-ui-border-strong);
-  border-radius: var(--sq-radius-pill);
-  background: var(--sq-ui-surface);
-}
-
-.sq-slider:focus-visible {
-  outline: none;
-}
-
-.sq-slider:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--sq-ui-border-focus);
-  outline-offset: 2px;
-}
-
-.sq-slider:focus-visible::-moz-range-thumb {
-  outline: 2px solid var(--sq-ui-border-focus);
-  outline-offset: 2px;
-}
-
-.sq-slider:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
 }

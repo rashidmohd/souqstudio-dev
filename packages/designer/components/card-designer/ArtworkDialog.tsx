@@ -6,6 +6,7 @@ import { Dialog } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { MachineOutput } from '../ui/machine-output'
 import { cn } from '../../lib/utils'
+import { useDesignerHost } from '../../lib/designer-host'
 
 /**
  * Choosing artwork for a block. E7-C.
@@ -79,6 +80,7 @@ type Props = {
 const TILE = 120
 
 export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
+  const { assetsUrl, generatedUrl } = useDesignerHost()
   const [assets, setAssets] = React.useState<Artwork[] | null>(null)
   const [generated, setGenerated] = React.useState<Generated[]>([])
   const [busy, setBusy] = React.useState(false)
@@ -92,7 +94,7 @@ export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
     if (!open) return
     let live = true
     setError(null)
-    void fetch('/api/v1/blocks/assets')
+    void fetch(assetsUrl)
       .then((response) => response.json() as Promise<{ data: { assets: Artwork[] } | null }>)
       .then((body) => {
         if (live) setAssets(body.data?.assets ?? [])
@@ -107,17 +109,19 @@ export function ArtworkDialog({ open, onOpenChange, onPick, onUpload }: Props) {
      * whose character is in it. A shop that does not have one is not an error
      * here — the grid simply shows the uploads, as it always did.
      */
-    void fetch('/api/v1/brand/generated')
-      .then((response) => response.json() as Promise<{ data: { images: Generated[] } | null }>)
-      .then((body) => {
-        if (live) setGenerated(body.data?.images ?? [])
-      })
-      .catch(() => undefined)
+    if (generatedUrl !== null) {
+      void fetch(generatedUrl)
+        .then((response) => response.json() as Promise<{ data: { images: Generated[] } | null }>)
+        .then((body) => {
+          if (live) setGenerated(body.data?.images ?? [])
+        })
+        .catch(() => undefined)
+    }
 
     return () => {
       live = false
     }
-  }, [open])
+  }, [open, assetsUrl, generatedUrl])
 
   async function upload(file: File) {
     setBusy(true)

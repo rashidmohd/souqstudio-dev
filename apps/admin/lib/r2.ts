@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { env } from '@/lib/env'
 
@@ -101,6 +101,36 @@ export const EXTENSION: Readonly<Record<AcceptedProductImageType, string>> = {
 
 export function isAcceptedImageType(value: string): value is AcceptedProductImageType {
   return (ACCEPTED_PRODUCT_IMAGE_TYPES as readonly string[]).includes(value)
+}
+
+/**
+ * Read an object back, or null. The admin designer's artwork is measured from
+ * what actually landed in the bucket, not from what the browser claimed it sent.
+ * Mirrors `apps/web/lib/r2.ts`.
+ */
+export async function getObjectBytes(key: string): Promise<Buffer | null> {
+  try {
+    const result = await client().send(
+      new GetObjectCommand({ Bucket: env.R2_BUCKET_NAME as string, Key: key })
+    )
+    if (!result.Body) return null
+    return Buffer.from(await result.Body.transformToByteArray())
+  } catch {
+    // Missing object, bad credentials, R2 down: every no is the same no.
+    return null
+  }
+}
+
+/** Store bytes the server produced itself: a rasterised vector. */
+export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+  await client().send(
+    new PutObjectCommand({
+      Bucket: env.R2_BUCKET_NAME as string,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
+  )
 }
 
 /**

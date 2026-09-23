@@ -4,7 +4,7 @@ import type { Prisma } from '@souqstudio/db'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
-import { blockErrorMessage, blockErrors, blockUpdateSchema } from '@/lib/block-write'
+import { blockErrorMessage, blockErrors, blockUpdateSchema } from '@souqstudio/designer/lib/block-write'
 import { blockIsInUse, loadBlock } from '@/lib/blocks'
 
 /**

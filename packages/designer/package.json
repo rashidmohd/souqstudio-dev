@@ -10,13 +10,17 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@souqstudio/db": "workspace:*",
     "@souqstudio/engine": "workspace:*",
     "@souqstudio/types": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "immer": "^10.0.0",
     "lucide-react": "^1.30.0",
+    "server-only": "^0.0.1",
+    "sharp": "^0.33.0",
     "tailwind-merge": "^2.6.1",
+    "zod": "^3.25.0",
     "zustand": "^4.5.0"
   },
   "peerDependencies": {

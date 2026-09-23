@@ -1,3 +1,8 @@
+import { SHOP_HOST, type DesignerHost } from './designer-host'
+
+/** Where the three steps go. The shop app's routes unless a host says otherwise. */
+type UploadUrls = Pick<DesignerHost, 'artworkUrl' | 'artworkVectorUrl' | 'assetsUrl'>
+
 /**
  * Putting an owner's artwork in the bucket, and getting back the id that names
  * it. E7, and now E6's page background.
@@ -32,8 +37,8 @@
  * PNG is stored. Affordable only because an SVG is small enough to fit in a
  * request body — which is precisely why the other formats cannot do this.
  */
-async function uploadVector(file: File): Promise<string | null> {
-  const raster = await fetch('/api/v1/blocks/artwork/vector', {
+async function uploadVector(file: File, urls: UploadUrls): Promise<string | null> {
+  const raster = await fetch(urls.artworkVectorUrl, {
     method: 'POST',
     headers: { 'content-type': 'image/svg+xml', 'x-filename': encodeURIComponent(file.name) },
     body: file,
@@ -50,10 +55,13 @@ async function uploadVector(file: File): Promise<string | null> {
  * caller owns its own busy state: this returns when the bytes are in the bucket
  * and recorded, and a spinner belongs to whatever is being blocked by that.
  */
-export async function uploadArtwork(file: File): Promise<string | null> {
-  if (file.type === 'image/svg+xml') return uploadVector(file)
+export async function uploadArtwork(
+  file: File,
+  urls: UploadUrls = SHOP_HOST
+): Promise<string | null> {
+  if (file.type === 'image/svg+xml') return uploadVector(file, urls)
 
-  const authorise = await fetch('/api/v1/blocks/artwork', {
+  const authorise = await fetch(urls.artworkUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ contentType: file.type, contentLength: file.size }),
@@ -70,7 +78,7 @@ export async function uploadArtwork(file: File): Promise<string | null> {
   })
   if (!put.ok) return null
 
-  const record = await fetch('/api/v1/blocks/assets', {
+  const record = await fetch(urls.assetsUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ assetId: body.data.assetId, filename: file.name }),

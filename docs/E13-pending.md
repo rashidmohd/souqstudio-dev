@@ -23,6 +23,7 @@ and nothing had ever read either one.
 | Account creation | `pnpm --filter @souqstudio/db admin:create` |
 | Catalog | `/catalog`, `/catalog/[id]`, `/catalog/new`, two routes |
 | Block library console | `/blocks`, `/blocks/[id]`, `lib/library-client.ts`, two routes |
+| Library block authoring | `/blocks/new`, `/blocks/[id]/edit` (the shared designer), `lib/library-drafts.ts`, six routes under `/api/v1/admin/blocks`. See §2c. |
 | Prompt management | `/prompts`, `/prompts/[id]`, `/prompts/new`, two routes |
 | Overview | `/` — counts, and what is off on this deployment |
 | Primitives | `components/ui/` — nine components, built against the tokens directly |
@@ -81,22 +82,50 @@ super admin role. The token stops being the credential and becomes the transport
 an object and changes nothing any shop sees; syncing gives the library to everybody and
 prunes. Three blocks should be three writes and one sync.
 
-### 2c. The console describes blocks, it does not draw them
+### 2c. SouqStudio designs library blocks with the shop app's designer
 
-`/blocks/[id]` shows arrangement counts, aspect ranges, bindings, and the stored thumbnail
-where there is one. It does not render the block.
+*Rewritten 23 September 2026. This section used to say the console describes blocks and
+does not draw them, and that extracting the painter into a package was worth doing as its
+own task. That task is done.*
 
-`apps/web/components/blocks/draw.tsx` is the one painter four surfaces share, and CLAUDE.md
-is repeated and explicit that a second painter is how the PDF stops matching the screen.
-The designer around it is ~7,200 lines over twenty components with about thirty imports
-from `apps/web`'s own `lib/` and `components/ui/`. Bringing a preview here means either
-copying that, which *is* the second painter, or extracting the painter and its dependencies
-into a package.
+The designer (~7,600 lines over twenty components), the painter `draw.tsx` and everything
+they import moved from `apps/web` into **`packages/designer`**, with the same folder layout.
+`apps/web` imports it from there and behaves as before; `apps/admin` mounts the same
+component at `/blocks/[id]/edit`. There is still exactly one painter.
 
-**The extraction is worth doing and should be its own task.** It is the same work that a
-shared `packages/ui` would need, and E9's export will want the painter outside `apps/web`
-regardless. Until then the description is honest about being a description, which is more
-useful than a picture drawn by a second renderer would be.
+**What differs between the two hosts is data, not code.** `DesignerHost`
+(`packages/designer/lib/designer-host.tsx`) carries the save, create, shape and artwork
+routes, the way out, whether the author may set availability, and the read-only note. Its
+default is the shop app's routes, so `apps/web` mounts the designer with no provider.
+
+**A library draft is a `blocks` row with `organizationId: null` and `status: 'draft'`.**
+Three readers depend on that and each was changed to say so:
+
+- the library sync's prune skips drafts (`packages/db/src/library-sync.ts`), because a draft
+  is in no library by definition and would otherwise be deleted by the next sync;
+- `loadBlock` in `apps/web` refuses a platform draft, so a shop cannot open one by id;
+- the shop picker already listed only `published` platform rows.
+
+The admin save route drops `status` from the body, so a draft cannot be made "published" from
+the designer: that would reach every shop without a publish, then be pruned by the next sync.
+Publishing copies the draft into R2 under a `blk_` id and the sync writes that as its own row;
+the draft stays the working copy.
+
+**Not done, and worth knowing:**
+
+- **Never run live.** Build, typecheck, lint, tests and the class check pass in both apps.
+  Nobody has yet created, edited, uploaded artwork to and published a draft against a real
+  database and bucket.
+- **The occasion of a seasonal block** is still keyed by library id in
+  `BLOCK_OCCASION` in the engine, so a seasonal block published from the panel reaches shops
+  with a null occasion until its id is added there. The panel has no field for it.
+- **Library artwork is visible to every shop's artwork picker once uploaded**, before the
+  block that uses it is published, because `listAssets` in `apps/web` returns every platform
+  asset. Harmless for a shape; not for an unannounced campaign's artwork.
+- **No thumbnail is written** for a draft, so `/blocks/[id]` still shows none until something
+  renders one.
+- **A draft cannot be retired from the panel.** Drafts reach nobody, so they only clutter
+  the console; an archive action is the next thing to add if that starts to matter.
 
 ---
 
@@ -175,8 +204,9 @@ from inside the network may arrive.
   used. Every list here is filtered and paged on the server, because the universal catalog
   is already 18,428 rows from one import and a client-side table would need all of them in
   the browser to filter any of them. Tremor waits on E13-06 having something to chart.
-- **E13-04 says "same as E7 features, accessed here".** It is not the same: E7's designer
-  is where a block is drawn, and this is where one is published. See §2c.
+- **E13-04 says "same as E7 features, accessed here".** Since 23 September it is: the
+  panel mounts E7's designer from `packages/designer` over SouqStudio's library drafts,
+  and publishes from the block page. See §2c.
 - **The epic does not mention prompt management.** It is here because the gap is real:
   `cover_prompts` moved out of code in September specifically so the art direction could be
   tuned by looking at what came back, and until now the rows were tunable in principle and

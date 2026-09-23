@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { arrangementsSchema } from '@souqstudio/engine'
-import { artShapeElement } from '@souqstudio/designer/lib/block-elements'
-import { parseSvgShape } from '@/lib/svg-shape'
+import { artShapeElement } from './block-elements'
+import { parseSvgShape } from './svg-shape'
 
 /**
  * Reading a drawing as geometry.

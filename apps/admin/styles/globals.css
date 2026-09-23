@@ -1,5 +1,6 @@
 /* Same authoritative token file as apps/web. Never duplicate the values. */
 @import '../../../.claude/skills/souqstudio-design/assets/souqstudio-tokens.css';
+@import '../../../packages/designer/styles/controls.css';
 
 /* ── Font binding ──────────────────────────────────────────────────────────
    The token file declares which family plays which role. next/font generates

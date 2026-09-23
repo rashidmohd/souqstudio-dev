@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
-import { rasteriseVector } from '@/lib/artwork'
+import { rasteriseVector } from '@souqstudio/designer/lib/artwork-raster'
 import { assetName, measurePng, recordAsset } from '@/lib/block-asset-store'
 import { MAX_VECTOR_BYTES, publicUrl, putObject } from '@/lib/r2'
 

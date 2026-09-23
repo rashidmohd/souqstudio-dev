@@ -7,6 +7,7 @@ import { libraryConfig } from '@/lib/library-client'
 import { env } from '@/lib/env'
 import { PublishPanel } from '@/components/blocks/PublishPanel'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Figure } from '@/components/ui/figure'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -14,8 +15,9 @@ import { StatusPill } from '@/components/ui/status-pill'
 /**
  * One block, and the console that publishes it. E13-04.
  *
- * **There is no canvas here.** See lib/block-summary.ts for why, and for what
- * is shown instead. The thumbnail where the row has one is the only picture.
+ * **There is no canvas on this page.** It describes the block (see
+ * lib/block-summary.ts); drawing it is the designer's job, at
+ * `/blocks/[id]/edit` for SouqStudio's own blocks.
  */
 export const dynamic = 'force-dynamic'
 
@@ -54,12 +56,16 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
   const maySupply = roleAtLeast(admin.role, 'super_admin')
 
   /*
-   * The designer lives in the other app, so this is a plain anchor rather than
-   * a `next/link`: it is a different origin and prefetching it would be a
-   * cross-app request from an IP-restricted panel.
+   * SouqStudio's own blocks open in this panel's designer. An organization's
+   * block is that shop's design and opens only in the shop app, as a plain
+   * anchor rather than a `next/link`: it is a different origin and prefetching
+   * it would be a cross-app request from an IP-restricted panel.
    */
-  const designerUrl =
-    env.WEB_APP_URL === undefined ? null : `${env.WEB_APP_URL}/card-designer/${block.id}`
+  const ownBlock = block.organizationId === null
+  const shopDesignerUrl =
+    ownBlock || env.WEB_APP_URL === undefined
+      ? null
+      : `${env.WEB_APP_URL}/card-designer/${block.id}`
 
   return (
     <>
@@ -91,8 +97,7 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
           <h2 className="text-label font-medium text-secondary">Thumbnail</h2>
           {block.thumbnailUrl === null ? (
             <p className="text-body-sm text-muted">
-              None stored. This console does not draw blocks: the painter lives in the web
-              app and a second one would be how the PDF stops matching the screen.
+              None stored. Open it in the designer to see it drawn.
             </p>
           ) : (
             <Image
@@ -103,9 +108,17 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
               className="h-auto w-full rounded-card border border-border-subtle bg-sand"
             />
           )}
-          {designerUrl === null ? null : (
-            <a href={designerUrl} className="text-body text-link underline">
-              Open in the card designer
+          {ownBlock ? (
+            <ButtonLink
+              href={`/blocks/${block.id}/edit`}
+              variant={block.status === 'draft' ? 'primary' : 'secondary'}
+            >
+              {block.status === 'draft' ? 'Edit in designer' : 'Open in designer'}
+            </ButtonLink>
+          ) : null}
+          {shopDesignerUrl === null ? null : (
+            <a href={shopDesignerUrl} className="text-body text-link underline">
+              Open in the shop app designer
             </a>
           )}
         </Card>

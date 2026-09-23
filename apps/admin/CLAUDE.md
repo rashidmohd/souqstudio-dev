@@ -27,6 +27,8 @@ apps/admin/
 │   │   ├── templates/           # E13-04 grids — not built
 │   │   ├── analytics/           # E13-06 — not built
 │   │   └── broadcasts/          # E13-07 — not built
+│   ├── (designer)/              # Full-window screens, no rail
+│   │   └── blocks/[id]/edit/    # The block designer, over a library draft
 │   └── api/
 │       ├── health/              # Liveness. Outside the IP allowlist.
 │       └── v1/admin/            # Admin-only API routes
@@ -104,10 +106,32 @@ every route calls `requireAdminApi()`, in Node. A present cookie proves nothing.
 
 ## Block library rules
 
-- **Authoring stays in `apps/web`'s card designer.** This app does not draw
-  blocks and must not start: four surfaces render through one painter, and a
-  second painter is how the PDF stops matching the screen. The console describes
-  a block's shape and shows its thumbnail.
+- **SouqStudio designs library blocks here, with the shop app's designer.**
+  `@souqstudio/designer` is the one designer and the one painter; this app
+  mounts it at `/blocks/[id]/edit` through `components/blocks/LibraryDesigner.tsx`
+  and never reimplements it. Four surfaces render through one painter, and a
+  second painter is how the PDF stops matching the screen. What differs from
+  the shop app (routes, the way out, no availability control) is the
+  `DesignerHost` passed in, not a fork.
+- **A library draft is a `blocks` row with `organizationId: null` and status
+  `draft`.** Shops never see it (`apps/web`'s picker and `loadBlock` skip
+  platform drafts) and the library sync never prunes it. The save route forces
+  `draft`: availability is decided by publishing, never from the designer.
+- **Only SouqStudio's blocks open in this designer**, and only drafts are
+  editable. A published library row is the sync's copy of R2 and is rewritten
+  by the next sync, so it opens read-only with "Duplicate to edit". An
+  organization's block is a customer's design and is never copied into the
+  library or edited here.
+- **Publishing a draft does not consume it.** The publish route copies the
+  document under a permanent `blk_` id; the draft stays the working copy, and
+  the next version is an edit plus a publish to the same id.
+- Drafting and editing need `catalog_manager`; publishing and syncing stay
+  `super_admin`. A draft reaches nobody, so the wider bar is only on the step
+  that reaches every shop.
+- Library artwork is under `library/blocks/` in R2 and recorded in
+  `block_assets` with no organization, the same shape as SouqStudio's seeded
+  artwork. Autosave audits once per 15 minutes per admin per draft, not per save;
+  the documents themselves are in `block_versions`.
 - Publishing calls `apps/web`'s `/api/v1/library/publish` and `/sync` rather
   than writing R2. One implementation decides what a published block is.
 - **Super admin only.** Writing the library prefix reaches every shop on the
