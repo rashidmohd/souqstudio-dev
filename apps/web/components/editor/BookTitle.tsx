@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Check, Pencil, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 
 /**
  * The book's name, and the control that changes it.

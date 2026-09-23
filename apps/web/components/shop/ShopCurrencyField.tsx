@@ -14,10 +14,10 @@ import {
   type Currency,
   type CurrencyDisplay,
 } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
-import { Segmented } from '@/components/ui/segmented'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { Select } from '@souqstudio/designer/components/ui/select'
+import { Segmented } from '@souqstudio/designer/components/ui/segmented'
 
 /**
  * What this shop prices in, and how its cards write it.

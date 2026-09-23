@@ -6,8 +6,8 @@ import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
-import { resolvePalette } from '@/lib/brand-palette'
-import { resolveFont } from '@/lib/font-catalog'
+import { resolvePalette } from '@souqstudio/designer/lib/brand-palette'
+import { resolveFont } from '@souqstudio/designer/lib/font-catalog'
 import { loadFontCatalog } from '@/lib/font-catalog-server'
 
 /**

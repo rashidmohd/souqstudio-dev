@@ -4,8 +4,8 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { NAV_ROW_LABEL, NAV_ROW_LEADING, navRowClass } from '@/components/shared/nav-item'
-import { toast } from '@/components/ui/toast'
-import { cn } from '@/lib/utils'
+import { toast } from '@souqstudio/designer/components/ui/toast'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * The way out. Pinned to the foot of the rail under `Profile`, in the user

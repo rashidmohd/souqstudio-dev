@@ -3,7 +3,7 @@ import { BLOCK_CATEGORIES, usesOnlyRoles, type BlockCategory } from '@souqstudio
 import { prisma } from '@souqstudio/db'
 import { fail } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
-import { arrangementsSchema } from '@/lib/block-document'
+import { arrangementsSchema } from '@souqstudio/designer/lib/block-document'
 import { loadBlock } from '@/lib/blocks'
 
 /**

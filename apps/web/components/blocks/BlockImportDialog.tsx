@@ -10,8 +10,8 @@ import {
   type BlockCategory,
   type SeasonWindow,
 } from '@souqstudio/engine'
-import { Dialog } from '@/components/ui/dialog'
-import { Segmented } from '@/components/ui/segmented'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Segmented } from '@souqstudio/designer/components/ui/segmented'
 import { CATEGORY_LABEL } from '@/lib/block-kinds'
 import { BlockTile } from '@/components/blocks/BlockTile'
 import type { LibraryBlock } from '@/components/blocks/BlockLibrary'

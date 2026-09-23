@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Check, ChevronRight, X } from 'lucide-react'
 import type { ChecklistItem } from '@/lib/checklist'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * The getting-started checklist. E1-05.

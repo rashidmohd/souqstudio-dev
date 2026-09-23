@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import { COVER_SHAPE_NOTE, type CoverShape } from '@souqstudio/engine'
-import { Dialog } from '@/components/ui/dialog'
-import { MachineOutput } from '@/components/ui/machine-output'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
 import { TILE_HEIGHT } from '@/components/blocks/BlockTile'
 import { shapeFor } from '@/lib/cover-shape'
 

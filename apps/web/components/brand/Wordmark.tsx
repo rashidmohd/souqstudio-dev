@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * The SouqStudio wordmark, monochrome, taking its colour from `currentColor`.

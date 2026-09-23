@@ -3,11 +3,11 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { TYPE_MOOD_NOTE, type TypeMood } from '@souqstudio/engine'
-import { Dialog } from '@/components/ui/dialog'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
 import { FileDropzone } from '@/components/ui/file-dropzone'
-import { Input } from '@/components/ui/input'
-import { MachineOutput } from '@/components/ui/machine-output'
-import { Segmented } from '@/components/ui/segmented'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
+import { Segmented } from '@souqstudio/designer/components/ui/segmented'
 import { fontsForMood } from '@/lib/brand-direction'
 
 /**

@@ -3,9 +3,9 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { MAGIC_CATEGORIES, type MagicCategory } from '@souqstudio/engine'
-import { Dialog } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Segmented } from '@/components/ui/segmented'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { Segmented } from '@souqstudio/designer/components/ui/segmented'
 import { KIND_LABEL, KIND_NOTE, KIND_STARTS_WITH } from '@/lib/block-kinds'
 
 /**

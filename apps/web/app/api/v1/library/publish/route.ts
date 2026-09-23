@@ -4,7 +4,7 @@ import { BLOCK_CATEGORIES } from '@souqstudio/engine'
 import type { BlockCategory } from '@souqstudio/engine'
 import { prisma } from '@souqstudio/db'
 import { fail, ok } from '@/lib/api'
-import { toArrangements } from '@/lib/block-document'
+import { toArrangements } from '@souqstudio/designer/lib/block-document'
 import { requireLibraryToken } from '@/lib/library-auth'
 import {
   LibraryPublishError,

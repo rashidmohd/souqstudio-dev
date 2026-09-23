@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import type { BookCover } from '@/lib/offer-book-compose'
+import type { BookCover } from '@souqstudio/designer/lib/offer-book-compose'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { composeCover } from '@/lib/offer-book'

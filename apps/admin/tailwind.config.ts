@@ -7,5 +7,8 @@ export default {
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
     './stores/**/*.{ts,tsx}',
+    // The shared designer. Without it every class the editor uses generates
+    // no CSS, silently.
+    '../../packages/designer/**/*.{ts,tsx}',
   ],
 } satisfies Config

@@ -9,11 +9,11 @@ import {
   isBrandSetupComplete,
   ONBOARDING_STEPS,
 } from '@/lib/brand-kit'
-import { isValidHex, EXAMPLE_HEX } from '@/lib/color'
+import { isValidHex, EXAMPLE_HEX } from '@souqstudio/designer/lib/color'
 import { getFonts } from '@souqstudio/db'
-import { ROLE_SLOT, FONT_ROLES } from '@/lib/font-catalog'
+import { ROLE_SLOT, FONT_ROLES } from '@souqstudio/designer/lib/font-catalog'
 import { ensureFamilies } from '@/lib/font-ensure-server'
-import { MAX_PALETTE, MIN_PALETTE } from '@/lib/brand-palette'
+import { MAX_PALETTE, MIN_PALETTE } from '@souqstudio/designer/lib/brand-palette'
 import { MAX_STYLES, MIN_STYLES } from '@/lib/brand-typography'
 
 /**

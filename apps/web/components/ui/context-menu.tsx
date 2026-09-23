@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import * as Primitive from '@radix-ui/react-context-menu'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * Context menu. Governed by references/component-inventory.md, which owns this

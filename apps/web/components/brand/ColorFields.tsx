@@ -4,11 +4,11 @@ import * as React from 'react'
 import { nanoid } from 'nanoid'
 import { Plus, X } from 'lucide-react'
 import type { BrandColor, BrandKit } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ColorField } from '@/components/ui/color-field'
-import { useBrandStore } from '@/stores/brand-store'
-import { fromHex, isValidHex, whiteTextPasses, EXAMPLE_HEX, NEW_COLOR_HEX } from '@/lib/color'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { ColorField } from '@souqstudio/designer/components/ui/color-field'
+import { useBrandStore } from '@souqstudio/designer/stores/brand-store'
+import { fromHex, isValidHex, whiteTextPasses, EXAMPLE_HEX, NEW_COLOR_HEX } from '@souqstudio/designer/lib/color'
 import {
   MAX_PALETTE,
   MIN_PALETTE,
@@ -16,7 +16,7 @@ import {
   canRemove,
   nextColorName,
   resolvePalette,
-} from '@/lib/brand-palette'
+} from '@souqstudio/designer/lib/brand-palette'
 
 /**
  * The shop's palette. E4-02.

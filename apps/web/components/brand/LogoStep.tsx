@@ -1,8 +1,8 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { LogoField } from '@/components/brand/LogoField'
-import { useBrandStore } from '@/stores/brand-store'
+import { useBrandStore } from '@souqstudio/designer/stores/brand-store'
 
 /**
  * Step 1 — upload a logo. E4-01.

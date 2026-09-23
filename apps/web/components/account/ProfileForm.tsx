@@ -3,10 +3,10 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { UserRound } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { toast } from '@souqstudio/designer/components/ui/toast'
 
 /**
  * Who you are, as distinct from how you sign in — the first card on

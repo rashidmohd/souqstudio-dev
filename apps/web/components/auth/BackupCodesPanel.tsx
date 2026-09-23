@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Download, Check } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 
 /**
  * The one moment backup codes are visible. E1-03.

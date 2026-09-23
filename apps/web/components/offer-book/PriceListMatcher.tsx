@@ -4,11 +4,11 @@ import type { CatalogProductSummary } from '@souqstudio/types'
 import * as React from 'react'
 import { AlertTriangle, Check, HelpCircle, RotateCcw } from 'lucide-react'
 import { ProductThumb } from '@/components/catalog/ProductThumb'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FileDropzone } from '@/components/ui/file-dropzone'
-import { Figure } from '@/components/ui/figure'
-import { Select } from '@/components/ui/select'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
+import { Select } from '@souqstudio/designer/components/ui/select'
 import { displayName, hasValidCheckDigit, normalizeBarcode, packLabel } from '@/lib/catalog-display'
 import { FIELD_LABEL, inferColumnMap, parsePrice } from '@/lib/catalog-import'
 import { parseSheet } from '@/lib/csv'
@@ -18,7 +18,7 @@ import {
   type MatchedRow,
   type ResolvedRow,
 } from '@/components/offer-book/match-types'
-import { parsePercent, readOfferType, resolvePrices } from '@/lib/offer-import'
+import { parsePercent, readOfferType, resolvePrices } from '@souqstudio/designer/lib/offer-import'
 import type { Currency } from '@souqstudio/types'
 
 /**

@@ -89,13 +89,19 @@ export async function syncLibrary(library: readonly SeedBlock[]): Promise<Librar
  *
  * A shop's own copy is a separate row with its own id and is never touched —
  * importing is copying, so nothing an owner has taken is taken back.
+ *
+ * **Drafts are never pruned.** The admin panel's designer writes SouqStudio's
+ * working copies as `organizationId: null, status: 'draft'` rows with a cuid.
+ * They are not in any library until published, and publishing writes a
+ * separate `blk_` row, so every draft is "stale" by this function's test. A
+ * sync that pruned them would delete the team's unpublished work.
  */
 async function pruneSeededBlocks(
   library: readonly { id: string }[]
 ): Promise<{ archived: number; deleted: number }> {
   const current = new Set(library.map((block) => block.id))
   const seeded = await prisma.block.findMany({
-    where: { organizationId: null },
+    where: { organizationId: null, NOT: { status: 'draft' } },
     select: { id: true, name: true, status: true },
   })
   const stale = seeded.filter((block) => !current.has(block.id))

@@ -14,10 +14,10 @@ import {
   type MasterCell,
   type Rect,
 } from '@souqstudio/engine'
-import { resolvePalette, resolveToken } from '@/lib/brand-palette'
-import { resolveScale } from '@/lib/font-catalog'
-import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
-import { useFontsReady } from '@/lib/use-fonts-ready'
+import { resolvePalette, resolveToken } from '@souqstudio/designer/lib/brand-palette'
+import { resolveScale } from '@souqstudio/designer/lib/font-catalog'
+import { useFontCatalog } from '@souqstudio/designer/components/brand/FontCatalogProvider'
+import { useFontsReady } from '@souqstudio/designer/lib/use-fonts-ready'
 import {
   contentFor,
   drawElement,
@@ -26,9 +26,9 @@ import {
   measureText,
   paintFill,
   type DrawContext,
-} from '@/components/blocks/draw'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
-import type { ArtboardIdentity } from '@/lib/artboard-identity'
+} from '@souqstudio/designer/components/blocks/draw'
+import type { ComposedOffer } from '@souqstudio/designer/lib/offer-book-compose'
+import type { ArtboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 
 /**
  * One page of an offer book, drawn.

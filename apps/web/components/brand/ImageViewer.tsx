@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Dialog } from '@/components/ui/dialog'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
 
 /**
  * One generated image, large. E8.

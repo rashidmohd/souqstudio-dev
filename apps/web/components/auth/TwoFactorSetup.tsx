@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Input } from '@souqstudio/designer/components/ui/input'
 import { OtpInput } from '@/components/auth/OtpInput'
 import { BackupCodesPanel } from '@/components/auth/BackupCodesPanel'
 

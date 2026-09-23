@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * RadioCards. Governed by the design skill → Components → Inputs, and by

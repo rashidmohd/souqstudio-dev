@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { OtpInput } from '@/components/auth/OtpInput'
 import { formatCountdown } from '@/lib/wait'
 

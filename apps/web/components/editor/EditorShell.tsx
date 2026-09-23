@@ -16,7 +16,7 @@ import {
   type CellSpan,
   type FlowPage,
 } from '@souqstudio/engine'
-import { Figure } from '@/components/ui/figure'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { CutoutWatch } from '@/components/editor/CutoutWatch'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
@@ -46,16 +46,16 @@ import {
 } from '@/components/editor/OfferProperties'
 import { UndoRedo } from '@/components/editor/UndoRedo'
 import { BookTitle } from '@/components/editor/BookTitle'
-import { assetResolver } from '@/lib/block-assets'
-import { resolvePalette, resolveToken } from '@/lib/brand-palette'
+import { assetResolver } from '@souqstudio/designer/lib/block-assets'
+import { resolvePalette, resolveToken } from '@souqstudio/designer/lib/brand-palette'
 import {
   CanvasDrawer,
   CanvasDrawerToggles,
   useCanvasDrawer,
-} from '@/components/shared/canvas-drawer'
+} from '@souqstudio/designer/components/shared/canvas-drawer'
 import { useEditorStore } from '@/stores/editor-store'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
-import type { ArtboardIdentity } from '@/lib/artboard-identity'
+import type { ComposedOffer } from '@souqstudio/designer/lib/offer-book-compose'
+import type { ArtboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 import { OfferPeriod } from './OfferPeriod'
 
 /**

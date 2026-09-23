@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * Tabs. Governed by the design skill → Components → Tabs, and by

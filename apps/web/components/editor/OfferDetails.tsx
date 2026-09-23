@@ -3,13 +3,13 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { Select } from '@souqstudio/designer/components/ui/select'
 import { useEditorStore } from '@/stores/editor-store'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { ComposedOffer } from '@souqstudio/designer/lib/offer-book-compose'
 import { callApi } from '@/lib/api-client'
-import { offerTypeOf, offerTypeOptions } from '@/lib/offer-types'
+import { offerTypeOf, offerTypeOptions } from '@souqstudio/designer/lib/offer-types'
 
 /**
  * The rest of E6-03: unit price, legal lines, chips, footnotes, and what each

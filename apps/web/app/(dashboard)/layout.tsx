@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
 import { cookies } from 'next/headers'
 import { DashboardRail } from '@/components/shared/dashboard-rail'
-import { Toaster } from '@/components/ui/toast'
+import { Toaster } from '@souqstudio/designer/components/ui/toast'
 import { getActiveShop } from '@/lib/active-shop'
 import { organizationName } from '@/lib/organization'
 import { RAIL_COOKIE, parseRailState } from '@/lib/rail-preference'
 import { requireCompliantSession } from '@/lib/session'
 import { listShopOptions } from '@/lib/shops'
-import { FontCatalogProvider } from '@/components/brand/FontCatalogProvider'
+import { FontCatalogProvider } from '@souqstudio/designer/components/brand/FontCatalogProvider'
 import { loadFontsForKit } from '@/lib/font-catalog-server'
 
 /**

@@ -17,13 +17,13 @@ import {
   type CharacterLook,
   type CharacterStyle,
 } from '@souqstudio/engine'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { FileDropzone } from '@/components/ui/file-dropzone'
-import { Input } from '@/components/ui/input'
-import { MachineOutput } from '@/components/ui/machine-output'
-import { Segmented } from '@/components/ui/segmented'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
+import { Segmented } from '@souqstudio/designer/components/ui/segmented'
 import { ImageViewer } from '@/components/brand/ImageViewer'
-import { Select } from '@/components/ui/select'
+import { Select } from '@souqstudio/designer/components/ui/select'
 
 /**
  * Making a character. E8-01.

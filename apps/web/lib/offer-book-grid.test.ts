@@ -4,7 +4,7 @@ import { flowBook, validateGrid } from '@souqstudio/engine'
 import { BOOK_KINDS, KIND_SPEC, kindOf, type BookKind } from '@/lib/book-kind'
 import { gridForFormat, gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { GAP_STEPS, MAX_GAP, MAX_MARGIN } from '@/lib/offer-book-layout'
-import { pageSizeFor } from '@/lib/offer-book-compose'
+import { pageSizeFor } from '@souqstudio/designer/lib/offer-book-compose'
 
 /**
  * The grid each kind starts from, and the one thing about it that cannot be

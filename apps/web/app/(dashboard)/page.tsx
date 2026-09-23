@@ -9,8 +9,8 @@ import { GettingStartedChecklist } from '@/components/shared/GettingStartedCheck
 import { OfferBooksList } from '@/components/offer-book/OfferBooksList'
 import { composeCover } from '@/lib/offer-book'
 import { env } from '@/lib/env'
-import type { BookCover } from '@/lib/offer-book-compose'
-import { artboardIdentity } from '@/lib/artboard-identity'
+import type { BookCover } from '@souqstudio/designer/lib/offer-book-compose'
+import { artboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Offer books · SouqStudio' }
 

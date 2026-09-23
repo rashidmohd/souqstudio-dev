@@ -1,8 +1,8 @@
-import { OFFER_TYPE_CHIP_KIND } from '@/lib/offer-types'
+import { OFFER_TYPE_CHIP_KIND } from '@souqstudio/designer/lib/offer-types'
 import 'server-only'
 
 import { adoptRowsIntoCatalog } from '@/lib/catalog'
-import type { BookCover } from '@/lib/offer-book-compose'
+import type { BookCover } from '@souqstudio/designer/lib/offer-book-compose'
 import { enqueueShadowRender, prisma } from '@souqstudio/db'
 import {
   arrangementCovers,
@@ -24,7 +24,7 @@ import {
   toMasterGrid,
   type ComposedOffer,
   type Edition,
-} from '@/lib/offer-book-compose'
+} from '@souqstudio/designer/lib/offer-book-compose'
 import { readPageBackground } from '@/lib/offer-book-background'
 import { gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { readOverrides } from '@/lib/offer-book-overrides'

@@ -2,10 +2,10 @@
 
 import * as React from 'react'
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { FileDropzone } from '@/components/ui/file-dropzone'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { Select } from '@souqstudio/designer/components/ui/select'
 import type { ApiResult, CatalogCategoryTile } from '@souqstudio/types'
 
 /**

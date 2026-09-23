@@ -6,8 +6,8 @@ import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { loadBlock } from '@/lib/blocks'
-import { DesignerShell } from '@/components/card-designer/DesignerShell'
-import { artboardIdentity } from '@/lib/artboard-identity'
+import { DesignerShell } from '@souqstudio/designer/components/card-designer/DesignerShell'
+import { artboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Block designer · SouqStudio' }
 

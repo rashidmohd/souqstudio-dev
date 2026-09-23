@@ -4,10 +4,10 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
-import type { ArtboardIdentity } from '@/lib/artboard-identity'
+import { cn } from '@souqstudio/designer/lib/utils'
+import type { ArtboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 
 /**
  * The block designer, as a window over the offer book editor.
@@ -45,7 +45,7 @@ import type { ArtboardIdentity } from '@/lib/artboard-identity'
  */
 
 const DesignerShell = dynamic(
-  () => import('@/components/card-designer/DesignerShell').then((m) => m.DesignerShell),
+  () => import('@souqstudio/designer/components/card-designer/DesignerShell').then((m) => m.DesignerShell),
   {
     // No SSR: the designer hydrates a Zustand store from its props and the
     // server has nothing to render it against here — this window's block

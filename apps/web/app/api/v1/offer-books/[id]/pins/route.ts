@@ -3,7 +3,7 @@ import { prisma } from '@souqstudio/db'
 import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
-import { toMasterGrid } from '@/lib/offer-book-compose'
+import { toMasterGrid } from '@souqstudio/designer/lib/offer-book-compose'
 import { spanFor } from '@/lib/pin-span'
 
 /**

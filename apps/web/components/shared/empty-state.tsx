@@ -2,9 +2,9 @@
 
 import * as React from 'react'
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { illustrationSrc, type IllustrationKey } from '@/lib/illustrations'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * EmptyState. Governed by the design skill → States, and by

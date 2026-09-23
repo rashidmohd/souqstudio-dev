@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight, Trash2 } from 'lucide-react'
 import type { Block, BrandKit, PageBackground } from '@souqstudio/types'
 import type { FlowPage } from '@souqstudio/engine'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
-import { assetResolver } from '@/lib/block-assets'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
-import type { ArtboardIdentity } from '@/lib/artboard-identity'
+import { assetResolver } from '@souqstudio/designer/lib/block-assets'
+import type { ComposedOffer } from '@souqstudio/designer/lib/offer-book-compose'
+import type { ArtboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 
 /**
  * The book, drawn, with the two things you can do about it.

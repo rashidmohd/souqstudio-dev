@@ -3,8 +3,8 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Input } from '@souqstudio/designer/components/ui/input'
 import { OtpInput } from '@/components/auth/OtpInput'
 
 const MIN_PASSWORD_LENGTH = 10

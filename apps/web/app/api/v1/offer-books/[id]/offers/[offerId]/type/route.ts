@@ -3,7 +3,7 @@ import { prisma } from '@souqstudio/db'
 import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
-import { OFFER_TYPES, OFFER_TYPE_CHIP_KIND, type OfferTypeKey } from '@/lib/offer-types'
+import { OFFER_TYPES, OFFER_TYPE_CHIP_KIND, type OfferTypeKey } from '@souqstudio/designer/lib/offer-types'
 
 /**
  * What kind of promotion this offer is. E6-03, and the editor's half of

@@ -4,11 +4,11 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import type { BrandKit } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { LogoStep } from '@/components/brand/LogoStep'
 import { ColorsStep } from '@/components/brand/ColorsStep'
-import { useBrandStore } from '@/stores/brand-store'
-import { palettePatch, resolvePalette } from '@/lib/brand-palette'
+import { useBrandStore } from '@souqstudio/designer/stores/brand-store'
+import { palettePatch, resolvePalette } from '@souqstudio/designer/lib/brand-palette'
 
 type Props = {
   shopName: string

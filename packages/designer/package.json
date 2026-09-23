@@ -1,0 +1,40 @@
+{
+  "name": "@souqstudio/designer",
+  "version": "0.0.1",
+  "private": true,
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@souqstudio/engine": "workspace:*",
+    "@souqstudio/types": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "immer": "^10.0.0",
+    "lucide-react": "^1.30.0",
+    "tailwind-merge": "^2.6.1",
+    "zustand": "^4.5.0"
+  },
+  "peerDependencies": {
+    "next": "^14.2.35",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@souqstudio/config": "workspace:*",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "14.2.0",
+    "next": "^14.2.35",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2"
+  }
+}

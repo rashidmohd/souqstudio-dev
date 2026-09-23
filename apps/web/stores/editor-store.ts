@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import { clampOverride, isEmptyOverride } from '@souqstudio/engine'
 import type { CellSpan } from '@souqstudio/engine'
 import type { SlotOverride } from '@souqstudio/types'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { ComposedOffer } from '@souqstudio/designer/lib/offer-book-compose'
 import type { OfferSnapshot } from '@/lib/offer-snapshot'
 
 /**

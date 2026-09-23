@@ -10,9 +10,9 @@ import type {
   CatalogSearchHit,
   Page,
 } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Input } from '@souqstudio/designer/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AddProductForm } from '@/components/catalog/AddProductForm'
 import { CategoryTiles } from '@/components/catalog/CategoryTiles'

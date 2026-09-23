@@ -4,10 +4,10 @@ import * as React from 'react'
 import { Ban, LayoutGrid, Pencil } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import type { BlockCategory } from '@souqstudio/engine'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
-import { Select } from '@/components/ui/select'
-import { Slider } from '@/components/ui/slider'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
+import { Select } from '@souqstudio/designer/components/ui/select'
+import { Slider } from '@souqstudio/designer/components/ui/slider'
 import {
   DEFAULT_BAND_HEIGHT,
   GAP_STEPS,

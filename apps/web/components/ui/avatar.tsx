@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 import { initials } from '@/lib/initials'
 
 /**

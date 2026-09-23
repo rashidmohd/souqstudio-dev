@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { ComposedOffer } from '@souqstudio/designer/lib/offer-book-compose'
 import {
   useEditorStore,
   type OfferPatchStep,

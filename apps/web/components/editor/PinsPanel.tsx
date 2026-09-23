@@ -4,9 +4,9 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { Pin as PinIcon, X } from 'lucide-react'
 import type { Pin } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
-import { Select } from '@/components/ui/select'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
+import { Select } from '@souqstudio/designer/components/ui/select'
 
 /**
  * Panels parked on a page, and the products that move around them. E6-07 and

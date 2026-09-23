@@ -3,8 +3,8 @@
 import * as React from 'react'
 import Image from 'next/image'
 import { Upload, Loader2, Check, TriangleAlert } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { useBrandStore } from '@/stores/brand-store'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { useBrandStore } from '@souqstudio/designer/stores/brand-store'
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml'
 const MAX_BYTES = 10 * 1024 * 1024

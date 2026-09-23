@@ -1,6 +1,6 @@
 import { validateBlock } from '@souqstudio/engine'
 import { z } from 'zod'
-import { arrangementsSchema } from '@/lib/block-document'
+import { arrangementsSchema } from '@souqstudio/designer/lib/block-document'
 
 /**
  * What a write to a block may say, and when it is refused. E7.

@@ -6,8 +6,8 @@ import {
   MAX_GRADIENT_STOPS,
   arrangementsSchema,
   toArrangements,
-} from '@/lib/block-document'
-import { usesOnlyRoles } from '@/lib/block-document'
+} from '@souqstudio/designer/lib/block-document'
+import { usesOnlyRoles } from '@souqstudio/designer/lib/block-document'
 import { blockErrorMessage, blockErrors, blockUpdateSchema } from '@/lib/block-write'
 import { copyName, importName, planReaches } from '@/lib/blocks'
 

@@ -1,4 +1,4 @@
-import { toast } from '@/components/ui/toast'
+import { toast } from '@souqstudio/designer/components/ui/toast'
 import { useEditorStore, type EditorStep } from '@/stores/editor-store'
 import { offerSnapshotSchema } from '@/lib/offer-snapshot'
 

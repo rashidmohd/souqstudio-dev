@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { cn } from '@/lib/utils'
-import { Figure } from '@/components/ui/figure'
+import { cn } from '@souqstudio/designer/lib/utils'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 
 /**
  * UsageMeter. Governed by the design skill → Components → Usage meters, and by

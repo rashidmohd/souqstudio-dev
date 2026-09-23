@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TYPE_MOODS } from '@souqstudio/engine'
-import { FONT_ROLES, findFont } from '@/lib/font-catalog'
-import { TEST_CATALOG } from '@/lib/font-catalog.fixture'
+import { FONT_ROLES, findFont } from '@souqstudio/designer/lib/font-catalog'
+import { TEST_CATALOG } from '@souqstudio/designer/lib/font-catalog.fixture'
 import { fontsForMood, isProposal, patchFromProposal, type DirectionProposal } from '@/lib/brand-direction'
 
 /**

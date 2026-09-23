@@ -6,7 +6,7 @@ import {
   resolveFonts,
   supportsItalic,
   type FontCatalog,
-} from '@/lib/font-catalog'
+} from '@souqstudio/designer/lib/font-catalog'
 
 /**
  * The shop's text styles — reading them, growing them, and keeping the four

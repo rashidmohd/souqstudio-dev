@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { TEST_CATALOG } from '@/lib/font-catalog.fixture'
+import { TEST_CATALOG } from '@souqstudio/designer/lib/font-catalog.fixture'
 import type { BrandKit, TextStyle } from '@souqstudio/types'
 import {
   MAX_STYLES,

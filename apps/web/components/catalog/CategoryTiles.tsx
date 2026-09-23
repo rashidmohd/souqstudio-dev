@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { CatalogCategoryTile } from '@souqstudio/types'
-import { Figure } from '@/components/ui/figure'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { IconChip } from '@/components/ui/icon-chip'
 import type { CatalogLanguage } from '@/lib/catalog-display'
 

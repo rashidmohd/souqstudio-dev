@@ -3,10 +3,10 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import type { Role, TeamMemberSummary } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog } from '@/components/ui/dialog'
-import { Select } from '@/components/ui/select'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Select } from '@souqstudio/designer/components/ui/select'
 import { InviteForm } from '@/components/team/InviteForm'
 
 /**

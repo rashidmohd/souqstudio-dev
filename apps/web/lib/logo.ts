@@ -1,7 +1,7 @@
 import 'server-only'
 
 import sharp from 'sharp'
-import { extractPalette } from '@/lib/color'
+import { extractPalette } from '@souqstudio/designer/lib/color'
 
 /**
  * Turning an uploaded file into a logo and a palette. E4-01 and E4-02.

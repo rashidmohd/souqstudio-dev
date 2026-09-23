@@ -3,8 +3,8 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import type { Role } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Select } from '@souqstudio/designer/components/ui/select'
 
 /**
  * E2-04 — who can use this shop, and with what role in it.

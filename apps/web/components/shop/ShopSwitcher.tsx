@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronsUpDown } from 'lucide-react'
 import type { ShopOption } from '@/lib/shops'
 import { nameInitials } from '@/lib/initials'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * The shop switcher at the head of the rail's shop zone. E2-02, and the last

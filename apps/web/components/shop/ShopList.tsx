@@ -3,9 +3,9 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import type { ShopSummary } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog } from '@/components/ui/dialog'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
 import { EmptyState } from '@/components/shared/empty-state'
 import { ShopForm } from '@/components/shop/ShopForm'
 

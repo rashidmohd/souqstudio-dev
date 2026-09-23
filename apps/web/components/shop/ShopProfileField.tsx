@@ -12,10 +12,10 @@ import {
   isShopProfileComplete,
   type ShopTrade,
 } from '@souqstudio/engine'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { FileDropzone } from '@/components/ui/file-dropzone'
 import { CheckCards } from '@/components/ui/check-cards'
-import { Textarea } from '@/components/ui/textarea'
+import { Textarea } from '@souqstudio/designer/components/ui/textarea'
 
 /**
  * What this shop sells, in its own words. E8-01.

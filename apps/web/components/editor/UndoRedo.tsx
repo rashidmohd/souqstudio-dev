@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { Redo2, Undo2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { applyStep } from '@/lib/editor-actions'
 import { useEditorStore, type EditorStep } from '@/stores/editor-store'
 

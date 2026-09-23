@@ -3,9 +3,9 @@
 import * as React from 'react'
 import Image from 'next/image'
 import { Upload } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { illustrationSrc, type IllustrationKey } from '@/lib/illustrations'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * FileDropzone. Governed by the design skill → Components, and by

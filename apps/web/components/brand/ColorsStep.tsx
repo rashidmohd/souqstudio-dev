@@ -1,10 +1,10 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { ColorFields, firstInvalidColorSlot } from '@/components/brand/ColorFields'
-import { useBrandStore } from '@/stores/brand-store'
-import { EXAMPLE_HEX } from '@/lib/color'
+import { useBrandStore } from '@souqstudio/designer/stores/brand-store'
+import { EXAMPLE_HEX } from '@souqstudio/designer/lib/color'
 
 /**
  * Step 2 — confirm the colours pulled from the logo. E4-02.

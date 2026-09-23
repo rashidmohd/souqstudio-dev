@@ -3,10 +3,10 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import type { CatalogProductSummary, ImportRowStatus } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { FileDropzone } from '@/components/ui/file-dropzone'
-import { Select } from '@/components/ui/select'
+import { Select } from '@souqstudio/designer/components/ui/select'
 import {
   CANONICAL_FIELDS,
   FIELD_LABEL,

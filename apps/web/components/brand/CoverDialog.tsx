@@ -11,12 +11,12 @@ import {
   type CoverStyle,
 } from '@souqstudio/engine'
 import { Image as ImageIcon, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
-import { Select } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { MachineOutput } from '@/components/ui/machine-output'
-import { uploadArtwork } from '@/lib/upload-artwork'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Select } from '@souqstudio/designer/components/ui/select'
+import { Textarea } from '@souqstudio/designer/components/ui/textarea'
+import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
+import { uploadArtwork } from '@souqstudio/designer/lib/upload-artwork'
 
 /**
  * Generate a cover from the shop's own character and its own shop. E8-04.

@@ -1,8 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { Input } from '@/components/ui/input'
-import { isRecommended } from '@/lib/font-editorial'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { isRecommended } from '@souqstudio/designer/lib/font-editorial'
 import type { OfferableFont } from '@/lib/font-catalog-server'
 
 /**

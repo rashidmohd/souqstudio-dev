@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { MachineOutput } from '@/components/ui/machine-output'
+import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
 import { ImageViewer, type ViewerImage } from '@/components/brand/ImageViewer'
 
 /**

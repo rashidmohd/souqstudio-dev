@@ -9,7 +9,7 @@ import { listBlocks } from '@/lib/blocks'
 import { loadBook } from '@/lib/offer-book'
 import { env } from '@/lib/env'
 import { EditorShell } from '@/components/editor/EditorShell'
-import { artboardIdentity } from '@/lib/artboard-identity'
+import { artboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Offer book · SouqStudio' }
 

@@ -13,7 +13,7 @@ import { requireApiSession } from '@/lib/api-session'
 import { getActiveShop } from '@/lib/active-shop'
 import { env } from '@/lib/env'
 import { readEffectiveBrand } from '@/lib/brand-kit'
-import { resolvePalette } from '@/lib/brand-palette'
+import { resolvePalette } from '@souqstudio/designer/lib/brand-palette'
 import { keyFromPublicUrl } from '@/lib/r2'
 
 /**

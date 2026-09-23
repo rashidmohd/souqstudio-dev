@@ -3,10 +3,10 @@
 import * as React from 'react'
 import { Plus, Search, X } from 'lucide-react'
 import type { CatalogSearchHit } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Figure } from '@/components/ui/figure'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { ProductThumb } from '@/components/catalog/ProductThumb'
 import { displayName, packLabel } from '@/lib/catalog-display'
 

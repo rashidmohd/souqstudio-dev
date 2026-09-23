@@ -2,9 +2,9 @@
 
 import * as React from 'react'
 import { Sparkles, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
-import { MachineOutput } from '@/components/ui/machine-output'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
 import { CoverDialog } from '@/components/brand/CoverDialog'
 import { ImageViewer } from '@/components/brand/ImageViewer'
 import { TILE_HEIGHT } from '@/components/blocks/BlockTile'

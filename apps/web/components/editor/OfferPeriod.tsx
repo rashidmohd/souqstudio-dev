@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import { CalendarRange } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Input } from '@souqstudio/designer/components/ui/input'
 
 /**
  * When the offers hold — the two dates a flyer header prints. E14 §3.4.

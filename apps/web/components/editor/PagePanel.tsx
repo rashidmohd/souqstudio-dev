@@ -2,9 +2,9 @@
 
 import * as React from 'react'
 import type { BrandColor, PageBackground, TokenRef } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
-import { Select } from '@/components/ui/select'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
+import { Select } from '@souqstudio/designer/components/ui/select'
 import { PageBackgroundControl } from '@/components/editor/PageBackgroundControl'
 
 /**

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { IconChip } from '@/components/ui/icon-chip'
 import { NAV_ROW_LABEL, NAV_ROW_LEADING, navRowClass } from '@/components/shared/nav-item'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * What finished while you were somewhere else. E8.

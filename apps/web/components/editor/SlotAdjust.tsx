@@ -3,8 +3,8 @@
 import * as React from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
 import { SLOT_OVERRIDE_LIMITS } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { useEditorStore } from '@/stores/editor-store'
 
 /**

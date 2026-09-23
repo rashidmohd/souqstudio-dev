@@ -7,8 +7,8 @@ import {
   type ProposedColor,
   type TypeMood,
 } from '@souqstudio/engine'
-import { EDITORIAL, type FontRole } from '@/lib/font-editorial'
-import { palettePatch } from '@/lib/brand-palette'
+import { EDITORIAL, type FontRole } from '@souqstudio/designer/lib/font-editorial'
+import { palettePatch } from '@souqstudio/designer/lib/brand-palette'
 
 /**
  * Turning an accepted brand direction into a brand kit. E8-08.

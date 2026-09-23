@@ -18,12 +18,12 @@ import {
   UserRound,
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { ShopSwitcher } from '@/components/shop/ShopSwitcher'
 import { LogOutRow } from '@/components/shared/LogOutRow'
 import { UnfinishedWork } from '@/components/shared/UnfinishedWork'
 import { NavItem } from '@/components/shared/nav-item'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 import { railCookie, type RailState } from '@/lib/rail-preference'
 import type { ShopOption } from '@/lib/shops'
 import {

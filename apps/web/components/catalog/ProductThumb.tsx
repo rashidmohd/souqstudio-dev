@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { ImageOff } from 'lucide-react'
 import type { CatalogProductSummary } from '@souqstudio/types'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * A catalog row's packshot at control size, for lists rather than grids.

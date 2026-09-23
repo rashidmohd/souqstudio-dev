@@ -2,9 +2,9 @@
 
 import * as React from 'react'
 import { Check, Pencil } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
-import { cn } from '@/lib/utils'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * One step of the creation flow, in one of its three states.

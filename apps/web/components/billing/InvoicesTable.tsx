@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Download } from 'lucide-react'
 import type { InvoiceSummary } from '@/lib/subscription'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DataTable, type Column } from '@/components/ui/data-table'
 

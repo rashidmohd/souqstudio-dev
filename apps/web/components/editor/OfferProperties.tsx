@@ -3,16 +3,16 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronUp, Trash2, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
 import { callApi } from '@/lib/api-client'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { Select } from '@souqstudio/designer/components/ui/select'
 import { OfferDetails } from '@/components/editor/OfferDetails'
 import { SlotAdjust } from '@/components/editor/SlotAdjust'
 import { moveOffer, removeOffer } from '@/lib/editor-actions'
 import { useEditorStore } from '@/stores/editor-store'
-import type { ComposedOffer } from '@/lib/offer-book-compose'
+import type { ComposedOffer } from '@souqstudio/designer/lib/offer-book-compose'
 
 /**
  * The properties of the selected offer. E6-03.

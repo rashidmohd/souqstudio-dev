@@ -4,10 +4,10 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import type { BillingSummary } from '@/lib/billing-summary'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog } from '@/components/ui/dialog'
-import { Figure } from '@/components/ui/figure'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { UsageMeter } from '@/components/ui/usage-meter'
 
 /**

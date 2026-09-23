@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
-import { toArrangements } from '@/lib/block-document'
+import { toArrangements } from '@souqstudio/designer/lib/block-document'
 import { blockErrorMessage, blockErrors } from '@/lib/block-write'
 
 /**

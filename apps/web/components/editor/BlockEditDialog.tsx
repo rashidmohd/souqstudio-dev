@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import { Copy, Layers } from 'lucide-react'
-import { Dialog } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Button } from '@souqstudio/designer/components/ui/button'
 import type { BlockEditStep, Repoint } from '@/components/editor/use-block-edit'
 
 /**

@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 
 /**
  * Google sign-in. E1-01 and E1-02 — the one federated provider in scope.

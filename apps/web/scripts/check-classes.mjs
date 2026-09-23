@@ -28,7 +28,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const CSS_DIR = '.next/static/css'
-const ROOTS = ['components', 'app']
+// The shared designer is part of both apps' CSS, so its classes are checked
+// against whichever app's build this runs in.
+const ROOTS = ['components', 'app', '../../packages/designer']
 
 /**
  * Utilities whose absence is invisible. Colour and font classes are excluded:
@@ -48,6 +50,7 @@ function sources() {
   const found = []
   const walk = (dir) => {
     for (const entry of readdirSync(dir)) {
+      if (entry === 'node_modules') continue
       const full = join(dir, entry)
       if (statSync(full).isDirectory()) walk(full)
       else if (/\.tsx?$/.test(entry)) found.push(full)

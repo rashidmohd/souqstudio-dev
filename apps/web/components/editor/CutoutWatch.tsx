@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from '@/components/ui/toast'
+import { toast } from '@souqstudio/designer/components/ui/toast'
 import { useEditorStore } from '@/stores/editor-store'
 
 /**

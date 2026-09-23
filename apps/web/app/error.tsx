@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { illustrationSrc } from '@/lib/illustrations'
 
 /**

@@ -3,6 +3,9 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Shipped as TypeScript source with 'use client' modules, like the other
+  // workspace packages, but this one carries JSX and CSS classes.
+  transpilePackages: ['@souqstudio/designer'],
   experimental: {
     // Required for Fabric.js and other canvas libs.
     //

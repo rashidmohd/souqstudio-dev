@@ -10,12 +10,12 @@ import {
   type LogoStructure,
 } from '@souqstudio/engine'
 import type { BrandKit } from '@souqstudio/types'
-import { Dialog } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { MachineOutput } from '@/components/ui/machine-output'
-import { resolveFont } from '@/lib/font-catalog'
-import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
-import { resolvePalette } from '@/lib/brand-palette'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Input } from '@souqstudio/designer/components/ui/input'
+import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
+import { resolveFont } from '@souqstudio/designer/lib/font-catalog'
+import { useFontCatalog } from '@souqstudio/designer/components/brand/FontCatalogProvider'
+import { resolvePalette } from '@souqstudio/designer/lib/brand-palette'
 
 /**
  * Logo marks — four to choose from, for a shop that has none. E8-09.

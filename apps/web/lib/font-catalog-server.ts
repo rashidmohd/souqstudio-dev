@@ -2,10 +2,10 @@ import 'server-only'
 
 import { fetchGoogleCatalog, listFonts, REQUIRED_SUBSETS, type Font } from '@souqstudio/db'
 import { fontWoff2Key } from '@souqstudio/types'
-import { noteFor, rolesFor, isRecommended } from '@/lib/font-editorial'
+import { noteFor, rolesFor, isRecommended } from '@souqstudio/designer/lib/font-editorial'
 import { env } from '@/lib/env'
 import type { BrandKit } from '@souqstudio/types'
-import { resolveFonts, type CatalogFont, type FontCatalog } from '@/lib/font-catalog'
+import { resolveFonts, type CatalogFont, type FontCatalog } from '@souqstudio/designer/lib/font-catalog'
 
 /**
  * Loading the font registry for a request, and turning it into the small thing

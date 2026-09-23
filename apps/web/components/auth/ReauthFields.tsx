@@ -1,10 +1,10 @@
 'use client'
 
 import * as React from 'react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@souqstudio/designer/components/ui/input'
 import { OtpInput } from '@/components/auth/OtpInput'
 import { CodeInput } from '@/components/auth/CodeInput'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 
 /**
  * Password plus a live second factor — the proof every route that weakens

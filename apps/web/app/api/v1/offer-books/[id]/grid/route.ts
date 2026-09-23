@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { fail, ok } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { loadBlock } from '@/lib/blocks'
-import { pageSizeFor, toMasterGrid } from '@/lib/offer-book-compose'
+import { pageSizeFor, toMasterGrid } from '@souqstudio/designer/lib/offer-book-compose'
 import { gridForKind, readGridChoice } from '@/lib/offer-book-grid'
 import { backgroundSchema } from '@/lib/offer-book-background'
 import {

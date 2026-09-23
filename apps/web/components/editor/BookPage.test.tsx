@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Block, BrandKit } from '@souqstudio/types'
 import type { FlowPage } from '@souqstudio/engine'
-import { artboardIdentity } from '@/lib/artboard-identity'
+import { artboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 import { BookPage } from '@/components/editor/BookPage'
 
 const KIT: BrandKit = {

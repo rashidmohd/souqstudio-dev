@@ -4,12 +4,12 @@ import * as React from 'react'
 import { Ban, Check, Pencil } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { BLOCK_CATEGORIES, type BlockCategory } from '@souqstudio/engine'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
-import { Segmented } from '@/components/ui/segmented'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Dialog } from '@souqstudio/designer/components/ui/dialog'
+import { Segmented } from '@souqstudio/designer/components/ui/segmented'
 import { BlockTile, TILE_HEIGHT } from '@/components/blocks/BlockTile'
 import { bandBlocks } from '@/lib/band-blocks'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * Which design is drawn, picked by looking at it — for one cell, or for the

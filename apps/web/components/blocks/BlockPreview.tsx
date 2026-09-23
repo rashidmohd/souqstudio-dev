@@ -3,19 +3,19 @@
 import * as React from 'react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { resolveBlock } from '@souqstudio/engine'
-import { resolvePalette, resolveToken } from '@/lib/brand-palette'
-import { resolveScale } from '@/lib/font-catalog'
-import { useFontCatalog } from '@/components/brand/FontCatalogProvider'
-import { useFontsReady } from '@/lib/use-fonts-ready'
-import { toArtboardOffer } from '@/lib/preview-offer'
-import { PREVIEW_IDENTITY } from '@/lib/artboard-identity'
-import { PREVIEW_PRODUCT } from '@/lib/preview-product'
+import { resolvePalette, resolveToken } from '@souqstudio/designer/lib/brand-palette'
+import { resolveScale } from '@souqstudio/designer/lib/font-catalog'
+import { useFontCatalog } from '@souqstudio/designer/components/brand/FontCatalogProvider'
+import { useFontsReady } from '@souqstudio/designer/lib/use-fonts-ready'
+import { toArtboardOffer } from '@souqstudio/designer/lib/preview-offer'
+import { PREVIEW_IDENTITY } from '@souqstudio/designer/lib/artboard-identity'
+import { PREVIEW_PRODUCT } from '@souqstudio/designer/lib/preview-product'
 import {
   drawElement,
   estimateWidth,
   measureText,
   type DrawContext,
-} from '@/components/blocks/draw'
+} from '@souqstudio/designer/components/blocks/draw'
 
 /**
  * A seeded block, drawn in the shop's own brand.

@@ -4,7 +4,7 @@ import * as React from 'react'
 import Image from 'next/image'
 import { ImageOff } from 'lucide-react'
 import type { CatalogProductSummary } from '@souqstudio/types'
-import { Figure } from '@/components/ui/figure'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
 import {
   displayBrand,
   displayName,
@@ -12,7 +12,7 @@ import {
   packLabel,
   type CatalogLanguage,
 } from '@/lib/catalog-display'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * One catalog row, as the search grid and the category grid both draw it.

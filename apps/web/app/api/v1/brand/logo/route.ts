@@ -7,7 +7,7 @@ import { patchBrandAtLevel, readEffectiveBrand } from '@/lib/brand-kit'
 import { levelFor } from '@/lib/brand-inheritance'
 import { getObjectBytes, putObject, shopAssetKey, orgAssetKey, publicUrl } from '@/lib/r2'
 import { processLogo } from '@/lib/logo'
-import { assignBrandColors } from '@/lib/color'
+import { assignBrandColors } from '@souqstudio/designer/lib/color'
 
 /**
  * E4-01 and E4-02 — finish a logo upload.

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * IconChip. Governed by the design skill → Components → Icon chips, and by

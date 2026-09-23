@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Check } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { BlockPreview } from '@/components/blocks/BlockPreview'
-import { cn } from '@/lib/utils'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * A block, drawn small enough to pick from a grid.

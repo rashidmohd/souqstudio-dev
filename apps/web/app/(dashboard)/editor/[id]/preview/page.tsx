@@ -6,7 +6,7 @@ import { readEffectiveBrand } from '@/lib/brand-kit'
 import { loadBook } from '@/lib/offer-book'
 import { env } from '@/lib/env'
 import { BookPreview } from '@/components/offer-book/BookPreview'
-import { artboardIdentity } from '@/lib/artboard-identity'
+import { artboardIdentity } from '@souqstudio/designer/lib/artboard-identity'
 
 export const metadata: Metadata = { title: 'Preview · SouqStudio' }
 

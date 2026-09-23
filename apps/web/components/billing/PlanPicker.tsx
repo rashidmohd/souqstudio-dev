@@ -3,9 +3,9 @@
 import * as React from 'react'
 import { Check } from 'lucide-react'
 import type { PlanSummary } from '@/lib/billing-summary'
-import { Button } from '@/components/ui/button'
-import { Figure } from '@/components/ui/figure'
-import { cn } from '@/lib/utils'
+import { Button } from '@souqstudio/designer/components/ui/button'
+import { Figure } from '@souqstudio/designer/components/ui/figure'
+import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
  * E3-01 — the plan comparison table.

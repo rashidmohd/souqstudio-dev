@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { BRAND_OVERRIDES, type BrandOverride } from '@souqstudio/types'
-import { Button } from '@/components/ui/button'
+import { Button } from '@souqstudio/designer/components/ui/button'
 
 /**
  * E2-05 — how much of the organization's brand this shop replaces.

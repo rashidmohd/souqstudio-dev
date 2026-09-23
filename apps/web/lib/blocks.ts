@@ -3,7 +3,7 @@ import 'server-only'
 import { prisma } from '@souqstudio/db'
 import type { Arrangement } from '@souqstudio/types'
 import { BLOCK_CATEGORIES, type BlockCategory } from '@souqstudio/engine'
-import { toArrangements } from '@/lib/block-document'
+import { toArrangements } from '@souqstudio/designer/lib/block-document'
 
 /**
  * The block library, read. E7.
@@ -227,7 +227,9 @@ export async function loadBlock(id: string, organizationId: string, planId: stri
   const row = await prisma.block.findFirst({
     where: {
       id,
-      OR: [{ organizationId: null }, { organizationId }],
+      // A platform draft is SouqStudio's unpublished work from the admin
+      // designer, and no shop sees it until it is published into the library.
+      OR: [{ organizationId: null, NOT: { status: 'draft' } }, { organizationId }],
     },
     select: SELECT,
   })
