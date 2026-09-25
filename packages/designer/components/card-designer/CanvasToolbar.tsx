@@ -42,6 +42,8 @@ import { Figure } from '../ui/figure'
 type Props = {
   /** The canvas shape control — a shape picker, or the layout tabs. */
   leading?: React.ReactNode
+  /** After zoom: an action on the block's content rather than its geometry. */
+  trailing?: React.ReactNode
   count: number
   zoom: number
   disabled: boolean
@@ -62,6 +64,7 @@ const ALIGNMENTS: { how: Alignment; label: string; icon: typeof Group; rotate?: 
 
 export function CanvasToolbar({
   leading,
+  trailing,
   count,
   zoom,
   disabled,
@@ -175,6 +178,13 @@ export function CanvasToolbar({
           <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </Button>
       </div>
+
+      {trailing === undefined ? null : (
+        <>
+          <Divider />
+          {trailing}
+        </>
+      )}
     </div>
   )
 }

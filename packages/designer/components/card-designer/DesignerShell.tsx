@@ -2,10 +2,26 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Copy, PanelLeftClose, Plus, Redo2, TriangleAlert, Undo2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  Copy,
+  PanelLeftClose,
+  Plus,
+  Redo2,
+  Sparkles,
+  TriangleAlert,
+  Undo2,
+} from 'lucide-react'
 import type { Alignment, BlockProblem } from '@souqstudio/engine'
 import type { Arrangement, BlockElement, BrandKit } from '@souqstudio/types'
-import { addElement, alignBoxes, reorderElement, validateBlock } from '@souqstudio/engine'
+import {
+  addElement,
+  alignBoxes,
+  designAspect,
+  fillTargets,
+  reorderElement,
+  validateBlock,
+} from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '../../lib/brand-palette'
 import { FREE_ELEMENTS, intrinsicAspect, proportioned } from '../../lib/block-elements'
 import { measureImage } from '../../lib/measure-image'
@@ -14,6 +30,7 @@ import { uploadArtwork } from '../../lib/upload-artwork'
 import { useDesignerHost, type DesignerHost } from '../../lib/designer-host'
 import { MAX_ARRANGEMENTS } from '../../lib/block-document'
 import { ArtworkDialog } from './ArtworkDialog'
+import { GenerativeFillDialog } from './GenerativeFillDialog'
 import { CanvasToolbar } from './CanvasToolbar'
 import { InlineSelect } from '../ui/inline-select'
 import { Button } from '../ui/button'
@@ -215,6 +232,7 @@ export function DesignerShell({
    */
   const [panelOpen, setPanelOpen] = React.useState(true)
   const [picking, setPicking] = React.useState(false)
+  const [filling, setFilling] = React.useState(false)
 
   React.useEffect(() => {
     hydrate({
@@ -229,6 +247,14 @@ export function DesignerShell({
 
   const arrangement = store.arrangements[store.arrangementIndex]
   const direction = store.direction
+
+  /**
+   * What generative fill would write: the selection's free text, or all of it
+   * when nothing is selected. Computed here rather than in the dialog so the
+   * dialog opens already knowing, and so it follows the selection live.
+   */
+  const selectedElements = elements.filter((element) => store.selectedIds.includes(element.id))
+  const fillFrom = fillTargets(elements, selectedElements)
 
   /**
    * The shape the canvas is drawn at, and the two kinds of block answer it
@@ -509,6 +535,18 @@ export function DesignerShell({
         </p>
       ) : null}
 
+      {editable ? (
+        <GenerativeFillDialog
+          open={filling}
+          onOpenChange={setFilling}
+          blockId={blockId}
+          targets={fillFrom}
+          fromSelection={selectedElements.length > 0}
+          aspect={arrangement === undefined ? 1 : designAspect(arrangement)}
+          onApply={store.applyFillLines}
+        />
+      ) : null}
+
       <ArtworkDialog
         open={picking}
         onOpenChange={setPicking}
@@ -720,6 +758,16 @@ export function DesignerShell({
                     ) : null}
                   </>
                 )
+              }
+              trailing={
+                // Hidden where the host has nowhere to send it (the library)
+                // and on a read-only block, which has no text to write into.
+                editable && host.fillUrl !== null ? (
+                  <Button type="button" variant="ghost" onClick={() => setFilling(true)}>
+                    <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                    Generative fill
+                  </Button>
+                ) : undefined
               }
               count={store.selectedIds.length}
               zoom={store.zoom}

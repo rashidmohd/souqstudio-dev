@@ -112,6 +112,32 @@ export interface BrandDirectionPayload {
 }
 
 /**
+ * Generative fill: words for a block's free text. Its own payload because it
+ * produces no image and writes nothing: the reply goes back to the designer on
+ * the job row, and the owner decides whether any of it lands on the block.
+ *
+ * **The slots travel on the payload rather than being read off the block.**
+ * The designer autosaves on a debounce, so the saved document can be a few
+ * seconds behind what the owner selected. The route still checks the block is
+ * theirs; the slots are only ever context for a prompt.
+ */
+export interface CopyFillPayload {
+  jobId: string
+  organizationId: string
+  /** The shop whose profile the words are written for. Absent, the organization's name. */
+  shopId?: string
+  /** What the owner said the block is for. May be empty. */
+  brief: string
+  slots: {
+    id: string
+    role: 'headline' | 'subheading' | 'body' | 'small print'
+    maxChars: number
+    currentEn: string
+    currentAr: string
+  }[]
+}
+
+/**
  * Logo mark — four marks assembled from a structure the model chose. E8-09.
  *
  * **No diffusion model, and that is the design rather than a limitation.** The
@@ -465,6 +491,14 @@ export async function enqueueFontComplete(payload: FontCompletePayload) {
     attempts: 3,
     backoff: { type: 'exponential', delay: 5_000 },
     removeOnComplete: true,
+  })
+}
+
+export async function enqueueCopyFill(payload: CopyFillPayload) {
+  return queues.ai.add('ai.copyFill', payload, {
+    // Two attempts, as everything else on this queue: each is a paid call.
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 10000 },
   })
 }
 

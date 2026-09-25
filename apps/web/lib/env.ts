@@ -109,6 +109,16 @@ const schema = z.object({
    * `docs/fonts-from-google.md` §3a.
    */
   GOOGLE_FONTS_API_KEY:               z.string().min(1).optional(),
+  /**
+   * What one generative fill costs, in credits.
+   *
+   * **An environment decision rather than a constant**, because nobody has
+   * priced it against real usage yet and changing a number on the Railway
+   * dashboard is cheaper than a release. Read only by the route, which records
+   * it on the job; the worker charges what the job says, so the two processes
+   * cannot disagree. Zero makes it free. Unset is `CREDIT_COSTS.copy_fill`.
+   */
+  GENERATIVE_FILL_CREDITS:            z.coerce.number().int().min(0).max(100).default(1),
 })
 
 /**

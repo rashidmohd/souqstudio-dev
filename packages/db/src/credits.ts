@@ -38,6 +38,7 @@ export type CreditAction =
   | 'block_gen'
   | 'brand_direction'
   | 'logo_gen'
+  | 'copy_fill'
 
 export const CREDIT_COSTS: Readonly<Record<CreditAction, number>> = {
   /** Generate base character — four variations. */
@@ -80,6 +81,15 @@ export const CREDIT_COSTS: Readonly<Record<CreditAction, number>> = {
    * the other "four variations, pick one, it joins the brand kit" job.
    */
   logo_gen: 10,
+  /**
+   * Generative fill: words for a block's free text, both languages.
+   *
+   * **The default only.** The web app's `GENERATIVE_FILL_CREDITS` sets what an
+   * environment actually charges and records it on the job, and the worker
+   * charges what the job says. This is what a job that recorded nothing costs.
+   * One credit, because it is a short text call with no image either way.
+   */
+  copy_fill: 1,
 }
 
 /** One top-up pack: 100 credits for $8, per docs/project.md. */

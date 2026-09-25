@@ -6,6 +6,7 @@ import { handleLogoGen } from '../jobs/logo-gen.job'
 import { handleCharacterGen } from '../jobs/character.job'
 import { handlePoseGen } from '../jobs/pose.job'
 import { handleCoverGen } from '../jobs/cover.job'
+import { handleCopyFill } from '../jobs/copy-fill.job'
 
 /**
  * The AI queue.
@@ -52,6 +53,10 @@ export const aiWorker = new Worker(
 
     if (job.name === 'ai.cover') {
       return handleCoverGen(job)
+    }
+
+    if (job.name === 'ai.copyFill') {
+      return handleCopyFill(job)
     }
 
     throw new Error(`Not yet implemented: ${job.name}`)

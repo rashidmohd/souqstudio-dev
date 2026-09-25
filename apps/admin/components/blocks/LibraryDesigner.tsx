@@ -59,6 +59,9 @@ export function LibraryDesigner({
     // The library belongs to no shop, so there is no character and nothing
     // generated to offer.
     generatedUrl: null,
+    // Nor anyone to write copy for or charge for it. Library copy is the
+    // team's to write.
+    fillUrl: null,
     availability: false,
     readOnlyNote:
       'Published library blocks are read-only. Duplicate this one to make a draft, then publish the draft under the same library id to replace it.',

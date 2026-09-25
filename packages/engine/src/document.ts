@@ -281,6 +281,9 @@ const textSourceSchema = z.discriminatedUnion('from', [
     // it will never see that edition.
     textEn: z.string().max(280),
     textAr: z.string().max(280),
+    // Written by generative fill and not edited since. Declared here or the
+    // save strips it, and the mark disappears on the next reload.
+    machine: z.boolean().optional(),
   }),
 ])
 
@@ -575,6 +578,13 @@ const elementSchema = z.discriminatedUnion('kind', [
       z.strictObject({ from: z.literal('brand'), field: z.literal('logo') }),
     ]),
     fit: z.enum(['contain', 'cover']).optional(),
+    /**
+     * Padding inside the box, a fraction of its shorter edge. Absent keeps the
+     * painter's default (0.12 for a product photo, 0 otherwise), so every
+     * document written before this field existed draws exactly as it did.
+     * Capped at 0.3: past that the picture is a speck in a frame.
+     */
+    padding: z.number().min(0).max(0.3).optional(),
     radius: z.number().min(0).max(64).optional(),
     stroke: strokeSchema.optional(),
     shadow: shadowSchema.optional(),

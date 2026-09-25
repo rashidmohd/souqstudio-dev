@@ -18,6 +18,7 @@ describe('SHOP_HOST', () => {
     expect(SHOP_HOST.artworkUrl).toBe('/api/v1/blocks/artwork')
     expect(SHOP_HOST.artworkVectorUrl).toBe('/api/v1/blocks/artwork/vector')
     expect(SHOP_HOST.generatedUrl).toBe('/api/v1/brand/generated')
+    expect(SHOP_HOST.fillUrl).toBe('/api/v1/blocks/fill')
   })
 
   it('lets a shop set availability from inside the designer', () => {

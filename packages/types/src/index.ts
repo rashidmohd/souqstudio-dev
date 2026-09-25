@@ -53,6 +53,8 @@ export type AiJobType =
   | 'brand_direction'
   /** E8-09. Four logo marks, assembled from a structure the model picked. */
   | 'logo_gen'
+  /** Generative fill. Words for a block's free text, returned for the owner to accept. */
+  | 'copy_fill'
 
 export type EmailTemplate =
   | 'email-verification'

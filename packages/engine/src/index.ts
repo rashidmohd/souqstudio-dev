@@ -432,3 +432,27 @@ export {
   type ConvertedArrangement,
   type ConvertedBlock,
 } from './convert'
+// Generative fill: which text a model may write, how long each line should
+// run, and the reply held to what was asked. The designer, the route and the
+// worker all read it.
+export {
+  MAX_FILL_BRIEF,
+  MAX_FILL_LINES,
+  MAX_STATIC_TEXT,
+  applyFill,
+  charBudget,
+  designAspect,
+  fillReplyJsonSchema,
+  fillReplySchema,
+  fillRequestSchema,
+  fillSlotSchema,
+  fillSlots,
+  fillTargets,
+  interpretFill,
+  isFreeText,
+  type FillLine,
+  type FillRequest,
+  type FillRole,
+  type FillSlot,
+  type FreeTextElement,
+} from './copy-fill'

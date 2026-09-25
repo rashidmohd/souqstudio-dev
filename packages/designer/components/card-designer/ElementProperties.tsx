@@ -49,6 +49,7 @@ import type { OfferField } from '@souqstudio/engine'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
+import { MachineOutput } from '../ui/machine-output'
 import { Select } from '../ui/select'
 import { ColorControl } from './ColorControl'
 import { ExtrudeControl } from './ExtrudeControl'
@@ -59,6 +60,7 @@ import { ShapeMark } from './ShapeMark'
 import { SHAPE_VARIANTS, type PickableShape, type ShapeVariant } from '../../lib/block-elements'
 import { Segmented, ToggleBar } from '../ui/segmented'
 import { Slider } from '../ui/slider'
+import { imagePadding } from '../blocks/draw'
 import { describe } from './LayerList'
 import { drawnSize, type Canvas } from '../../lib/drawn-size'
 
@@ -464,6 +466,22 @@ export function ElementProperties({
           onChange={(event) =>
             onChange({ ...element, fit: event.target.value as 'contain' | 'cover' })
           }
+          />
+          {/*
+            The gap between the box and the picture, which the dashed line on
+            the canvas shows. Percent of the box's shorter edge, the unit the
+            painter insets by, so the number and the line agree at any size.
+          */}
+          <Slider
+            label="Padding"
+            min={0}
+            max={30}
+            step={1}
+            unit="%"
+            disabled={disabled}
+            value={Math.round(imagePadding(element) * 100)}
+            hint="Space between the box and the picture. At 0% the picture reaches the edges."
+            onValueChange={(padding) => onChange({ ...element, padding: padding / 100 })}
           />
         </>
       ) : null}
@@ -1490,6 +1508,18 @@ function TextFields({
       {source.from === 'static' ? (
         <>
           {/*
+            **Beside the fields, never around them.** The mark goes the moment
+            either line is edited, and wrapping the fields would remount them
+            on that keystroke and throw the owner's cursor away.
+          */}
+          {source.machine === true ? (
+            <MachineOutput label="Written by AI">
+              <p className="font-ui text-body-sm text-secondary">
+                Generative fill wrote this text. Edit either line and it becomes yours.
+              </p>
+            </MachineOutput>
+          ) : null}
+          {/*
             **A field you can press Return in.** It was an `Input`, which cannot
             hold a line break at all — so a two-line headline could only be made
             by narrowing the box until the wrap landed between the right two
@@ -1509,7 +1539,7 @@ function TextFields({
             hint="Return starts a new line."
             maxLength={280}
             onChange={(event) =>
-              onChange({ ...element, source: { ...source, textEn: event.target.value } })
+              onChange({ ...element, source: ownText({ ...source, textEn: event.target.value }) })
             }
           />
           {/* Both languages, always. A line with no Arabic is a hole in the
@@ -1524,7 +1554,7 @@ function TextFields({
             hint="Shown in Arabic editions of a book."
             maxLength={280}
             onChange={(event) =>
-              onChange({ ...element, source: { ...source, textAr: event.target.value } })
+              onChange({ ...element, source: ownText({ ...source, textAr: event.target.value }) })
             }
           />
         </>
@@ -1922,6 +1952,16 @@ const clamp = (value: number, min: number, max: number) =>
 
 function sourceKey(source: Extract<BlockElement, { kind: 'text' }>['source']): string {
   return source.from === 'static' ? 'static' : `${source.from}:${source.field}`
+}
+
+/**
+ * Static text the owner has now written into, and so theirs rather than a
+ * model's: the machine mark comes off with the first edit.
+ */
+function ownText(
+  source: Extract<Extract<BlockElement, { kind: 'text' }>['source'], { from: 'static' }>
+): Extract<Extract<BlockElement, { kind: 'text' }>['source'], { from: 'static' }> {
+  return { from: 'static', textEn: source.textEn, textAr: source.textAr }
 }
 
 /**

@@ -729,6 +729,22 @@ export const xywh = (r: Rect) => ({ x: r.x, y: r.y, width: r.width, height: r.he
  * loses the top of the bottle, and the whole point of the CUTOUT variant is that
  * the product is the whole subject.
  */
+/**
+ * How much room an image keeps inside its box, as a fraction of the box's
+ * shorter edge.
+ *
+ * **One function, because two things read it.** The painter insets the picture
+ * by it, and the designer draws a dashed guide at the same place (the extent
+ * below). When those were two copies of `0.12` they agreed only by luck, and the
+ * first time padding became adjustable they would not have.
+ *
+ * The default is what the painter always did: a product photo keeps 12% off
+ * its card's edge; artwork and logos reach their box.
+ */
+export function imagePadding(element: Extract<BlockElement, { kind: 'image' }>): number {
+  return element.padding ?? (element.source.from === 'product' ? 0.12 : 0)
+}
+
 function Packshot({
   element,
   box,
@@ -741,7 +757,8 @@ function Packshot({
   // **Artwork the owner placed fills its box; a product photo is inset.** A
   // background image or a decorative panel is *meant* to reach the edges, and
   // the 12% breathing room that keeps a packshot off its card's border would
-  // read as a mistake on both.
+  // read as a mistake on both. Those are the defaults; `padding` on the
+  // element overrides either (`imagePadding`).
   const source = element.source
   const traced = tracedShadowUrl(element, ctx)
   const url =
@@ -757,7 +774,7 @@ function Packshot({
   // stopped being its own kind is that every image property now applies to it,
   // and this is one of them.
   const artwork = source.from !== 'product'
-  const inset = artwork ? 0 : Math.min(box.width, box.height) * 0.12
+  const inset = Math.min(box.width, box.height) * imagePadding(element)
   const cover = element.fit === 'cover'
 
   /**
@@ -1326,10 +1343,10 @@ export function paintedRect(element: BlockElement, box: Rect, ctx: DrawContext):
     return path === null ? null : shapeExtent(path, box)
   }
 
-  // The packshot's breathing room, from `Packshot` — artwork and logos reach
-  // their box and are not inset, so they have nothing to report.
-  if (element.kind === 'image' && element.source.from === 'product') {
-    const inset = Math.min(box.width, box.height) * 0.12
+  // The picture's padding, from `imagePadding`, the same number `Packshot`
+  // insets by. An image with none reaches its box and has nothing to report.
+  if (element.kind === 'image' && imagePadding(element) > 0) {
+    const inset = Math.min(box.width, box.height) * imagePadding(element)
     return {
       x: box.x + inset,
       y: box.y + inset,

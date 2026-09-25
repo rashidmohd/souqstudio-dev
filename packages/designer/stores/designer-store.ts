@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import type { Arrangement, BlockElement } from '@souqstudio/types'
+import { applyFill, type FillLine } from '@souqstudio/engine'
 import { newElementId, reidentify } from '../lib/block-elements'
 
 /**
@@ -86,6 +87,11 @@ type DesignerState = {
   setElement: (id: string, element: BlockElement, commit?: boolean) => void
   /** Push the current document onto the undo stack without changing it. */
   checkpoint: () => void
+  /**
+   * Write accepted generative-fill lines into every layout. One undo step:
+   * an owner who does not like the words takes all of them back with one key.
+   */
+  applyFillLines: (lines: readonly FillLine[]) => void
 
   /** Everything the selection touches, in paint order. */
   selection: () => BlockElement[]
@@ -196,6 +202,17 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
 
   checkpoint: () =>
     set((state) => ({ past: pushed(state.past, state.arrangements), future: [] })),
+
+  applyFillLines: (lines) =>
+    set((state) => {
+      if (!state.editable || lines.length === 0) return state
+      return {
+        arrangements: applyFill(state.arrangements, lines),
+        past: pushed(state.past, state.arrangements),
+        future: [],
+        save: 'dirty',
+      }
+    }),
 
   selection: () => {
     const state = get()

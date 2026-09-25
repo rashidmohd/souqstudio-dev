@@ -616,7 +616,20 @@ export type TextSource =
    * would print a wrong date if borrowed.
    */
   | { from: 'book'; field: 'title' | 'validFrom' | 'validTo' }
-  | { from: 'static'; textEn: string; textAr: string }
+  | {
+      from: 'static'
+      textEn: string
+      textAr: string
+      /**
+       * A model wrote these words and the owner has not changed them since.
+       *
+       * **Provenance, not a mode.** Generative fill sets it and the first
+       * keystroke in either field clears it, because from then on the words are
+       * the owner's and marking them as a machine's would be untrue. Absent is
+       * the owner's own text, which is every line written before this existed.
+       */
+      machine?: boolean | undefined
+    }
 
 /**
  * What an overlong string is allowed to suffer.
@@ -695,6 +708,14 @@ export type BlockElement =
       /** `contain` letterboxes, `cover` crops. A packshot is `contain`; a
        *  background photograph is `cover`. */
       fit?: 'contain' | 'cover' | undefined
+      /**
+       * Space between the box and the picture, as a fraction of the box's
+       * shorter edge, 0 to 0.3. Absent means the default the painter has always
+       * used: 0.12 for a product photo, so a packshot keeps off its card's
+       * edge, and 0 for artwork and logos, which are meant to reach it. See
+       * `imagePadding` in the designer's painter.
+       */
+      padding?: number | undefined
       radius?: number | undefined
       stroke?: Stroke | undefined
       shadow?: Shadow | undefined
