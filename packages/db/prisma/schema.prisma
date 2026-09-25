@@ -1753,6 +1753,40 @@ model BlockAsset {
   @@map("block_assets")
 }
 
+/// A shape SouqStudio publishes for every shop's designer: the shape gallery.
+/// E13-04.
+///
+/// **Geometry, not a file.** `art` is a `ShapeArt` (`packages/types`), the
+/// same outline an owner's own uploaded shape carries: path commands and
+/// numbers, validated by the engine's `shapeArtSchema`, recoloured by the
+/// shop's palette. Nothing is served from the bucket.
+///
+/// **Placing one copies it.** The outline goes into the block's own document,
+/// so retiring a gallery shape never changes a block or a book that already
+/// uses it. That is why there is no link from `blocks` to this table.
+///
+/// `status` is `draft | published | archived`, spelled as a string like every
+/// other closed set outside E5's tables. Only `published` reaches shops. No
+/// delete: `archived` is the off switch, and the audit log names these ids.
+model LibraryShape {
+  id        String   @id @default(cuid())
+  name      String
+  /// `badge | burst | arrow | frame | seasonal | decoration`. A browsing aid in
+  /// the gallery dialog, nothing more.
+  group     String
+  /// For a seasonal shape, which occasion (`packages/engine/src/seasonal.ts`).
+  /// Informational: a shape is offered all year.
+  occasion  String?
+  /// `ShapeArt`: `{ width, height, paths: [{ d, transform?, evenOdd? }] }`.
+  art       Json
+  status    String   @default("draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, group])
+  @@map("library_shapes")
+}
+
 model BlockVersion {
   id           String   @id @default(cuid())
   blockId      String

@@ -30,6 +30,11 @@ export type DesignerHost = {
   exit: { href: string; label: string }
   /** POST an SVG body, answers `{ data: { art } }`. */
   shapeUrl: string
+  /**
+   * GET the published shape gallery, `{ data: { shapes: GalleryShape[] } }`.
+   * Null hides the gallery button.
+   */
+  shapeGalleryUrl: string | null
   /** GET `{ data: { assets } }`; POST `{ assetId, filename }` records an upload. */
   assetsUrl: string
   /** POST `{ contentType, contentLength }`, answers a presigned PUT. */
@@ -60,6 +65,7 @@ export const SHOP_HOST: DesignerHost = {
   designerHref: (blockId) => `/card-designer/${blockId}`,
   exit: { href: '/blocks', label: 'Blocks' },
   shapeUrl: '/api/v1/blocks/shape',
+  shapeGalleryUrl: '/api/v1/shapes',
   assetsUrl: '/api/v1/blocks/assets',
   artworkUrl: '/api/v1/blocks/artwork',
   artworkVectorUrl: '/api/v1/blocks/artwork/vector',

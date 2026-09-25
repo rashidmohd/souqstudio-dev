@@ -50,6 +50,9 @@ export function LibraryDesigner({
     designerHref: (id) => `/blocks/${id}/edit`,
     exit: { href: `/blocks/${blockId}`, label: 'Block' },
     shapeUrl: '/api/v1/admin/blocks/shape',
+    // Drafts included would offer the team shapes no shop has yet; the
+    // designer shows what a published block could use.
+    shapeGalleryUrl: '/api/v1/admin/shapes?status=published',
     assetsUrl: '/api/v1/admin/blocks/assets',
     artworkUrl: '/api/v1/admin/blocks/artwork',
     artworkVectorUrl: '/api/v1/admin/blocks/artwork/vector',

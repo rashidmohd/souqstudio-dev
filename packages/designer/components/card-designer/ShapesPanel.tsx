@@ -1,13 +1,14 @@
 'use client'
 
 import * as React from 'react'
-import { Upload } from 'lucide-react'
+import { LayoutGrid, Upload } from 'lucide-react'
 import type { BlockElement, ShapeArt } from '@souqstudio/types'
 import { SHAPE_VARIANTS, artShapeElement, shapeElement } from '../../lib/block-elements'
 import { ShapeMark } from './ShapeMark'
 import { Button } from '../ui/button'
 import { toast } from '../ui/toast'
 import { useDesignerHost } from '../../lib/designer-host'
+import { ShapeGalleryDialog } from './ShapeGalleryDialog'
 
 /**
  * Every shape, on a visible surface. E7.
@@ -51,7 +52,8 @@ type Props = {
 export function ShapesPanel({ disabled, onAdd }: Props) {
   const file = React.useRef<HTMLInputElement>(null)
   const [reading, setReading] = React.useState(false)
-  const { shapeUrl } = useDesignerHost()
+  const [browsing, setBrowsing] = React.useState(false)
+  const { shapeUrl, shapeGalleryUrl } = useDesignerHost()
 
   /**
    * **The file is read here and posted as text.** It goes to the server because
@@ -119,6 +121,31 @@ export function ShapesPanel({ disabled, onAdd }: Props) {
           </li>
         ))}
       </ul>
+
+      {/*
+        The gallery opens in a dialog: it grows as SouqStudio publishes shapes,
+        and a pane that listed them all would bury the everyday thirteen.
+      */}
+      {shapeGalleryUrl === null ? null : (
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            disabled={disabled}
+            onClick={() => setBrowsing(true)}
+          >
+            <LayoutGrid className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            More shapes
+          </Button>
+          <ShapeGalleryDialog
+            open={browsing}
+            onOpenChange={setBrowsing}
+            url={shapeGalleryUrl}
+            onPick={(art) => onAdd(artShapeElement(art))}
+          />
+        </>
+      )}
 
       <input
         ref={file}

@@ -229,6 +229,7 @@ export {
   MAX_ELEMENTS,
   MAX_GRADIENT_STOPS,
   arrangementsSchema,
+  shapeArtSchema,
   toArrangements,
 } from './document'
 export { usesOnlyRoles } from './roles'

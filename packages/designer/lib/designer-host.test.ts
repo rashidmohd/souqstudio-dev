@@ -13,6 +13,7 @@ describe('SHOP_HOST', () => {
     expect(SHOP_HOST.designerHref('b1')).toBe('/card-designer/b1')
     expect(SHOP_HOST.exit).toEqual({ href: '/blocks', label: 'Blocks' })
     expect(SHOP_HOST.shapeUrl).toBe('/api/v1/blocks/shape')
+    expect(SHOP_HOST.shapeGalleryUrl).toBe('/api/v1/shapes')
     expect(SHOP_HOST.assetsUrl).toBe('/api/v1/blocks/assets')
     expect(SHOP_HOST.artworkUrl).toBe('/api/v1/blocks/artwork')
     expect(SHOP_HOST.artworkVectorUrl).toBe('/api/v1/blocks/artwork/vector')

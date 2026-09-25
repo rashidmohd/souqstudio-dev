@@ -492,7 +492,7 @@ const TRANSFORM = /^(?:(?:matrix|translate|scale|rotate|skewX|skewY)\(\s*[-+0-9e
 /** Past this a drawing is a file rather than a shape, and the page carries it every read. */
 const MAX_ART_BYTES = 16_384
 
-const shapeArtSchema = z
+export const shapeArtSchema = z
   .strictObject({
     // A viewBox of zero scales to nothing; one in the millions is a file that
     // was authored in the wrong units and will land as a smear.

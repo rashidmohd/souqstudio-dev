@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Blocks,
+  Shapes,
   LayoutDashboard,
   Package,
   ScrollText,
@@ -39,6 +40,7 @@ const ITEMS: readonly Item[] = [
   { href: '/', label: 'Overview', icon: LayoutDashboard, minimum: 'support_agent' },
   { href: '/catalog', label: 'Catalog', icon: Package, minimum: 'support_agent' },
   { href: '/blocks', label: 'Block library', icon: Blocks, minimum: 'support_agent' },
+  { href: '/shapes', label: 'Shape gallery', icon: Shapes, minimum: 'support_agent' },
   { href: '/prompts', label: 'AI prompts', icon: Sparkles, minimum: 'catalog_manager' },
   { href: '/audit', label: 'Audit log', icon: ScrollText, minimum: 'support_agent' },
 ]

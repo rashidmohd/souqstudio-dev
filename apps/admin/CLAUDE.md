@@ -20,6 +20,7 @@ apps/admin/
 │   │   ├── page.tsx             # Platform overview
 │   │   ├── catalog/             # E13-02 — product list, detail, add
 │   │   ├── blocks/              # E13-04 — library console, publish and sync
+│   │   ├── shapes/              # E13-04 — the shape gallery every designer offers
 │   │   ├── prompts/             # Cover art direction, editable
 │   │   ├── audit/               # E13-01 — every admin action
 │   │   ├── organizations/       # E13-01 — not built
@@ -139,6 +140,25 @@ every route calls `requireAdminApi()`, in Node. A present cookie proves nothing.
 - Publish and sync are two buttons because they are two decisions. Publishing
   writes an object and changes nothing a shop sees; syncing gives the library to
   everybody and prunes.
+
+## Shape gallery rules
+
+- **A gallery shape is an outline, not a file.** `library_shapes.art` is the
+  same `ShapeArt` a shop's own uploaded shape carries, read by the same
+  `parseSvgShape` and validated by the engine's `shapeArtSchema`, and every
+  shop draws it in its own palette. Multi-colour pictures belong in library
+  artwork, not here.
+- **Placing one copies it into the block**, so retiring a shape never changes a
+  block or a book. There is no link from `blocks` to `library_shapes`, and
+  there should not be.
+- New shapes are drafts. Adding and renaming need `catalog_manager`; publishing
+  and retiring need `super_admin`, the same bar as the block library, because a
+  published shape is in every shop's designer. Every change is audited.
+- **No delete.** `archived` is the off switch. The outline is not editable: a
+  different drawing is a new shape.
+- Shops browse it from "More shapes" in the designer, a dialog with groups and
+  search (`ShapeGalleryDialog` in `@souqstudio/designer`), not as more rows in
+  the panel, because it grows.
 
 ---
 
