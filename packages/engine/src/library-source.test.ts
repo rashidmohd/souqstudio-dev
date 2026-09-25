@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SEED_BLOCKS } from './library'
-import { resolveSource } from './library-source'
+import { parseSeedBlock, resolveSource } from './library-source'
 import { loadAuthoredBlocks, loadLibrary } from './library-load'
 
 /**
@@ -389,5 +389,26 @@ describe('choosing a source', () => {
   it('treats an empty variable as unset rather than as a bucket at ""', () => {
     process.env['BLOCK_LIBRARY_URL'] = '  '
     expect(resolveSource()).toEqual({ kind: 'local' })
+  })
+})
+
+describe('the occasion a document names', () => {
+  it('reads a known occasion into the block', () => {
+    const block = parseSeedBlock(
+      'ramadan.json',
+      JSON.stringify(valid({ isSeasonal: true, occasion: 'ramadan' }))
+    )
+    expect(block.occasion).toBe('ramadan')
+  })
+
+  it('leaves it absent when the document has none, as every older one does', () => {
+    const block = parseSeedBlock('plain.json', JSON.stringify(valid()))
+    expect('occasion' in block).toBe(false)
+  })
+
+  it('refuses an occasion the calendar does not know', () => {
+    expect(() =>
+      parseSeedBlock('diwali.json', JSON.stringify(valid({ occasion: 'diwali' })))
+    ).toThrow('"occasion"')
   })
 })

@@ -73,6 +73,13 @@ export interface SeedBlock {
    * from its second year. See `library-seasonal.ts`.
    */
   isSeasonal: boolean
+  /**
+   * Which occasion, when the document names one. Blocks published from the
+   * admin panel carry it here, because `BLOCK_OCCASION` is a map in this
+   * package and a block designed after the last release is not in it. The
+   * sync prefers this and falls back to the map.
+   */
+  occasion?: import('./seasonal').Occasion | undefined
   arrangements: import('@souqstudio/types').Arrangement[]
 }
 

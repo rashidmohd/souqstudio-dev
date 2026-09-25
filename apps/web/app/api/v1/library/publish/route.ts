@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { BLOCK_CATEGORIES } from '@souqstudio/engine'
-import type { BlockCategory } from '@souqstudio/engine'
+import { BLOCK_CATEGORIES, OCCASIONS, isOccasion } from '@souqstudio/engine'
+import type { BlockCategory, Occasion } from '@souqstudio/engine'
 import { prisma } from '@souqstudio/db'
 import { fail, ok } from '@/lib/api'
 import { toArrangements } from '@souqstudio/designer/lib/block-document'
@@ -54,6 +54,16 @@ const schema = z.object({
   category: z
     .enum(BLOCK_CATEGORIES as unknown as [BlockCategory, ...BlockCategory[]])
     .optional(),
+  /**
+   * Which occasion the shipped copy is for, overriding the row's. `null` ships
+   * it with none. Naming one makes the block seasonal.
+   */
+  occasion: z
+    // Same tuple assertion as `libraryDocumentSchema`: OCCASIONS is a
+    // ten-entry literal and `z.enum` wants it typed as non-empty.
+    .enum(OCCASIONS.map((o) => o.value) as [Occasion, ...Occasion[]])
+    .nullable()
+    .optional(),
   /** Overrides the row's name and description for the shipped copy. */
   name: z.string().trim().min(1).max(80).optional(),
   description: z.string().trim().max(200).optional(),
@@ -91,6 +101,7 @@ export async function POST(request: NextRequest) {
       description: true,
       repeats: true,
       isSeasonal: true,
+      occasion: true,
       category: true,
       arrangements: true,
     },
@@ -119,13 +130,25 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // The override, else the row's own if it names one the calendar knows. The
+  // column is a free string, so it is checked rather than trusted.
+  const occasion =
+    parsed.data.occasion !== undefined
+      ? parsed.data.occasion
+      : row.occasion !== null && isOccasion(row.occasion)
+        ? row.occasion
+        : null
+
   const document = libraryDocumentSchema.safeParse({
     id,
     name: parsed.data.name ?? row.name,
     description: parsed.data.description ?? row.description ?? '',
     repeats: row.repeats,
     category,
-    isSeasonal: row.isSeasonal,
+    // An occasion makes a block seasonal; a seasonal block may still have none
+    // (it then has no window, which is what it had before occasions shipped).
+    isSeasonal: row.isSeasonal || occasion !== null,
+    ...(occasion === null ? {} : { occasion }),
     arrangements,
   })
 

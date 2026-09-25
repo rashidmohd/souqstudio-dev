@@ -45,6 +45,26 @@ export type Occasion =
   | 'mothers-day'
   | 'anniversary'
 
+/**
+ * Every occasion, in the order a picker offers them, with its name in English.
+ *
+ * For choosing an occasion in the admin panel when SouqStudio publishes a
+ * seasonal block. English only because the panel is; a shop never sees these
+ * strings, it sees the block.
+ */
+export const OCCASIONS: readonly { value: Occasion; label: string }[] = [
+  { value: 'ramadan', label: 'Ramadan' },
+  { value: 'eid-al-fitr', label: 'Eid al-Fitr' },
+  { value: 'eid-al-adha', label: 'Eid al-Adha' },
+  { value: 'national-day', label: 'National Day' },
+  { value: 'back-to-school', label: 'Back to school' },
+  { value: 'summer', label: 'Summer' },
+  { value: 'shopping-festival', label: 'Shopping festival' },
+  { value: 'new-year', label: 'New Year' },
+  { value: 'mothers-day', label: "Mother's Day" },
+  { value: 'anniversary', label: 'Shop anniversary' },
+]
+
 export interface SeasonWindow {
   /** When the block starts being offered — the occasion, less its lead. */
   from: Date

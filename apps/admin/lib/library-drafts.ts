@@ -45,12 +45,6 @@ export const STARTER_LABELS: Readonly<Record<(typeof STARTER_KINDS)[number], str
   'social-post': 'Square post',
 }
 
-/**
- * Where library artwork lives in the bucket.
- *
- * A shop's artwork is under its organization's id; library artwork belongs to
- * no organization, so it gets a prefix of its own. The assets route refuses to
- * record a key outside it, which is what stops a recorded asset pointing at
- * some other tenant's object.
- */
-export const LIBRARY_ASSET_PREFIX = 'library/blocks/'
+// Shared with apps/web, which hides library artwork from shops until a
+// published block uses it. See `packages/designer/lib/block-assets.ts`.
+export { LIBRARY_ASSET_PREFIX } from '@souqstudio/designer/lib/block-assets'

@@ -66,3 +66,26 @@ describe('syncLibrary prune', () => {
     expect(block.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['blk_retired'] } } })
   })
 })
+
+describe('syncLibrary occasion', () => {
+  beforeEach(() => {
+    block.findMany.mockResolvedValue([])
+    block.upsert.mockReset()
+  })
+
+  it("writes the document's own occasion over the compiled-in map", async () => {
+    await syncLibrary([{ ...seed('blk_season_ramadan'), occasion: 'eid-al-fitr' as const }])
+    expect(block.upsert.mock.calls[0]?.[0].create.occasion).toBe('eid-al-fitr')
+  })
+
+  it('falls back to the map for a document that names none', async () => {
+    await syncLibrary([seed('blk_season_ramadan')])
+    expect(block.upsert.mock.calls[0]?.[0].create.occasion).toBe('ramadan')
+  })
+
+  it('writes null for a block in neither', async () => {
+    await syncLibrary([seed('blk_e2e_plain')])
+    expect(block.upsert.mock.calls[0]?.[0].create.occasion).toBeNull()
+  })
+})
+

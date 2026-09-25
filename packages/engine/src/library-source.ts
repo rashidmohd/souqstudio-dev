@@ -48,6 +48,7 @@ import { validateBlock } from './block-edit'
 import { arrangementsSchema } from './document'
 import type { SeedBlock } from './library'
 import { usesOnlyRoles } from './roles'
+import { isOccasion } from './seasonal'
 
 /**
  * Where a library is read from.
@@ -104,7 +105,13 @@ export function resolveSource(): LibrarySource {
 export interface LibraryManifest {
   version: string
   count: number
-  blocks: { id: string; category: BlockCategory }[]
+  /**
+   * `origin: 'panel'` marks a block published from the admin panel, one at a
+   * time, rather than by `blocks:publish` from the repo. Nothing reading the
+   * library cares; `blocks:publish` does, because it must keep those entries
+   * when it rewrites the list. See `library-merge.ts`.
+   */
+  blocks: { id: string; category: BlockCategory; origin?: 'panel' | undefined }[]
 }
 
 /**
@@ -200,7 +207,11 @@ async function readManifest(base: URL): Promise<LibraryManifest> {
     if (!isRecord(entry) || typeof entry['id'] !== 'string' || !isCategory(entry['category'])) {
       throw new Error(`library: the manifest at ${url.href} has a malformed entry`)
     }
-    blocks.push({ id: entry['id'], category: entry['category'] })
+    blocks.push({
+      id: entry['id'],
+      category: entry['category'],
+      ...(entry['origin'] === 'panel' ? { origin: 'panel' as const } : {}),
+    })
   }
 
   // **The count is not decoration.** It is written by the publisher from what it
@@ -303,6 +314,14 @@ export function parseSeedBlock(file: string, text: string): SeedBlock {
     return refuse(`"category" must be one of ${BLOCK_CATEGORIES.map((c) => `"${c}"`).join(', ')}`)
   }
 
+  // Optional, and absent from every document published before the admin panel
+  // could set it. Present, it must be one the calendar knows: an unknown
+  // occasion is a block with no season that its author believes has one.
+  const occasion = raw['occasion']
+  if (occasion !== undefined && (typeof occasion !== 'string' || !isOccasion(occasion))) {
+    return refuse('"occasion" must be one of the occasions in seasonal.ts, or absent')
+  }
+
   const parsed = arrangementsSchema.safeParse(raw['arrangements'])
   if (!parsed.success) {
     // The zod message names the path — `0.elements.3.box.width` — which is the
@@ -357,7 +376,16 @@ export function parseSeedBlock(file: string, text: string): SeedBlock {
     )
   }
 
-  return { id, name, description, repeats, category, isSeasonal, arrangements }
+  return {
+    id,
+    name,
+    description,
+    repeats,
+    category,
+    isSeasonal,
+    ...(occasion === undefined ? {} : { occasion }),
+    arrangements,
+  }
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -56,8 +56,10 @@ export async function syncLibrary(library: readonly SeedBlock[]): Promise<Librar
       // only place the picker can learn what group a block is in.
       category: block.category,
       // Which occasion, so an imported copy can carry it. The *window* is still
-      // computed from it — see `packages/engine/src/seasonal.ts`.
-      occasion: BLOCK_OCCASION[block.id] ?? null,
+      // computed from it — see `packages/engine/src/seasonal.ts`. The
+      // document's own first: a block published from the admin panel is in no
+      // map compiled into this release.
+      occasion: block.occasion ?? BLOCK_OCCASION[block.id] ?? null,
       // Null organizationId is what makes a block seeded rather than authored.
       organizationId: null,
     }

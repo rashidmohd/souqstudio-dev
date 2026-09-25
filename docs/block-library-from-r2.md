@@ -384,26 +384,65 @@ library is not.
 
 ## 11. Going live
 
-Nothing below has been done. Each step is reversible by undoing the one before.
+*Rewritten 25 September 2026 for the admin panel's designer (E13-04). The first version of
+this section predates it and expected 59 blocks.*
 
-1. **Publish to a real prefix.**
-   `pnpm --filter @souqstudio/engine blocks:publish -- --prefix library/production --dry-run`
-   first; it prints the manifest and writes nothing.
-2. **Check the objects are there** before anything reads them —
-   `<R2_PUBLIC_URL>/library/production/manifest.json` should list 59.
-3. **Set `BLOCK_LIBRARY_URL`** on that environment to the same prefix. The seed
-   logs which source it used on every deploy, so a wrong prefix is visible in the
-   deploy log rather than three weeks later.
-4. **Set `LIBRARY_PUBLISH_TOKEN`** — 32 characters minimum, or the routes refuse
-   to exist. Without it, publishing stays a laptop job, which is a legitimate
-   place to stop.
-5. **Deploy.** `preDeployCommand` runs `db:migrate && db:seed`; the seed now
-   reads the bucket and will fail the deploy rather than seed a partial library.
+**Where things stand.** `library/dev` on the dev bucket is already published: 66 blocks,
+manifest version `2026-09-19T18:36:53Z`. `library/production` does not exist. No Railway
+service sets `BLOCK_LIBRARY_URL`, so every environment still seeds from the repo, and
+nothing published from the admin panel reaches a shop yet. No migration is needed for any
+of E13-04.
 
-**The one-line rollback is unsetting `BLOCK_LIBRARY_URL`.** The compiled-in
-library is complete and still there, so the next deploy seeds from the repo and
-the bucket becomes irrelevant. That is the property worth keeping — do not remove
-the generated arm from the code.
+Do these in order. Each is undone by reversing the one before it.
+
+1. **Deploy the code first, with nothing switched on.** Merge the branch and let `web`,
+   `admin` and `worker` deploy. With `BLOCK_LIBRARY_URL` unset the seed still reads the
+   repo, so this changes nothing a shop sees. It has to come first because the new code
+   is what keeps admin drafts out of the prune.
+
+2. **Refresh the library in the bucket.** `library/dev` was published before documents
+   carried an occasion. Dry run, then publish:
+   ```
+   pnpm --filter @souqstudio/engine blocks:publish -- --prefix library/dev --dry-run
+   pnpm --filter @souqstudio/engine blocks:publish -- --prefix library/dev
+   ```
+   Check `<R2_PUBLIC_URL>/library/dev/manifest.json` lists 66.
+
+   **`blocks:publish` keeps what the admin panel published** (since 25 September). The
+   panel marks its manifest entries `origin: 'panel'`; the script reads the manifest that
+   is there, keeps those entries, and does not overwrite a repo block the panel has
+   replaced under the same id. Its output says how many it kept. To retire a panel block,
+   name it: `--drop blk_x`, and add `--prune` to delete its document too. If the current
+   manifest cannot be read it refuses rather than guess. `library-merge.ts` is the rule.
+
+3. **Let the admin panel upload to the bucket.** Add its public domain to the CORS
+   origins and re-apply them (the script reads the policy back and fails if it did not
+   take):
+   ```
+   APP_ORIGINS=https://dev.souqstudio.com,https://<admin domain>,http://localhost:3000,http://localhost:3002 \
+     pnpm --filter @souqstudio/web r2:cors
+   ```
+
+4. **Set the shop app's variables** on `web`:
+   `BLOCK_LIBRARY_URL=<R2_PUBLIC_URL>/library/dev` (same origin as `R2_PUBLIC_URL`, or
+   publishing refuses) and `LIBRARY_PUBLISH_TOKEN` (32 characters or more;
+   `openssl rand -hex 32`). Redeploy `web`. The deploy log's seed line should now read
+   `library from R2`, not `from the repo`. A missing or unreadable library fails the
+   deploy rather than seeding a partial one.
+
+5. **Set the admin panel's variables** on `admin`: the four `R2_*` values from `web`,
+   `WEB_APP_URL` (web's public URL) and the same `LIBRARY_PUBLISH_TOKEN`. Redeploy. The
+   blocks page stops saying "Publishing is off on this deployment."
+
+6. **Smoke test with something harmless.** New block, an empty panel, publish it as
+   `blk_smoke_test`, sync, and check it appears in a shop's block picker. Then remove it:
+   the panel has no unpublish, so
+   `blocks:publish -- --prefix library/dev --drop blk_smoke_test --prune`, and sync again.
+
+**Rollback is still one line: unset `BLOCK_LIBRARY_URL` on `web` and redeploy.** The seed
+goes back to the repo, the admin panel's publish button says it is off, and drafts are
+untouched. Blocks published from the panel disappear from shops at that deploy's sync
+(archived where a book uses them), because the repo does not have them.
 
 ---
 

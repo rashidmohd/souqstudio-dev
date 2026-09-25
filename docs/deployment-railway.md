@@ -285,7 +285,21 @@ ADMIN_IP_ALLOWLIST=                   # comma-separated; EMPTY ALLOWS ALL — le
                                       # A list that does not contain you makes every
                                       # page 404, login included.
 R2_PUBLIC_URL=https://assets.souqstudio.com
+
+# Library block authoring (E13-04). Without these the designer still opens and
+# saves drafts; artwork upload and publishing say they are off.
+R2_ACCESS_KEY_ID=                     # the same four values as web: artwork uploads
+R2_SECRET_ACCESS_KEY=                 #   go to the same bucket, under library/blocks/
+R2_BUCKET_NAME=
+R2_ENDPOINT=
+WEB_APP_URL=https://<web's public domain>   # where the publish and sync routes live
+LIBRARY_PUBLISH_TOKEN=                # the SAME value as on web; 32+ characters
 ```
+
+The admin panel uploads artwork from the browser straight to R2, so **its public domain
+must be in the bucket's CORS origins** (`APP_ORIGINS`, below). Without it every PNG or JPG
+upload fails in the browser with a CORS error, while SVGs, which go through the server,
+still work. See `docs/block-library-from-r2.md` §11.
 
 ### Set every variable before the first deploy
 

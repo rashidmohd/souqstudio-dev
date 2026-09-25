@@ -5,6 +5,7 @@ import { prisma } from '@souqstudio/db'
 // Moved to the designer package with the rasteriser; re-exported for this
 // file's callers.
 export { assetName, measurePng } from '@souqstudio/designer/lib/artwork-raster'
+import { LIBRARY_ASSET_PREFIX, referencedAssetIds } from '@souqstudio/designer/lib/block-assets'
 
 /**
  * Recording and listing block artwork. E7-C.
@@ -72,7 +73,25 @@ export async function listAssets(organizationId: string): Promise<StoredAsset[]>
     take: 200,
   })
 
-  return rows.map((row) => ({
+  /*
+   * **Library artwork stays hidden until a published block uses it.** The admin
+   * panel uploads it while a draft is being designed, often for a campaign that
+   * has not been announced, and a platform asset is otherwise in every shop's
+   * picker the moment it is recorded. Seeded artwork is outside the prefix and
+   * unaffected. Only read when there is library artwork to decide about.
+   */
+  const libraryArt = rows.some(
+    (row) => row.organizationId === null && row.key.startsWith(LIBRARY_ASSET_PREFIX)
+  )
+  const released = libraryArt ? await publishedLibraryAssets() : new Set<string>()
+  const visible = rows.filter(
+    (row) =>
+      row.organizationId !== null ||
+      !row.key.startsWith(LIBRARY_ASSET_PREFIX) ||
+      released.has(row.key)
+  )
+
+  return visible.map((row) => ({
     id: row.id,
     key: row.key,
     name: row.name,
@@ -80,4 +99,18 @@ export async function listAssets(organizationId: string): Promise<StoredAsset[]>
     height: row.height,
     seeded: row.organizationId === null,
   }))
+}
+
+/**
+ * Every artwork key a published SouqStudio block draws. What a shop may pick
+ * from the library's uploads: published means it reached every shop anyway.
+ */
+async function publishedLibraryAssets(): Promise<Set<string>> {
+  const blocks = await prisma.block.findMany({
+    where: { organizationId: null, status: 'published' },
+    select: { arrangements: true },
+  })
+  const keys = new Set<string>()
+  for (const block of blocks) referencedAssetIds(block.arrangements, keys)
+  return keys
 }

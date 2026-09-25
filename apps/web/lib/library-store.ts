@@ -1,8 +1,8 @@
 import 'server-only'
 
 import { z } from 'zod'
-import { BLOCK_CATEGORIES, arrangementsSchema, usesOnlyRoles } from '@souqstudio/engine'
-import type { BlockCategory } from '@souqstudio/engine'
+import { BLOCK_CATEGORIES, OCCASIONS, arrangementsSchema, usesOnlyRoles } from '@souqstudio/engine'
+import type { BlockCategory, Occasion } from '@souqstudio/engine'
 import { env } from '@/lib/env'
 import { getObjectBytes, putObject } from '@/lib/r2'
 
@@ -24,6 +24,13 @@ import { getObjectBytes, putObject } from '@/lib/r2'
 const manifestEntry = z.object({
   id: z.string().min(1),
   category: z.enum(BLOCK_CATEGORIES as unknown as [BlockCategory, ...BlockCategory[]]),
+  /**
+   * Set on every entry this route writes. `blocks:publish` keeps these when it
+   * rewrites the list from the repo, so a re-run of the script cannot drop a
+   * block the panel published. Declared here because zod strips an undeclared
+   * key, and the read-modify-write below would erase it from every other entry.
+   */
+  origin: z.literal('panel').optional(),
 })
 
 const manifestSchema = z.object({
@@ -45,6 +52,16 @@ export const libraryDocumentSchema = z.object({
   repeats: z.boolean(),
   category: z.enum(BLOCK_CATEGORIES as unknown as [BlockCategory, ...BlockCategory[]]),
   isSeasonal: z.boolean(),
+  /**
+   * Which occasion, for a seasonal block. Optional: absent from every document
+   * published before the admin panel could set it, and the engine's loader
+   * falls back to `BLOCK_OCCASION` for those.
+   */
+  occasion: z
+    // `z.enum` wants a non-empty tuple and `map` returns an array; OCCASIONS is
+    // a literal with ten entries, so the tuple is what it is.
+    .enum(OCCASIONS.map((o) => o.value) as [Occasion, ...Occasion[]])
+    .optional(),
   arrangements: arrangementsSchema,
 })
 
@@ -122,7 +139,7 @@ export async function publishDocument(
 
   const current = await readManifest(prefix)
   const blocks = (current?.blocks ?? []).filter((entry) => entry.id !== document.id)
-  blocks.push({ id: document.id, category: document.category })
+  blocks.push({ id: document.id, category: document.category, origin: 'panel' })
 
   const manifest: LibraryManifest = {
     version: new Date().toISOString(),

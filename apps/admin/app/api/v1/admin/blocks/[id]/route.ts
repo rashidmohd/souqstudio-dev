@@ -1,4 +1,7 @@
 import type { NextRequest } from 'next/server'
+import { z } from 'zod'
+import { OCCASIONS } from '@souqstudio/engine'
+import type { Occasion } from '@souqstudio/engine'
 import { prisma } from '@souqstudio/db'
 import type { Prisma } from '@souqstudio/db'
 import {
@@ -36,11 +39,24 @@ import { DRAFT_WHERE } from '@/lib/library-drafts'
  */
 const AUDIT_WINDOW_MS = 15 * 60 * 1000
 
+/**
+ * The shop route's schema plus the occasion, which only the library sets: a
+ * shop's own block has no occasion to choose, and an imported seasonal block
+ * carries its source's. Naming one makes the draft seasonal; `null` clears it.
+ */
+const draftUpdateSchema = blockUpdateSchema.extend({
+  occasion: z
+    // `z.enum` wants a non-empty tuple; OCCASIONS is a ten-entry literal.
+    .enum(OCCASIONS.map((o) => o.value) as [Occasion, ...Occasion[]])
+    .nullable()
+    .optional(),
+})
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const gate = await requireAdminApi('catalog_manager')
   if (!gate.ok) return gate.response
 
-  const parsed = blockUpdateSchema.safeParse(await request.json().catch(() => null))
+  const parsed = draftUpdateSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
     return fail('invalid_request', 'That change could not be applied to the block.')
   }
@@ -82,13 +98,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           ? {}
           : { description: parsed.data.description }),
         ...(parsed.data.repeats === undefined ? {} : { repeats: parsed.data.repeats }),
+        ...(parsed.data.occasion === undefined
+          ? {}
+          : { occasion: parsed.data.occasion, isSeasonal: parsed.data.occasion !== null }),
         ...(parsed.data.arrangements === undefined
           ? {}
           : // An interface has no index signature, so `Arrangement[]` is not
             // assignable to Prisma's JSON input type. Same as the shop route.
             { arrangements: parsed.data.arrangements as unknown as Prisma.InputJsonValue }),
       },
-      select: { id: true, name: true, status: true, repeats: true, updatedAt: true },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        repeats: true,
+        occasion: true,
+        updatedAt: true,
+      },
     }),
     ...(versioned
       ? [
@@ -113,7 +139,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     },
     select: { id: true },
   })
-  if (recent === null) {
+  // An occasion is a decision about when every shop sees the block, not an
+  // autosave, so it is always logged.
+  if (parsed.data.occasion !== undefined) {
+    await recordAudit({
+      adminUserId: gate.session.admin.id,
+      action: 'library.block.occasion_set',
+      entityType: 'block',
+      entityId: existing.id,
+      after: { occasion: parsed.data.occasion },
+    })
+  } else if (recent === null) {
     await recordAudit({
       adminUserId: gate.session.admin.id,
       action: 'library.block.edited',

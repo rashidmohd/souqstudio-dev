@@ -5,6 +5,8 @@ import { requireAdmin, roleAtLeast } from '@/lib/admin-auth'
 import { summarize } from '@/lib/block-summary'
 import { libraryConfig } from '@/lib/library-client'
 import { env } from '@/lib/env'
+import { OCCASIONS } from '@souqstudio/engine'
+import { OccasionField } from '@/components/blocks/OccasionField'
 import { PublishPanel } from '@/components/blocks/PublishPanel'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ButtonLink } from '@/components/ui/button'
@@ -197,6 +199,17 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
           </p>
         </Card>
       </div>
+
+      {ownBlock && block.status === 'draft' && roleAtLeast(admin.role, 'catalog_manager') ? (
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-label font-medium text-secondary">Season</h2>
+          <OccasionField
+            blockId={block.id}
+            occasion={block.occasion}
+            options={OCCASIONS.map((o) => ({ value: o.value, label: o.label }))}
+          />
+        </Card>
+      ) : null}
 
       {!maySupply ? (
         <Card>

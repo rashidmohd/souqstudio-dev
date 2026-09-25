@@ -155,11 +155,14 @@ export {
   BLOCK_OCCASION,
   blockWindow,
   isOccasion,
+  OCCASIONS,
   inSeason,
   occasionWindow,
   type Occasion,
   type SeasonWindow,
 } from './seasonal'
+// Rewriting a library's manifest without dropping what the admin panel published.
+export { mergeManifest, type ManifestMerge } from './library-merge'
 // Editing a block, which is arithmetic over fractions and therefore the engine's
 // rather than a component's — E7. See the file.
 // Snapping and alignment — the arithmetic that turns "close enough" into "the

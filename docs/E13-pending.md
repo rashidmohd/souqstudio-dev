@@ -111,17 +111,25 @@ the designer: that would reach every shop without a publish, then be pruned by t
 Publishing copies the draft into R2 under a `blk_` id and the sync writes that as its own row;
 the draft stays the working copy.
 
+**Seasonal blocks carry their occasion (25 September).** A draft's block page has an
+occasion picker; publish writes `occasion` into the library document; the engine's loader
+reads it (optional, refused if the calendar does not know it); the sync prefers it over
+`BLOCK_OCCASION`, which now only covers documents published before this. The repo's
+`blocks:publish` writes the map's occasion into each document too, so R2 is self-describing.
+
+**Library artwork is hidden from shops until a published block uses it (25 September).**
+Admin uploads go under `library/blocks/`; `listAssets` in `apps/web` shows one of those only
+if a published platform block's document names it (`referencedAssetIds`). Seeded artwork is
+outside the prefix and unaffected. The object URL itself is public but unguessable.
+
 **Not done, and worth knowing:**
 
-- **Never run live.** Build, typecheck, lint, tests and the class check pass in both apps.
-  Nobody has yet created, edited, uploaded artwork to and published a draft against a real
-  database and bucket.
-- **The occasion of a seasonal block** is still keyed by library id in
-  `BLOCK_OCCASION` in the engine, so a seasonal block published from the panel reaches shops
-  with a null occasion until its id is added there. The panel has no field for it.
-- **Library artwork is visible to every shop's artwork picker once uploaded**, before the
-  block that uses it is published, because `listAssets` in `apps/web` returns every platform
-  asset. Harmless for a shape; not for an unannounced campaign's artwork.
+- **Run end to end locally, not on a deployment.** On 23 and 25 September both apps ran
+  against a throwaway Postgres and the dev bucket, with the library prefix overridden to
+  `library/e2e-test`: draft, save, the refusals, shape and artwork upload, occasion,
+  publish, sync (drafts kept, 66 stale blocks pruned) and the artwork gate all behaved. Not
+  yet exercised: the designer in a real browser, and any of it on a Railway deployment,
+  where no service sets `BLOCK_LIBRARY_URL` yet.
 - **No thumbnail is written** for a draft, so `/blocks/[id]` still shows none until something
   renders one.
 - **A draft cannot be retired from the panel.** Drafts reach nobody, so they only clutter
