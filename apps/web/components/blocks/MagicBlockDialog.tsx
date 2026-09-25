@@ -10,7 +10,7 @@ import { KIND_LABEL, KIND_NOTE } from '@/lib/block-kinds'
 import { FileDropzone } from '@/components/ui/file-dropzone'
 import { MachineOutput } from '@souqstudio/designer/components/ui/machine-output'
 import { Segmented } from '@souqstudio/designer/components/ui/segmented'
-import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { BlockPreview } from '@souqstudio/designer/components/blocks/BlockPreview'
 
 /**
  * Magic block — a picture in, a block in the library out. E8-07.

@@ -3,7 +3,8 @@
 import * as React from 'react'
 import { Check } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
-import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { BlockPreview } from '@souqstudio/designer/components/blocks/BlockPreview'
+import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
 import { cn } from '@souqstudio/designer/lib/utils'
 
 /**
@@ -40,16 +41,8 @@ export function tileSize(block: {
   repeats: boolean
   arrangements: Arrangement[]
 }): { width: number; height: number } {
-  const arrangement = block.arrangements[0]
-
-  // A repeating card is drawn in the shape a booklet cell actually is — it
-  // carries four arrangements and the tall one is the one it was designed in.
-  // A block placed once is drawn at the shape its own aspect range says it was
-  // designed for, which is what `defaultShape` reads in the designer.
-  const natural =
-    block.repeats || arrangement === undefined
-      ? 0.72
-      : Math.min(6, Math.max(0.4, Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)))
+  // Shared with the admin panel's tiles, so both show a block at one shape.
+  const natural = previewAspect(block)
 
   return natural > TILE_WIDTH / TILE_HEIGHT
     ? { width: TILE_WIDTH, height: Math.round(TILE_WIDTH / natural) }

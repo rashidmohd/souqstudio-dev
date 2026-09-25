@@ -18,7 +18,7 @@ import {
   nearestGapStep,
   nearestMarginStep,
 } from '@/lib/offer-book-layout'
-import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { BlockPreview } from '@souqstudio/designer/components/blocks/BlockPreview'
 import { PanelSection } from '@/components/editor/PanelSection'
 import { bandBlocks, type Band as BandEnd } from '@/lib/band-blocks'
 import type { GridPatch } from '@/components/editor/use-grid-patch'

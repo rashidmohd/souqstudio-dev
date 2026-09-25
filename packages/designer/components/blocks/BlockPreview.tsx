@@ -3,19 +3,20 @@
 import * as React from 'react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { resolveBlock } from '@souqstudio/engine'
-import { resolvePalette, resolveToken } from '@souqstudio/designer/lib/brand-palette'
-import { resolveScale } from '@souqstudio/designer/lib/font-catalog'
-import { useFontCatalog } from '@souqstudio/designer/components/brand/FontCatalogProvider'
-import { useFontsReady } from '@souqstudio/designer/lib/use-fonts-ready'
-import { toArtboardOffer } from '@souqstudio/designer/lib/preview-offer'
-import { PREVIEW_IDENTITY } from '@souqstudio/designer/lib/artboard-identity'
-import { PREVIEW_PRODUCT } from '@souqstudio/designer/lib/preview-product'
+import { resolvePalette, resolveToken } from '../../lib/brand-palette'
+import { resolveScale } from '../../lib/font-catalog'
+import { useFontCatalog } from '../brand/FontCatalogProvider'
+import { useFontsReady } from '../../lib/use-fonts-ready'
+import { toArtboardOffer } from '../../lib/preview-offer'
+import { PREVIEW_IDENTITY } from '../../lib/artboard-identity'
+import { PREVIEW_PRODUCT } from '../../lib/preview-product'
+import { assetResolver } from '../../lib/block-assets'
 import {
   drawElement,
   estimateWidth,
   measureText,
   type DrawContext,
-} from '@souqstudio/designer/components/blocks/draw'
+} from './draw'
 
 /**
  * A seeded block, drawn in the shop's own brand.
@@ -46,6 +47,13 @@ type Props = {
   height: number
   direction?: 'ltr' | 'rtl'
   className?: string
+  /**
+   * Where uploaded artwork is served from. Without it an artwork element draws
+   * nothing, which is what every preview did before the admin panel needed its
+   * library's artwork to show. A prop rather than a public variable, for the
+   * reason `lib/block-assets.ts` gives.
+   */
+  assetBaseUrl?: string | undefined
 }
 
 export function BlockPreview({
@@ -55,6 +63,7 @@ export function BlockPreview({
   height,
   direction = 'ltr',
   className,
+  assetBaseUrl,
 }: Props) {
   const palette = resolvePalette(kit)
   const scale = resolveScale(kit, useFontCatalog())
@@ -104,6 +113,7 @@ export function BlockPreview({
     // owns, and two imported from the same seed carry identical element ids.
     uid,
     token: (ref) => resolveToken(palette, ref),
+    ...(assetBaseUrl === undefined ? {} : { asset: assetResolver(assetBaseUrl) }),
     scale,
     blockSize,
     ar: direction === 'rtl',

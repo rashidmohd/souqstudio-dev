@@ -1,6 +1,12 @@
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { prisma } from '@souqstudio/db'
+import { listFonts, prisma } from '@souqstudio/db'
+import { toArrangements } from '@souqstudio/engine'
+import { BlockPreview } from '@souqstudio/designer/components/blocks/BlockPreview'
+import { FontCatalogProvider } from '@souqstudio/designer/components/brand/FontCatalogProvider'
+import { fontsForKit } from '@souqstudio/designer/lib/font-registry'
+import { LIBRARY_PREVIEW_KIT } from '@souqstudio/designer/lib/library-preview'
+import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
 import { requireAdmin, roleAtLeast } from '@/lib/admin-auth'
 import { summarize } from '@/lib/block-summary'
 import { libraryConfig } from '@/lib/library-client'
@@ -17,9 +23,11 @@ import { StatusPill } from '@/components/ui/status-pill'
 /**
  * One block, and the console that publishes it. E13-04.
  *
- * **There is no canvas on this page.** It describes the block (see
- * lib/block-summary.ts); drawing it is the designer's job, at
- * `/blocks/[id]/edit` for SouqStudio's own blocks.
+ * **Drawn, then described.** The preview and every layout come from the shared
+ * painter (`BlockPreview`) in a stand-in shop's colours; editing is the
+ * designer's job, at `/blocks/[id]/edit` for SouqStudio's own blocks. The
+ * description (lib/block-summary.ts) says what the picture cannot: bindings,
+ * versions, pins.
  */
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +62,14 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
   if (block === null) notFound()
 
   const summary = summarize(block.arrangements)
+  const arrangements = toArrangements(block.arrangements)
+  const { catalog, css } = fontsForKit(await listFonts(), LIBRARY_PREVIEW_KIT)
+
+  /** A logical canvas at `aspect`, which the preview scales to its box. */
+  const canvas = (aspect: number) =>
+    aspect >= 1
+      ? { width: 480, height: Math.round(480 / aspect) }
+      : { width: Math.round(480 * aspect), height: 480 }
   const config = libraryConfig()
   const maySupply = roleAtLeast(admin.role, 'super_admin')
 
@@ -94,12 +110,29 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
         )}
       </div>
 
+      <FontCatalogProvider catalog={catalog}>
+      {/* The library's faces, served from R2, as the designer page loads them. */}
+      {css !== '' && <style dangerouslySetInnerHTML={{ __html: css }} />}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="flex flex-col gap-3">
-          <h2 className="text-label font-medium text-secondary">Thumbnail</h2>
-          {block.thumbnailUrl === null ? (
+          <h2 className="text-label font-medium text-secondary">Preview</h2>
+          {/*
+            The stored thumbnail is only the fallback now, for a document that
+            does not parse: everything else is drawn live.
+          */}
+          {arrangements !== null ? (
+            <div className="flex aspect-square items-center justify-center rounded-chip bg-stone-100 p-3">
+              <BlockPreview
+                arrangements={arrangements}
+                kit={LIBRARY_PREVIEW_KIT}
+                {...canvas(previewAspect({ repeats: block.repeats, arrangements }))}
+                assetBaseUrl={env.R2_PUBLIC_URL}
+                className="h-full w-full"
+              />
+            </div>
+          ) : block.thumbnailUrl === null ? (
             <p className="text-body-sm text-muted">
-              None stored. Open it in the designer to see it drawn.
+              The document does not parse, and no thumbnail is stored.
             </p>
           ) : (
             <Image
@@ -199,6 +232,46 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
           </p>
         </Card>
       </div>
+
+      {arrangements === null || arrangements.length < 2 ? null : (
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-label font-medium text-secondary">Layouts</h2>
+          <p className="text-body-sm text-muted">
+            Every layout this block carries, each drawn at the middle of the shapes it covers.
+            Shape is width divided by height.
+          </p>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {arrangements.map((arrangement, index) => (
+              <li key={index} className="flex min-w-0 flex-col gap-1">
+                <div className="flex aspect-square items-center justify-center rounded-chip bg-stone-100 p-2">
+                  <BlockPreview
+                    arrangements={[arrangement]}
+                    kit={LIBRARY_PREVIEW_KIT}
+                    {...canvas(
+                      Math.min(
+                        6,
+                        Math.max(
+                          0.3,
+                          Math.sqrt(
+                            Math.max(arrangement.aspectMin, 0.05) *
+                              Math.max(arrangement.aspectMax, 0.05)
+                          )
+                        )
+                      )
+                    )}
+                    assetBaseUrl={env.R2_PUBLIC_URL}
+                    className="h-full w-full"
+                  />
+                </div>
+                <Figure size="data-sm" className="text-secondary">
+                  {arrangement.aspectMin.toFixed(2)} to {arrangement.aspectMax.toFixed(2)}
+                </Figure>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+      </FontCatalogProvider>
 
       {ownBlock && block.status === 'draft' && roleAtLeast(admin.role, 'catalog_manager') ? (
         <Card className="flex flex-col gap-3">

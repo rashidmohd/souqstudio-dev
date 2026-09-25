@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Check, Lock } from 'lucide-react'
 import type { BrandKit } from '@souqstudio/types'
-import { BlockPreview } from '@/components/blocks/BlockPreview'
+import { BlockPreview } from '@souqstudio/designer/components/blocks/BlockPreview'
 import { cn } from '@souqstudio/designer/lib/utils'
 import type { PickableBlock } from '@/components/offer-book/types'
 
