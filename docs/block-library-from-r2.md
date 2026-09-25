@@ -414,6 +414,8 @@ Do these in order. Each is undone by reversing the one before it.
    replaced under the same id. Its output says how many it kept. To retire a panel block,
    name it: `--drop blk_x`, and add `--prune` to delete its document too. If the current
    manifest cannot be read it refuses rather than guess. `library-merge.ts` is the rule.
+   A block unpublished from the panel is listed under `retired` and stays out of every
+   later run even though the repo still has it; `--restore blk_x` brings it back.
 
 3. **Let the admin panel upload to the bucket.** Add its public domain to the CORS
    origins and re-apply them (the script reads the policy back and fails if it did not

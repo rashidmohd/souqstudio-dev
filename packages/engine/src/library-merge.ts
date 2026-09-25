@@ -20,6 +20,10 @@ import type { LibraryManifest } from './library-source'
  *
  * A repo block that is no longer in the repo is dropped, as before: the repo is
  * the only thing that knows it was retired.
+ *
+ * **An id the panel unpublished stays out** (`retired`), repo block or not:
+ * unpublishing is a decision, and a re-run of the script is not a reason to
+ * undo it. `restore` names ids to let back in.
  */
 export interface ManifestMerge {
   manifest: Omit<LibraryManifest, 'version'>
@@ -29,27 +33,36 @@ export interface ManifestMerge {
   keptFromPanel: string[]
   /** Panel ids retired by `drop`. */
   dropped: string[]
+  /** Repo ids left out because the panel unpublished them. */
+  keptRetired: string[]
 }
 
 export function mergeManifest(
   repo: readonly LibraryManifest['blocks'][number][],
   existing: LibraryManifest | null,
-  drop: ReadonlySet<string> = new Set()
+  drop: ReadonlySet<string> = new Set(),
+  restore: ReadonlySet<string> = new Set()
 ): ManifestMerge {
+  const retired = new Set((existing?.retired ?? []).filter((id) => !restore.has(id)))
   const panel = (existing?.blocks ?? []).filter((entry) => entry.origin === 'panel')
   const kept = panel.filter((entry) => !drop.has(entry.id))
   const keptIds = new Set(kept.map((entry) => entry.id))
 
   const fromRepo = repo
-    .filter((entry) => !keptIds.has(entry.id))
+    .filter((entry) => !keptIds.has(entry.id) && !retired.has(entry.id))
     .map((entry) => ({ id: entry.id, category: entry.category }))
 
   const blocks = [...fromRepo, ...kept]
 
   return {
-    manifest: { count: blocks.length, blocks },
+    manifest: {
+      count: blocks.length,
+      blocks,
+      ...(retired.size === 0 ? {} : { retired: [...retired] }),
+    },
     replacedByPanel: repo.filter((entry) => keptIds.has(entry.id)).map((entry) => entry.id),
     keptFromPanel: kept.map((entry) => entry.id),
     dropped: panel.filter((entry) => drop.has(entry.id)).map((entry) => entry.id),
+    keptRetired: repo.filter((entry) => retired.has(entry.id)).map((entry) => entry.id),
   }
 }

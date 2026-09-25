@@ -81,7 +81,7 @@ export type {
  * seed on every deploy, and `POST /api/v1/library/sync` when somebody publishes
  * a design and will not wait for a release. See the file.
  */
-export { syncLibrary } from './library-sync'
+export { blocksInUse, syncLibrary } from './library-sync'
 export type { LibrarySyncResult } from './library-sync'
 export { listGalleryShapes } from './shape-gallery'
 export type { GalleryShapeRow } from './shape-gallery'

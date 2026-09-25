@@ -112,6 +112,12 @@ export interface LibraryManifest {
    * when it rewrites the list. See `library-merge.ts`.
    */
   blocks: { id: string; category: BlockCategory; origin?: 'panel' | undefined }[]
+  /**
+   * Ids the admin panel unpublished. Nothing reading the library cares: an id
+   * that is not in `blocks` is not in the library. `blocks:publish` does, so a
+   * run from the repo cannot put an unpublished block straight back.
+   */
+  retired?: string[] | undefined
 }
 
 /**

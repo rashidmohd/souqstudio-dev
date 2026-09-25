@@ -62,3 +62,23 @@ describe('mergeManifest', () => {
     expect(merged.manifest.blocks).toContainEqual({ id: 'blk_b', category: 'header' })
   })
 })
+
+describe('mergeManifest and unpublished blocks', () => {
+  it('keeps a repo block the panel unpublished out of the library', () => {
+    const merged = mergeManifest(repo, { ...existing([{ id: 'blk_a', category: 'panel' }]), retired: ['blk_b'] })
+    expect(merged.manifest.blocks.map((b) => b.id)).toEqual(['blk_a'])
+    expect(merged.keptRetired).toEqual(['blk_b'])
+    expect(merged.manifest.retired).toEqual(['blk_b'])
+  })
+
+  it('lets it back in with restore, and forgets it was retired', () => {
+    const merged = mergeManifest(
+      repo,
+      { ...existing([]), retired: ['blk_b'] },
+      new Set(),
+      new Set(['blk_b'])
+    )
+    expect(merged.manifest.blocks.map((b) => b.id)).toEqual(['blk_a', 'blk_b'])
+    expect(merged.manifest.retired).toBeUndefined()
+  })
+})

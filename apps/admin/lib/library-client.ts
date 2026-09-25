@@ -152,3 +152,15 @@ export type SyncResult = {
 export function syncLibrary(): Promise<LibraryCallResult<SyncResult>> {
   return call<SyncResult>('/api/v1/library/sync', {})
 }
+
+/**
+ * Take one block out of the library, by its library id.
+ *
+ * **Like publishing, it changes nothing a shop sees by itself.** The next sync
+ * takes the block away from shops: archived where a book already draws it,
+ * deleted where nothing does. Its reach is every shop, so the route that calls
+ * this is super admin only.
+ */
+export function unpublishBlock(id: string): Promise<LibraryCallResult<PublishResult>> {
+  return call<PublishResult>('/api/v1/library/unpublish', { id })
+}

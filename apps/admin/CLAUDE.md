@@ -140,6 +140,16 @@ every route calls `requireAdminApi()`, in Node. A present cookie proves nothing.
 - Publish and sync are two buttons because they are two decisions. Publishing
   writes an object and changes nothing a shop sees; syncing gives the library to
   everybody and prunes.
+- **Unpublish is the way a library block leaves**, super admin only. It takes
+  the id out of the manifest and records it under `retired`, so `blocks:publish`
+  cannot put a repo copy back (`--restore` does, on purpose). The next sync
+  archives it where a book draws it and deletes it where nothing does. The
+  last block in a library cannot be unpublished: an empty library prunes all.
+- **Delete is for SouqStudio's drafts and archived blocks only**, and only when
+  no book draws them (`blocksInUse` in `@souqstudio/db`, the prune's own check);
+  otherwise it archives and says so. A published block is refused (unpublish
+  and sync instead), and an organization's block is never deleted here. Drafts
+  need `catalog_manager`, archived blocks `super_admin`.
 
 ## Shape gallery rules
 

@@ -37,6 +37,9 @@
  * comma-separated). If the current manifest cannot be read, it refuses rather
  * than guess.
  *
+ * A block the panel **unpublished** stays out even if the repo still has it:
+ * the manifest lists it under `retired`. `--restore blk_x` lets it back in.
+ *
  * **Credentials come from `apps/web/.env.local` if it is there**, which is the
  * same trick `pnpm --filter @souqstudio/web r2:cors` uses and for the same
  * reason: the R2 keys live in one file and a script that cannot find them is a
@@ -70,13 +73,16 @@ const die = (message: string): never => {
   process.exit(1)
 }
 
-/** Every value given to `--drop`, repeated or comma-separated. */
-const dropIds = new Set(
-  args
-    .flatMap((arg, at) => (args[at - 1] === '--drop' ? arg.split(',') : []))
-    .map((id) => id.trim())
-    .filter((id) => id !== '')
-)
+/** Every value given to `--<name>`, repeated or comma-separated. */
+const listFlag = (name: string) =>
+  new Set(
+    args
+      .flatMap((arg, at) => (args[at - 1] === `--${name}` ? arg.split(',') : []))
+      .map((id) => id.trim())
+      .filter((id) => id !== '')
+  )
+const dropIds = listFlag('drop')
+const restoreIds = listFlag('restore')
 
 /**
  * The manifest already at the prefix, or null when nothing has been published
@@ -188,7 +194,8 @@ async function main() {
   const merged = mergeManifest(
     library.map((block) => ({ id: block.id, category: block.category })),
     existing,
-    dropIds
+    dropIds,
+    restoreIds
   )
   const replaced = new Set(merged.replacedByPanel)
   const toWrite = library.filter((block) => !replaced.has(block.id))
@@ -201,6 +208,11 @@ async function main() {
     console.log(`  repo blocks the panel has replaced, left as published: ${merged.replacedByPanel.join(', ')}`)
   }
   if (merged.dropped.length > 0) console.log(`  dropped: ${merged.dropped.join(', ')}`)
+  if (merged.keptRetired.length > 0) {
+    console.log(
+      `  left out, unpublished from the panel: ${merged.keptRetired.join(', ')} (--restore to bring back)`
+    )
+  }
   const counts = new Map<string, number>()
   for (const block of manifest.blocks) counts.set(block.category, (counts.get(block.category) ?? 0) + 1)
   for (const [category, n] of counts) console.log(`  ${category.padEnd(12)} ${n}`)

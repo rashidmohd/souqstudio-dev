@@ -109,17 +109,7 @@ async function pruneSeededBlocks(
   const stale = seeded.filter((block) => !current.has(block.id))
   if (stale.length === 0) return { archived: 0, deleted: 0 }
 
-  const [grids, pins] = await Promise.all([
-    prisma.pageGrid.findMany({ select: { regions: true } }),
-    prisma.bookPin.findMany({ select: { blockId: true } }),
-  ])
-
-  const inUse = new Set(pins.map((pin) => pin.blockId))
-  for (const grid of grids) {
-    for (const region of grid.regions as unknown as { blockId?: string }[]) {
-      if (typeof region.blockId === 'string') inUse.add(region.blockId)
-    }
-  }
+  const inUse = await blocksInUse()
 
   const archived = stale.filter((block) => inUse.has(block.id))
   const removable = stale.filter((block) => !inUse.has(block.id))
@@ -136,3 +126,31 @@ async function pruneSeededBlocks(
 
   return { archived: archived.length, deleted: removable.length }
 }
+
+/**
+ * Every block id a book draws: pinned, or named in a page grid's regions.
+ *
+ * **Both, because only one is a foreign key.** `book_pins` refuses a delete on
+ * its own; a page grid names its block inside `regions` JSON, which Prisma
+ * cannot enforce, so a deleted block there leaves a hole in a page rather than
+ * an error anywhere. Anything that deletes a block asks this first, and
+ * archives instead when the answer is yes: the sync's prune above and the
+ * admin panel's delete.
+ */
+export async function blocksInUse(): Promise<Set<string>> {
+  const [grids, pins] = await Promise.all([
+    prisma.pageGrid.findMany({ select: { regions: true } }),
+    prisma.bookPin.findMany({ select: { blockId: true } }),
+  ])
+
+  const inUse = new Set(pins.map((pin) => pin.blockId))
+  for (const grid of grids) {
+    // `regions` is JSON the grid writer owns; only `blockId` is read, and only
+    // when it is a string, so a malformed region names nothing.
+    for (const region of grid.regions as unknown as { blockId?: string }[]) {
+      if (typeof region.blockId === 'string') inUse.add(region.blockId)
+    }
+  }
+  return inUse
+}
+

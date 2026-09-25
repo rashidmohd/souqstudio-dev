@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { OCCASIONS } from '@souqstudio/engine'
 import type { Occasion } from '@souqstudio/engine'
-import { prisma } from '@souqstudio/db'
+import { blocksInUse, prisma } from '@souqstudio/db'
 import type { Prisma } from '@souqstudio/db'
 import {
   blockErrorMessage,
@@ -10,7 +10,7 @@ import {
   blockUpdateSchema,
 } from '@souqstudio/designer/lib/block-write'
 import { fail, ok } from '@/lib/api'
-import { requireAdminApi } from '@/lib/admin-auth'
+import { requireAdminApi, roleAtLeast } from '@/lib/admin-auth'
 import { recordAudit } from '@/lib/audit'
 import { DRAFT_WHERE } from '@/lib/library-drafts'
 
@@ -161,3 +161,81 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   return ok(block)
 }
+
+/**
+ * Delete one of SouqStudio's own blocks. E13-04.
+ *
+ * **Only a draft or an archived block, and only if no book draws it.**
+ *
+ * - A **published** library block is refused: it is in every shop's picker,
+ *   and the way it leaves is unpublish then sync, which archives it where a
+ *   book draws it and deletes it where nothing does. Deleting the row here
+ *   would skip that and leave holes in pages.
+ * - A block a book draws (a pin, or a page grid region) is **archived instead**,
+ *   and the reply says so. A page grid names its block in JSON Prisma cannot
+ *   enforce, so a delete there would not fail; it would blank a page.
+ * - An **organization's** block is never touched here: it is a customer's
+ *   design, and the shop app is where its owner retires it.
+ *
+ * A draft reaches nobody, so deleting one needs `catalog_manager`. An archived
+ * block was once in shops' pickers, so removing it for good needs
+ * `super_admin`. Versions go with the block (`onDelete: Cascade`).
+ */
+export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+  const gate = await requireAdminApi('catalog_manager')
+  if (!gate.ok) return gate.response
+
+  const block = await prisma.block.findUnique({
+    where: { id: params.id },
+    select: { id: true, name: true, status: true, organizationId: true },
+  })
+  if (block === null) return fail('not_found', 'That block does not exist.', 404)
+
+  if (block.organizationId !== null) {
+    return fail(
+      'not_ours',
+      'That block belongs to an organization. Its owner retires it in the shop app.',
+      403
+    )
+  }
+  if (block.status === 'published') {
+    return fail(
+      'published',
+      'This block is in the library. Unpublish it and sync: the sync removes it from shops, and archives it where a book still uses it.',
+      409
+    )
+  }
+  if (block.status === 'archived' && !roleAtLeast(gate.session.admin.role, 'super_admin')) {
+    return fail(
+      'forbidden',
+      'Deleting an archived library block needs the super admin role. It was once in every shop’s picker.',
+      403
+    )
+  }
+
+  if ((await blocksInUse()).has(block.id)) {
+    if (block.status !== 'archived') {
+      await prisma.block.update({ where: { id: block.id }, data: { status: 'archived' } })
+    }
+    await recordAudit({
+      adminUserId: gate.session.admin.id,
+      action: 'library.block.archived',
+      entityType: 'block',
+      entityId: block.id,
+      before: { status: block.status },
+      after: { status: 'archived', name: block.name, reason: 'in use by a book' },
+    })
+    return ok({ id: block.id, deleted: false, archivedInstead: true })
+  }
+
+  await prisma.block.delete({ where: { id: block.id } })
+  await recordAudit({
+    adminUserId: gate.session.admin.id,
+    action: 'library.block.deleted',
+    entityType: 'block',
+    entityId: block.id,
+    before: { name: block.name, status: block.status },
+  })
+  return ok({ id: block.id, deleted: true, archivedInstead: false })
+}
+

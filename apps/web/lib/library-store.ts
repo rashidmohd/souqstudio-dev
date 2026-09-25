@@ -37,6 +37,12 @@ const manifestSchema = z.object({
   version: z.string(),
   count: z.number().int().nonnegative(),
   blocks: z.array(manifestEntry),
+  /**
+   * Ids the panel unpublished, so `blocks:publish` does not put a repo copy
+   * straight back. Declared for the same reason as `origin`: zod strips an
+   * undeclared key, and the read-modify-write here would erase the list.
+   */
+  retired: z.array(z.string()).optional(),
 })
 
 export type LibraryManifest = z.infer<typeof manifestSchema>
@@ -140,11 +146,59 @@ export async function publishDocument(
   const current = await readManifest(prefix)
   const blocks = (current?.blocks ?? []).filter((entry) => entry.id !== document.id)
   blocks.push({ id: document.id, category: document.category, origin: 'panel' })
+  // Publishing an id is the decision to have it back, if it was unpublished.
+  const retired = (current?.retired ?? []).filter((id) => id !== document.id)
 
   const manifest: LibraryManifest = {
     version: new Date().toISOString(),
     count: blocks.length,
     blocks,
+    ...(retired.length === 0 ? {} : { retired }),
+  }
+
+  await putObject(
+    `${prefix}/manifest.json`,
+    Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`),
+    'application/json; charset=utf-8'
+  )
+
+  return manifest
+}
+
+/**
+ * Take one block out of the library. E13-04.
+ *
+ * **Only the manifest changes.** A reader sees what the manifest names, so the
+ * block is gone from the library the moment this lands; its document is left
+ * where it is, for the same reason `blocks:publish` deletes nothing without
+ * `--prune`. Nothing a shop sees changes until the next sync, which archives
+ * the block where a book draws it and deletes it where nothing does.
+ *
+ * The id is recorded under `retired`, so a later `blocks:publish` from the
+ * repo does not quietly put a repo copy back.
+ */
+export async function unpublishDocument(prefix: string, id: string): Promise<LibraryManifest> {
+  const current = await readManifest(prefix)
+  if (current === null || !current.blocks.some((entry) => entry.id === id)) {
+    throw new LibraryPublishError('not_published', `${id} is not in the library at ${prefix}/.`)
+  }
+
+  const blocks = current.blocks.filter((entry) => entry.id !== id)
+  if (blocks.length === 0) {
+    // The loader refuses an empty library and the sync would prune every block
+    // with it. Unpublishing the last block is not a thing this should do.
+    throw new LibraryPublishError(
+      'last_block',
+      'That is the only block in the library. A library cannot be empty.'
+    )
+  }
+
+  const retired = [...new Set([...(current.retired ?? []), id])]
+  const manifest: LibraryManifest = {
+    version: new Date().toISOString(),
+    count: blocks.length,
+    blocks,
+    retired,
   }
 
   await putObject(

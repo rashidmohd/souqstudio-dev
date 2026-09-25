@@ -14,6 +14,7 @@ import { env } from '@/lib/env'
 import { OCCASIONS } from '@souqstudio/engine'
 import { OccasionField } from '@/components/blocks/OccasionField'
 import { PublishPanel } from '@/components/blocks/PublishPanel'
+import { RemoveBlock } from '@/components/blocks/RemoveBlock'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -306,6 +307,28 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
           category={block.category ?? ''}
         />
       )}
+
+      {/*
+        Taking a block out. Offered only where the route would allow it; the
+        route decides again. An organization's block is never offered: its
+        owner retires it in the shop app.
+      */}
+      {ownBlock &&
+      ((block.status === 'published' &&
+        LIBRARY_ID.test(block.id) &&
+        maySupply &&
+        config.configured) ||
+        (block.status === 'draft' && roleAtLeast(admin.role, 'catalog_manager')) ||
+        (block.status === 'archived' && maySupply)) ? (
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-label font-medium text-secondary">Remove</h2>
+          <RemoveBlock
+            blockId={block.id}
+            libraryId={LIBRARY_ID.test(block.id) ? block.id : null}
+            mode={block.status === 'published' ? 'unpublish' : 'delete'}
+          />
+        </Card>
+      ) : null}
     </>
   )
 }
