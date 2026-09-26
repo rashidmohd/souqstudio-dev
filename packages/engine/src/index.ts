@@ -20,6 +20,7 @@ export {
   fitText,
   fitStyle,
   fitPolicy,
+  growsWithLines,
   wrapText,
   MIN_LINE_HEIGHT,
   type FitRequest,

@@ -196,6 +196,45 @@ describe('compactBlock', () => {
     })
   })
 
+  describe('a name that wraps to more lines than its box was drawn for', () => {
+    // Two lines more than the box: 80 over. The gap under the name is 6 and the
+    // one under the spec is 12, so there is 18 of flexible room and the spec is
+    // kept close in the second case.
+    const longer = (element: ResolvedElement, index: number) =>
+      index === 3 ? 120 + 12 : element.rect.height
+    const top = (block: ResolvedBlock, kind: string, nth = 0) =>
+      block.elements.filter((e) => e.element.kind === kind)[nth]?.rect
+
+    it('pushes what is below it down by closing the flexible gaps', () => {
+      const out = compactBlock(CARD, longer, 'balance')
+      const name = top(out, 'text', 0)
+      const spec = top(out, 'text', 1)
+      expect(name?.height).toBeCloseTo(132, 5)
+      expect(spec?.y ?? 0).toBeGreaterThanOrEqual((name?.y ?? 0) + (name?.height ?? 0) - 1e-9)
+    })
+
+    it('keeps a kept-close line at its designed distance while the rest makes room', () => {
+      const card: ResolvedBlock = {
+        ...CARD,
+        elements: CARD.elements.map((e, i) =>
+          i === 4 ? { ...e, element: { ...e.element, keepWithAbove: true } } : e
+        ),
+      }
+      const out = compactBlock(card, longer, 'balance')
+      const name = top(out, 'text', 0)
+      const spec = top(out, 'text', 1)
+      const designed = SPEC.rect.y - (NAME.rect.y + NAME.rect.height)
+      expect((spec?.y ?? 0) - ((name?.y ?? 0) + (name?.height ?? 0))).toBeCloseTo(designed, 5)
+    })
+
+    it('takes room from the packshot first under image, never below half of it', () => {
+      const huge = (element: ResolvedElement, index: number) =>
+        index === 3 ? 1000 : element.rect.height
+      const image = top(compactBlock(CARD, huge, 'image'), 'image')
+      expect(image?.height).toBeCloseTo(IMAGE.rect.height / 2, 5)
+    })
+  })
+
   describe('refusing what it cannot do', () => {
     it('leaves a side-by-side arrangement alone', () => {
       // The WIDE arrangement: image on the left, name and price beside it. It
@@ -216,13 +255,21 @@ describe('compactBlock', () => {
       expect(rects(compactBlock(CARD, () => null, 'balance'))).toEqual(rects(CARD))
     })
 
-    it('does not let content grow past its box', () => {
-      // An overflowing string is the fit ladder's problem. Reporting 400 for a
-      // 120 box must not make the box 400 tall.
+    it('lets content grow only into the room the card has', () => {
+      // A name set to wrap asks for more than its box. It gets what the
+      // flexible gaps can give, and no more: the card never runs past its foot,
+      // and the ladder draws the name in the height that is left.
       const overflowing = (element: ResolvedElement, index: number) =>
         index === 3 ? 400 : element.rect.height
       const out = compactBlock(CARD, overflowing, 'balance')
-      expect(out.elements[3]?.rect.height).toBe(NAME.rect.height)
+      const name = out.elements[3]
+      const price = out.elements.find((e) => e.element.kind === 'priceMark')
+      expect(name?.rect.height).toBeGreaterThan(NAME.rect.height)
+      expect(name?.rect.height).toBeLessThan(400)
+      expect((price?.rect.y ?? 0) + (price?.rect.height ?? 0)).toBeCloseTo(
+        PRICE.rect.y + PRICE.rect.height,
+        5
+      )
     })
   })
 

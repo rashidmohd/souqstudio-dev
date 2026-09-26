@@ -18,6 +18,7 @@ import {
   fitPolicy,
   groundDecidesInk,
   growCorners,
+  growsWithLines,
   inkOnGround,
   insetRect,
   layoutChipStack,
@@ -1346,14 +1347,24 @@ export function fitTextElement(
  */
 export function contentHeight(element: BlockElement, rect: Rect, ctx: DrawContext): number | null {
   if (element.kind !== 'text') return rect.height
-  const measured = fitTextElement(element, rect, ctx)
+
+  // Text that grows with its lines is measured in a box taller than any card,
+  // so the line setting is the only ceiling and the answer is the height those
+  // lines need. `compactBlock` then finds the room, or gives back less.
+  const grows = growsWithLines(element.overflow)
+  const probe = grows ? { ...rect, height: ctx.blockSize * 4 } : rect
+
+  const measured = fitTextElement(element, probe, ctx)
   if (measured === null) return null
   const { fitted } = measured
   const inset = textInset(element.background, ctx.blockSize)
   // A hair over the exact height. The second fit runs against this box less
   // the same inset, and a subtraction that lands one rounding under the lines'
   // height would step the words down a size for nothing.
-  return fitted.lines.length * fitted.fontSize * fitted.lineHeight + inset * 2 + 0.01
+  const needed = fitted.lines.length * fitted.fontSize * fitted.lineHeight + inset * 2 + 0.01
+  // Anything else keeps its box: text overflowing a box it may not grow out of
+  // is the ladder's to report, not the stack's to make room for.
+  return grows ? needed : Math.min(needed, rect.height)
 }
 
 /** What the ladder decided, and the box — inside any padding — it decided it in. */

@@ -271,6 +271,28 @@ describe('paint', () => {
       expect(padded - bare).toBeCloseTo(16, 5)
     })
 
+    it('grows past a one-line box when it wraps to a set number of lines', () => {
+      const long = {
+        source: {
+          from: 'static',
+          textEn: 'Full cream long life milk enriched with vitamins A and D',
+          textAr: 'Full cream long life milk enriched with vitamins A and D',
+        },
+        overflow: { mode: 'clamp', lines: 3 },
+      }
+      const oneLine = { x: 0, y: 0, width: 300, height: 30 }
+      const needed = contentHeight(text(long), oneLine, CTX) ?? 0
+      expect(needed).toBeGreaterThan(oneLine.height)
+    })
+
+    it('stays inside its box when it may not grow', () => {
+      const long = {
+        source: { from: 'static', textEn: 'A very long line '.repeat(8), textAr: 'x' },
+      }
+      const oneLine = { x: 0, y: 0, width: 300, height: 30 }
+      expect(contentHeight(text(long), oneLine, CTX)).toBeLessThanOrEqual(30)
+    })
+
     it('is nothing at all when there is no text', () => {
       const empty = text({ source: { from: 'static', textEn: '', textAr: '' } })
       expect(contentHeight(empty, tall, CTX)).toBeNull()

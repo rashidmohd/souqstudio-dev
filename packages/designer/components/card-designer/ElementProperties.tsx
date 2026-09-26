@@ -560,16 +560,16 @@ export function ElementProperties({
           label="Space above"
           hint={
             element.keepWithAbove === true
-              ? 'Stays this close to what is above it, however short that turns out.'
-              : 'When the line above is shorter than its box, the space can open up here.'
+              ? 'Stays this close to what is above it, however long or short that turns out.'
+              : 'Opens up when the text above is short, and closes to make room when it is long.'
           }
         >
           <Segmented
             label="Space above"
             disabled={disabled}
-            value={element.keepWithAbove === true ? 'keep' : 'grow'}
+            value={element.keepWithAbove === true ? 'keep' : 'flex'}
             options={[
-              { value: 'grow', label: 'Can grow' },
+              { value: 'flex', label: 'Flexible' },
               { value: 'keep', label: 'Keep close' },
             ]}
             onChange={(mode) =>
@@ -2117,6 +2117,7 @@ function OverflowField({
           figure
           disabled={disabled}
           value={overflow.lines}
+          hint="The text takes the height of the lines it needs, up to this many, whatever size its box is. Flexible space below makes room."
           onChange={(event) =>
             set({ mode: 'clamp', lines: clamp(Math.round(Number(event.target.value)), 1, 6) })
           }

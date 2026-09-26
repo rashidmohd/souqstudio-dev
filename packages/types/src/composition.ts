@@ -704,10 +704,11 @@ export interface ElementBase {
    * stack — a brand line under a product name that wrapped to one line of
    * the three its box was drawn for.
    *
-   * **Read by compaction and nothing else.** Compaction removes the height a
-   * card's content did not use and, under `balance`, spreads it into the gaps
-   * that remain; this gap is never one of them. Only the image, text and price
-   * elements are in that stack, so it means nothing on the others.
+   * **Read by compaction and nothing else.** Compaction takes back the height
+   * a card's content did not use and finds room for text that wraps to more
+   * lines than its box — both by opening and closing the flexible gaps; this
+   * gap is never one of them. Only the image, text and price elements are in
+   * that stack, so it means nothing on the others.
    */
   keepWithAbove?: boolean | undefined
 }

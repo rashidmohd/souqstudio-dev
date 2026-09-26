@@ -20,6 +20,7 @@ import {
   fromHex,
   groundDecidesInk,
   growCorners,
+  growsWithLines,
   inkOnGround,
   insetRect,
   layoutChipStack,
@@ -146,14 +147,19 @@ function neededHeight(
 ): number | null {
   if (element.kind !== 'text') return rect.height
 
-  const measured = fitFor(element, rect, product, ctx, blockEdge)
+  // Line for line with `contentHeight` in `draw.tsx`: text that grows with its
+  // lines is measured without the drawn box as a ceiling.
+  const grows = growsWithLines(element.overflow)
+  const probe = grows ? { ...rect, height: blockEdge * 4 } : rect
+  const measured = fitFor(element, probe, product, ctx, blockEdge)
   if (measured === null) return null
   // The padding is room the words do not get, top and bottom.
   const inset = textInset(element.background, blockEdge)
-  return (
+  const needed =
     measured.fitted.lines.length * measured.fitted.fontSize * measured.fitted.lineHeight +
-    inset * 2
-  )
+    inset * 2 +
+    0.01
+  return grows ? needed : Math.min(needed, rect.height)
 }
 
 /**

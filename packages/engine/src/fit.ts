@@ -461,3 +461,19 @@ export function fitPolicy(
 
   return { truncatable: false }
 }
+
+/**
+ * Whether a text's height follows its lines rather than the box it was drawn in.
+ *
+ * **"Wrap to a set number of lines" is a promise about lines**, so the lines
+ * decide: a name set to three takes three lines' height on a long product and
+ * one line's on a short one, and the card's flexible gaps give and take the
+ * difference. The drawn box used to be the real ceiling — a box drawn round a
+ * one-line sample cut a long name to one line whatever the setting said, and
+ * nothing on screen explained why.
+ *
+ * Only this mode. A shrink-to-fit name is sized *to* its box by definition, and
+ * a single truncated line has nothing to grow into.
+ */
+export const growsWithLines = (overflow: TextOverflow | undefined): boolean =>
+  overflow?.mode === 'clamp'

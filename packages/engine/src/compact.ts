@@ -15,7 +15,9 @@
  *
  * **This does not resize text and does not decide what a card looks like.** It
  * takes what the caller measured, removes what is not there, and hands the
- * reclaimed height to one beneficiary. Which beneficiary is a design decision
+ * reclaimed height to one beneficiary. It runs the other way too: a name set to
+ * wrap to three lines under a box drawn for one asks for more than its box, and
+ * the room comes out of the beneficiary and the flexible gaps below it. Which beneficiary is a design decision
  * and is the caller's — see `CompactionPolicy`. The engine's job here is that
  * the arithmetic is the same in the browser and in the export worker.
  *
@@ -60,8 +62,10 @@ export const BOOK_COMPACTION: CompactionPolicy = 'balance'
  *
  * `null` means the element has no content and should be removed — an absent
  * spec, a product with no brand. A number is a height in the same units as the
- * resolved rects; it is clamped to the box, because content that overflows its
- * box is the fit ladder's problem and not this module's.
+ * resolved rects. **It may be more than the box** — a name set to wrap to three
+ * lines under a box drawn round one — and the stack then makes room for it out
+ * of the flexible gaps below. Content that merely overflows a box it cannot grow
+ * is the fit ladder's problem, and the caller reports the box for it.
  */
 export type Occupancy = (element: ResolvedElement, index: number) => number | null
 
@@ -97,7 +101,7 @@ export function compactBlock(
     return {
       ...entry,
       keep: needed !== null,
-      height: needed === null ? 0 : Math.min(Math.max(needed, 0), entry.element.rect.height),
+      height: needed === null ? 0 : Math.max(needed, 0),
     }
   })
 
@@ -121,7 +125,9 @@ export function compactBlock(
   }
 
   const kept = measured.filter((entry) => entry.keep)
-  if (freed <= EPSILON || kept.length === 0) return block
+  // Negative is a stack that needs more than it was drawn with: a name that
+  // wrapped to more lines than its box was drawn for.
+  if (Math.abs(freed) <= EPSILON || kept.length === 0) return block
 
   const keptGaps = kept.map((entry, i) =>
     i === 0 ? 0 : (gaps[measured.indexOf(entry)] ?? 0)
@@ -138,15 +144,59 @@ export function compactBlock(
         )
 
   /**
-   * **A gap the element below asked to keep takes none of it.** `balance`
-   * spread the freed height into every gap, so a brand line under a one-line
-   * name moved up and then drifted back down by a share of the space its own
-   * name had given up. The share it would have taken goes to the gaps that are
-   * free to open instead; if none is, the space stays at the foot of the
-   * stack, which is where a card already keeps what it did not use.
+   * **A gap the element below asked to keep never changes.** `balance` spread
+   * the freed height into every gap, so a brand line under a one-line name
+   * moved up and then drifted back down by a share of the space its own name
+   * had given up. Only the flexible gaps open and close; if none is flexible,
+   * spare space stays at the foot of the stack.
    */
-  const open = kept.filter((entry, i) => i > 0 && entry.element.element.keepWithAbove !== true)
-  const bonusEach = beneficiary === -1 && open.length > 0 ? freed / open.length : 0
+  const open = kept
+    .map((entry, i) => ({ entry, i }))
+    .filter(({ entry, i }) => i > 0 && entry.element.element.keepWithAbove !== true)
+    .map(({ i }) => i)
+
+  const heights = kept.map((entry) => entry.height)
+  const extra = kept.map(() => 0)
+
+  if (freed > 0) {
+    if (beneficiary !== -1) heights[beneficiary] = (heights[beneficiary] ?? 0) + freed
+    else for (const i of open) extra[i] = freed / open.length
+  } else {
+    let deficit = -freed
+
+    // **Room for what grew, in the order that costs the design least.** The
+    // policy's beneficiary gives first, but never below half what it was drawn
+    // at — a packshot squeezed to a sliver to fit a name is a worse card than a
+    // name cut short.
+    if (beneficiary !== -1) {
+      const drawn = kept[beneficiary]?.element.rect.height ?? 0
+      const give = Math.min(deficit, Math.max(0, (heights[beneficiary] ?? 0) - drawn / 2))
+      heights[beneficiary] = (heights[beneficiary] ?? 0) - give
+      deficit -= give
+    }
+
+    // Then the flexible gaps close, each in proportion to its size, so the
+    // card's rhythm shrinks evenly rather than one gap vanishing.
+    const room = open.reduce((sum, i) => sum + Math.max(0, keptGaps[i] ?? 0), 0)
+    if (deficit > 0 && room > 0) {
+      const take = Math.min(deficit, room)
+      for (const i of open) extra[i] = -(Math.max(0, keptGaps[i] ?? 0) / room) * take
+      deficit -= take
+    }
+
+    // Out of room: what grew gives back, in proportion to how far it grew, and
+    // the fit ladder draws it in the height that is left — smaller, or cut.
+    if (deficit > 0) {
+      const growth = kept.map((entry, i) => Math.max(0, (heights[i] ?? 0) - entry.element.rect.height))
+      const total = growth.reduce((sum, value) => sum + value, 0)
+      if (total > 0) {
+        const take = Math.min(deficit, total)
+        growth.forEach((value, i) => {
+          heights[i] = (heights[i] ?? 0) - (value / total) * take
+        })
+      }
+    }
+  }
 
   const adjusted = new Map<number, ResolvedElement>()
   let cursor = kept[0]?.element.rect.y ?? 0
@@ -155,11 +205,9 @@ export function compactBlock(
     const entry = kept[i]
     if (entry === undefined) continue
 
-    if (i > 0) {
-      cursor += (keptGaps[i] ?? 0) + (entry.element.element.keepWithAbove === true ? 0 : bonusEach)
-    }
+    if (i > 0) cursor += (keptGaps[i] ?? 0) + (extra[i] ?? 0)
 
-    const height = entry.height + (i === beneficiary ? freed : 0)
+    const height = heights[i] ?? entry.height
     adjusted.set(entry.index, {
       element: entry.element.element,
       rect: { ...entry.element.rect, y: cursor, height },
