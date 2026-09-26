@@ -62,7 +62,13 @@ export interface AiJobPayload {
 export interface MagicBlockPayload {
   /** `ai_jobs` row id — what the client polls and the worker updates. */
   jobId: string
-  organizationId: string
+  /**
+   * The organization the block is made for and charged to, or **null for
+   * SouqStudio's block library**: the admin panel reads a picture into a
+   * platform draft (`organizationId` null, status draft), and nothing is
+   * charged because there is no one to charge. E13-04.
+   */
+  organizationId: string | null
   /** R2 object key of the uploaded picture. Never a client-supplied URL. */
   sourceKey: string
   /**

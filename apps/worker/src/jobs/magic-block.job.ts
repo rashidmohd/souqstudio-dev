@@ -110,18 +110,25 @@ export async function handleMagicBlock(job: Job<MagicBlockPayload>) {
         // `NoMatchError` instead of matching it to the nearest thing on the list.
         repeats,
         arrangements: arrangements as unknown as Prisma.InputJsonValue,
-        // Draft, always. Nobody has looked at it yet.
+        // Draft, always. Nobody has looked at it yet. For the library
+        // (`organizationId` null) that also keeps it out of every shop until
+        // it is published from the admin panel.
         status: 'draft',
         category,
       },
       select: { id: true },
     })
 
-    const spend = await consumeCredits({
-      organizationId,
-      action: 'block_gen',
-      cost: CREDIT_COSTS.block_gen,
-    })
+    // The library's own jobs charge nobody: the admin panel is SouqStudio
+    // working on its own library, and there is no organization to charge.
+    const spend =
+      organizationId === null
+        ? ({ ok: true, charged: 0 } as const)
+        : await consumeCredits({
+            organizationId,
+            action: 'block_gen',
+            cost: CREDIT_COSTS.block_gen,
+          })
 
     /**
      * **A balance that ran out between the route's check and here does not undo

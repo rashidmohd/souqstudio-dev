@@ -151,6 +151,14 @@ every route calls `requireAdminApi()`, in Node. A present cookie proves nothing.
   and sync instead), and an organization's block is never deleted here. Drafts
   need `catalog_manager`, archived blocks `super_admin`.
 
+- **Magic block, for the library.** `/blocks/new` → "From a picture" runs the
+  worker's `ai.magicBlock` job with `organizationId: null`: the result is a
+  library draft, nothing is charged, and the `ai_jobs` row has no organization
+  (migration `…_ai_jobs_platform`, FK still RESTRICT). The panel is a queue
+  *producer* only; the worker does the work. Needs `REDIS_URL` and the worker
+  deployed with the null-organization path, and the result is shown as
+  machine output.
+
 ## Shape gallery rules
 
 - **A gallery shape is an outline, not a file.** `library_shapes.art` is the

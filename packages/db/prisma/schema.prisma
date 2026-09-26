@@ -2017,7 +2017,10 @@ model CharacterPose {
 
 model AiJob {
   id             String       @id @default(cuid())
-  organizationId String
+  /// Null for a job SouqStudio's admin panel ran for the block library (E13-04
+  /// magic block): no shop, no organization, nothing charged. Every shop-side
+  /// reader filters by an organization id, so it never sees one.
+  organizationId String?
   shopId         String?
   type           String // character_gen | pose_gen | cover_gen | background_removal | prompt_gen
   status         String       @default("queued") // queued | processing | complete | failed
@@ -2039,7 +2042,9 @@ model AiJob {
   /// writes a draft block and has nothing left to claim. Those are excluded by
   /// type rather than by leaving this set.
   claimedAt      DateTime?
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  // Restrict, as before it was optional: deleting an organization must not
+  // turn its jobs into what look like SouqStudio's own (null) jobs.
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   createdAt      DateTime     @default(now())
   completedAt    DateTime?
 

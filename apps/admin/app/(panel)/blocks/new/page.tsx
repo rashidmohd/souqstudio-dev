@@ -1,6 +1,7 @@
 import { prisma } from '@souqstudio/db'
 import { requireAdminRole } from '@/lib/admin-auth'
 import { STARTER_KINDS, STARTER_LABELS } from '@/lib/library-drafts'
+import { MagicBlockForm } from '@/components/blocks/MagicBlockForm'
 import { NewBlockForm } from '@/components/blocks/NewBlockForm'
 import { PageHeader } from '@/components/shared/PageHeader'
 
@@ -41,6 +42,14 @@ export default async function NewBlockPage() {
             block.status === 'draft' ? ' (draft)' : ''
           }`,
         }))}
+      />
+      {/*
+        The second way in: a picture of a design, matched by the same worker
+        job the shop app's magic block uses. Only the kinds a starter exists
+        for, which are the kinds the model is asked about.
+      */}
+      <MagicBlockForm
+        kinds={STARTER_KINDS.map((kind) => ({ value: kind, label: STARTER_LABELS[kind] }))}
       />
     </>
   )

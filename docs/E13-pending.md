@@ -23,6 +23,7 @@ and nothing had ever read either one.
 | Account creation | `pnpm --filter @souqstudio/db admin:create` |
 | Catalog | `/catalog`, `/catalog/[id]`, `/catalog/new`, two routes |
 | Block library console | `/blocks`, `/blocks/[id]`, `lib/library-client.ts`, two routes |
+| Library magic block | "From a picture" on `/blocks/new`, `/api/v1/admin/blocks/magic` (+ `/[jobId]`), worker `magic-block.job.ts` null-organization path, migration `…_ai_jobs_platform`. Route to queue verified on a throwaway DB and local Redis on 26 September; the worker and the model call were not run. |
 | Shape gallery | `/shapes`, `library_shapes` (migration `…_library_shapes`), `GET /api/v1/shapes` in `apps/web`, "More shapes" dialog in the designer. Added 25 September; exercised end to end on a throwaway database. |
 | Library block authoring | `/blocks/new`, `/blocks/[id]/edit` (the shared designer), `lib/library-drafts.ts`, six routes under `/api/v1/admin/blocks`. See §2c. |
 | Prompt management | `/prompts`, `/prompts/[id]`, `/prompts/new`, two routes |
