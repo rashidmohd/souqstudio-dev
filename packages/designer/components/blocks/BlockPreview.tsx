@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
-import { resolveBlock } from '@souqstudio/engine'
+import { BOOK_COMPACTION, compactBlock, resolveBlock } from '@souqstudio/engine'
 import { resolvePalette, resolveToken } from '../../lib/brand-palette'
 import { resolveScale } from '../../lib/font-catalog'
 import { useFontCatalog } from '../brand/FontCatalogProvider'
@@ -12,6 +12,7 @@ import { PREVIEW_IDENTITY } from '../../lib/artboard-identity'
 import { PREVIEW_PRODUCT } from '../../lib/preview-product'
 import { assetResolver } from '../../lib/block-assets'
 import {
+  contentHeight,
   drawElement,
   estimateWidth,
   measureText,
@@ -79,7 +80,7 @@ export function BlockPreview({
 
   const uid = React.useId()
 
-  const { elements } = resolveBlock(
+  const resolved = resolveBlock(
     {
       id: 'preview',
       organizationId: null,
@@ -127,6 +128,21 @@ export function BlockPreview({
     // boxes. See the note on `PREVIEW_IDENTITY`.
     ...PREVIEW_IDENTITY,
   }
+
+  /**
+   * **As the book prints it.** A name set to wrap to three lines takes its
+   * lines and the flexible gaps make room; a short one gives the space back.
+   * This preview used to draw the boxes as designed, so the admin panel's card
+   * showed a long name cut to one line while the designer's own previews and
+   * the book showed it whole — three pictures of one card, and the odd one
+   * out was the one people browse the library by. Same measure, same policy
+   * as `BookPage` and the designer's printed previews.
+   */
+  const { elements } = compactBlock(
+    resolved,
+    ({ element, rect }) => contentHeight(element, rect, ctx),
+    BOOK_COMPACTION
+  )
 
   return (
     <svg
