@@ -243,6 +243,8 @@ export {
   shapeArtSchema,
   toArrangements,
 } from './document'
+// Layer names in the owner's words: the layer list and the publish refusal.
+export { layerName } from './layer-name'
 export {
   colourProblems,
   describeColourProblems,

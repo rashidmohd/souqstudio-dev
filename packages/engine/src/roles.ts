@@ -1,4 +1,5 @@
 import type { Arrangement, BlockElement } from '@souqstudio/types'
+import { layerName } from './layer-name'
 
 /**
  * Whether a document is one a **seeded** block may hold.
@@ -31,6 +32,8 @@ export interface ColourProblem {
   elementId: string
   /** What the layer list calls the layer. */
   layer: string
+  /** Where it sits in the layer list, counting from the top — 1 is frontmost. */
+  position: number
   /** Which of its colours, in the words the properties panel uses. */
   slot: string
 }
@@ -46,38 +49,47 @@ export interface ColourProblem {
 export function colourProblems(arrangements: readonly Arrangement[]): ColourProblem[] {
   const problems: ColourProblem[] = []
   const seen = new Set<string>()
-  const check = (element: BlockElement, slot: string, value: { from: string } | undefined) => {
+  const checkAt = (
+    element: BlockElement,
+    position: number,
+    slot: string,
+    value: { from: string } | undefined
+  ) => {
     if (value === undefined || value.from === 'role') return
     // An element is repeated once per arrangement; report it once.
     const key = `${element.id}:${slot}`
     if (seen.has(key)) return
     seen.add(key)
-    problems.push({ elementId: element.id, layer: layerName(element), slot })
+    problems.push({ elementId: element.id, layer: layerName(element), position, slot })
   }
 
   for (const arrangement of arrangements) {
-    for (const element of arrangement.elements) {
+    arrangement.elements.forEach((element, index) => {
+      // The layer list shows paint order reversed: the last element is on top.
+      const at = arrangement.elements.length - index
+      const check = (slot: string, value: { from: string } | undefined) =>
+        checkAt(element, at, slot, value)
       // **Every colour slot on the element, including the ones added last.**
       // A slot left out here is a hole in the exact guarantee this function
       // exists for; the text's ground and its depth were missing until 27
       // September. An absent value is not a violation: an outline-only shape
       // names no fill. E14 §2.4.
       if (element.kind === 'shape') {
-        check(element, 'fill', element.fill)
-        check(element, 'border', element.stroke?.color)
-        check(element, 'shadow', element.shadow?.color)
+        check('fill', element.fill)
+        check('border', element.stroke?.color)
+        check('shadow', element.shadow?.color)
       }
       if (element.kind === 'text') {
-        check(element, 'text colour', element.color)
-        check(element, 'background', element.background?.fill)
-        check(element, 'outline', element.stroke?.color)
-        check(element, 'shadow', element.shadow?.color)
-        check(element, '3D depth', element.extrude?.color)
+        check('text colour', element.color)
+        check('background', element.background?.fill)
+        check('outline', element.stroke?.color)
+        check('shadow', element.shadow?.color)
+        check('3D depth', element.extrude?.color)
       }
-      if (element.kind === 'chip') check(element, 'fill', element.fill)
+      if (element.kind === 'chip') check('fill', element.fill)
       if (element.kind === 'image') {
-        check(element, 'border', element.stroke?.color)
-        check(element, 'shadow', element.shadow?.color)
+        check('border', element.stroke?.color)
+        check('shadow', element.shadow?.color)
       }
       if (element.kind === 'priceMark') {
         const style = element.style
@@ -98,49 +110,45 @@ export function colourProblems(arrangements: readonly Arrangement[]): ColourProb
           ['tab', style?.tabFill],
           ['tab text', style?.tabInk],
         ]
-        for (const [slot, value] of slots) check(element, slot, value)
+        for (const [slot, value] of slots) check(slot, value)
       }
-    }
+    })
   }
   return problems
 }
 
 /**
- * The layer's name as the designer's layer list shows it, for the kinds a
- * refusal can name. `describe` in `LayerList.tsx` is the full version; this is
- * the engine's copy because the refusal is written where the designer is not.
- */
-function layerName(element: BlockElement): string {
-  switch (element.kind) {
-    case 'text': {
-      const source = element.source
-      if (source.from === 'product') return `Product ${source.field}`
-      if (source.from === 'shop') return `Shop ${source.field}`
-      if (source.from === 'static') return source.textEn === '' ? 'Fixed text' : `"${source.textEn}"`
-      return 'Text'
-    }
-    case 'image':
-      return 'Image'
-    case 'priceMark':
-      return 'Price'
-    case 'chip':
-      return 'Offer badge'
-    case 'logo':
-      return 'Logo'
-    case 'shape':
-      if (element.variant === 'line') return 'Line'
-      if (element.variant === 'ellipse') return 'Circle'
-      return element.box.width === 1 && element.box.height === 1 ? 'Background' : 'Shape'
-  }
-}
-
-/**
- * The problems as one sentence a person can act on: "the background on "SAVE
- * 20%" and the fill on Shape". Every refusal of a seeded block's colours says
- * this, so the admin console, the export route and the loader agree.
+ * The problems as one sentence a person can act on — "the background and text
+ * colour on Offer tier, and the fill on Shape (layer 5 from the top)" — in the
+ * layer list's own words, grouped by layer. Two layers with one name get their
+ * place in the list, or the sentence names one of them twice and neither can be
+ * found. Every refusal of a seeded block's colours says this, so the admin
+ * console, the export route and the loader agree.
  */
 export function describeColourProblems(problems: readonly ColourProblem[]): string {
-  const parts = problems.map((problem) => `the ${problem.slot} on ${problem.layer}`)
-  if (parts.length <= 1) return parts.join('')
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+  const layers = new Map<string, { layer: string; position: number; slots: string[] }>()
+  for (const problem of problems) {
+    const entry = layers.get(problem.elementId)
+    if (entry === undefined) {
+      layers.set(problem.elementId, {
+        layer: problem.layer,
+        position: problem.position,
+        slots: [problem.slot],
+      })
+    } else entry.slots.push(problem.slot)
+  }
+
+  const named = [...layers.values()]
+  const shared = (name: string) => named.filter((entry) => entry.layer === name).length > 1
+  const parts = named.map(({ layer, position, slots }) => {
+    const where = shared(layer) ? `${layer} (layer ${position} from the top)` : layer
+    return `the ${list(slots)} on ${where}`
+  })
+  return list(parts, parts.some((part) => part.includes(' and ')) ? ', and ' : ' and ')
+}
+
+/** "a", "a and b", "a, b and c". */
+function list(items: readonly string[], last = ' and '): string {
+  if (items.length <= 1) return items.join('')
+  return `${items.slice(0, -1).join(', ')}${last}${items[items.length - 1]}`
 }

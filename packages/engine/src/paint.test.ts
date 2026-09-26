@@ -327,7 +327,7 @@ describe('a colour a shared block may not hold', () => {
     })
     expect(usesOnlyRoles(block([badge]))).toBe(false)
     expect(colourProblems(block([badge]))).toEqual([
-      { elementId: 't1', layer: '"SAVE 20%"', slot: 'background' },
+      { elementId: 't1', layer: '“SAVE 20%”', position: 1, slot: 'background' },
     ])
   })
 
@@ -343,6 +343,22 @@ describe('a colour a shared block may not hold', () => {
     ])
     expect(describeColourProblems(problems)).toBe(
       'the background on Product name and the fill on Shape'
+    )
+  })
+
+  it('names bound text by what it shows, groups a layer, and places two of one name', () => {
+    // The refusal that came back as "the text colour on Text and the text
+    // colour on Text": two different layers, one word, neither findable.
+    const tier = { ...text({ source: { from: 'offer', field: 'tier' }, color: HEX }), id: 'tier' }
+    const saved = {
+      ...text({ source: { from: 'offer', field: 'savePercent' }, color: HEX, background: ground(HEX) }),
+      id: 'saved',
+    }
+    const back = { ...shape({ fill: HEX, shadow: { x: 0, y: 0.01, blur: 0, color: HEX } }), id: 'a' }
+    const front = { ...shape({ fill: HEX }), id: 'b' }
+    expect(describeColourProblems(colourProblems(block([back, tier, saved, front])))).toBe(
+      'the fill and shadow on Shape (layer 4 from the top), the text colour on Offer tier, ' +
+        'the text colour and background on Percent saved, and the fill on Shape (layer 1 from the top)'
     )
   })
 })
