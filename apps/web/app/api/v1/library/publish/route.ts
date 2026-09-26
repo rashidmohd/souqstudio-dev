@@ -1,6 +1,12 @@
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { BLOCK_CATEGORIES, OCCASIONS, isOccasion } from '@souqstudio/engine'
+import {
+  BLOCK_CATEGORIES,
+  OCCASIONS,
+  describeColourProblems,
+  freezePalette,
+  isOccasion,
+} from '@souqstudio/engine'
 import type { BlockCategory, Occasion } from '@souqstudio/engine'
 import { prisma } from '@souqstudio/db'
 import { fail, ok } from '@/lib/api'
@@ -8,6 +14,7 @@ import { toArrangements } from '@souqstudio/designer/lib/block-document'
 import { requireLibraryToken } from '@/lib/library-auth'
 import {
   LibraryPublishError,
+  designPalette,
   libraryDocumentSchema,
   libraryPrefix,
   publishDocument,
@@ -97,6 +104,7 @@ export async function POST(request: NextRequest) {
     where: { id: parsed.data.blockId },
     select: {
       id: true,
+      organizationId: true,
       name: true,
       description: true,
       repeats: true,
@@ -139,6 +147,17 @@ export async function POST(request: NextRequest) {
         ? row.occasion
         : null
 
+  // Shared with every shop, so its palette colours become the colours they
+  // are now: "entry 3 of this shop's palette" means nothing in another shop.
+  const frozen = freezePalette(arrangements, await designPalette(row.organizationId))
+  if (frozen.missing.length > 0) {
+    return fail(
+      'colors_not_roles',
+      `Pick ${describeColourProblems(frozen.missing)} again. It names a palette colour that is no longer in the brand kit, so there is no colour to publish it with.`,
+      422
+    )
+  }
+
   const document = libraryDocumentSchema.safeParse({
     id,
     name: parsed.data.name ?? row.name,
@@ -149,7 +168,7 @@ export async function POST(request: NextRequest) {
     // (it then has no window, which is what it had before occasions shipped).
     isSeasonal: row.isSeasonal || occasion !== null,
     ...(occasion === null ? {} : { occasion }),
-    arrangements,
+    arrangements: frozen.arrangements,
   })
 
   if (!document.success) {

@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server'
 import {
   BLOCK_CATEGORIES,
-  colourProblems,
   describeColourProblems,
+  freezePalette,
   type BlockCategory,
 } from '@souqstudio/engine'
 import { prisma } from '@souqstudio/db'
@@ -10,6 +10,7 @@ import { fail } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
 import { arrangementsSchema } from '@souqstudio/designer/lib/block-document'
 import { loadBlock } from '@/lib/blocks'
+import { designPalette } from '@/lib/library-store'
 
 /**
  * One block, as a document the library can load. E7 —
@@ -44,10 +45,10 @@ import { loadBlock } from '@/lib/blocks'
  * owner's own block is deliberately not held to, and an owner exporting their
  * design is asking for it to become a seeded block:
  *
- * - **Every colour a role.** The designer lets an owner pick a hex or a palette
- *   entry — their block, their shop, their call. A block in the library has not
- *   met the shop that will load it, so a literal there is a design that stops
- *   looking like whichever account gets it.
+ * - **No palette colour.** A palette colour is an entry in *this* shop's
+ *   palette and means nothing in another, so each becomes the colour it is
+ *   today. A fixed colour or a role travels as it is: a fixed colour is the
+ *   same in every shop, and a designer who chose one chose that.
  * - **A public id.** An owner's block is a cuid. An id in the library is
  *   permanent: the seed upserts on it and a live book names it inside its page
  *   grid as plain JSON. Handing over the cuid would make a meaningless string
@@ -86,11 +87,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     )
   }
 
-  const problems = colourProblems(arrangements.data)
-  if (problems.length > 0) {
+  // Palette colours become the colours they are now; every other colour the
+  // owner picked travels as it is. The block is theirs, so it was drawn
+  // against their organization's kit — a seeded block names no palette colour.
+  const frozen = freezePalette(arrangements.data, await designPalette(session.user.organizationId))
+  if (frozen.missing.length > 0) {
     return fail(
       'colors_not_roles',
-      `Change ${describeColourProblems(problems)} to a brand colour, then export again. A block in the shared library is drawn in whichever shop loads it, so every colour has to come from that shop's brand kit rather than a fixed or palette colour.`,
+      `Pick ${describeColourProblems(frozen.missing)} again, then export. It names a palette colour that is no longer in your brand kit, so there is no colour to export it with.`,
       422
     )
   }
@@ -121,7 +125,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     // year against the Gregorian calendar, so the window is computed from the
     // occasion rather than frozen onto the document. `src/seasonal.ts`.
     isSeasonal: block.isSeasonal,
-    arrangements: arrangements.data,
+    arrangements: frozen.arrangements,
   }
 
   return new Response(`${JSON.stringify(document, null, 2)}\n`, {

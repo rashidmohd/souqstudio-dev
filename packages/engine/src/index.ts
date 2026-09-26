@@ -248,6 +248,8 @@ export { layerName } from './layer-name'
 export {
   colourProblems,
   describeColourProblems,
+  freezePalette,
+  paletteColours,
   usesOnlyRoles,
   type ColourProblem,
 } from './roles'

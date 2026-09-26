@@ -18,7 +18,7 @@ import { toArrangements } from './document'
 import { usesOnlyRoles } from './roles'
 import { shadowRings } from './shadow'
 import { inkOnGround } from './contrast'
-import { colourProblems, describeColourProblems } from './roles'
+import { colourProblems, describeColourProblems, freezePalette, paletteColours } from './roles'
 
 const BOX = { start: 0.1, top: 0.1, width: 0.5, height: 0.3 }
 const ROLE = { from: 'role' as const, ref: 'primary' as const }
@@ -360,5 +360,42 @@ describe('a colour a shared block may not hold', () => {
       'the fill and shadow on Shape (layer 4 from the top), the text colour on Offer tier, ' +
         'the text colour and background on Percent saved, and the fill on Shape (layer 1 from the top)'
     )
+  })
+})
+
+describe('a block shared with every shop', () => {
+  const palette = [{ id: 'pal_1', hex: '#FFD200' }]
+  const block = (elements: BlockElement[]): Arrangement[] => [
+    { aspectMin: 0.4, aspectMax: 6, elements },
+  ]
+
+  it('keeps a fixed colour and a role as they are', () => {
+    const doc = block([shape({ fill: { from: 'hex', hex: '#FFD200' } }), text({ color: ROLE })])
+    expect(paletteColours(doc)).toEqual([])
+    expect(freezePalette(doc, palette).arrangements).toEqual(doc)
+  })
+
+  it('turns a palette colour into the colour it is, gradient stops included', () => {
+    const gradient = {
+      from: 'gradient' as const,
+      angle: 90,
+      stops: [
+        { at: 0, color: PALETTE },
+        { at: 1, color: ROLE },
+      ],
+    }
+    const doc = block([shape({ fill: gradient, stroke: { color: PALETTE, width: 0.004 } })])
+    const frozen = freezePalette(doc, palette)
+    expect(frozen.missing).toEqual([])
+    expect(paletteColours(frozen.arrangements)).toEqual([])
+    expect(frozen.arrangements[0]?.elements[0]).toMatchObject({
+      fill: { stops: [{ color: { from: 'hex', hex: '#FFD200' } }, { color: ROLE }] },
+      stroke: { color: { from: 'hex', hex: '#FFD200' } },
+    })
+  })
+
+  it('reports a palette colour the kit no longer holds, rather than guessing', () => {
+    const frozen = freezePalette(block([shape({ fill: { from: 'palette', id: 'gone' } })]), palette)
+    expect(describeColourProblems(frozen.missing)).toBe('the palette colour on Shape')
   })
 })

@@ -2,7 +2,13 @@ import type { Arrangement, BlockElement } from '@souqstudio/types'
 import { layerName } from './layer-name'
 
 /**
- * Whether a document is one a **seeded** block may hold.
+ * Whether every colour in a document is a brand-kit role.
+ *
+ * **No longer the rule for a block a designer shares** — that is
+ * `paletteColours` below, which lets a fixed colour through. This stays the
+ * rule for what a *model* writes (magic block names positions in a shop's kit,
+ * never a colour) and for the blocks generated in `library-*.ts`, which are
+ * built from roles on purpose.
  *
  * Seeded blocks are the library every account composes with, and one of them
  * has to name a colour before it has ever met a shop — so it names a role the
@@ -151,4 +157,80 @@ export function describeColourProblems(problems: readonly ColourProblem[]): stri
 function list(items: readonly string[], last = ' and '): string {
   if (items.length <= 1) return items.join('')
   return `${items.slice(0, -1).join(', ')}${last}${items[items.length - 1]}`
+}
+
+// ─── Shared blocks ────────────────────────────────────────────────────────────
+
+/**
+ * Every palette colour left on a block, which a block shared with other shops
+ * cannot hold.
+ *
+ * **The only colour rule a shared block has.** It used to be "brand roles
+ * only", which ruled out the offer yellow every grocery flyer in the Gulf is
+ * printed in, and every other colour a designer reaches for that is not one of
+ * a shop's three. A fixed colour is the same in every shop, and a designer
+ * choosing one is choosing that; a role follows each shop's kit. Both are
+ * honest in a block every shop loads.
+ *
+ * A palette colour is neither: it is "entry `abc` of *this* shop's palette",
+ * and in any other shop there is no such entry. `freezePalette` is what turns
+ * one into the colour it was before a block is shared, so this should only
+ * ever find one the kit no longer holds.
+ *
+ * **Walked, not listed.** Every colour in the document has the same shape, so
+ * a walk finds all of them — gradient stops, the price mark's twelve, and any
+ * slot added after this was written, which a list would miss.
+ */
+export function paletteColours(arrangements: readonly Arrangement[]): ColourProblem[] {
+  return freezePalette(arrangements, []).missing
+}
+
+/**
+ * The block with every palette colour replaced by what it is in `palette`
+ * today, and the ones `palette` does not hold.
+ *
+ * Run before a block is shared. The shop's block keeps its palette entries —
+ * they follow the shop when it re-picks a colour, which is the reason palette
+ * colours exist — and the shared copy gets the colours as they were when it
+ * left.
+ */
+export function freezePalette(
+  arrangements: readonly Arrangement[],
+  palette: readonly { id: string; hex: string }[]
+): { arrangements: Arrangement[]; missing: ColourProblem[] } {
+  const byId = new Map(palette.map((entry) => [entry.id, entry.hex]))
+  const missing: ColourProblem[] = []
+  const seen = new Set<string>()
+
+  const walk = (value: unknown, element: BlockElement, position: number): unknown => {
+    if (Array.isArray(value)) return value.map((item) => walk(item, element, position))
+    if (value === null || typeof value !== 'object') return value
+    const record = value as Record<string, unknown>
+    if (record['from'] === 'palette' && typeof record['id'] === 'string') {
+      const hex = byId.get(record['id'])
+      if (hex !== undefined) return { from: 'hex', hex }
+      const key = `${element.id}:${record['id']}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        missing.push({ elementId: element.id, layer: layerName(element), position, slot: 'palette colour' })
+      }
+      return value
+    }
+    return Object.fromEntries(
+      Object.entries(record).map(([key, inner]) => [key, walk(inner, element, position)])
+    )
+  }
+
+  return {
+    arrangements: arrangements.map((arrangement) => ({
+      ...arrangement,
+      elements: arrangement.elements.map(
+        (element, index) =>
+          // A walk only replaces a palette colour with a hex colour, which every
+          // colour slot accepts, so the element keeps its type.
+          walk(element, element, arrangement.elements.length - index) as BlockElement
+      ),
+    })),
+    missing,
+  }
 }

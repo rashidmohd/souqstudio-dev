@@ -5,10 +5,14 @@ import {
   BLOCK_CATEGORIES,
   OCCASIONS,
   arrangementsSchema,
-  colourProblems,
   describeColourProblems,
+  paletteColours,
 } from '@souqstudio/engine'
 import type { BlockCategory, Occasion } from '@souqstudio/engine'
+import type { BrandColor, BrandKit } from '@souqstudio/types'
+import { prisma } from '@souqstudio/db'
+import { resolvePalette } from '@souqstudio/designer/lib/brand-palette'
+import { LIBRARY_PREVIEW_KIT } from '@souqstudio/designer/lib/library-preview'
 import { env } from '@/lib/env'
 import { getObjectBytes, putObject } from '@/lib/r2'
 
@@ -136,11 +140,11 @@ export async function publishDocument(
 ): Promise<LibraryManifest> {
   // The rule the loader will apply at the far end. Refusing here means the
   // person who drew the block hears about it; refusing there means a deploy does.
-  const problems = colourProblems(document.arrangements)
+  const problems = paletteColours(document.arrangements)
   if (problems.length > 0) {
     throw new LibraryPublishError(
       'colors_not_roles',
-      `Change ${describeColourProblems(problems)} to a brand colour. A block in the shared library is drawn in whichever shop loads it, so every colour has to come from that shop's brand kit rather than a fixed or palette colour.`
+      `Pick ${describeColourProblems(problems)} again. It names a palette colour that is no longer in the brand kit it was chosen from, so there is no colour to publish it with.`
     )
   }
 
@@ -226,4 +230,25 @@ export class LibraryPublishError extends Error {
     super(message)
     this.name = 'LibraryPublishError'
   }
+}
+
+/**
+ * The palette a block was designed against, so its palette colours can be
+ * frozen into the colours they were before it is shared. `freezePalette`.
+ *
+ * A library draft has no organization and is drawn against the admin
+ * designer's own kit, `LIBRARY_PREVIEW_KIT`. A shop's block is drawn against
+ * its organization's kit. A shop may override that kit, and a palette colour
+ * picked from an override the organization does not hold is reported rather
+ * than guessed at.
+ */
+export async function designPalette(organizationId: string | null): Promise<BrandColor[]> {
+  if (organizationId === null) return resolvePalette(LIBRARY_PREVIEW_KIT)
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { brandKit: true },
+  })
+  // Stored as JSON in the shape `BrandKit` names; `resolvePalette` falls back
+  // to the three legacy colours when it holds no palette.
+  return resolvePalette((organization?.brandKit ?? {}) as BrandKit)
 }

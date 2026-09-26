@@ -49,9 +49,10 @@ import { NEW_COLOR_HEX, fromHex } from '../../lib/color'
  *                        separately rather than mixed into the palette.
  *   any colour           a literal. Does not follow the brand, and says so.
  *
- * A **seeded** block may only use the middle row and the role forms of the
- * first; `usesOnlyRoles` in `lib/block-document.ts` is what enforces that, and
- * this control is only ever shown for a block the shop owns.
+ * **Every row is open to a designer, including one drawing a block for the
+ * shared library.** A palette colour is frozen into the colour it is when such
+ * a block is published (`freezePalette` in the engine), because another shop
+ * has no such entry; a fixed colour and a role travel as they are.
  *
  * **`allowGradient` is a prop rather than a permanent second control**, and it
  * is on exactly one field: a shape's fill. The props are a discriminated union

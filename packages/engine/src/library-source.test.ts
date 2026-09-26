@@ -158,10 +158,9 @@ describe('what it refuses, and what it says', () => {
     expect(message).toContain('"category"')
   })
 
-  it('refuses a colour named by value', async () => {
-    // The rule that earns everything else: a block ships before it has met a
-    // shop, so it cannot name that shop's palette entry and must not name a
-    // literal — it would stop looking like whichever account loaded it.
+  it('refuses a palette entry, which is one shop\'s', async () => {
+    // A block ships before it has met a shop, so it cannot name that shop's
+    // palette entry: in every other shop there is no such entry.
     const message = await refusal(
       'a.json',
       valid({
@@ -176,14 +175,41 @@ describe('what it refuses, and what it says', () => {
                 variant: 'rect',
                 radius: 0,
                 box: box(0, 0, 1, 1),
-                fill: { from: 'hex', hex: '#143CD2' },
+                fill: { from: 'palette', id: 'pal_1' },
               },
             ],
           },
         ],
       })
     )
-    expect(message).toContain('role')
+    expect(message).toContain('palette entry')
+  })
+
+  it('takes a fixed colour, which is the same in every shop', async () => {
+    // The offer yellow every flyer is printed in is nobody's brand colour. A
+    // designer who picks it means that yellow, in every shop that loads it.
+    const block = parseSeedBlock(
+      'a.json',
+      JSON.stringify(valid({
+        arrangements: [
+          {
+            aspectMin: 0.4,
+            aspectMax: 6,
+            elements: [
+              {
+                id: 'ground',
+                kind: 'shape',
+                variant: 'rect',
+                radius: 0,
+                box: box(0, 0, 1, 1),
+                fill: { from: 'hex', hex: '#FFD200' },
+              },
+            ],
+          },
+        ],
+      }))
+    )
+    expect(block.arrangements[0]?.elements[0]).toMatchObject({ fill: { hex: '#FFD200' } })
   })
 
   it('refuses a box that is not four numbers', async () => {
@@ -328,7 +354,7 @@ describe('reading the library from R2', () => {
 
   it('holds a fetched document to the same bar as a committed file', async () => {
     // Nothing reviewed this document. It gets the schema, the structure, the
-    // no-warnings rule and roles-only, exactly like a file in the repo.
+    // no-warnings rule and no-palette, exactly like a file in the repo.
     bucket({
       'manifest.json': manifest([entry]),
       'blk_authored_test.json': valid({
@@ -343,7 +369,7 @@ describe('reading the library from R2', () => {
                 variant: 'rect',
                 radius: 0,
                 box: box(0, 0, 1, 1),
-                fill: { from: 'hex', hex: '#143CD2' },
+                fill: { from: 'palette', id: 'pal_1' },
               },
             ],
           },
@@ -351,7 +377,7 @@ describe('reading the library from R2', () => {
       }),
     })
 
-    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/role/)
+    await expect(loadLibrary({ kind: 'r2', base })).rejects.toThrow(/palette entry/)
   })
 
   it('refuses a document that is not the block the manifest named', async () => {
