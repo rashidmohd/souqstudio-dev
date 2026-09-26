@@ -16,6 +16,7 @@ import {
   chipPathShape,
   drawsGround,
   fitPolicy,
+  groundDecidesInk,
   growCorners,
   inkOnGround,
   insetRect,
@@ -1410,13 +1411,15 @@ function TextGround({
     id: `${ctx.uid}-tg-${element.id}`,
   })
   const corners = rectCorners(background.radius, background.corners)
+  const opacity = background.opacity ?? 1
+  const alpha = opacity < 1 ? { fillOpacity: opacity } : {}
   return (
     <>
       {defs}
       {typeof corners === 'number' ? (
-        <rect {...xywh(rect)} rx={corners} fill={fill} />
+        <rect {...xywh(rect)} rx={corners} fill={fill} {...alpha} />
       ) : (
-        <path d={roundedRectPath(rect, corners, ctx.direction)} fill={fill} />
+        <path d={roundedRectPath(rect, corners, ctx.direction)} fill={fill} {...alpha} />
       )}
     </>
   )
@@ -1600,7 +1603,7 @@ function Text({
   const fill =
     face !== null
       ? face.fill
-      : element.background === undefined
+      : element.background === undefined || !groundDecidesInk(element.background)
         ? usual
         : (inkOnGround(groundColours(element.background.fill, ctx), [
             usual,

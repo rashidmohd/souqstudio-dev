@@ -705,6 +705,17 @@ export function insetRect(rect: Rect, by: number): Rect {
 }
 
 /**
+ * Whether a ground is solid enough to choose the ink for the words on it.
+ *
+ * **Below half, what shows through is mostly whatever is behind the label**,
+ * which the painter cannot see — so the ground stops deciding and the words
+ * keep the ink they would have had with no ground at all. Above it, the
+ * ground is most of what the eye reads the words against.
+ */
+export const groundDecidesInk = (background: TextBackground): boolean =>
+  (background.opacity ?? 1) >= 0.5
+
+/**
  * Where a text element's ground draws.
  *
  * `box` fit is the element's box. `text` fit is the words' own extent grown by

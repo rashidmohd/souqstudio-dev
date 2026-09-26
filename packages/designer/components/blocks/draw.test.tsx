@@ -306,6 +306,25 @@ describe('paint', () => {
       expect(dark).toContain('fill="#FFFFFF"')
     })
 
+    it('fades the ground alone, never the words', () => {
+      const out = draw(text({ background: ground({ opacity: 0.4 }) }))
+      expect(out).toContain('fill-opacity="0.4"')
+      expect(out).not.toMatch(/<text[^>]*opacity/)
+    })
+
+    it('draws a solid ground with no opacity attribute at all', () => {
+      expect(draw(text({ background: ground() }))).not.toContain('fill-opacity')
+    })
+
+    it('stops choosing the ink once the ground is mostly see-through', () => {
+      // At 30% the card behind shows more than the ground does, so the words
+      // keep their usual ink rather than one picked for a colour barely there.
+      const faint = draw(text({ background: ground({ fill: LIGHT, opacity: 0.3 }) }), INKS)
+      expect(faint).toContain('fill="#FFFFFF"')
+      const strong = draw(text({ background: ground({ fill: LIGHT, opacity: 0.8 }) }), INKS)
+      expect(strong).toContain('fill="#111111"')
+    })
+
     it('keeps a colour the owner picked for the words', () => {
       const out = draw(text({ color: LIGHT, background: ground({ fill: LIGHT }) }), INKS)
       expect(out).not.toContain('fill="#111111"')

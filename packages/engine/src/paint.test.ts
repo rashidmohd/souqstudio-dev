@@ -282,6 +282,11 @@ describe('corners and a ground behind text', () => {
     expect(parsed?.[0]?.elements[0]).toMatchObject({ background: { fit: 'text' } })
   })
 
+  it('accepts a see-through ground and refuses one past solid', () => {
+    expect(toArrangements(arrange([text({ background: { ...ground, opacity: 0.4 } })]))).not.toBeNull()
+    expect(toArrangements(arrange([text({ background: { ...ground, opacity: 1.2 } })]))).toBeNull()
+  })
+
   it('refuses a padding that would bury the words', () => {
     expect(toArrangements(arrange([text({ background: { ...ground, padding: 0.3 } })]))).toBeNull()
   })

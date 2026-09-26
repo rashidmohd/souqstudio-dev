@@ -18,6 +18,7 @@ import {
   fitPolicy,
   fitText,
   fromHex,
+  groundDecidesInk,
   growCorners,
   inkOnGround,
   insetRect,
@@ -954,12 +955,14 @@ function textGround(
         paint.stops.map((stop) => `<stop offset="${stop.at}" stop-color="${stop.css}"/>`).join('') +
         `</linearGradient></defs>`
   const corners = rectCorners(background.radius, background.corners)
+  const opacity = background.opacity ?? 1
+  const alpha = opacity < 1 ? ` fill-opacity="${opacity}"` : ''
   return (
     defs +
     (typeof corners === 'number'
       ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}"` +
-        ` rx="${corners}" fill="${fill}"/>`
-      : `<path d="${roundedRectPath(box, corners, ctx.direction)}" fill="${fill}"/>`)
+        ` rx="${corners}" fill="${fill}"${alpha}/>`
+      : `<path d="${roundedRectPath(box, corners, ctx.direction)}" fill="${fill}"${alpha}/>`)
   )
 }
 
@@ -1070,7 +1073,7 @@ function inkFor(
       : element.level === 'caption'
         ? KIT.inkMuted
         : KIT.ink
-  if (element.background === undefined) return usual
+  if (element.background === undefined || !groundDecidesInk(element.background)) return usual
   // On its own ground, the ground decides — the rule `draw.tsx` states.
   const paint = resolvePaint(element.background.fill, color)
   const ground = paint.kind === 'flat' ? [paint.css] : paint.stops.map((stop) => stop.css)

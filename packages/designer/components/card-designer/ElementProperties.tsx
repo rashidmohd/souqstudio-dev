@@ -1527,6 +1527,26 @@ function TextBackgroundFields({
               onChange={(fit) => onChange({ ...element, background: { ...background, fit } })}
             />
           </Field>
+          {/* A slider, like the element's own opacity: an owner setting it is
+              looking at the card, not at a number. */}
+          <Slider
+            label="Background opacity"
+            unit="%"
+            min={0}
+            max={100}
+            step={1}
+            disabled={disabled}
+            value={Math.round((background.opacity ?? 1) * 100)}
+            onValueChange={(next) => {
+              const opacity = clamp(next, 0, 100) / 100
+              onChange({
+                ...element,
+                // Solid is the absent value, so a ground set back to 100% is
+                // stored exactly as one that was never changed.
+                background: { ...background, opacity: opacity === 1 ? undefined : opacity },
+              })
+            }}
+          />
           <Input
             label="Padding"
             type="number"

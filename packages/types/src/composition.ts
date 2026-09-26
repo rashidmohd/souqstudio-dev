@@ -962,6 +962,14 @@ export type BlockElement =
 export interface TextBackground {
   fill: ColorValue
   /**
+   * How much of the ground shows, 0 to 1. Absent is solid.
+   *
+   * **On the ground alone**, which is the point: the element's own `opacity`
+   * fades the words with it, and a see-through label is one whose words are
+   * still solid.
+   */
+  opacity?: number | undefined
+  /**
    * Room between the ground's edge and the words, on every side, as a fraction
    * of the block's geometric mean — the unit a border's width is in, so it
    * holds its look from an A4 column to a square post.

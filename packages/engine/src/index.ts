@@ -91,6 +91,7 @@ export {
   artTransform,
   chipPathShape,
   drawsGround,
+  groundDecidesInk,
   growCorners,
   insetRect,
   layoutChipStack,
