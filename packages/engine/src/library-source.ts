@@ -47,7 +47,7 @@ import { BLOCK_CATEGORIES, type BlockCategory } from './block-category'
 import { validateBlock } from './block-edit'
 import { arrangementsSchema } from './document'
 import type { SeedBlock } from './library'
-import { usesOnlyRoles } from './roles'
+import { colourProblems, describeColourProblems } from './roles'
 import { isOccasion } from './seasonal'
 
 /**
@@ -375,10 +375,11 @@ export function parseSeedBlock(file: string, text: string): SeedBlock {
     )
   }
 
-  if (!usesOnlyRoles(arrangements)) {
+  const problems = colourProblems(arrangements)
+  if (problems.length > 0) {
     return refuse(
-      'it names a colour by value or by palette entry. A block ships before it has met ' +
-        'a shop, so every colour must be a role the kit fills'
+      `it names a colour by value or by palette entry (${describeColourProblems(problems)}). ` +
+        'A block ships before it has met a shop, so every colour must be a role the kit fills'
     )
   }
 

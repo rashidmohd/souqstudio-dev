@@ -241,7 +241,12 @@ export {
   shapeArtSchema,
   toArrangements,
 } from './document'
-export { usesOnlyRoles } from './roles'
+export {
+  colourProblems,
+  describeColourProblems,
+  usesOnlyRoles,
+  type ColourProblem,
+} from './roles'
 export { markGround, type MarkGround } from './price-mark'
 // The vocabulary, exported from its own module rather than through `library`.
 // Re-exporting it from there would put the designs back in the graph of anyone

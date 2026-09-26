@@ -1,7 +1,13 @@
 import 'server-only'
 
 import { z } from 'zod'
-import { BLOCK_CATEGORIES, OCCASIONS, arrangementsSchema, usesOnlyRoles } from '@souqstudio/engine'
+import {
+  BLOCK_CATEGORIES,
+  OCCASIONS,
+  arrangementsSchema,
+  colourProblems,
+  describeColourProblems,
+} from '@souqstudio/engine'
 import type { BlockCategory, Occasion } from '@souqstudio/engine'
 import { env } from '@/lib/env'
 import { getObjectBytes, putObject } from '@/lib/r2'
@@ -130,10 +136,11 @@ export async function publishDocument(
 ): Promise<LibraryManifest> {
   // The rule the loader will apply at the far end. Refusing here means the
   // person who drew the block hears about it; refusing there means a deploy does.
-  if (!usesOnlyRoles(document.arrangements)) {
+  const problems = colourProblems(document.arrangements)
+  if (problems.length > 0) {
     throw new LibraryPublishError(
       'colors_not_roles',
-      'This block names a colour directly. A block in the shared library is drawn in whichever shop loads it, so every colour has to be a role from the brand kit.'
+      `Change ${describeColourProblems(problems)} to a brand colour. A block in the shared library is drawn in whichever shop loads it, so every colour has to come from that shop's brand kit rather than a fixed or palette colour.`
     )
   }
 

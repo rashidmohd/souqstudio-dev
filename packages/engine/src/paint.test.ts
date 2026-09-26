@@ -18,6 +18,7 @@ import { toArrangements } from './document'
 import { usesOnlyRoles } from './roles'
 import { shadowRings } from './shadow'
 import { inkOnGround } from './contrast'
+import { colourProblems, describeColourProblems } from './roles'
 
 const BOX = { start: 0.1, top: 0.1, width: 0.5, height: 0.3 }
 const ROLE = { from: 'role' as const, ref: 'primary' as const }
@@ -309,5 +310,39 @@ describe('the ink on a ground', () => {
 
   it('gives no answer when nothing can be read', () => {
     expect(inkOnGround(['url(#g)'], ['#FFFFFF'])).toBeNull()
+  })
+})
+
+describe('a colour a shared block may not hold', () => {
+  const HEX = { from: 'hex' as const, hex: '#26409A' }
+  const ground = (fill: unknown) => ({ fill, padding: 0.02, radius: 3 })
+  const block = (elements: BlockElement[]): Arrangement[] => [
+    { aspectMin: 0.4, aspectMax: 6, elements },
+  ]
+
+  it('is found on a text background, which the check used to miss', () => {
+    const badge = text({
+      source: { from: 'static', textEn: 'SAVE 20%', textAr: 'x' },
+      background: ground(HEX),
+    })
+    expect(usesOnlyRoles(block([badge]))).toBe(false)
+    expect(colourProblems(block([badge]))).toEqual([
+      { elementId: 't1', layer: '"SAVE 20%"', slot: 'background' },
+    ])
+  })
+
+  it('passes a text background drawn in a brand role', () => {
+    expect(usesOnlyRoles(block([text({ background: ground(ROLE) })]))).toBe(true)
+  })
+
+  it('names every layer and colour at fault, once each, in one sentence', () => {
+    const problems = colourProblems([
+      ...block([text({ background: ground(PALETTE) }), shape({ fill: HEX })]),
+      // The same element again in a second arrangement is not a second problem.
+      ...block([text({ background: ground(PALETTE) })]),
+    ])
+    expect(describeColourProblems(problems)).toBe(
+      'the background on Product name and the fill on Shape'
+    )
   })
 })

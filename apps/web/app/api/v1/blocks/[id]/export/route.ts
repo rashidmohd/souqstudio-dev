@@ -1,5 +1,10 @@
 import type { NextRequest } from 'next/server'
-import { BLOCK_CATEGORIES, usesOnlyRoles, type BlockCategory } from '@souqstudio/engine'
+import {
+  BLOCK_CATEGORIES,
+  colourProblems,
+  describeColourProblems,
+  type BlockCategory,
+} from '@souqstudio/engine'
 import { prisma } from '@souqstudio/db'
 import { fail } from '@/lib/api'
 import { requireApiSession } from '@/lib/api-session'
@@ -81,10 +86,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     )
   }
 
-  if (!usesOnlyRoles(arrangements.data)) {
+  const problems = colourProblems(arrangements.data)
+  if (problems.length > 0) {
     return fail(
       'colors_not_roles',
-      'This block names a colour directly. A block in the shared library is drawn in whichever shop loads it, so every colour has to be a role from the brand kit. Swap the fixed colours for roles and export again.',
+      `Change ${describeColourProblems(problems)} to a brand colour, then export again. A block in the shared library is drawn in whichever shop loads it, so every colour has to come from that shop's brand kit rather than a fixed or palette colour.`,
       422
     )
   }
