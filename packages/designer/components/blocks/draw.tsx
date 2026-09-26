@@ -43,7 +43,7 @@ import {
   shapeExtent,
   shapePath,
   textGroundRect,
-  textInset,
+  textInsets,
   type BindingSubjects,
   type ChipStackRow,
   type OfferField,
@@ -1283,7 +1283,7 @@ export function fitTextElement(
   // A ground's padding comes off the box before anything is measured, here
   // rather than at each caller, so the ladder, the painter, the selection mark
   // and the editor's escalation flag all see the same box.
-  const box = insetRect(outer, textInset(element.background, ctx.blockSize))
+  const box = insetRect(outer, textInsets(element.background, ctx.blockSize, ctx.direction))
 
   const level = ctx.scale.levels[element.level]
   // **The element's own typography wins over the level's**, per field rather
@@ -1357,11 +1357,12 @@ export function contentHeight(element: BlockElement, rect: Rect, ctx: DrawContex
   const measured = fitTextElement(element, probe, ctx)
   if (measured === null) return null
   const { fitted } = measured
-  const inset = textInset(element.background, ctx.blockSize)
+  const insets = textInsets(element.background, ctx.blockSize, ctx.direction)
   // A hair over the exact height. The second fit runs against this box less
-  // the same inset, and a subtraction that lands one rounding under the lines'
-  // height would step the words down a size for nothing.
-  const needed = fitted.lines.length * fitted.fontSize * fitted.lineHeight + inset * 2 + 0.01
+  // the same padding, and a subtraction that lands one rounding under the
+  // lines' height would step the words down a size for nothing.
+  const needed =
+    fitted.lines.length * fitted.fontSize * fitted.lineHeight + insets.top + insets.bottom + 0.01
   // Anything else keeps its box: text overflowing a box it may not grow out of
   // is the ladder's to report, not the stack's to make room for.
   return grows ? needed : Math.min(needed, rect.height)
@@ -1482,7 +1483,7 @@ function groundRect(
   return textGroundRect(
     box,
     measured === null ? null : wordsRect(element, measured, ctx),
-    textInset(background, ctx.blockSize),
+    textInsets(background, ctx.blockSize, ctx.direction),
     background.fit
   )
 }

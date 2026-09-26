@@ -7,6 +7,7 @@ import type {
   BrandColor,
   CornerRadii,
   MarkCurrency,
+  PaddingSides,
   MarkCurrencyPlace,
   MarkPlace,
   MarkSatellite,
@@ -1576,24 +1577,12 @@ function TextBackgroundFields({
               })
             }}
           />
-          <Input
-            label="Padding"
-            type="number"
-            min={BACKGROUND_PADDING.min}
-            max={BACKGROUND_PADDING.max}
-            step={0.5}
-            figure
+          <PaddingFields
+            padding={background.padding}
+            sides={background.paddingSides}
             disabled={disabled}
-            value={showPercent(background.padding)}
-            hint="Percent of the card, on every side."
-            onChange={(event) =>
-              onChange({
-                ...element,
-                background: {
-                  ...background,
-                  padding: readPercent(event.target.value, BACKGROUND_PADDING),
-                },
-              })
+            onChange={(next) =>
+              onChange({ ...element, background: { ...background, ...next } })
             }
           />
           <CornerRadiusFields
@@ -1608,6 +1597,101 @@ function TextBackgroundFields({
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * A ground's padding: one number for every side, or one for each.
+ *
+ * **The same two-step control as the corners**, because it is the same
+ * decision: most labels want even room, and a pill that wants more across than
+ * down, or a tag with its words pushed off one edge, is the owner opening it
+ * up. Switching back keeps the largest side, for the reason the corners keep
+ * the largest corner.
+ */
+function PaddingFields({
+  padding,
+  sides,
+  disabled,
+  onChange,
+}: {
+  padding: number
+  sides: PaddingSides | undefined
+  disabled: boolean
+  onChange: (next: { padding: number; paddingSides: PaddingSides | undefined }) => void
+}) {
+  const field = (label: string, value: number, set: (value: number) => void, hint?: string) => (
+    <Input
+      label={label}
+      type="number"
+      min={BACKGROUND_PADDING.min}
+      max={BACKGROUND_PADDING.max}
+      step={0.5}
+      figure
+      disabled={disabled}
+      value={showPercent(value)}
+      {...(hint === undefined ? {} : { hint })}
+      onChange={(event) => set(readPercent(event.target.value, BACKGROUND_PADDING))}
+    />
+  )
+
+  const linked = (): void => {
+    if (sides === undefined) return
+    onChange({
+      paddingSides: undefined,
+      padding: Math.max(sides.top, sides.end, sides.bottom, sides.start),
+    })
+  }
+  const each = (): void => {
+    if (sides !== undefined) return
+    const p = padding
+    onChange({ padding, paddingSides: { top: p, end: p, bottom: p, start: p } })
+  }
+
+  // Top and bottom first, then the two ends in reading order, so the chrome's
+  // own direction puts start and end on the sides they pad.
+  const fields: { key: keyof PaddingSides; label: string }[] = [
+    { key: 'top', label: 'Top' },
+    { key: 'bottom', label: 'Bottom' },
+    { key: 'start', label: 'Start' },
+    { key: 'end', label: 'End' },
+  ]
+
+  return (
+    <Field
+      label="Padding"
+      hint={
+        sides === undefined
+          ? 'Percent of the card, on every side.'
+          : 'Percent of the card. Start and end follow the language, so Arabic mirrors on its own.'
+      }
+    >
+      <Segmented
+        label="Padding"
+        disabled={disabled}
+        value={sides === undefined ? 'all' : 'each'}
+        options={[
+          { value: 'all', label: 'All sides' },
+          { value: 'each', label: 'Each side' },
+        ]}
+        onChange={(mode) => (mode === 'all' ? linked() : each())}
+      />
+      {sides === undefined ? (
+        field('Padding on every side', padding, (value) =>
+          onChange({ padding: value, paddingSides: undefined })
+        )
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {fields.map(({ key, label }) => (
+            <React.Fragment key={key}>
+              {field(label, sides[key], (value) =>
+                onChange({ padding, paddingSides: { ...sides, [key]: value } })
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+    </Field>
   )
 }
 

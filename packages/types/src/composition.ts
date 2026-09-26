@@ -987,6 +987,12 @@ export interface TextBackground {
    * holds its look from an A4 column to a square post.
    */
   padding: number
+  /**
+   * Each side's own padding, when they are not all `padding`. Same unit, and
+   * named by reading direction, so an Arabic edition mirrors it with the rest
+   * of the card. Absent means every side is `padding`.
+   */
+  paddingSides?: PaddingSides | undefined
   /** The same corner radius a rectangle takes, in the same units. */
   radius: number
   /** Each corner's own radius, when they differ. See the shape's `corners`. */
@@ -997,6 +1003,14 @@ export interface TextBackground {
    * Absent is `box`.
    */
   fit?: 'box' | 'text' | undefined
+}
+
+/** Room on each side of a box, named by reading direction like `CornerRadii`. */
+export interface PaddingSides {
+  top: number
+  end: number
+  bottom: number
+  start: number
 }
 
 export interface CornerRadii {

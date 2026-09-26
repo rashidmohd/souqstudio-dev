@@ -672,6 +672,14 @@ const elementSchema = z.discriminatedUnion('kind', [
         // bans is a gradient stop's alpha, not a flat fill's.
         opacity: z.number().min(0).max(1).optional(),
         padding: z.number().min(0).max(0.25),
+        paddingSides: z
+          .strictObject({
+            top: z.number().min(0).max(0.25),
+            end: z.number().min(0).max(0.25),
+            bottom: z.number().min(0).max(0.25),
+            start: z.number().min(0).max(0.25),
+          })
+          .optional(),
         radius: z.number().min(0).max(64),
         corners: cornersSchema.optional(),
         fit: z.enum(['box', 'text']).optional(),

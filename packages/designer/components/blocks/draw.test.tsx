@@ -331,6 +331,26 @@ describe('paint', () => {
       expect(startX(draw(text({ background: ground() })))).toBe(startX(draw(text({}))) + 8)
     })
 
+    it('takes each side its own padding', () => {
+      // 5% at the start and 1% on top, of a 400 block: 20 across, 4 down.
+      const sides = { top: 0.01, end: 0.02, bottom: 0.01, start: 0.05 }
+      const out = draw(text({ background: ground({ paddingSides: sides }) }))
+      expect(startX(out)).toBe(startX(draw(text({}))) + 20)
+    })
+
+    it('grows a fitted ground by each side, and not by the even padding it replaced', () => {
+      const sides = { top: 0.01, end: 0.03, bottom: 0.02, start: 0.05 }
+      const even = draw(text({ background: ground({ fit: 'text' }) }))
+      const uneven = draw(text({ background: ground({ fit: 'text', paddingSides: sides }) }))
+      const size = (out: string) => {
+        const m = /<rect[^>]* width="([\d.]+)" height="([\d.]+)"/.exec(out)
+        return { width: Number(m?.[1]), height: Number(m?.[2]) }
+      }
+      // Across: 20 + 12 instead of 8 + 8. Down: 4 + 8 instead of 8 + 8.
+      expect(size(uneven).width - size(even).width).toBeCloseTo(16, 5)
+      expect(size(uneven).height - size(even).height).toBeCloseTo(-4, 5)
+    })
+
     it('wraps the words when it fits to text', () => {
       const out = draw(text({ background: ground({ fit: 'text' }) }))
       const width = Number(/<rect[^>]* width="([\d.]+)"/.exec(out)?.[1])

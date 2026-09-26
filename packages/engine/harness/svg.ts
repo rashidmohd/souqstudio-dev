@@ -40,7 +40,7 @@ import {
   roundedRectPath,
   shapePath,
   textGroundRect,
-  textInset,
+  textInsets,
   type ChipStackRow,
   type CompactionPolicy,
   type MarkPiece,
@@ -154,10 +154,11 @@ function neededHeight(
   const measured = fitFor(element, probe, product, ctx, blockEdge)
   if (measured === null) return null
   // The padding is room the words do not get, top and bottom.
-  const inset = textInset(element.background, blockEdge)
+  const insets = textInsets(element.background, blockEdge, ctx.direction)
   const needed =
     measured.fitted.lines.length * measured.fitted.fontSize * measured.fitted.lineHeight +
-    inset * 2 +
+    insets.top +
+    insets.bottom +
     0.01
   return grows ? needed : Math.min(needed, rect.height)
 }
@@ -757,7 +758,7 @@ function fitFor(
   if (content === '') return null
 
   // Inside a ground's padding, as `fitTextElement` measures in `draw.tsx`.
-  const rect = insetRect(outer, textInset(element.background, blockEdge))
+  const rect = insetRect(outer, textInsets(element.background, blockEdge, ctx.direction))
 
   const step = SAMPLE_SCALE.levels[element.level]
   const family = SAMPLE_SCALE.families[step.family]
@@ -947,7 +948,12 @@ function textGround(
       height: fitted.lines.length * fitted.fontSize * fitted.lineHeight,
     }
   }
-  const box = textGroundRect(outer, words, textInset(background, blockEdge), background.fit)
+  const box = textGroundRect(
+    outer,
+    words,
+    textInsets(background, blockEdge, ctx.direction),
+    background.fit
+  )
   if (box === null) return ''
 
   const paint = resolvePaint(background.fill, color)

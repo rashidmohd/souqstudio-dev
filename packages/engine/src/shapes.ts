@@ -681,26 +681,67 @@ export function roundedRectPath(
 
 // ─── Text ground ──────────────────────────────────────────────────────────────
 
+/** Room on each physical side of a rect, in the rect's own units. */
+export interface Insets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 }
+
 /**
- * How far a text element's words sit inside its box, in the box's own units.
+ * How far a text element's words sit inside its box, on each side, in the
+ * box's own units.
  *
  * **Every reader of a text box goes through this**, the painter, the fit
  * ladder, the selection mark and compaction, so the words cannot be wrapped
  * for one box and drawn in another.
+ *
+ * **`direction` places the logical sides**, for the reason `CornerRadii`
+ * gives: a label with more room at its reading start keeps it at the start
+ * in an Arabic edition, which is the right-hand side.
  */
-export function textInset(background: TextBackground | undefined, blockEdge: number): number {
-  return background === undefined ? 0 : Math.max(0, background.padding * blockEdge)
+export function textInsets(
+  background: TextBackground | undefined,
+  blockEdge: number,
+  direction: Direction = 'ltr'
+): Insets {
+  if (background === undefined) return NO_INSETS
+  const sides = background.paddingSides ?? {
+    top: background.padding,
+    end: background.padding,
+    bottom: background.padding,
+    start: background.padding,
+  }
+  const at = (value: number) => Math.max(0, value * blockEdge)
+  const rtl = direction === 'rtl'
+  return {
+    top: at(sides.top),
+    right: at(rtl ? sides.start : sides.end),
+    bottom: at(sides.bottom),
+    left: at(rtl ? sides.end : sides.start),
+  }
 }
 
-/** A rect pulled in by `by` on every side, never to a negative size. */
-export function insetRect(rect: Rect, by: number): Rect {
-  const x = Math.min(by, rect.width / 2)
-  const y = Math.min(by, rect.height / 2)
+/**
+ * A rect pulled in by `by` on each side, never to a negative size. Two sides
+ * that together ask for more than the rect has share what it has, in
+ * proportion — the rule the corners follow.
+ */
+export function insetRect(rect: Rect, by: Insets): Rect {
+  const across = by.left + by.right
+  const down = by.top + by.bottom
+  const fitX = across > rect.width && across > 0 ? rect.width / across : 1
+  const fitY = down > rect.height && down > 0 ? rect.height / down : 1
+  const left = by.left * fitX
+  const top = by.top * fitY
   return {
-    x: rect.x + x,
-    y: rect.y + y,
-    width: rect.width - x * 2,
-    height: rect.height - y * 2,
+    x: rect.x + left,
+    y: rect.y + top,
+    width: rect.width - across * fitX,
+    height: rect.height - down * fitY,
   }
 }
 
@@ -726,16 +767,16 @@ export const groundDecidesInk = (background: TextBackground): boolean =>
 export function textGroundRect(
   box: Rect,
   words: Rect | null,
-  inset: number,
+  insets: Insets,
   fit: TextBackground['fit']
 ): Rect | null {
   if (fit !== 'text') return box
   if (words === null) return null
   return {
-    x: words.x - inset,
-    y: words.y - inset,
-    width: words.width + inset * 2,
-    height: words.height + inset * 2,
+    x: words.x - insets.left,
+    y: words.y - insets.top,
+    width: words.width + insets.left + insets.right,
+    height: words.height + insets.top + insets.bottom,
   }
 }
 

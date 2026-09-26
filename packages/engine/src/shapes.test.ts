@@ -16,7 +16,7 @@ import {
   roundedRectPath,
   shapePath,
   textGroundRect,
-  textInset,
+  textInsets,
   type PathShape,
 } from './shapes'
 
@@ -705,14 +705,23 @@ describe('a rectangle with its own corners', () => {
 
 describe('a ground behind text', () => {
   const ground = { fill: { from: 'role' as const, ref: 'primary' as const }, padding: 0.02, radius: 3 }
+  const even = (n: number) => ({ top: n, right: n, bottom: n, left: n })
 
-  it('insets by the padding as a share of the block', () => {
-    expect(textInset(ground, 400)).toBe(8)
-    expect(textInset(undefined, 400)).toBe(0)
+  it('insets by the padding as a share of the block, on every side', () => {
+    expect(textInsets(ground, 400)).toEqual(even(8))
+    expect(textInsets(undefined, 400)).toEqual(even(0))
+  })
+
+  it('takes each side its own padding, start and end by reading direction', () => {
+    const sides = { ...ground, paddingSides: { top: 0.01, end: 0.03, bottom: 0.02, start: 0.05 } }
+    expect(textInsets(sides, 400, 'ltr')).toEqual({ top: 4, right: 12, bottom: 8, left: 20 })
+    // Arabic: the start is the right-hand side.
+    expect(textInsets(sides, 400, 'rtl')).toEqual({ top: 4, right: 20, bottom: 8, left: 12 })
   })
 
   it('never pulls a box inside out', () => {
-    expect(insetRect({ x: 0, y: 0, width: 10, height: 100 }, 20)).toEqual({
+    // 20 either side of a 10-wide box: the two share the width, in proportion.
+    expect(insetRect({ x: 0, y: 0, width: 10, height: 100 }, even(20))).toEqual({
       x: 5,
       y: 20,
       width: 0,
@@ -722,12 +731,19 @@ describe('a ground behind text', () => {
 
   it('fills the box unless it fits to the text', () => {
     const words = { x: 20, y: 30, width: 50, height: 10 }
-    expect(textGroundRect(BOX, words, 8, undefined)).toBe(BOX)
-    expect(textGroundRect(BOX, words, 8, 'box')).toBe(BOX)
-    expect(textGroundRect(BOX, words, 8, 'text')).toEqual({ x: 12, y: 22, width: 66, height: 26 })
+    expect(textGroundRect(BOX, words, even(8), undefined)).toBe(BOX)
+    expect(textGroundRect(BOX, words, even(8), 'box')).toBe(BOX)
+    expect(textGroundRect(BOX, words, even(8), 'text')).toEqual({ x: 12, y: 22, width: 66, height: 26 })
+  })
+
+  it('wraps the words by the padding on each side', () => {
+    const words = { x: 20, y: 30, width: 50, height: 10 }
+    expect(
+      textGroundRect(BOX, words, { top: 2, right: 10, bottom: 4, left: 6 }, 'text')
+    ).toEqual({ x: 14, y: 28, width: 66, height: 16 })
   })
 
   it('has nothing to wrap round no words', () => {
-    expect(textGroundRect(BOX, null, 8, 'text')).toBeNull()
+    expect(textGroundRect(BOX, null, even(8), 'text')).toBeNull()
   })
 })
