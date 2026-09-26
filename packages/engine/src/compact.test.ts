@@ -235,6 +235,42 @@ describe('compactBlock', () => {
     })
   })
 
+  describe('a label sitting on the packshot', () => {
+    // "SAVE 20%" as a text element over the top of the photo: it overlaps the
+    // image, which used to switch compaction off for the whole card.
+    const BADGE: ResolvedElement = {
+      element: {
+        id: 'badge',
+        kind: 'text',
+        box: ZERO,
+        source: { from: 'static', textEn: 'SAVE 20%', textAr: 'x' },
+        level: 'h4',
+        align: 'start',
+      },
+      rect: { x: 32, y: 44, width: 120, height: 30 },
+    }
+    const card: ResolvedBlock = {
+      arrangementIndex: 0,
+      elements: [SURFACE, IMAGE, BADGE, CHIP, NAME, SPEC, PRICE],
+    }
+    // By reference: the fixture's spec shares the name's id.
+    const longerName = (element: ResolvedElement) =>
+      element === NAME ? 132 : element.rect.height
+
+    it('no longer stops the name growing into its lines', () => {
+      const out = compactBlock(card, longerName, 'balance')
+      expect(out.elements[4]?.rect.height).toBeCloseTo(132, 5)
+    })
+
+    it('stays on the photo, where it was put', () => {
+      const out = compactBlock(card, longerName, 'balance')
+      const image = out.elements.find((e) => e.element.id === 'photo')?.rect
+      const badge = out.elements.find((e) => e.element.id === 'badge')?.rect
+      expect((badge?.y ?? 0) - (image?.y ?? 0)).toBeCloseTo(BADGE.rect.y - IMAGE.rect.y, 5)
+      expect(badge?.height).toBe(BADGE.rect.height)
+    })
+  })
+
   describe('refusing what it cannot do', () => {
     it('leaves a side-by-side arrangement alone', () => {
       // The WIDE arrangement: image on the left, name and price beside it. It
