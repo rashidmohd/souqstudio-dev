@@ -355,6 +355,8 @@ const baseSchema = {
   opacity: z.number().min(0).max(1).optional(),
   groupId: z.string().min(1).max(64).optional(),
   locked: z.boolean().optional(),
+  // Read by compaction alone. See `ElementBase.keepWithAbove`.
+  keepWithAbove: z.boolean().optional(),
 }
 
 /**

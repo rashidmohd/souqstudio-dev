@@ -550,6 +550,35 @@ export function ElementProperties({
         />
       ) : null}
 
+      {/* **Only on a repeating card, and only on what the card's stack moves.**
+          The stack is the image, the text and the price; compaction reclaims
+          what a product's content did not use, and a panel placed once has one
+          content and nothing to reclaim. */}
+      {repeats &&
+      (element.kind === 'image' || element.kind === 'text' || element.kind === 'priceMark') ? (
+        <Field
+          label="Space above"
+          hint={
+            element.keepWithAbove === true
+              ? 'Stays this close to what is above it, however short that turns out.'
+              : 'When the line above is shorter than its box, the space can open up here.'
+          }
+        >
+          <Segmented
+            label="Space above"
+            disabled={disabled}
+            value={element.keepWithAbove === true ? 'keep' : 'grow'}
+            options={[
+              { value: 'grow', label: 'Can grow' },
+              { value: 'keep', label: 'Keep close' },
+            ]}
+            onChange={(mode) =>
+              onChange({ ...element, keepWithAbove: mode === 'keep' ? true : undefined })
+            }
+          />
+        </Field>
+      ) : null}
+
       <Appearance element={element} disabled={disabled} onChange={onChange} />
       <BoxFields element={element} canvas={canvas} disabled={disabled} onChange={onChange} />
     </div>

@@ -4,11 +4,11 @@ import * as React from 'react'
 import type { Block, BrandColor, BrandKit, PageBackground, SlotOverride, TokenRef } from '@souqstudio/types'
 import {
   applyOverride,
+  BOOK_COMPACTION,
   compactBlock,
   findOverride,
   resolveBlock,
   spansIntersect,
-  textInset,
   type CellSpan,
   type CompactionPolicy,
   type FlowPage,
@@ -20,7 +20,7 @@ import { resolveScale } from '@souqstudio/designer/lib/font-catalog'
 import { useFontCatalog } from '@souqstudio/designer/components/brand/FontCatalogProvider'
 import { useFontsReady } from '@souqstudio/designer/lib/use-fonts-ready'
 import {
-  contentFor,
+  contentHeight,
   drawElement,
   estimateWidth,
   fitTextElement,
@@ -147,7 +147,7 @@ export function BookPage({
   direction,
   background = null,
   asset,
-  compaction = 'balance',
+  compaction = BOOK_COMPACTION,
   overrides = [],
   selectedOfferId = null,
   onSelectOffer,
@@ -288,7 +288,7 @@ export function BookPage({
         // heights only and line breaking is driven by width.
         const compacted = compactBlock(
           resolved,
-          ({ element, rect }) => neededHeight(element, rect, ctx),
+          ({ element, rect }) => contentHeight(element, rect, ctx),
           compaction
         )
 
@@ -403,39 +403,6 @@ const rectAttrs = (r: { x: number; y: number; width: number; height: number }) =
   width: r.width,
   height: r.height,
 })
-
-/**
- * How much of its box an element's content actually needs.
- *
- * **A missing packshot is deliberately not reported as absent.** 4.2% of the
- * catalog has an image, and a card that quietly closes up around the hole looks
- * finished when it is not. The `no-image` flag on the offer is what tells the
- * owner; the reserved space is what keeps the page honest until they act on it.
- */
-function neededHeight(
-  element: Parameters<typeof drawElement>[0],
-  rect: Parameters<typeof drawElement>[1],
-  ctx: DrawContext
-): number | null {
-  if (element.kind !== 'text') return rect.height
-
-  const content = contentFor(element, ctx)
-  if (content === '') return null
-
-  // Line count at the box the block designed. The second fit inside `drawElement`
-  // runs against the compacted box and produces the same count, because width
-  // does not change.
-  // A ground's padding is room the words do not get, across and down — the
-  // same inset `fitTextElement` takes before it measures.
-  const inset = textInset(element.background, ctx.blockSize)
-  const step = ctx.scale.levels[element.level]
-  const perLine = step.size * ctx.scale.base * ctx.blockSize
-  const measured = ctx.measure(content, perLine, '')
-  const lines = Math.max(1, Math.ceil(measured / Math.max(rect.width - inset * 2, 1)))
-  return Math.min(rect.height, lines * perLine * step.lineHeight + inset * 2)
-}
-
-
 
 /**
  * The paper, and whatever the owner put on it.

@@ -5,6 +5,7 @@ import type { BlockElement, Box, BrandColor } from '@souqstudio/types'
 import {
   BLEED,
   CHIP_BLEED,
+  compactBlock,
   isBound,
   moveBox,
   recentre,
@@ -12,6 +13,7 @@ import {
   resizeBox,
   resolveBlock,
   snapBox,
+  type CompactionPolicy,
   type Guides,
   type Handle,
   type Rect,
@@ -21,6 +23,7 @@ import { resolveScale } from '../../lib/font-catalog'
 import { useFontCatalog } from '../brand/FontCatalogProvider'
 import { useFontsReady } from '../../lib/use-fonts-ready'
 import {
+  contentHeight,
   drawElement,
   estimateWidth,
   measureText,
@@ -75,6 +78,13 @@ type Props = {
   onCheckpoint?: (() => void) | undefined
   /** Bound elements carry a persistent mark. Off for a preview. */
   markBound?: boolean
+  /**
+   * Draw the card as a book prints it, with the space its content did not use
+   * taken back. **A preview only**, and ignored on an artboard that edits: its
+   * handles resize the box as designed, and a handle sitting on a compacted
+   * rectangle would write that height back into the design.
+   */
+  compaction?: CompactionPolicy | undefined
   className?: string
   ariaLabel?: string
 }
@@ -108,6 +118,7 @@ export function BlockArtboard({
   onChange,
   onCheckpoint,
   markBound = false,
+  compaction,
   className,
   ariaLabel = 'Block',
 }: Props) {
@@ -155,7 +166,7 @@ export function BlockArtboard({
     asset,
   }
 
-  const { elements: resolved } = resolveBlock(
+  const block = resolveBlock(
     {
       id: 'designer',
       organizationId: null,
@@ -167,6 +178,16 @@ export function BlockArtboard({
     { x: 0, y: 0, width, height },
     direction
   )
+  const resolved = block.elements
+
+  // What is painted. The same as what is edited, except on a preview asked to
+  // show the printed card — and then through the book's own two passes: this
+  // measures, `compactBlock` moves, and `drawElement` fits again in the new box.
+  const drawn =
+    compaction === undefined || interactive
+      ? resolved
+      : compactBlock(block, ({ element, rect }) => contentHeight(element, rect, ctx), compaction)
+          .elements
 
   /**
    * Client pixels to **artboard units, on the screen's own axes**.
@@ -463,7 +484,7 @@ export function BlockArtboard({
           element usually covers it; this is what shows where it does not. */}
       <rect width={width} height={height} fill="var(--sq-tpl-paper)" />
 
-      {resolved.map(({ element, rect }) => (
+      {drawn.map(({ element, rect }) => (
         <React.Fragment key={element.id}>{drawElement(element, rect, ctx)}</React.Fragment>
       ))}
 

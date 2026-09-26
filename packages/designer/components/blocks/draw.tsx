@@ -1330,6 +1330,32 @@ export function fitTextElement(
   return { content, fitted, step, box }
 }
 
+/**
+ * How much of its box an element's content needs, for `compactBlock`.
+ *
+ * **The ladder's own answer, not an estimate of it.** The book used to guess a
+ * line count from one measurement at the level's size; a name the ladder had
+ * stepped down to fit in two lines was reckoned at three, and the gap under it
+ * stayed. The same `fitTextElement` the painter draws with decides here, and
+ * the designer's preview calls this too, so it shows the gap the book prints.
+ *
+ * `null` is no content: the element is dropped from the stack. **A missing
+ * packshot is deliberately not absent** — a card that quietly closes up around
+ * the hole looks finished when it is not; the offer's `no-image` flag is what
+ * tells the owner, and the reserved space keeps the page honest until then.
+ */
+export function contentHeight(element: BlockElement, rect: Rect, ctx: DrawContext): number | null {
+  if (element.kind !== 'text') return rect.height
+  const measured = fitTextElement(element, rect, ctx)
+  if (measured === null) return null
+  const { fitted } = measured
+  const inset = textInset(element.background, ctx.blockSize)
+  // A hair over the exact height. The second fit runs against this box less
+  // the same inset, and a subtraction that lands one rounding under the lines'
+  // height would step the words down a size for nothing.
+  return fitted.lines.length * fitted.fontSize * fitted.lineHeight + inset * 2 + 0.01
+}
+
 /** What the ladder decided, and the box — inside any padding — it decided it in. */
 export type FittedText = {
   content: string

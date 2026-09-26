@@ -47,6 +47,15 @@ import type { ResolvedBlock, ResolvedElement } from './render'
 export type CompactionPolicy = 'none' | 'image' | 'price' | 'balance'
 
 /**
+ * The policy a book is drawn with, and so the one the designer previews.
+ *
+ * **One constant, because two surfaces read it.** A designer preview that
+ * compacted one way and a book that compacted another would show the owner a
+ * card they will never print.
+ */
+export const BOOK_COMPACTION: CompactionPolicy = 'balance'
+
+/**
  * How much of its box an element's content actually needed.
  *
  * `null` means the element has no content and should be removed — an absent
@@ -128,7 +137,16 @@ export function compactBlock(
           policy === 'image' ? element.element.kind === 'image' : element.element.kind === 'priceMark'
         )
 
-  const bonusEach = beneficiary === -1 && keptGaps.length > 1 ? freed / (keptGaps.length - 1) : 0
+  /**
+   * **A gap the element below asked to keep takes none of it.** `balance`
+   * spread the freed height into every gap, so a brand line under a one-line
+   * name moved up and then drifted back down by a share of the space its own
+   * name had given up. The share it would have taken goes to the gaps that are
+   * free to open instead; if none is, the space stays at the foot of the
+   * stack, which is where a card already keeps what it did not use.
+   */
+  const open = kept.filter((entry, i) => i > 0 && entry.element.element.keepWithAbove !== true)
+  const bonusEach = beneficiary === -1 && open.length > 0 ? freed / open.length : 0
 
   const adjusted = new Map<number, ResolvedElement>()
   let cursor = kept[0]?.element.rect.y ?? 0
@@ -137,7 +155,9 @@ export function compactBlock(
     const entry = kept[i]
     if (entry === undefined) continue
 
-    if (i > 0) cursor += (keptGaps[i] ?? 0) + bonusEach
+    if (i > 0) {
+      cursor += (keptGaps[i] ?? 0) + (entry.element.element.keepWithAbove === true ? 0 : bonusEach)
+    }
 
     const height = entry.height + (i === beneficiary ? freed : 0)
     adjusted.set(entry.index, {

@@ -28,7 +28,13 @@ import { artboardIdentity } from '../../lib/artboard-identity'
 import { toArtboardOffer } from '../../lib/preview-offer'
 import { TYPICAL_PRODUCT } from '../../lib/preview-product'
 import { FREE_ELEMENTS } from '../../lib/block-elements'
-import { drawElement, estimateWidth, type ArtboardOffer, type DrawContext } from './draw'
+import {
+  contentHeight,
+  drawElement,
+  estimateWidth,
+  type ArtboardOffer,
+  type DrawContext,
+} from './draw'
 
 const KIT: BrandKit = {
   primaryColor: '#1B4D3E',
@@ -245,6 +251,33 @@ describe('paint', () => {
       const out = draw(shape({ fill: ROLE, corners: one, shadow }))
       // Every ring is a path too; a `<rect rx>` ring would round all four.
       expect(out).not.toContain('<rect')
+    })
+  })
+
+  describe('how much of its box text needs', () => {
+    const tall = { x: 0, y: 0, width: 300, height: 400 }
+
+    it('is the lines the ladder drew, not the box it was given', () => {
+      const needed = contentHeight(text({}), tall, CTX)
+      expect(needed).not.toBeNull()
+      expect(needed ?? 0).toBeLessThan(tall.height / 2)
+    })
+
+    it('counts a ground padding top and bottom', () => {
+      const bare = contentHeight(text({}), tall, CTX) ?? 0
+      const padded =
+        contentHeight(text({ background: { fill: ROLE, padding: 0.02, radius: 0 } }), tall, CTX) ?? 0
+      // 2% of a 400 block, on both edges.
+      expect(padded - bare).toBeCloseTo(16, 5)
+    })
+
+    it('is nothing at all when there is no text', () => {
+      const empty = text({ source: { from: 'static', textEn: '', textAr: '' } })
+      expect(contentHeight(empty, tall, CTX)).toBeNull()
+    })
+
+    it('is the whole box for anything that is not text', () => {
+      expect(contentHeight(shape({}), tall, CTX)).toBe(400)
     })
   })
 

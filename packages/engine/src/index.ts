@@ -54,6 +54,7 @@ export {
 // Reclaiming the space a card's content did not use. Real catalog rows are
 // mostly sparse; the boxes are designed for the worst case. See the file.
 export {
+  BOOK_COMPACTION,
   compactBlock,
   type CompactionPolicy,
   type Occupancy,

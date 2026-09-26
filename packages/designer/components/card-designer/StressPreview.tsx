@@ -4,6 +4,7 @@ import * as React from 'react'
 import { TriangleAlert } from 'lucide-react'
 import type { BlockElement, BrandKit } from '@souqstudio/types'
 import { Figure } from '../ui/figure'
+import { BOOK_COMPACTION } from '@souqstudio/engine'
 import { BlockArtboard } from './BlockArtboard'
 import { toArtboardOffer } from '../../lib/preview-offer'
 import { PREVIEW_PRODUCT } from '../../lib/preview-product'
@@ -81,6 +82,9 @@ export function StressPreview({
         offer={offer}
         identity={identity}
         asset={asset}
+        // Printed as the book prints it, so a long name and a short one are
+        // judged by the same rules.
+        compaction={BOOK_COMPACTION}
         ariaLabel="The same card under the longest product in the catalog"
         className="rounded-artboard"
       />

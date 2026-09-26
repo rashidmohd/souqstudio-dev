@@ -160,6 +160,42 @@ describe('compactBlock', () => {
     )
   })
 
+  describe('a line kept close to the one above', () => {
+    // The spec slot as a brand line directly under the name: the owner's case.
+    const brand = (keep: boolean): ResolvedElement => ({
+      ...SPEC,
+      element: { ...SPEC.element, id: 'brand', ...(keep ? { keepWithAbove: true } : {}) },
+    })
+    const card = (keep: boolean): ResolvedBlock => ({
+      arrangementIndex: 0,
+      elements: [SURFACE, IMAGE, CHIP, NAME, brand(keep), PRICE],
+    })
+    const oneLineName = (element: ResolvedElement, index: number) =>
+      index === 3 ? ONE_LINE : element.rect.height
+    const gapUnderName = (block: ResolvedBlock) => {
+      const [name, under] = block.elements.filter((e) => e.element.kind === 'text')
+      return (under?.rect.y ?? 0) - ((name?.rect.y ?? 0) + (name?.rect.height ?? 0))
+    }
+    const DESIGNED = SPEC.rect.y - (NAME.rect.y + NAME.rect.height)
+
+    it('drifts away from a one-line name under balance when it is not kept', () => {
+      expect(gapUnderName(compactBlock(card(false), oneLineName, 'balance'))).toBeGreaterThan(DESIGNED)
+    })
+
+    it('stays the designed distance under the name when it is', () => {
+      expect(gapUnderName(compactBlock(card(true), oneLineName, 'balance'))).toBeCloseTo(DESIGNED, 5)
+    })
+
+    it('hands its share to the gaps that are free, so the card still ends where it ended', () => {
+      const out = compactBlock(card(true), oneLineName, 'balance')
+      const price = out.elements.find((e) => e.element.kind === 'priceMark')
+      expect((price?.rect.y ?? 0) + (price?.rect.height ?? 0)).toBeCloseTo(
+        PRICE.rect.y + PRICE.rect.height,
+        5
+      )
+    })
+  })
+
   describe('refusing what it cannot do', () => {
     it('leaves a side-by-side arrangement alone', () => {
       // The WIDE arrangement: image on the left, name and price beside it. It

@@ -699,6 +699,17 @@ export interface ElementBase {
   groupId?: string | undefined
   /** Kept out of the way of a stray click. Still exports. */
   locked?: boolean | undefined
+  /**
+   * Stays the designed distance under whatever sits above it in the card's
+   * stack — a brand line under a product name that wrapped to one line of
+   * the three its box was drawn for.
+   *
+   * **Read by compaction and nothing else.** Compaction removes the height a
+   * card's content did not use and, under `balance`, spreads it into the gaps
+   * that remain; this gap is never one of them. Only the image, text and price
+   * elements are in that stack, so it means nothing on the others.
+   */
+  keepWithAbove?: boolean | undefined
 }
 
 export type BlockElement =

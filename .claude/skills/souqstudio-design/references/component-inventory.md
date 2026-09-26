@@ -389,10 +389,16 @@ type BlockArtboardProps = {
   onChange?: (elements: BlockElement[]) => void   // per pointer move; never commits
   onCheckpoint?: () => void                        // once, as a drag begins
   markBound?: boolean
+  compaction?: CompactionPolicy   // preview only: draw the card as the book prints it
   className?: string
   ariaLabel?: string
 }
 ```
+
+**`compaction` is ignored on an artboard that edits.** Its handles resize the
+box as designed, and a handle on a compacted rectangle would write the printed
+height back into the design. The designer's "As printed" and worst-case panels
+pass `BOOK_COMPACTION`, the same constant `BookPage` draws with.
 
 **Interaction is opt-in and all-or-nothing**: without both `onSelect` and
 `onChange` it renders no hit targets and no handles, so the same component is the

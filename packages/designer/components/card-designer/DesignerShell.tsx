@@ -17,6 +17,7 @@ import type { Arrangement, BlockElement, BrandKit } from '@souqstudio/types'
 import {
   addElement,
   alignBoxes,
+  BOOK_COMPACTION,
   designAspect,
   fillTargets,
   reorderElement,
@@ -824,6 +825,33 @@ export function DesignerShell({
               price. A panel placed once has no product in scope, so a second
               copy of it beside the first would show the same picture twice and
               teach nothing. */}
+          {/* **The canvas is the boxes as designed; this is the card as printed.**
+              A name box is drawn for three lines, and on the canvas a one-line
+              name leaves two lines of air under it that the book takes back.
+              The canvas cannot show that — its handles resize the box as
+              designed — so the printed card sits here, through the book's own
+              compaction, where the owner sees what a "Keep close" line does. */}
+          {repeats ? (
+            <figure className="flex w-full max-w-2xl flex-col gap-2">
+              <figcaption className="rounded-pill bg-surface px-3 py-1 font-ui text-body-sm text-secondary">
+                As printed, a typical product
+              </figcaption>
+              <BlockArtboard
+                elements={elements}
+                kit={kit}
+                width={width}
+                height={height}
+                direction={direction}
+                offer={offer}
+                identity={identity}
+                asset={asset}
+                compaction={BOOK_COMPACTION}
+                ariaLabel="The card as a book prints it, with a typical product"
+                className="rounded-artboard"
+              />
+            </figure>
+          ) : null}
+
           {repeats ? (
             <div className="w-full max-w-2xl">
               <StressPreview
