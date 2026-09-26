@@ -391,6 +391,33 @@ describe('validateBlock', () => {
     expect(problems.every((problem) => problem.severity === 'warning')).toBe(true)
   })
 
+  it('counts a price set as text as a price', () => {
+    // The number, the currency and the was-price as separate text layers: the
+    // "Price pill on tinted panel" card, refused by the library for having no
+    // price while printing one in its largest type.
+    const problems = validateBlock({
+      repeats: true,
+      arrangements: [
+        arrangement([
+          surface,
+          text({ from: 'product', field: 'name' }),
+          text({ from: 'offer', field: 'currency' }),
+          text({ from: 'offer', field: 'price' }),
+          text({ from: 'offer', field: 'compare' }),
+        ]),
+      ],
+    })
+    expect(codes(problems)).not.toContain('no-price-mark')
+  })
+
+  it('still warns when the only offer text is not the price', () => {
+    const problems = validateBlock({
+      repeats: true,
+      arrangements: [arrangement([surface, text({ from: 'offer', field: 'tier' })])],
+    })
+    expect(codes(problems)).toContain('no-price-mark')
+  })
+
   it('refuses a box with no area', () => {
     const problems = validateBlock({
       repeats: true,

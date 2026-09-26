@@ -514,6 +514,9 @@ function arrangementProblems(
   }
 
   let priceMarks = 0
+  // A price set as text — `offer.price` bound to a text layer, beside its own
+  // currency and was-price layers — is a price too. See `no-price-mark` below.
+  let priceTexts = 0
   let attachedTabs = 0
   let badges = 0
   const ids = new Set<string>()
@@ -610,6 +613,13 @@ function arrangementProblems(
       if (markRecipe(element.style).tier.place !== 'hidden') attachedTabs += 1
     }
     if (element.kind === 'chip' && element.shape !== 'none') badges += 1
+    if (
+      element.kind === 'text' &&
+      element.source.from === 'offer' &&
+      element.source.field === 'price'
+    ) {
+      priceTexts += 1
+    }
 
     // The binding vocabulary is what `repeats` decides — a static block has no
     // product in scope, so a product field there is not merely empty, it is a
@@ -661,7 +671,16 @@ function arrangementProblems(
     })
   }
 
-  if (repeats && priceMarks === 0) {
+  /**
+   * **A card with its price set as text has a price.** The rule counted only
+   * the price mark, so a card whose designer laid the price out as separate
+   * text layers — the number, the currency and the was-price, each placed by
+   * hand — was called "a catalog page, not an offer" while printing a price in
+   * the largest type on it. The library refuses a shipped block with any
+   * warning, so the false alarm refused four published cards on 27 September
+   * and every deploy with them.
+   */
+  if (repeats && priceMarks === 0 && priceTexts === 0) {
     problems.push({
       code: 'no-price-mark',
       message: 'A card for a product with no price on it is a catalog page, not an offer',
