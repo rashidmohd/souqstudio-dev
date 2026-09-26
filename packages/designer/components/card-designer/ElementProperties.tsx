@@ -5,6 +5,7 @@ import { AlignCenter, AlignLeft, AlignRight, Italic, Lock, Strikethrough } from 
 import type {
   BlockElement,
   BrandColor,
+  CornerRadii,
   MarkCurrency,
   MarkCurrencyPlace,
   MarkPlace,
@@ -354,19 +355,7 @@ export function ElementProperties({
             absent on the shapes where it never could.
           */}
           {hasCorners(element.variant) ? (
-            <Input
-              label="Corner radius"
-              type="number"
-              min={0}
-              max={64}
-              step={1}
-              figure
-              disabled={disabled}
-              value={element.radius}
-              onChange={(event) =>
-                onChange({ ...element, radius: clamp(Number(event.target.value), 0, 64) })
-              }
-            />
+            <CornerRadiusFields element={element} disabled={disabled} onChange={onChange} />
           ) : null}
         </>
       ) : null}
@@ -1351,6 +1340,116 @@ const PLACE_OPTIONS: { value: MarkPlace; label: string }[] = [
  * behaviour being previewed as much as the outline is.
  */
 const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
+
+/**
+ * The corner radius: one number for all four corners, or one for each.
+ *
+ * **Only a rectangle offers each corner.** A polygon's corners are its
+ * vertices, as many as it has sides, and a bubble's are its body's with a tail
+ * cut into one edge; four named corners mean nothing on either, so they keep
+ * the single number.
+ *
+ * **Linked is the default and the stored shape of the choice**: `corners`
+ * absent is "all corners", and switching back drops it. Switching back keeps
+ * the largest corner rather than the first, because a card with one rounded
+ * corner that loses it on a toggle reads as the toggle breaking something.
+ */
+function CornerRadiusFields({
+  element,
+  disabled,
+  onChange,
+}: {
+  element: Extract<BlockElement, { kind: 'shape' }>
+  disabled: boolean
+  onChange: (element: BlockElement) => void
+}) {
+  const rect = element.variant === undefined || element.variant === 'rect'
+  const corners = rect ? element.corners : undefined
+
+  const single = (
+    <Input
+      label="Corner radius"
+      type="number"
+      min={0}
+      max={64}
+      step={1}
+      figure
+      disabled={disabled}
+      value={element.radius}
+      onChange={(event) =>
+        onChange({ ...element, radius: clamp(Number(event.target.value), 0, 64) })
+      }
+    />
+  )
+  if (!rect) return single
+
+  const linked = (): void => {
+    if (corners === undefined) return
+    onChange({
+      ...element,
+      corners: undefined,
+      radius: Math.max(corners.topStart, corners.topEnd, corners.bottomEnd, corners.bottomStart),
+    })
+  }
+  const each = (): void => {
+    if (corners !== undefined) return
+    const r = element.radius
+    onChange({ ...element, corners: { topStart: r, topEnd: r, bottomEnd: r, bottomStart: r } })
+  }
+  const setCorner = (key: keyof CornerRadii, value: number): void => {
+    if (corners === undefined) return
+    onChange({ ...element, corners: { ...corners, [key]: clamp(value, 0, 64) } })
+  }
+
+  // Reading order in a two-by-two grid, so the chrome's own direction puts
+  // each field over the corner it rounds.
+  const fields: { key: keyof CornerRadii; label: string }[] = [
+    { key: 'topStart', label: 'Top start' },
+    { key: 'topEnd', label: 'Top end' },
+    { key: 'bottomStart', label: 'Bottom start' },
+    { key: 'bottomEnd', label: 'Bottom end' },
+  ]
+
+  return (
+    <Field
+      label="Corners"
+      {...(corners === undefined
+        ? {}
+        : { hint: 'Start and end follow the language, so Arabic mirrors on its own.' })}
+    >
+      <Segmented
+        label="Corners"
+        disabled={disabled}
+        value={corners === undefined ? 'all' : 'each'}
+        options={[
+          { value: 'all', label: 'All corners' },
+          { value: 'each', label: 'Each corner' },
+        ]}
+        onChange={(mode) => (mode === 'all' ? linked() : each())}
+      />
+      {corners === undefined ? (
+        single
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {fields.map((field) => (
+            <Input
+              key={field.key}
+              label={field.label}
+              type="number"
+              min={0}
+              max={64}
+              step={1}
+              figure
+              disabled={disabled}
+              value={corners[field.key]}
+              onChange={(event) => setCorner(field.key, Number(event.target.value))}
+            />
+          ))}
+        </div>
+      )}
+    </Field>
+  )
+}
 
 /**
  * Whether a corner radius means anything on this shape.

@@ -8,8 +8,11 @@ import {
   POLYGON_SIDES,
   chipPathShape,
   drawsGround,
+  growCorners,
   layoutChipStack,
   needsEvenOdd,
+  rectCorners,
+  roundedRectPath,
   shapePath,
   type PathShape,
 } from './shapes'
@@ -635,5 +638,64 @@ describe('layoutChipStack', () => {
 
   it('places nothing for no rows', () => {
     expect(layoutChipStack([], SLOT, 'pill', 'ltr', measure)).toEqual([])
+  })
+})
+
+describe('a rectangle with its own corners', () => {
+  const has = (d: string, x: number, y: number) =>
+    points(d).some((point) => point.x === x && point.y === y)
+  const arcs = (d: string) => [...d.matchAll(/A(-?\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]))
+
+  it('stays one number when the corners are absent or all the same', () => {
+    expect(rectCorners(8, undefined)).toBe(8)
+    expect(rectCorners(8, { topStart: 4, topEnd: 4, bottomEnd: 4, bottomStart: 4 })).toBe(4)
+  })
+
+  it('becomes the four when any corner differs', () => {
+    const corners = { topStart: 12, topEnd: 0, bottomEnd: 0, bottomStart: 0 }
+    expect(rectCorners(8, corners)).toEqual(corners)
+  })
+
+  it('rounds only the corner it was given, at the reading start', () => {
+    const d = roundedRectPath(BOX, { topStart: 20, topEnd: 0, bottomEnd: 0, bottomStart: 0 })
+    expect(arcs(d)).toEqual([20])
+    // The top-left corner is cut, the other three are sharp points.
+    expect(has(d, 10, 20)).toBe(false)
+    expect(has(d, 210, 20)).toBe(true)
+    expect(has(d, 210, 120)).toBe(true)
+    expect(has(d, 10, 120)).toBe(true)
+  })
+
+  it('mirrors the corner in an Arabic edition', () => {
+    const d = roundedRectPath(
+      BOX,
+      { topStart: 20, topEnd: 0, bottomEnd: 0, bottomStart: 0 },
+      'rtl'
+    )
+    expect(has(d, 210, 20)).toBe(false)
+    expect(has(d, 10, 20)).toBe(true)
+  })
+
+  it('shrinks every corner together when a side cannot hold its pair', () => {
+    // 150 + 150 on a 200-wide top: the pair scales by 200/300, and the
+    // 100-high sides then bind harder (150 + 0 over 100), so everything
+    // scales by two thirds.
+    const d = roundedRectPath(BOX, { topStart: 150, topEnd: 150, bottomEnd: 0, bottomStart: 0 })
+    expect(arcs(d)).toEqual([100, 100])
+    for (const point of points(d)) {
+      expect(point.x).toBeGreaterThanOrEqual(BOX.x)
+      expect(point.x).toBeLessThanOrEqual(BOX.x + BOX.width)
+      expect(point.y).toBeGreaterThanOrEqual(BOX.y)
+      expect(point.y).toBeLessThanOrEqual(BOX.y + BOX.height)
+    }
+  })
+
+  it('grows every corner by what a shadow ring grew', () => {
+    expect(growCorners({ topStart: 12, topEnd: 0, bottomEnd: 3, bottomStart: 0 }, 2)).toEqual({
+      topStart: 14,
+      topEnd: 2,
+      bottomEnd: 5,
+      bottomStart: 2,
+    })
   })
 })

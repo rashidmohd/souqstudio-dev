@@ -225,6 +225,29 @@ describe('paint', () => {
     })
   })
 
+  describe('a rectangle with its own corners', () => {
+    const one = { topStart: 12, topEnd: 0, bottomEnd: 0, bottomStart: 0 }
+
+    it('stays a rect when the corners are absent or all the same', () => {
+      expect(draw(shape({ fill: ROLE }))).toContain('<rect')
+      const same = { topStart: 6, topEnd: 6, bottomEnd: 6, bottomStart: 6 }
+      expect(draw(shape({ fill: ROLE, corners: same }))).toContain('rx="6"')
+    })
+
+    it('draws a path when one corner differs', () => {
+      const out = draw(shape({ fill: ROLE, corners: one }))
+      expect(out).not.toContain('<rect')
+      expect(out).toContain('<path d="M12,0')
+    })
+
+    it('casts a shadow the same shape as the rectangle', () => {
+      const shadow = { x: 0.01, y: 0.015, blur: 0.02, color: ROLE }
+      const out = draw(shape({ fill: ROLE, corners: one, shadow }))
+      // Every ring is a path too; a `<rect rx>` ring would round all four.
+      expect(out).not.toContain('<rect')
+    })
+  })
+
   describe('an outline on text', () => {
     it('paints the stroke before the fill', () => {
       // **The rule that is invisible until it is wrong.** SVG centres a stroke,

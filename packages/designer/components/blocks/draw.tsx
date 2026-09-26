@@ -5,6 +5,7 @@ import type {
   BlockElement,
   BrandColor,
   ColorValue,
+  CornerRadii,
   FlatColor,
   Shadow,
   TokenRef,
@@ -15,6 +16,7 @@ import {
   chipPathShape,
   drawsGround,
   fitPolicy,
+  growCorners,
   layoutChipStack,
   fitText,
   layoutPriceMark,
@@ -26,11 +28,13 @@ import {
   type ShapeOptions,
   placeText,
   PREFIX_TEXT,
+  rectCorners,
   resolveColor,
   resolveImageBinding,
   resolvePaint,
   resolveTextBinding,
   extrudeCopies,
+  roundedRectPath,
   shadowRings,
   shapeExtent,
   shapePath,
@@ -346,7 +350,10 @@ function ShadowLayer({
   element: BlockElement
 }) {
   const css = paint(ctx, shadow.color)
-  const rings = shadowRings(shadowPx(shadow, ctx), box, radiusOf(element), {
+  // A rectangle whose corners differ casts from zero and adds its own corners
+  // back per ring, so each corner grows by exactly what the ring grew.
+  const uneven = unevenCorners(element)
+  const rings = shadowRings(shadowPx(shadow, ctx), box, uneven === null ? radiusOf(element) : 0, {
     ...outputFor(ctx),
     // The shop's own darkness when they set one. `shadowRings` already took a
     // `peak`; nothing was passing it, so every shadow accumulated to the
@@ -428,6 +435,16 @@ function ShadowLayer({
             />
           )
         }
+        if (uneven !== null) {
+          return (
+            <path
+              key={key}
+              d={roundedRectPath(ring.rect, growCorners(uneven, ring.radius), ctx.direction)}
+              {...ink}
+              {...alpha}
+            />
+          )
+        }
         return (
           <rect key={key} {...xywh(ring.rect)} rx={ring.radius} {...ink} {...alpha} />
         )
@@ -448,14 +465,28 @@ function ShadowLayer({
  */
 function radiusOf(element: BlockElement): number {
   if (element.kind === 'shape') {
-    return element.variant === undefined ||
-      element.variant === 'rect' ||
-      element.variant === 'polygon'
-      ? element.radius
-      : 0
+    if (element.variant === undefined || element.variant === 'rect') {
+      // Four equal corners are one radius, and it is theirs rather than the
+      // `radius` they were split from.
+      const corners = rectCorners(element.radius, element.corners)
+      return typeof corners === 'number' ? corners : 0
+    }
+    return element.variant === 'polygon' ? element.radius : 0
   }
   if (element.kind === 'image') return element.radius ?? 0
   return 0
+}
+
+/**
+ * A rectangle's corners when they are not all one radius, or null when a
+ * single `rx` still says it — which is every rectangle drawn before a corner
+ * could differ, and every one whose four corners were set equal.
+ */
+function unevenCorners(element: BlockElement): CornerRadii | null {
+  if (element.kind !== 'shape') return null
+  if (element.variant !== undefined && element.variant !== 'rect') return null
+  const corners = rectCorners(element.radius, element.corners)
+  return typeof corners === 'number' ? null : corners
 }
 
 /**
@@ -682,10 +713,20 @@ function Shape({
     )
   }
 
+  const uneven = unevenCorners(element)
+  if (uneven !== null) {
+    return (
+      <>
+        {defs}
+        <path d={roundedRectPath(box, uneven, ctx.direction)} fill={fill} {...strokeProps} />
+      </>
+    )
+  }
+
   return (
     <>
       {defs}
-      <rect {...xywh(box)} rx={element.radius} fill={fill} {...strokeProps} />
+      <rect {...xywh(box)} rx={radiusOf(element)} fill={fill} {...strokeProps} />
     </>
   )
 }

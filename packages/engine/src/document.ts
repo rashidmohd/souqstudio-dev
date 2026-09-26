@@ -718,6 +718,18 @@ const elementSchema = z.discriminatedUnion('kind', [
       .max(SHAPE_BOUNDS.waves.max)
       .optional(),
     tail: z.number().min(SHAPE_BOUNDS.tail.min).max(SHAPE_BOUNDS.tail.max).optional(),
+    // Each corner's own radius, on a rectangle. The same bound as `radius`,
+    // because the panel shows one number when they are linked and four when
+    // they are not, and a value one of those views cannot hold is a corner the
+    // owner cannot edit back.
+    corners: z
+      .strictObject({
+        topStart: z.number().min(0).max(64),
+        topEnd: z.number().min(0).max(64),
+        bottomEnd: z.number().min(0).max(64),
+        bottomStart: z.number().min(0).max(64),
+      })
+      .optional(),
     radius: z.number().min(0).max(64),
     stroke: strokeSchema.optional(),
     shadow: shadowSchema.optional(),

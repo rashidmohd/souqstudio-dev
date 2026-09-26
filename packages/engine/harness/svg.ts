@@ -18,6 +18,7 @@ import {
   fitPolicy,
   fitText,
   fromHex,
+  growCorners,
   layoutChipStack,
   layoutPriceMark,
   markGround,
@@ -27,10 +28,12 @@ import {
   type ShapeOptions,
   placeText,
   readableInkOn,
+  rectCorners,
   resolveBlock,
   extrudeCopies,
   resolveColor,
   resolvePaint,
+  roundedRectPath,
   shapePath,
   type ChipStackRow,
   type CompactionPolicy,
@@ -238,16 +241,26 @@ function castShadow(
       : ` fill="${ink}" fill-opacity="${alpha}"`
   // The three variants that have corners — the same rule as `radiusOf` in
   // `draw.tsx`, and the harness exists to catch the two disagreeing.
+  // A rectangle with uneven corners grows each of them by the ring's own
+  // growth, so it casts from zero and adds its corners back per ring.
+  const uneven =
+    element.kind === 'shape' && (element.variant === undefined || element.variant === 'rect')
+      ? rectCorners(element.radius, element.corners)
+      : null
   const radius =
-    element.kind === 'shape'
-      ? element.variant === undefined ||
-        element.variant === 'rect' ||
-        element.variant === 'polygon'
-        ? element.radius
+    uneven !== null
+      ? typeof uneven === 'number'
+        ? uneven
         : 0
-      : element.kind === 'image'
-        ? (element.radius ?? 0)
-        : 0
+      : element.kind === 'shape'
+        ? element.variant === undefined ||
+          element.variant === 'rect' ||
+          element.variant === 'polygon'
+          ? element.radius
+          : 0
+        : element.kind === 'image'
+          ? (element.radius ?? 0)
+          : 0
   const rings = shadowRings(
     {
       ...shadow,
@@ -285,6 +298,10 @@ function castShadow(
           ` rx="${ring.rect.width / 2}" ry="${ring.rect.height / 2}"${alpha}/>`
         )
       }
+      if (uneven !== null && typeof uneven !== 'number') {
+        const d = roundedRectPath(ring.rect, growCorners(uneven, ring.radius), ctx.direction)
+        return `<path d="${d}"${alpha}/>`
+      }
       if (outlineOnly) {
         return (
           `<rect x="${ring.rect.x}" y="${ring.rect.y}" width="${ring.rect.width}"` +
@@ -308,7 +325,7 @@ function paintBody(
 ): string {
   switch (element.kind) {
     case 'shape':
-      return shape(element, rect, blockEdge)
+      return shape(element, rect, blockEdge, ctx.direction)
     case 'image':
       // **A mark and a packshot get different treatments, and the gallery is
       // what said so.** Folding `logo` into `image` (E14 §3.1) put every mark
@@ -342,7 +359,8 @@ function paintBody(
 function shape(
   element: Extract<BlockElement, { kind: 'shape' }>,
   rect: Rect,
-  blockEdge: number
+  blockEdge: number,
+  direction: 'ltr' | 'rtl'
 ): string {
   // A gradient needs a definition in the document and a `url(#id)` pointing at
   // it, so the fill is two strings here rather than one. The id is the element's
@@ -402,10 +420,19 @@ function shape(
     return defs + `<path d="${d}" fill="${fill}"${rule}${strokeAttrs}/>`
   }
 
+  // Uneven corners are a path; four equal ones stay the `<rect>` they always
+  // were. Same split as `draw.tsx`.
+  const corners = rectCorners(element.radius, element.corners)
+  if (typeof corners !== 'number') {
+    return (
+      defs +
+      `<path d="${roundedRectPath(rect, corners, direction)}" fill="${fill}"${strokeAttrs}/>`
+    )
+  }
   return (
     defs +
     `<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"` +
-    ` rx="${element.radius}" fill="${fill}"${strokeAttrs}/>`
+    ` rx="${corners}" fill="${fill}"${strokeAttrs}/>`
   )
 }
 

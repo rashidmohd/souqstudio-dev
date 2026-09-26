@@ -18,7 +18,7 @@
  * Nothing here knows about pixels, and nothing here knows about the block.
  */
 
-import type { ShapeArt } from '@souqstudio/types'
+import type { CornerRadii, ShapeArt } from '@souqstudio/types'
 import type { TextMeasurer } from './fit'
 import type { Direction, Rect } from './geometry'
 
@@ -585,6 +585,98 @@ export function shapePath(
       return polygon(points)
     }
   }
+}
+
+// ─── Rectangle corners ────────────────────────────────────────────────────────
+
+/**
+ * A rectangle's corners, as the renderers draw them: one number when all four
+ * agree, the four when they do not.
+ *
+ * **One number is still a `<rect rx>`**, which is how every rectangle drew
+ * before a corner could differ, so a block that never set `corners` — or set
+ * four equal ones — draws byte for byte as it did. Only a genuinely uneven
+ * rectangle becomes a path.
+ */
+export function rectCorners(
+  radius: number,
+  corners: CornerRadii | undefined
+): number | CornerRadii {
+  if (corners === undefined) return radius
+  const { topStart, topEnd, bottomEnd, bottomStart } = corners
+  return topStart === topEnd && topEnd === bottomEnd && bottomEnd === bottomStart
+    ? topStart
+    : corners
+}
+
+/**
+ * Every corner grown by the same amount — a shadow ring is the shape grown
+ * outward, and a corner that did not grow with it draws a sharp shadow under a
+ * rounded box. The same rule `shadowRings` applies to a single radius.
+ */
+export function growCorners(corners: CornerRadii, by: number): CornerRadii {
+  return {
+    topStart: corners.topStart + by,
+    topEnd: corners.topEnd + by,
+    bottomEnd: corners.bottomEnd + by,
+    bottomStart: corners.bottomStart + by,
+  }
+}
+
+/**
+ * A rectangle whose corners each round by their own radius, as a path.
+ *
+ * **`direction` places the logical corners.** `topStart` is the top left in a
+ * Latin edition and the top right in an Arabic one, for the reason
+ * `CornerRadii` gives.
+ *
+ * **Two corners on one side may not eat past each other**, so when a side's
+ * pair adds up to more than the side, every corner shrinks by the same factor
+ * until the tightest side fits — the rule CSS applies to `border-radius`. Each
+ * corner capped alone would change the shape's proportions instead: a 40/40
+ * top on a 60-wide box would come out 30/30 in one renderer's reading and
+ * 40/20 in another's.
+ */
+export function roundedRectPath(
+  rect: Rect,
+  corners: CornerRadii,
+  direction: Direction = 'ltr'
+): string {
+  const { x, y, width: w, height: h } = rect
+  const rtl = direction === 'rtl'
+  const clean = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : 0)
+  let tl = clean(rtl ? corners.topEnd : corners.topStart)
+  let tr = clean(rtl ? corners.topStart : corners.topEnd)
+  let br = clean(rtl ? corners.bottomStart : corners.bottomEnd)
+  let bl = clean(rtl ? corners.bottomEnd : corners.bottomStart)
+
+  const fit = Math.min(
+    1,
+    tl + tr > 0 ? w / (tl + tr) : 1,
+    bl + br > 0 ? w / (bl + br) : 1,
+    tl + bl > 0 ? h / (tl + bl) : 1,
+    tr + br > 0 ? h / (tr + br) : 1
+  )
+  tl *= fit
+  tr *= fit
+  br *= fit
+  bl *= fit
+
+  // Clockwise on screen from the top edge, so every arc sweeps the same way.
+  const arc = (r: number, toX: number, toY: number) =>
+    r > 0 ? `A${round(r)},${round(r)} 0 0,1 ${point(toX, toY)}` : ''
+  return (
+    `M${point(x + tl, y)}` +
+    `L${point(x + w - tr, y)}` +
+    arc(tr, x + w, y + tr) +
+    `L${point(x + w, y + h - br)}` +
+    arc(br, x + w - br, y + h) +
+    `L${point(x + bl, y + h)}` +
+    arc(bl, x, y + h - bl) +
+    `L${point(x, y + tl)}` +
+    arc(tl, x + tl, y) +
+    'Z'
+  )
 }
 
 /**

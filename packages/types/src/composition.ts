@@ -927,10 +927,35 @@ export type BlockElement =
        * bubble points at whoever is speaking and that person has moved.
        */
       tail?: number | undefined
+      /**
+       * Each corner's own radius, when they are not all the same. A rectangle
+       * only; every other variant ignores it.
+       *
+       * **Beside `radius` rather than replacing it**, so every block written
+       * before this field existed draws exactly as it did. Absent means all
+       * four corners are `radius`.
+       */
+      corners?: CornerRadii | undefined
       radius: number
       stroke?: Stroke | undefined
       shadow?: Shadow | undefined
     })
+
+/**
+ * A rectangle's four corners, each in the same units as `radius`.
+ *
+ * **Named by reading direction, not by side of the page**, because a box's
+ * `start` edge already is: an Arabic edition mirrors the layout, and a card
+ * whose top-start corner is rounded keeps the rounded corner where the eye
+ * lands first. A corner fixed to the physical left would round the wrong
+ * corner of the mirrored card.
+ */
+export interface CornerRadii {
+  topStart: number
+  topEnd: number
+  bottomEnd: number
+  bottomStart: number
+}
 
 // ─── The price mark's interior ────────────────────────────────────────────────
 //
