@@ -22,11 +22,18 @@ export function RemoveBlock({
   blockId,
   libraryId,
   mode,
+  offReason = null,
 }: {
   blockId: string
   /** The block's `blk_` id, for unpublishing. */
   libraryId: string | null
   mode: 'unpublish' | 'delete'
+  /**
+   * Why the action cannot run on this deployment, or null when it can. Shown
+   * with the button disabled rather than hiding the card, so the power is
+   * visibly there and visibly switched off.
+   */
+  offReason?: string | null | undefined
 }) {
   const router = useRouter()
   const [armed, setArmed] = useState(false)
@@ -91,11 +98,23 @@ export function RemoveBlock({
             </Button>
           </>
         ) : (
-          <Button type="button" variant="danger" onClick={() => setArmed(true)}>
+          <Button
+            type="button"
+            variant="danger"
+            disabled={offReason !== null}
+            onClick={() => setArmed(true)}
+          >
             {mode === 'unpublish' ? 'Unpublish from library' : 'Delete block'}
           </Button>
         )}
       </div>
+      {offReason === null ? null : (
+        <p className="rounded-block bg-sand p-3 text-body-sm text-charcoal">
+          Publishing is off on this deployment, so the library cannot change from here. {offReason}{' '}
+          Set <code>WEB_APP_URL</code> and <code>LIBRARY_PUBLISH_TOKEN</code> on the admin service
+          (see docs/block-library-from-r2.md §11).
+        </p>
+      )}
       {note === null ? null : <p className="rounded-block bg-sand p-3 text-body text-charcoal">{note}</p>}
       {error === null ? null : <ErrorState title="Not done" body={error} />}
     </div>

@@ -312,12 +312,13 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
         Taking a block out. Offered only where the route would allow it; the
         route decides again. An organization's block is never offered: its
         owner retires it in the shop app.
+
+        **Unpublish is shown even when publishing is off**, disabled with the
+        reason. Hidden, it read as a power admins did not have, when it was a
+        power switched off on this deployment.
       */}
       {ownBlock &&
-      ((block.status === 'published' &&
-        LIBRARY_ID.test(block.id) &&
-        maySupply &&
-        config.configured) ||
+      ((block.status === 'published' && LIBRARY_ID.test(block.id) && maySupply) ||
         (block.status === 'draft' && roleAtLeast(admin.role, 'catalog_manager')) ||
         (block.status === 'archived' && maySupply)) ? (
         <Card className="flex flex-col gap-3">
@@ -326,6 +327,9 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
             blockId={block.id}
             libraryId={LIBRARY_ID.test(block.id) ? block.id : null}
             mode={block.status === 'published' ? 'unpublish' : 'delete'}
+            offReason={
+              block.status === 'published' && !config.configured ? config.reason : null
+            }
           />
         </Card>
       ) : null}
