@@ -19,6 +19,8 @@ import {
   fitText,
   fromHex,
   growCorners,
+  inkOnGround,
+  insetRect,
   layoutChipStack,
   layoutPriceMark,
   markGround,
@@ -35,6 +37,8 @@ import {
   resolvePaint,
   roundedRectPath,
   shapePath,
+  textGroundRect,
+  textInset,
   type ChipStackRow,
   type CompactionPolicy,
   type MarkPiece,
@@ -143,7 +147,12 @@ function neededHeight(
 
   const measured = fitFor(element, rect, product, ctx, blockEdge)
   if (measured === null) return null
-  return measured.fitted.lines.length * measured.fitted.fontSize * measured.fitted.lineHeight
+  // The padding is room the words do not get, top and bottom.
+  const inset = textInset(element.background, blockEdge)
+  return (
+    measured.fitted.lines.length * measured.fitted.fontSize * measured.fitted.lineHeight +
+    inset * 2
+  )
 }
 
 /**
@@ -732,13 +741,16 @@ function priceMark(
  */
 function fitFor(
   element: Extract<BlockElement, { kind: 'text' }>,
-  rect: Rect,
+  outer: Rect,
   product: HarnessProduct | undefined,
   ctx: RenderContext,
   blockEdge: number
 ) {
   const content = resolveText(element, product, ctx)
   if (content === '') return null
+
+  // Inside a ground's padding, as `fitTextElement` measures in `draw.tsx`.
+  const rect = insetRect(outer, textInset(element.background, blockEdge))
 
   const step = SAMPLE_SCALE.levels[element.level]
   const family = SAMPLE_SCALE.families[step.family]
@@ -761,7 +773,7 @@ function fitFor(
     ...(policy.maxLines === undefined ? {} : { maxLines: policy.maxLines }),
   })
 
-  return { content, fitted, step, family }
+  return { content, fitted, step, family, rect }
 }
 
 /**
@@ -778,14 +790,16 @@ function fitFor(
  */
 function text(
   element: Extract<BlockElement, { kind: 'text' }>,
-  rect: Rect,
+  outer: Rect,
   product: HarnessProduct | undefined,
   ctx: RenderContext,
   blockEdge: number
 ): string {
-  const measured = fitFor(element, rect, product, ctx, blockEdge)
-  if (measured === null) return ''
-  const { content, fitted, step, family } = measured
+  const measured = fitFor(element, outer, product, ctx, blockEdge)
+  const ground = textGround(element, outer, measured, ctx, blockEdge)
+  if (measured === null) return ground
+  // The box inside the padding, which is the one the ladder fitted against.
+  const { content, fitted, step, family, rect } = measured
 
   // Position, anchor and direction together, from the engine. Deciding them
   // separately is what drew a real Arabic name out through the left edge of an
@@ -867,7 +881,7 @@ function text(
   const sideInk = extrude === undefined ? '' : resolveColor(extrude.color, color)
   const face = textFace(element)
 
-  return fitted.lines
+  return ground + fitted.lines
     .map((line, i) => {
       const y = rect.y + fitted.fontSize * (0.85 + i * fitted.lineHeight)
       const side = sides
@@ -897,6 +911,56 @@ function text(
       )
     })
     .join('')
+}
+
+/**
+ * The ground behind a text element. Line for line with `TextGround` in
+ * `draw.tsx`: the same inset, the same wrap, the same corners.
+ */
+function textGround(
+  element: Extract<BlockElement, { kind: 'text' }>,
+  outer: Rect,
+  measured: ReturnType<typeof fitFor>,
+  ctx: RenderContext,
+  blockEdge: number
+): string {
+  const background = element.background
+  if (background === undefined) return ''
+
+  let words: Rect | null = null
+  if (measured !== null) {
+    const { content, fitted, rect } = measured
+    const { anchor, x, direction } = placeText(content, element.align, rect, ctx.direction)
+    const widest = Math.max(...fitted.lines.map((line) => estimateWidth(line, fitted.fontSize)))
+    const atLeft = (anchor === 'start') === (direction === 'ltr')
+    words = {
+      x: anchor === 'middle' ? x - widest / 2 : atLeft ? x : x - widest,
+      y: rect.y,
+      width: widest,
+      height: fitted.lines.length * fitted.fontSize * fitted.lineHeight,
+    }
+  }
+  const box = textGroundRect(outer, words, textInset(background, blockEdge), background.fit)
+  if (box === null) return ''
+
+  const paint = resolvePaint(background.fill, color)
+  const id = `tg-${element.id}`
+  const fill = paint.kind === 'flat' ? paint.css : `url(#${id})`
+  const defs =
+    paint.kind === 'flat'
+      ? ''
+      : `<defs><linearGradient id="${id}"` +
+        ` x1="${paint.x1}" y1="${paint.y1}" x2="${paint.x2}" y2="${paint.y2}">` +
+        paint.stops.map((stop) => `<stop offset="${stop.at}" stop-color="${stop.css}"/>`).join('') +
+        `</linearGradient></defs>`
+  const corners = rectCorners(background.radius, background.corners)
+  return (
+    defs +
+    (typeof corners === 'number'
+      ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}"` +
+        ` rx="${corners}" fill="${fill}"/>`
+      : `<path d="${roundedRectPath(box, corners, ctx.direction)}" fill="${fill}"/>`)
+  )
 }
 
 /**
@@ -1000,8 +1064,17 @@ function inkFor(
   if (element.color !== undefined) return textFace(element).fill
   // `shop` is deliberately absent — see the note in `draw.tsx`. This file
   // matches it line for line, which is the point of it.
-  if (element.source.from === 'static') return KIT.surface
-  return element.level === 'caption' ? KIT.inkMuted : KIT.ink
+  const usual =
+    element.source.from === 'static'
+      ? KIT.surface
+      : element.level === 'caption'
+        ? KIT.inkMuted
+        : KIT.ink
+  if (element.background === undefined) return usual
+  // On its own ground, the ground decides — the rule `draw.tsx` states.
+  const paint = resolvePaint(element.background.fill, color)
+  const ground = paint.kind === 'flat' ? [paint.css] : paint.stops.map((stop) => stop.css)
+  return inkOnGround(ground, [usual, KIT.ink, KIT.surface]) ?? usual
 }
 
 /**

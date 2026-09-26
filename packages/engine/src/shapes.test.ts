@@ -9,11 +9,14 @@ import {
   chipPathShape,
   drawsGround,
   growCorners,
+  insetRect,
   layoutChipStack,
   needsEvenOdd,
   rectCorners,
   roundedRectPath,
   shapePath,
+  textGroundRect,
+  textInset,
   type PathShape,
 } from './shapes'
 
@@ -697,5 +700,34 @@ describe('a rectangle with its own corners', () => {
       bottomEnd: 5,
       bottomStart: 2,
     })
+  })
+})
+
+describe('a ground behind text', () => {
+  const ground = { fill: { from: 'role' as const, ref: 'primary' as const }, padding: 0.02, radius: 3 }
+
+  it('insets by the padding as a share of the block', () => {
+    expect(textInset(ground, 400)).toBe(8)
+    expect(textInset(undefined, 400)).toBe(0)
+  })
+
+  it('never pulls a box inside out', () => {
+    expect(insetRect({ x: 0, y: 0, width: 10, height: 100 }, 20)).toEqual({
+      x: 5,
+      y: 20,
+      width: 0,
+      height: 60,
+    })
+  })
+
+  it('fills the box unless it fits to the text', () => {
+    const words = { x: 20, y: 30, width: 50, height: 10 }
+    expect(textGroundRect(BOX, words, 8, undefined)).toBe(BOX)
+    expect(textGroundRect(BOX, words, 8, 'box')).toBe(BOX)
+    expect(textGroundRect(BOX, words, 8, 'text')).toEqual({ x: 12, y: 22, width: 66, height: 26 })
+  })
+
+  it('has nothing to wrap round no words', () => {
+    expect(textGroundRect(BOX, null, 8, 'text')).toBeNull()
   })
 })

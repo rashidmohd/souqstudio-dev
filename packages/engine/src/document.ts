@@ -124,6 +124,19 @@ const gradientStopSchema = z.object({
   opacity: z.number().min(0).max(1).optional(),
 })
 
+/**
+ * A rectangle's four corners, named by reading direction. The same bound as a
+ * single `radius`, because the panel shows one number when they are linked and
+ * four when they are not, and a value one of those views cannot hold is a
+ * corner the owner cannot edit back.
+ */
+const cornersSchema = z.strictObject({
+  topStart: z.number().min(0).max(64),
+  topEnd: z.number().min(0).max(64),
+  bottomEnd: z.number().min(0).max(64),
+  bottomStart: z.number().min(0).max(64),
+})
+
 const colorSchema = z.union([
   flatColorSchema,
   z.object({
@@ -646,6 +659,19 @@ const elementSchema = z.discriminatedUnion('kind', [
     shadow: textShadowSchema.optional(),
     /** The side of the letters, drawn behind the face. See `extrudeSchema`. */
     extrude: extrudeSchema.optional(),
+    /**
+     * A ground behind the words. Padding is capped at a quarter of the block:
+     * past that the words are a speck inside their own label.
+     */
+    background: z
+      .strictObject({
+        fill: colorSchema,
+        padding: z.number().min(0).max(0.25),
+        radius: z.number().min(0).max(64),
+        corners: cornersSchema.optional(),
+        fit: z.enum(['box', 'text']).optional(),
+      })
+      .optional(),
   }),
   z.strictObject({
     ...baseSchema,
@@ -718,18 +744,8 @@ const elementSchema = z.discriminatedUnion('kind', [
       .max(SHAPE_BOUNDS.waves.max)
       .optional(),
     tail: z.number().min(SHAPE_BOUNDS.tail.min).max(SHAPE_BOUNDS.tail.max).optional(),
-    // Each corner's own radius, on a rectangle. The same bound as `radius`,
-    // because the panel shows one number when they are linked and four when
-    // they are not, and a value one of those views cannot hold is a corner the
-    // owner cannot edit back.
-    corners: z
-      .strictObject({
-        topStart: z.number().min(0).max(64),
-        topEnd: z.number().min(0).max(64),
-        bottomEnd: z.number().min(0).max(64),
-        bottomStart: z.number().min(0).max(64),
-      })
-      .optional(),
+    // Each corner's own radius, on a rectangle. See `cornersSchema`.
+    corners: cornersSchema.optional(),
     radius: z.number().min(0).max(64),
     stroke: strokeSchema.optional(),
     shadow: shadowSchema.optional(),

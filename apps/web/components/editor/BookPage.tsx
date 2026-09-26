@@ -8,6 +8,7 @@ import {
   findOverride,
   resolveBlock,
   spansIntersect,
+  textInset,
   type CellSpan,
   type CompactionPolicy,
   type FlowPage,
@@ -424,11 +425,14 @@ function neededHeight(
   // Line count at the box the block designed. The second fit inside `drawElement`
   // runs against the compacted box and produces the same count, because width
   // does not change.
+  // A ground's padding is room the words do not get, across and down — the
+  // same inset `fitTextElement` takes before it measures.
+  const inset = textInset(element.background, ctx.blockSize)
   const step = ctx.scale.levels[element.level]
   const perLine = step.size * ctx.scale.base * ctx.blockSize
   const measured = ctx.measure(content, perLine, '')
-  const lines = Math.max(1, Math.ceil(measured / Math.max(rect.width, 1)))
-  return Math.min(rect.height, lines * perLine * step.lineHeight)
+  const lines = Math.max(1, Math.ceil(measured / Math.max(rect.width - inset * 2, 1)))
+  return Math.min(rect.height, lines * perLine * step.lineHeight + inset * 2)
 }
 
 

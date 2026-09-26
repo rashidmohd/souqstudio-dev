@@ -64,6 +64,7 @@ import { Slider } from '../ui/slider'
 import { imagePadding } from '../blocks/draw'
 import { describe } from './LayerList'
 import { drawnSize, type Canvas } from '../../lib/drawn-size'
+import { readPercent, showPercent } from '../../lib/percent-field'
 
 /**
  * The properties panel. E7.
@@ -355,7 +356,18 @@ export function ElementProperties({
             absent on the shapes where it never could.
           */}
           {hasCorners(element.variant) ? (
-            <CornerRadiusFields element={element} disabled={disabled} onChange={onChange} />
+            <CornerRadiusFields
+              radius={element.radius}
+              // Only a rectangle has four corners to name; see the component.
+              corners={
+                element.variant === undefined || element.variant === 'rect'
+                  ? element.corners
+                  : undefined
+              }
+              eachCorner={element.variant === undefined || element.variant === 'rect'}
+              disabled={disabled}
+              onChange={(next) => onChange({ ...element, ...next })}
+            />
           ) : null}
         </>
       ) : null}
@@ -1344,10 +1356,10 @@ const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
 /**
  * The corner radius: one number for all four corners, or one for each.
  *
- * **Only a rectangle offers each corner.** A polygon's corners are its
- * vertices, as many as it has sides, and a bubble's are its body's with a tail
- * cut into one edge; four named corners mean nothing on either, so they keep
- * the single number.
+ * **Each corner is offered where there are four of them** — a rectangle and a
+ * text's ground. A polygon's corners are its vertices, as many as it has
+ * sides, and a bubble's are its body's with a tail cut into one edge; four
+ * named corners mean nothing on either, so they keep the single number.
  *
  * **Linked is the default and the stored shape of the choice**: `corners`
  * absent is "all corners", and switching back drops it. Switching back keeps
@@ -1355,17 +1367,19 @@ const PREVIEW: Rect = { x: 1, y: 3, width: 14, height: 10 }
  * corner that loses it on a toggle reads as the toggle breaking something.
  */
 function CornerRadiusFields({
-  element,
+  radius,
+  corners,
+  eachCorner,
   disabled,
   onChange,
 }: {
-  element: Extract<BlockElement, { kind: 'shape' }>
+  radius: number
+  corners: CornerRadii | undefined
+  /** False on the shapes whose corners are not a box's four. */
+  eachCorner: boolean
   disabled: boolean
-  onChange: (element: BlockElement) => void
+  onChange: (next: { radius: number; corners: CornerRadii | undefined }) => void
 }) {
-  const rect = element.variant === undefined || element.variant === 'rect'
-  const corners = rect ? element.corners : undefined
-
   const single = (
     <Input
       label="Corner radius"
@@ -1375,30 +1389,29 @@ function CornerRadiusFields({
       step={1}
       figure
       disabled={disabled}
-      value={element.radius}
+      value={radius}
       onChange={(event) =>
-        onChange({ ...element, radius: clamp(Number(event.target.value), 0, 64) })
+        onChange({ radius: clamp(Number(event.target.value), 0, 64), corners })
       }
     />
   )
-  if (!rect) return single
+  if (!eachCorner) return single
 
   const linked = (): void => {
     if (corners === undefined) return
     onChange({
-      ...element,
       corners: undefined,
       radius: Math.max(corners.topStart, corners.topEnd, corners.bottomEnd, corners.bottomStart),
     })
   }
   const each = (): void => {
     if (corners !== undefined) return
-    const r = element.radius
-    onChange({ ...element, corners: { topStart: r, topEnd: r, bottomEnd: r, bottomStart: r } })
+    const r = radius
+    onChange({ radius, corners: { topStart: r, topEnd: r, bottomEnd: r, bottomStart: r } })
   }
   const setCorner = (key: keyof CornerRadii, value: number): void => {
     if (corners === undefined) return
-    onChange({ ...element, corners: { ...corners, [key]: clamp(value, 0, 64) } })
+    onChange({ radius, corners: { ...corners, [key]: clamp(value, 0, 64) } })
   }
 
   // Reading order in a two-by-two grid, so the chrome's own direction puts
@@ -1450,6 +1463,110 @@ function CornerRadiusFields({
     </Field>
   )
 }
+
+/**
+ * A ground behind the words: its colour, how big it is, its padding, its corners.
+ *
+ * **"None" removes the whole ground**, the way a border's does, rather than
+ * leaving a padding and a radius attached to nothing.
+ *
+ * It starts at the box and a small padding: the box is what the owner is
+ * looking at when they pick the colour, so the colour lands where they expect
+ * it, and "Fit to text" is one tap away for a label that should hug its words.
+ */
+function TextBackgroundFields({
+  element,
+  disabled,
+  color,
+  onChange,
+}: {
+  element: Extract<BlockElement, { kind: 'text' }>
+  disabled: boolean
+  color: ColorProps
+  onChange: (element: BlockElement) => void
+}) {
+  const background = element.background
+  return (
+    <div className="flex flex-col gap-2">
+      <ColorControl
+        label="Background"
+        allowGradient
+        value={background?.fill}
+        {...color}
+        hint="A colour behind the words. The text colour follows it so it stays readable."
+        onClear={() => onChange({ ...element, background: undefined })}
+        onChange={(fill: ColorValue) =>
+          onChange({
+            ...element,
+            background:
+              background === undefined
+                ? { fill, padding: BACKGROUND_PADDING.default, radius: 3 }
+                : { ...background, fill },
+          })
+        }
+      />
+
+      {background === undefined ? null : (
+        <>
+          <Field
+            label="Background size"
+            hint={
+              background.fit === 'text'
+                ? 'Grows and shrinks with the words, so a long name gets a longer label.'
+                : 'Fills the box you drew.'
+            }
+          >
+            <Segmented
+              label="Background size"
+              disabled={disabled}
+              value={background.fit ?? 'box'}
+              options={[
+                { value: 'box', label: 'Fill the box' },
+                { value: 'text', label: 'Fit to text' },
+              ]}
+              onChange={(fit) => onChange({ ...element, background: { ...background, fit } })}
+            />
+          </Field>
+          <Input
+            label="Padding"
+            type="number"
+            min={BACKGROUND_PADDING.min}
+            max={BACKGROUND_PADDING.max}
+            step={0.5}
+            figure
+            disabled={disabled}
+            value={showPercent(background.padding)}
+            hint="Percent of the card, on every side."
+            onChange={(event) =>
+              onChange({
+                ...element,
+                background: {
+                  ...background,
+                  padding: readPercent(event.target.value, BACKGROUND_PADDING),
+                },
+              })
+            }
+          />
+          <CornerRadiusFields
+            radius={background.radius}
+            corners={background.corners}
+            eachCorner
+            disabled={disabled}
+            onChange={(next) =>
+              onChange({ ...element, background: { ...background, ...next } })
+            }
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A ground's padding as the percent the field shows. The ceiling is well inside
+ * the schema's quarter, because past a tenth the words are lost in the label.
+ */
+const BACKGROUND_PADDING = { min: 0, max: 10, default: 0.02 }
 
 /**
  * Whether a corner radius means anything on this shape.
@@ -1706,6 +1823,13 @@ function TextFields({
           a photograph. The width is the outline you see: the painter doubles it
           and orders the paint `stroke fill`, because SVG centres a stroke and
           half of it would otherwise be lost into the counters. E14 §2.4. */}
+      <TextBackgroundFields
+        element={element}
+        disabled={disabled}
+        color={color}
+        onChange={onChange}
+      />
+
       <StrokeControl
         label="Outline"
         value={element.stroke}

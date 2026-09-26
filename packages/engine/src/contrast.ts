@@ -109,3 +109,32 @@ export function contrastHex(a: string, b: string): number | null {
   if (left === null || right === null) return null
   return contrastRatio(left, right)
 }
+
+/**
+ * Of the inks a text can take, the one that reads best on its ground.
+ *
+ * **Every colour of the ground counts, and the worst one decides**, because a
+ * gradient ground is read at its weakest stop: ink that clears the dark end
+ * and vanishes into the light one is ink nobody can read across the label.
+ *
+ * `null` when no colour on either side is a hex this can read, so the caller
+ * keeps the ink it would have used anyway rather than guessing.
+ */
+export function inkOnGround(ground: readonly string[], inks: readonly string[]): string | null {
+  let best: string | null = null
+  let bestRatio = -1
+  for (const ink of inks) {
+    const ratios: number[] = []
+    for (const colour of ground) {
+      const ratio = contrastHex(ink, colour)
+      if (ratio !== null) ratios.push(ratio)
+    }
+    if (ratios.length === 0 || ratios.length < ground.length) continue
+    const worst = Math.min(...ratios)
+    if (worst > bestRatio) {
+      best = ink
+      bestRatio = worst
+    }
+  }
+  return best
+}

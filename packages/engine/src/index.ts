@@ -92,12 +92,15 @@ export {
   chipPathShape,
   drawsGround,
   growCorners,
+  insetRect,
   layoutChipStack,
   needsEvenOdd,
   rectCorners,
   roundedRectPath,
   shapeExtent,
   shapePath,
+  textGroundRect,
+  textInset,
   type ChipShape,
   type ChipStackRow,
   type ChipStackRowLayout,
@@ -260,6 +263,7 @@ export {
 // here rather than in `apps/web/lib/color.ts`, which re-exports all of it.
 export {
   contrastHex,
+  inkOnGround,
   contrastRatio,
   fromHex,
   isDarkBackground,

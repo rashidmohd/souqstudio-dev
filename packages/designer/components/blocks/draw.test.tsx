@@ -248,6 +248,70 @@ describe('paint', () => {
     })
   })
 
+  describe('a ground behind text', () => {
+    const DARK = { from: 'hex' as const, hex: '#101010' }
+    const LIGHT = { from: 'hex' as const, hex: '#F4F1EA' }
+    const ground = (over: Record<string, unknown> = {}) => ({
+      fill: DARK,
+      padding: 0.02,
+      radius: 3,
+      ...over,
+    })
+    // Separate ink and surface, so the test can see which one was chosen.
+    const INKS: DrawContext = {
+      ...CTX,
+      token: (ref) => (ref === 'surface' ? '#FFFFFF' : ref === 'ink' ? '#111111' : '#777777'),
+    }
+    const startX = (out: string) => Number(/<text[^>]* x="([\d.]+)"/.exec(out)?.[1])
+
+    it('draws the whole box behind the words by default', () => {
+      const out = draw(text({ background: ground() }))
+      expect(out).toContain('<rect x="0" y="0" width="300" height="80" rx="3" fill="#101010"')
+      // Painted first, so the words sit on it.
+      expect(out.indexOf('<rect')).toBeLessThan(out.indexOf('<text'))
+    })
+
+    it('moves the words in by the padding', () => {
+      // 2% of a 400 block is 8 units in from the start edge.
+      expect(startX(draw(text({ background: ground() })))).toBe(startX(draw(text({}))) + 8)
+    })
+
+    it('wraps the words when it fits to text', () => {
+      const out = draw(text({ background: ground({ fit: 'text' }) }))
+      const width = Number(/<rect[^>]* width="([\d.]+)"/.exec(out)?.[1])
+      expect(width).toBeGreaterThan(16)
+      expect(width).toBeLessThan(300)
+    })
+
+    it('draws nothing to wrap when the text is empty', () => {
+      const empty = {
+        source: { from: 'static', textEn: '', textAr: '' },
+        background: ground({ fit: 'text' }),
+      }
+      expect(draw(text(empty))).not.toContain('<rect')
+    })
+
+    it('rounds one corner as a path, like a rectangle does', () => {
+      const corners = { topStart: 10, topEnd: 0, bottomEnd: 0, bottomStart: 0 }
+      const out = draw(text({ background: ground({ corners }) }))
+      expect(out).toContain('<path d="M10,0')
+    })
+
+    it('picks the ink that reads on the ground', () => {
+      // Static text is drawn in the surface colour by default; on a light
+      // ground that would be white on cream, so it turns to ink.
+      const out = draw(text({ background: ground({ fill: LIGHT }) }), INKS)
+      expect(out).toContain('fill="#111111"')
+      const dark = draw(text({ background: ground() }), INKS)
+      expect(dark).toContain('fill="#FFFFFF"')
+    })
+
+    it('keeps a colour the owner picked for the words', () => {
+      const out = draw(text({ color: LIGHT, background: ground({ fill: LIGHT }) }), INKS)
+      expect(out).not.toContain('fill="#111111"')
+    })
+  })
+
   describe('an outline on text', () => {
     it('paints the stroke before the fill', () => {
       // **The rule that is invisible until it is wrong.** SVG centres a stroke,

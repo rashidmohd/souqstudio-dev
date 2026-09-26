@@ -808,6 +808,8 @@ export type BlockElement =
       /** The side of the letters, drawn behind the face. `Extrude` says why it
        *  is copies rather than a filter, and what a filter would cost. */
       extrude?: Extrude | undefined
+      /** A ground behind the words, with its own padding and corners. */
+      background?: TextBackground | undefined
     })
   | (ElementBase & { kind: 'priceMark'; style?: PriceMarkStyle | undefined })
   | (ElementBase & {
@@ -950,6 +952,33 @@ export type BlockElement =
  * lands first. A corner fixed to the physical left would round the wrong
  * corner of the mirrored card.
  */
+/**
+ * A ground behind a text element: a label, a pill, a tag with the words inside.
+ *
+ * **On the text rather than a shape beside it**, because a shape beside it is
+ * the thing it replaces: two layers the owner has to move together, and a box
+ * that cannot know how long the bound product name turned out to be.
+ */
+export interface TextBackground {
+  fill: ColorValue
+  /**
+   * Room between the ground's edge and the words, on every side, as a fraction
+   * of the block's geometric mean — the unit a border's width is in, so it
+   * holds its look from an A4 column to a square post.
+   */
+  padding: number
+  /** The same corner radius a rectangle takes, in the same units. */
+  radius: number
+  /** Each corner's own radius, when they differ. See the shape's `corners`. */
+  corners?: CornerRadii | undefined
+  /**
+   * `box` fills the element's box; `text` wraps the words plus the padding,
+   * so a pill grows with a long product name and shrinks round a short one.
+   * Absent is `box`.
+   */
+  fit?: 'box' | 'text' | undefined
+}
+
 export interface CornerRadii {
   topStart: number
   topEnd: number

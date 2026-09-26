@@ -17,6 +17,7 @@ import type { Arrangement, BlockElement } from '@souqstudio/types'
 import { toArrangements } from './document'
 import { usesOnlyRoles } from './roles'
 import { shadowRings } from './shadow'
+import { inkOnGround } from './contrast'
 
 const BOX = { start: 0.1, top: 0.1, width: 0.5, height: 0.3 }
 const ROLE = { from: 'role' as const, ref: 'primary' as const }
@@ -259,5 +260,49 @@ describe('a shadow — §2.4', () => {
         )
       ).toBeNull()
     })
+  })
+})
+
+describe('corners and a ground behind text', () => {
+  const one = { topStart: 12, topEnd: 0, bottomEnd: 0, bottomStart: 0 }
+  const ground = { fill: ROLE, padding: 0.02, radius: 3 }
+
+  it('accepts a rectangle with its own corners', () => {
+    expect(toArrangements(arrange([shape({ corners: one })]))).not.toBeNull()
+  })
+
+  it('refuses a corner past the bound a radius has', () => {
+    expect(toArrangements(arrange([shape({ corners: { ...one, topStart: 65 } })]))).toBeNull()
+  })
+
+  it('accepts text with a ground, its corners and its fit', () => {
+    const parsed = toArrangements(
+      arrange([text({ background: { ...ground, corners: one, fit: 'text' } })])
+    )
+    expect(parsed?.[0]?.elements[0]).toMatchObject({ background: { fit: 'text' } })
+  })
+
+  it('refuses a padding that would bury the words', () => {
+    expect(toArrangements(arrange([text({ background: { ...ground, padding: 0.3 } })]))).toBeNull()
+  })
+
+  it('still accepts every text written before the ground existed', () => {
+    expect(toArrangements(arrange([text()]))).not.toBeNull()
+  })
+})
+
+describe('the ink on a ground', () => {
+  it('keeps the first ink when it reads best', () => {
+    expect(inkOnGround(['#101010'], ['#FFFFFF', '#111111'])).toBe('#FFFFFF')
+  })
+
+  it('judges a gradient by its weakest stop', () => {
+    // White clears the black end and vanishes into the pale one; mid-grey is
+    // mediocre on both and so the better answer across the label.
+    expect(inkOnGround(['#000000', '#F0F0F0'], ['#FFFFFF', '#777777'])).toBe('#777777')
+  })
+
+  it('gives no answer when nothing can be read', () => {
+    expect(inkOnGround(['url(#g)'], ['#FFFFFF'])).toBeNull()
   })
 })

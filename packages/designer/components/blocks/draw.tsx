@@ -17,6 +17,8 @@ import {
   drawsGround,
   fitPolicy,
   growCorners,
+  inkOnGround,
+  insetRect,
   layoutChipStack,
   fitText,
   layoutPriceMark,
@@ -38,6 +40,8 @@ import {
   shadowRings,
   shapeExtent,
   shapePath,
+  textGroundRect,
+  textInset,
   type BindingSubjects,
   type ChipStackRow,
   type OfferField,
@@ -1268,11 +1272,16 @@ function PriceMark({
  */
 export function fitTextElement(
   element: Extract<BlockElement, { kind: 'text' }>,
-  box: Rect,
+  outer: Rect,
   ctx: DrawContext
-): { content: string; fitted: ReturnType<typeof fitText>; step: TypeStep } | null {
+): FittedText | null {
   const content = contentFor(element, ctx)
   if (content === '') return null
+
+  // A ground's padding comes off the box before anything is measured, here
+  // rather than at each caller, so the ladder, the painter, the selection mark
+  // and the editor's escalation flag all see the same box.
+  const box = insetRect(outer, textInset(element.background, ctx.blockSize))
 
   const level = ctx.scale.levels[element.level]
   // **The element's own typography wins over the level's**, per field rather
@@ -1317,7 +1326,125 @@ export function fitTextElement(
     ...(policy.maxLines === undefined ? {} : { maxLines: policy.maxLines }),
   })
 
-  return { content, fitted, step }
+  return { content, fitted, step, box }
+}
+
+/** What the ladder decided, and the box — inside any padding — it decided it in. */
+export type FittedText = {
+  content: string
+  fitted: ReturnType<typeof fitText>
+  step: TypeStep
+  box: Rect
+}
+
+/**
+ * Where the words themselves land: the widest line across, every line down.
+ *
+ * One function for the selection mark and for a ground that wraps its text,
+ * because a pill that measured the words one way and a mark that measured them
+ * another would sit visibly apart.
+ */
+function wordsRect(
+  element: Extract<BlockElement, { kind: 'text' }>,
+  measured: FittedText,
+  ctx: DrawContext
+): Rect {
+  const { content, fitted, step, box } = measured
+  const family = fontStack(ctx.scale.families[step.family])
+  const { anchor, x, direction } = placeText(content, element.align, box, ctx.direction)
+
+  // The tracking, added here exactly as `advance` adds it in the engine — the
+  // measurer is told the weight and never the letter spacing, or the width
+  // would be counted twice.
+  const tracking = step.letterSpacing ?? 0
+  const widest = fitted.lines.reduce(
+    (widest, line) =>
+      Math.max(
+        widest,
+        ctx.measure(line, fitted.fontSize, family, { weight: step.weight }) +
+          tracking * fitted.fontSize * line.length
+      ),
+    0
+  )
+
+  // `start` is the start of the *string*, which is the right edge when the
+  // string reads right to left — the same reconciliation `placeText` makes,
+  // read back the other way.
+  const atLeft = (anchor === 'start') === (direction === 'ltr')
+  return {
+    x: anchor === 'middle' ? x - widest / 2 : atLeft ? x : x - widest,
+    y: box.y,
+    width: widest,
+    height: fitted.lines.length * fitted.fontSize * fitted.lineHeight,
+  }
+}
+
+/**
+ * The ground behind a text element, in the corners the owner set.
+ *
+ * **The same corners a rectangle draws**, from the same engine function, so a
+ * label with one rounded corner and a panel with one rounded corner round it
+ * the same way — and in an Arabic edition, the same mirrored way.
+ */
+function TextGround({
+  element,
+  box,
+  measured,
+  ctx,
+}: {
+  element: Extract<BlockElement, { kind: 'text' }>
+  box: Rect
+  measured: FittedText | null
+  ctx: DrawContext
+}) {
+  const background = element.background
+  if (background === undefined) return null
+  const rect = groundRect(element, box, measured, ctx)
+  if (rect === null) return null
+
+  // Per element: every card on a page is drawn from the same template ids, and
+  // `ctx.uid` is what keeps nine cards' gradients apart.
+  const { fill, defs } = paintFill(background.fill, {
+    token: ctx.token,
+    palette: ctx.palette ?? [],
+    id: `${ctx.uid}-tg-${element.id}`,
+  })
+  const corners = rectCorners(background.radius, background.corners)
+  return (
+    <>
+      {defs}
+      {typeof corners === 'number' ? (
+        <rect {...xywh(rect)} rx={corners} fill={fill} />
+      ) : (
+        <path d={roundedRectPath(rect, corners, ctx.direction)} fill={fill} />
+      )}
+    </>
+  )
+}
+
+/** Every colour a ground shows: one when flat, each stop when a gradient. */
+function groundColours(value: ColorValue, ctx: DrawContext): string[] {
+  const resolved = resolvePaint(value, ctx.token, ctx.palette ?? [])
+  return resolved.kind === 'flat' ? [resolved.css] : resolved.stops.map((stop) => stop.css)
+}
+
+/**
+ * Where a text element's ground draws, or null when it draws none.
+ */
+function groundRect(
+  element: Extract<BlockElement, { kind: 'text' }>,
+  box: Rect,
+  measured: FittedText | null,
+  ctx: DrawContext
+): Rect | null {
+  const background = element.background
+  if (background === undefined) return null
+  return textGroundRect(
+    box,
+    measured === null ? null : wordsRect(element, measured, ctx),
+    textInset(background, ctx.blockSize),
+    background.fit
+  )
 }
 
 /**
@@ -1344,36 +1471,13 @@ export function fitTextElement(
 export function paintedRect(element: BlockElement, box: Rect, ctx: DrawContext): Rect | null {
   if (element.kind === 'text') {
     const measured = fitTextElement(element, box, ctx)
-    if (measured === null) return null
-
-    const { content, fitted, step } = measured
-    const family = fontStack(ctx.scale.families[step.family])
-    const { anchor, x, direction } = placeText(content, element.align, box, ctx.direction)
-
-    // The tracking, added here exactly as `advance` adds it in the engine — the
-    // measurer is told the weight and never the letter spacing, or the width
-    // would be counted twice.
-    const tracking = step.letterSpacing ?? 0
-    const widest = fitted.lines.reduce(
-      (widest, line) =>
-        Math.max(
-          widest,
-          ctx.measure(line, fitted.fontSize, family, { weight: step.weight }) +
-            tracking * fitted.fontSize * line.length
-        ),
-      0
-    )
-
-    // `start` is the start of the *string*, which is the right edge when the
-    // string reads right to left — the same reconciliation `placeText` makes,
-    // read back the other way.
-    const atLeft = (anchor === 'start') === (direction === 'ltr')
-    return {
-      x: anchor === 'middle' ? x - widest / 2 : atLeft ? x : x - widest,
-      y: box.y,
-      width: widest,
-      height: fitted.lines.length * fitted.fontSize * fitted.lineHeight,
+    // A ground is what the owner sees, so it is what the mark traces: nothing
+    // extra for one that fills the box, its own rect for one that wraps.
+    if (element.background !== undefined) {
+      const ground = groundRect(element, box, measured, ctx)
+      return ground === box ? null : ground
     }
+    return measured === null ? null : wordsRect(element, measured, ctx)
   }
 
   // **A shape that holds its proportion draws in the largest square in its
@@ -1401,17 +1505,20 @@ export function paintedRect(element: BlockElement, box: Rect, ctx: DrawContext):
 
 function Text({
   element,
-  box,
+  box: outer,
   ctx,
 }: {
   element: Extract<BlockElement, { kind: 'text' }>
   box: Rect
   ctx: DrawContext
 }) {
-  const measured = fitTextElement(element, box, ctx)
-  if (measured === null) return null
+  const measured = fitTextElement(element, outer, ctx)
+  // Behind everything the words draw, their shadow and their side included.
+  const ground = <TextGround element={element} box={outer} measured={measured} ctx={ctx} />
+  if (measured === null) return ground
 
-  const { content, fitted, step } = measured
+  // The box inside the padding, which is the one the ladder fitted against.
+  const { content, fitted, step, box } = measured
   const family = fontStack(ctx.scale.families[step.family])
 
   // Position, anchor and direction together, from the engine. They cannot be
@@ -1477,14 +1584,29 @@ function Text({
       ? null
       : paintFill(element.color, { token: ctx.token, palette: ctx.palette ?? [], id: `${ctx.uid}-tf` })
 
+  const usual = onTint
+    ? ctx.token('surface')
+    : element.level === 'caption'
+      ? ctx.token('inkMuted')
+      : ctx.token('ink')
+
+  /**
+   * **On its own ground, the ink is decided by the ground.** This is the
+   * answer the note on `onTint` asks for, and the one place it is possible: the
+   * painter cannot see what is behind an element, but it can see a ground the
+   * element carries. The usual ink is tried first, so it survives any ground it
+   * already reads on.
+   */
   const fill =
     face !== null
       ? face.fill
-      : onTint
-        ? ctx.token('surface')
-        : element.level === 'caption'
-          ? ctx.token('inkMuted')
-          : ctx.token('ink')
+      : element.background === undefined
+        ? usual
+        : (inkOnGround(groundColours(element.background.fill, ctx), [
+            usual,
+            ctx.token('ink'),
+            ctx.token('surface'),
+          ]) ?? usual)
 
   /**
    * Everything that positions a run, shared by the text, its outline and its
@@ -1565,6 +1687,7 @@ function Text({
 
   return (
     <>
+      {ground}
       {face?.defs}
       {fitted.lines.map((line, i) =>
         sides.map((copy, c) => (

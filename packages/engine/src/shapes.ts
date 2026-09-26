@@ -18,7 +18,7 @@
  * Nothing here knows about pixels, and nothing here knows about the block.
  */
 
-import type { CornerRadii, ShapeArt } from '@souqstudio/types'
+import type { CornerRadii, ShapeArt, TextBackground } from '@souqstudio/types'
 import type { TextMeasurer } from './fit'
 import type { Direction, Rect } from './geometry'
 
@@ -677,6 +677,55 @@ export function roundedRectPath(
     arc(tl, x + tl, y) +
     'Z'
   )
+}
+
+// ─── Text ground ──────────────────────────────────────────────────────────────
+
+/**
+ * How far a text element's words sit inside its box, in the box's own units.
+ *
+ * **Every reader of a text box goes through this**, the painter, the fit
+ * ladder, the selection mark and compaction, so the words cannot be wrapped
+ * for one box and drawn in another.
+ */
+export function textInset(background: TextBackground | undefined, blockEdge: number): number {
+  return background === undefined ? 0 : Math.max(0, background.padding * blockEdge)
+}
+
+/** A rect pulled in by `by` on every side, never to a negative size. */
+export function insetRect(rect: Rect, by: number): Rect {
+  const x = Math.min(by, rect.width / 2)
+  const y = Math.min(by, rect.height / 2)
+  return {
+    x: rect.x + x,
+    y: rect.y + y,
+    width: rect.width - x * 2,
+    height: rect.height - y * 2,
+  }
+}
+
+/**
+ * Where a text element's ground draws.
+ *
+ * `box` fit is the element's box. `text` fit is the words' own extent grown by
+ * the padding, so a pill wraps a short name and grows with a long one; with no
+ * words there is nothing to wrap and it draws nothing, because an empty pill
+ * on a card whose product has no origin reads as a broken label.
+ */
+export function textGroundRect(
+  box: Rect,
+  words: Rect | null,
+  inset: number,
+  fit: TextBackground['fit']
+): Rect | null {
+  if (fit !== 'text') return box
+  if (words === null) return null
+  return {
+    x: words.x - inset,
+    y: words.y - inset,
+    width: words.width + inset * 2,
+    height: words.height + inset * 2,
+  }
 }
 
 /**
