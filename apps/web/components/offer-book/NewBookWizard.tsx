@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { BookOpen, FileSpreadsheet, Search, Smartphone, Square, Printer } from 'lucide-react'
 import type { BrandKit, CatalogSearchHit } from '@souqstudio/types'
 import { Button } from '@souqstudio/designer/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { BOOK_KINDS, KIND_SPEC, type BookKind } from '@/lib/book-kind'
 import { ChoiceCard } from '@/components/offer-book/ChoiceCard'
@@ -161,6 +162,18 @@ export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
    */
   const [restored, setRestored] = React.useState<SavedDraft | null | undefined>(undefined)
   const [savedAt, setSavedAt] = React.useState<string | null>(null)
+  /**
+   * Saved progress the owner has not yet chosen to continue or discard.
+   *
+   * **It used to be restored the moment the page opened**, straight onto step
+   * three with the last book's type, design and sheet — so an owner who came to
+   * make a *new* book found the previous one's CSV already matched, with
+   * nothing on screen saying why or how to get out of it but a "Start again"
+   * inside the matcher. Now the wizard asks first.
+   */
+  const [offered, setOffered] = React.useState<{ state: SavedDraft; updatedAt: string } | null>(
+    null
+  )
   const draftRef = React.useRef<MatcherDraft | null>(null)
   // The save on its way to the server, if any, and whether the book has been
   // made — after which nothing may save the draft again. See `create`.
@@ -175,8 +188,12 @@ export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
         const body = await res.json()
         if (cancelled) return
         const draft = body?.data?.draft ?? null
-        setRestored(draft === null ? null : (draft.state as SavedDraft))
-        setSavedAt(draft?.updatedAt ?? null)
+        if (draft === null) {
+          setRestored(null)
+          return
+        }
+        // **Asked, never assumed.** See `offered` below.
+        setOffered({ state: draft.state as SavedDraft, updatedAt: draft.updatedAt })
       } catch {
         // A draft that cannot be read is not a reason to refuse to make a book.
         if (!cancelled) setRestored(null)
@@ -325,6 +342,49 @@ export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function continueSaved() {
+    if (offered === null) return
+    setSavedAt(offered.updatedAt)
+    setRestored(offered.state)
+    setOffered(null)
+  }
+
+  function startNew() {
+    setOffered(null)
+    setRestored(null)
+    // Gone on the server as well, or the next visit offers it again.
+    void fetch('/api/v1/offer-books/draft', { method: 'DELETE' }).catch(() => undefined)
+  }
+
+  if (offered !== null) {
+    const label = offered.state.kind === null ? 'book' : KIND_SPEC[offered.state.kind].label.toLowerCase()
+    const kindLabel = `${/^[aeiou]/.test(label) ? 'an' : 'a'} ${label}`
+    const when = new Date(offered.updatedAt).toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    return (
+      <Card className="flex flex-col gap-3">
+        <h2 className="font-display text-subhead text-primary">You have a book in progress</h2>
+        <p className="font-ui text-body-sm text-secondary">
+          You started {kindLabel} on <span data-figure>{when}</span>
+          {offered.state.source === 'sheet' ? ' from a price list' : ''}. Continue it, or start a
+          new book and throw that one away.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" onClick={continueSaved}>
+            Continue it
+          </Button>
+          <Button type="button" variant="ghost" onClick={startNew}>
+            Start a new book
+          </Button>
+        </div>
+      </Card>
+    )
   }
 
   return (
