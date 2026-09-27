@@ -728,6 +728,12 @@ export type BlockElement =
        * `imagePadding` in the designer's painter.
        */
       padding?: number | undefined
+      /**
+       * How big the picture is drawn, as a multiple of the space the padding
+       * leaves, grown or shrunk about its centre. Absent means 1. Within
+       * `IMAGE_SCALE`. See `pictureRect` in the designer's painter.
+       */
+      scale?: number | undefined
       radius?: number | undefined
       stroke?: Stroke | undefined
       shadow?: Shadow | undefined
@@ -1295,6 +1301,17 @@ export const MARK_MINOR_SCALE = { min: 0.3, max: 1 } as const
  * which is the part that matters.
  */
 export const MARK_CURRENCY_SCALE = { min: 0.12, max: 0.6 } as const
+
+/**
+ * The photo size range on an image element, as a multiple of the space its
+ * padding leaves.
+ *
+ * **Wider than the per-card nudge** (`SLOT_OVERRIDE_LIMITS`, 0.8 to 1.25),
+ * because this is the design rather than a correction to it: changing it
+ * changes every card drawn from the block, and next week's cards with them. The
+ * two multiply, so a card nudged to 1.1 on a block set to 1.2 draws at 1.32.
+ */
+export const IMAGE_SCALE = { min: 0.5, max: 1.5 } as const
 
 /**
  * The gap between the code and the digits, as a fraction of the major.

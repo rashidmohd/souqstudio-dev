@@ -35,3 +35,22 @@ describe('image padding in the block document', () => {
     }
   })
 })
+
+describe('image scale in the block document', () => {
+  const scaled = (scale: unknown) => {
+    const [arrangement] = doc()
+    return [{ ...arrangement, elements: [{ ...arrangement!.elements[0], scale }] }]
+  }
+
+  it('accepts the photo size range', () => {
+    for (const scale of [0.5, 1, 1.15, 1.5]) {
+      expect(arrangementsSchema.safeParse(scaled(scale)).success).toBe(true)
+    }
+  })
+
+  it('refuses a scale outside it', () => {
+    for (const scale of [0.4, 1.51, 0, '120%']) {
+      expect(arrangementsSchema.safeParse(scaled(scale)).success).toBe(false)
+    }
+  })
+})

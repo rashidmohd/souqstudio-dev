@@ -804,6 +804,32 @@ export function imagePadding(element: Extract<BlockElement, { kind: 'image' }>):
   return element.padding ?? (element.source.from === 'product' ? 0.12 : 0)
 }
 
+/**
+ * Where the picture goes inside its box: inset by the padding, then grown or
+ * shrunk about its centre by `scale`.
+ *
+ * **About the centre, for the reason the per-card nudge gives** (`applyOverride`
+ * in the engine): an owner making the photo bigger means "fill more of the
+ * card", and growing from the corner would drag the product off to one side.
+ *
+ * **A `contain` picture scaled past its box is not clipped**, the same as a
+ * nudged one: the owner asked for a bigger packshot, and cutting its edges off
+ * at the box they cannot see would read as a broken image. `cover` is clipped
+ * to its box as always, so there it zooms the crop.
+ */
+export function pictureRect(element: Extract<BlockElement, { kind: 'image' }>, box: Rect): Rect {
+  const inset = Math.min(box.width, box.height) * imagePadding(element)
+  const scale = element.scale ?? 1
+  const width = (box.width - inset * 2) * scale
+  const height = (box.height - inset * 2) * scale
+  return {
+    x: box.x + (box.width - width) / 2,
+    y: box.y + (box.height - height) / 2,
+    width,
+    height,
+  }
+}
+
 function Packshot({
   element,
   box,
@@ -833,7 +859,7 @@ function Packshot({
   // stopped being its own kind is that every image property now applies to it,
   // and this is one of them.
   const artwork = source.from !== 'product'
-  const inset = Math.min(box.width, box.height) * imagePadding(element)
+  const picture = pictureRect(element, box)
   const cover = element.fit === 'cover'
 
   /**
@@ -846,10 +872,10 @@ function Packshot({
    */
   const grow = traced === null ? 0 : tracedGrowth(element)
   const drawn = {
-    x: box.x + inset - (box.width - inset * 2) * grow,
-    y: box.y + inset - (box.height - inset * 2) * grow,
-    width: (box.width - inset * 2) * (1 + grow * 2),
-    height: (box.height - inset * 2) * (1 + grow * 2),
+    x: picture.x - picture.width * grow,
+    y: picture.y - picture.height * grow,
+    width: picture.width * (1 + grow * 2),
+    height: picture.height * (1 + grow * 2),
   }
 
   if (url !== null) {
@@ -922,10 +948,7 @@ function Packshot({
     <>
       <rect {...xywh(box)} rx={radiusAt(3, ctx.blockSize)} fill={ARTBOARD_PLACEHOLDER.imageOuter} />
       <rect
-        x={box.x + inset}
-        y={box.y + inset}
-        width={box.width - inset * 2}
-        height={box.height - inset * 2}
+        {...xywh(picture)}
         rx={radiusAt(3, ctx.blockSize)}
         fill={ARTBOARD_PLACEHOLDER.imageInner}
       />
@@ -1547,16 +1570,11 @@ export function paintedRect(element: BlockElement, box: Rect, ctx: DrawContext):
     return path === null ? null : shapeExtent(path, box)
   }
 
-  // The picture's padding, from `imagePadding`, the same number `Packshot`
-  // insets by. An image with none reaches its box and has nothing to report.
-  if (element.kind === 'image' && imagePadding(element) > 0) {
-    const inset = Math.min(box.width, box.height) * imagePadding(element)
-    return {
-      x: box.x + inset,
-      y: box.y + inset,
-      width: box.width - inset * 2,
-      height: box.height - inset * 2,
-    }
+  // The picture's padding and size, from `pictureRect`, the same rectangle
+  // `Packshot` draws into. An image that exactly reaches its box has nothing
+  // to report.
+  if (element.kind === 'image' && (imagePadding(element) > 0 || (element.scale ?? 1) !== 1)) {
+    return pictureRect(element, box)
   }
 
   return null

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  IMAGE_SCALE,
   MARK_CURRENCY_GAP,
   MARK_CURRENCY_SCALE,
   MARK_MINOR_SCALE,
@@ -600,6 +601,8 @@ const elementSchema = z.discriminatedUnion('kind', [
      * Capped at 0.3: past that the picture is a speck in a frame.
      */
     padding: z.number().min(0).max(0.3).optional(),
+    /** Photo size about its centre. Absent is 1, so older documents draw as before. */
+    scale: z.number().min(IMAGE_SCALE.min).max(IMAGE_SCALE.max).optional(),
     radius: z.number().min(0).max(64).optional(),
     stroke: strokeSchema.optional(),
     shadow: shadowSchema.optional(),

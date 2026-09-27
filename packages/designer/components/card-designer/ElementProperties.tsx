@@ -1,7 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { AlignCenter, AlignLeft, AlignRight, Italic, Lock, Strikethrough } from 'lucide-react'
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Italic,
+  Lock,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  Strikethrough,
+} from 'lucide-react'
 import type {
   BlockElement,
   BrandColor,
@@ -22,6 +32,7 @@ import type {
   TypeLevel,
 } from '@souqstudio/types'
 import {
+  IMAGE_SCALE,
   MARK_CURRENCY_GAP,
   MARK_CURRENCY_SCALE,
   MARK_MINOR_SCALE,
@@ -49,6 +60,7 @@ import {
 import { IMAGE_BINDINGS, TEXT_BINDINGS, bindingInScope, bindingKey, labelFor } from '@souqstudio/engine'
 import type { OfferField } from '@souqstudio/engine'
 import { Button } from '../ui/button'
+import { Figure } from '../ui/figure'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { MachineOutput } from '../ui/machine-output'
@@ -485,6 +497,16 @@ export function ElementProperties({
             hint="Space between the box and the picture. At 0% the picture reaches the edges."
             onValueChange={(padding) => onChange({ ...element, padding: padding / 100 })}
           />
+          <PhotoSize
+            value={element.scale ?? 1}
+            disabled={disabled}
+            onChange={(scale) => {
+              // 100% removes the field rather than storing 1, so a block put
+              // back to its design is the same document it was before.
+              const { scale: _cleared, ...rest } = element
+              onChange(scale === 1 ? rest : { ...rest, scale })
+            }}
+          />
         </>
       ) : null}
 
@@ -610,6 +632,82 @@ function Field({
         <p className="font-ui text-body-sm text-muted">{hint}</p>
       )}
     </div>
+  )
+}
+
+/** Five percent a press, the same step as the offer book editor's Photo control. */
+const PHOTO_SIZE_STEP = 0.05
+
+/**
+ * The picture's size, grown or shrunk about its centre.
+ *
+ * **The offer book editor's Photo control, on the design.** Same buttons, same
+ * step, same readout, so an owner who learned it on one card finds it here. The
+ * difference is reach: that one nudges one card between 80% and 125%; this
+ * changes every card drawn from the block, within `IMAGE_SCALE`, and the two
+ * multiply.
+ *
+ * Rounded to a whole percent on every press, because 1 + 0.05 × 3 is not 1.15
+ * in floating point, and a stored 1.0000000000000002 on the way back down would
+ * read 100% and still not be 1, so the reset would stay live and the field
+ * would never be dropped.
+ */
+function PhotoSize({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: number
+  disabled: boolean
+  onChange: (scale: number) => void
+}) {
+  const step = (by: number) =>
+    onChange(
+      Math.min(
+        IMAGE_SCALE.max,
+        Math.max(IMAGE_SCALE.min, Math.round((value + by) * 100) / 100)
+      )
+    )
+
+  return (
+    <Field
+      label="Photo size"
+      hint="Grows the picture from its centre on every card drawn from this block."
+    >
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          iconOnly
+          aria-label="Make the photo smaller"
+          disabled={disabled || value <= IMAGE_SCALE.min}
+          onClick={() => step(-PHOTO_SIZE_STEP)}
+        >
+          <Minimize2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+        <Figure value={`${Math.round(value * 100)}%`} size="data-sm" />
+        <Button
+          type="button"
+          variant="ghost"
+          iconOnly
+          aria-label="Make the photo bigger"
+          disabled={disabled || value >= IMAGE_SCALE.max}
+          onClick={() => step(PHOTO_SIZE_STEP)}
+        >
+          <Maximize2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          iconOnly
+          aria-label="Put the photo back to 100%"
+          disabled={disabled || value === 1}
+          onClick={() => onChange(1)}
+        >
+          <RotateCcw className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+      </div>
+    </Field>
   )
 }
 
