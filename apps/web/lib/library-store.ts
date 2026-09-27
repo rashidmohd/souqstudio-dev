@@ -7,6 +7,7 @@ import {
   arrangementsSchema,
   describeColourProblems,
   paletteColours,
+  validateBlock,
 } from '@souqstudio/engine'
 import type { BlockCategory, Occasion } from '@souqstudio/engine'
 import type { BrandColor, BrandKit } from '@souqstudio/types'
@@ -140,6 +141,23 @@ export async function publishDocument(
 ): Promise<LibraryManifest> {
   // The rule the loader will apply at the far end. Refusing here means the
   // person who drew the block hears about it; refusing there means a deploy does.
+  // **The loader's own bar, here as well.** `library-source.ts` refuses any
+  // block that draws a warning, and it refuses the whole library with it — so
+  // a block published past this point failed the next sync and every deploy
+  // after it, and the person who could fix it heard nothing. On 27 September
+  // four cards reached the bucket that way. Same function, same bar, the
+  // owner's own words for each problem.
+  const blocking = validateBlock({
+    repeats: document.repeats,
+    arrangements: document.arrangements,
+  })
+  if (blocking.length > 0) {
+    throw new LibraryPublishError(
+      'block_invalid',
+      `Fix this in the designer first: ${[...new Set(blocking.map((problem) => problem.message))].join('. ')}. The library turns away a block with any warning on it, because every shop gets it as it is.`
+    )
+  }
+
   const problems = paletteColours(document.arrangements)
   if (problems.length > 0) {
     throw new LibraryPublishError(

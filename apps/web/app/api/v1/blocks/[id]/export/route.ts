@@ -3,6 +3,7 @@ import {
   BLOCK_CATEGORIES,
   describeColourProblems,
   freezePalette,
+  validateBlock,
   type BlockCategory,
 } from '@souqstudio/engine'
 import { prisma } from '@souqstudio/db'
@@ -83,6 +84,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return fail(
       'block_invalid',
       'This block cannot be exported as it is. Open it in the designer and save it again.',
+      422
+    )
+  }
+
+  // The loader refuses a block with any warning, so an export that has one is a
+  // file the library will turn away. Said here, in the owner's words.
+  const blocking = validateBlock({ repeats: block.repeats, arrangements: arrangements.data })
+  if (blocking.length > 0) {
+    return fail(
+      'block_invalid',
+      `Fix this in the designer first: ${[...new Set(blocking.map((problem) => problem.message))].join('. ')}. The library turns away a block with any warning on it.`,
       422
     )
   }
