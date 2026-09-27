@@ -757,6 +757,9 @@ export function DesignerShell({
                         Add a layout
                       </Button>
                     ) : null}
+                    {editable ? (
+                      <CopyLayoutFrom name={(item) => PAGE_SHAPES[shapeFor(item)].label} />
+                    ) : null}
                   </>
                 )
               }
@@ -1073,7 +1076,46 @@ function ArrangementTabs() {
           Add a layout
         </Button>
       ) : null}
+
+      {editable ? (
+        <CopyLayoutFrom
+          name={(item) => `${shapeName(item)} · ${ratioLabel(middleAspect(item))}`}
+        />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * Make the open layout a copy of another.
+ *
+ * **A picker that is an action**, and it says so: it always reads "Copy from…"
+ * and goes back to that once a layout is chosen, because it names no state of
+ * the block — it does one thing to the layout you are on. Undo takes it back
+ * like any edit. Hidden until there is a second layout to copy.
+ */
+function CopyLayoutFrom({ name }: { name: (arrangement: Arrangement) => string }) {
+  const arrangements = useDesignerStore((state) => state.arrangements)
+  const index = useDesignerStore((state) => state.arrangementIndex)
+  const copyLayoutFrom = useDesignerStore((state) => state.copyLayoutFrom)
+  if (arrangements.length < 2) return null
+
+  return (
+    <InlineSelect
+      label="Replace this layout with a copy of another"
+      className="w-field-select"
+      value="none"
+      leading={<Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+      options={[
+        { value: 'none', label: 'Copy from…' },
+        ...arrangements.flatMap((item, i) =>
+          i === index ? [] : [{ value: String(i), label: `Copy from ${name(item)}` }]
+        ),
+      ]}
+      onChange={(next) => {
+        if (next !== 'none') copyLayoutFrom(Number(next))
+      }}
+    />
   )
 }
 

@@ -76,6 +76,11 @@ type DesignerState = {
   select: (ids: string[]) => void
   toggleSelect: (id: string) => void
   selectArrangement: (index: number) => void
+  /**
+   * Make the open layout a copy of another one: its elements, cloned. One undo
+   * step. See the implementation for why this exists.
+   */
+  copyLayoutFrom: (sourceIndex: number) => void
   setDirection: (direction: 'ltr' | 'rtl') => void
   setName: (name: string) => void
   setSave: (save: SaveState) => void
@@ -175,6 +180,38 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       // in another shape is a different element list.
       selectedIds: [],
     })),
+
+  /**
+   * **A block's layouts are separate element lists, and nothing kept them in
+   * step.** A block copied from the library arrives with four — tall, square,
+   * wide, banner — and an owner who redesigned the tall one switched to the
+   * square and found the old design still there: the brand pill, the tag and
+   * the new price were in one layout only. Adding a layout copies the one open,
+   * but a layout that already existed had no way to catch up.
+   *
+   * This is that way: the open layout takes a copy of another, and the owner
+   * then fits it to its own shape. Box positions are fractions of the card, so
+   * a copy lands in proportion rather than off the edge. Keeps the layout's own
+   * aspect range, which is what makes it a different layout at all.
+   */
+  copyLayoutFrom: (sourceIndex) =>
+    set((state) => {
+      const source = state.arrangements[sourceIndex]
+      if (!state.editable || source === undefined || sourceIndex === state.arrangementIndex) {
+        return state
+      }
+      return {
+        arrangements: withElements(
+          state.arrangements,
+          state.arrangementIndex,
+          structuredClone(source.elements)
+        ),
+        selectedIds: [],
+        past: pushed(state.past, state.arrangements),
+        future: [],
+        save: 'dirty',
+      }
+    }),
 
   setDirection: (direction) => set({ direction }),
   setName: (name) => set({ name, save: 'dirty' }),
