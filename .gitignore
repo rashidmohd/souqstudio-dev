@@ -62,3 +62,6 @@ data/
 __pycache__/
 *.pyc
 apps/rembg/.venv/
+
+# Catalog backups (`pnpm --filter @souqstudio/db catalog:backup`). Data, not code.
+backups/
