@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { listFonts, prisma } from '@souqstudio/db'
 import { toArrangements } from '@souqstudio/engine'
@@ -10,6 +11,7 @@ import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
 import { requireAdmin, roleAtLeast } from '@/lib/admin-auth'
 import { summarize } from '@/lib/block-summary'
 import { libraryConfig } from '@/lib/library-client'
+import { libraryCopies } from '@/lib/library-copies'
 import { env } from '@/lib/env'
 import { OCCASIONS } from '@souqstudio/engine'
 import { OccasionField } from '@/components/blocks/OccasionField'
@@ -63,6 +65,9 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
   if (block === null) notFound()
 
   const summary = summarize(block.arrangements)
+  // The copies publishing made of this block. A library block is its own copy.
+  const copies = LIBRARY_ID.test(block.id) ? [] : await libraryCopies(block.id)
+  const current = copies.filter((copy) => copy.state !== 'unpublished')
   const arrangements = toArrangements(block.arrangements)
   const { catalog, css } = fontsForKit(await listFonts(), LIBRARY_PREVIEW_KIT)
 
@@ -106,7 +111,11 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
             ? 'SouqStudio'
             : (block.organization?.name ?? 'An organization')}
         </StatusPill>
-        {LIBRARY_ID.test(block.id) ? null : (
+        {LIBRARY_ID.test(block.id) ? null : current.length > 0 ? (
+          <StatusPill tone="positive">
+            In the library as {current.map((copy) => copy.libraryId).join(', ')}
+          </StatusPill>
+        ) : (
           <StatusPill tone="caution">Needs a library id</StatusPill>
         )}
       </div>
@@ -285,6 +294,51 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
         </Card>
       ) : null}
 
+      {/*
+        **The draft is not what shops get; these are.** Publishing copies this
+        block under a library id and leaves the draft a draft, so the answer to
+        "did it publish?" is here rather than in the pill above.
+      */}
+      {copies.length > 0 ? (
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-label font-medium text-secondary">In the library</h2>
+          <p className="text-body-sm text-secondary">
+            Publishing copies this draft into the library under its library id. The draft
+            itself stays a draft; publish again under the same id to update the copy.
+          </p>
+          {current.length > 1 ? (
+            <p className="text-body-sm text-caution-fg">
+              Shops get one copy for each id below. Unpublish the ones you did not mean to
+              keep.
+            </p>
+          ) : null}
+          <ul className="flex flex-col gap-2">
+            {copies.map((copy) => (
+              <li key={copy.libraryId} className="flex flex-wrap items-center justify-between gap-2">
+                <Link href={`/blocks/${copy.libraryId}`} className="font-mono text-body-sm text-link underline">
+                  {copy.libraryId}
+                </Link>
+                <StatusPill
+                  tone={
+                    copy.state === 'in_shops'
+                      ? 'positive'
+                      : copy.state === 'awaiting_sync'
+                        ? 'caution'
+                        : 'quiet'
+                  }
+                >
+                  {copy.state === 'in_shops'
+                    ? 'In every shop'
+                    : copy.state === 'awaiting_sync'
+                      ? 'Published, waiting for a sync'
+                      : 'Unpublished'}
+                </StatusPill>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       {!maySupply ? (
         <Card>
           <p className="text-body text-secondary">
@@ -301,7 +355,9 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
       ) : (
         <PublishPanel
           blockId={block.id}
-          suggestedId={LIBRARY_ID.test(block.id) ? block.id : ''}
+          // The copy published last, so publishing again updates it rather
+          // than adding another card to every shop.
+          suggestedId={LIBRARY_ID.test(block.id) ? block.id : (current[0]?.libraryId ?? '')}
           name={block.name}
           description={block.description ?? ''}
           category={block.category ?? ''}

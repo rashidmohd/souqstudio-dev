@@ -42,14 +42,17 @@ export function PublishPanel({
   category,
 }: {
   blockId: string
-  /** The row's own id when it is already a library id, otherwise empty. */
+  /** The row's own id when it is a library id, else the copy it was last published as, else empty. */
   suggestedId: string
   name: string
   description: string
   category: string
 }) {
   const router = useRouter()
-  const [libraryId, setLibraryId] = useState(suggestedId)
+  // A draft with no copy yet starts from its own name. The field used to start
+  // empty under a "blk_ramadan_band" placeholder, and that is the id an offer
+  // card went out under on 26 September.
+  const [libraryId, setLibraryId] = useState(suggestedId === '' ? idFromName(name) : suggestedId)
   const [chosenCategory, setChosenCategory] = useState(category)
   const [published, setPublished] = useState<PublishResponse | null>(null)
   const [synced, setSynced] = useState<string | null>(null)
@@ -126,7 +129,7 @@ export function PublishPanel({
             id="libraryId"
             value={libraryId}
             onChange={(event) => setLibraryId(event.target.value)}
-            placeholder="blk_ramadan_band"
+            placeholder={idFromName(name)}
           />
         </Field>
 
@@ -187,4 +190,14 @@ export function PublishPanel({
       )}
     </Card>
   )
+}
+
+/** A library id made from a block's name: "Price pill on tinted panel" → "blk_price_pill_on_tinted_panel". */
+function idFromName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48)
+  return slug === '' ? '' : `blk_${slug}`
 }

@@ -126,7 +126,13 @@ export async function POST(request: NextRequest) {
   if (id === null) {
     return fail(
       'invalid_request',
-      'This block has a generated id. Give it a library id ("id": "blk_ramadan_band") because a library id is permanent and a cuid means nothing.'
+      `This block has a generated id. Give it a library id named for what it is, such as "blk_${
+        row.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 48) || 'offer_card'
+      }", because a library id is permanent and a cuid means nothing.`
     )
   }
 
