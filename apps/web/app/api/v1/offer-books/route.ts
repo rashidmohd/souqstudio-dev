@@ -201,6 +201,7 @@ export async function POST(request: NextRequest) {
         422
       )
     }
+    await clearWizardDraft(shop.id, session.user.id)
     return ok(book, 201)
   }
 
@@ -216,6 +217,7 @@ export async function POST(request: NextRequest) {
         422
       )
     }
+    await clearWizardDraft(shop.id, session.user.id)
     return ok(book, 201)
   }
 
@@ -227,6 +229,8 @@ export async function POST(request: NextRequest) {
   if (book === null) {
     return fail('shop_not_found', 'That shop is not one of yours.', 404)
   }
+
+  await clearWizardDraft(shop.id, session.user.id)
 
   return ok(book, 201)
 }
@@ -257,4 +261,18 @@ export async function GET() {
   return ok(
     books.map(({ _count, ...book }) => ({ ...book, offerCount: _count.offers }))
   )
+}
+
+/**
+ * The new-book wizard's saved progress, gone once the book it was for exists.
+ *
+ * **The server does this as well as the client.** The client's delete raced its
+ * own autosave and lost — a save landing half a second after the book wrote
+ * the draft back, and the next "new book" opened on step three with the last
+ * book's sheet and design. Outside the book's transaction on purpose: the book
+ * is made, and a draft that outlives it is recoverable with "start again",
+ * where a failed create is not.
+ */
+async function clearWizardDraft(shopId: string, userId: string): Promise<void> {
+  await prisma.offerBookDraft.deleteMany({ where: { shopId, userId } }).catch(() => undefined)
 }

@@ -110,10 +110,19 @@ function useDebouncedDraft(save: (draft: MatcherDraft | null) => void) {
     []
   )
 
-  return React.useCallback((draft: MatcherDraft | null) => {
+  const schedule = React.useCallback((draft: MatcherDraft | null) => {
     if (pending.current !== null) clearTimeout(pending.current)
     pending.current = setTimeout(() => latest.current(draft), 2000)
   }, [])
+
+  // For the moment the book exists: a save still waiting on its timer must not
+  // fire after the draft is thrown away.
+  const cancel = React.useCallback(() => {
+    if (pending.current !== null) clearTimeout(pending.current)
+    pending.current = null
+  }, [])
+
+  return { schedule, cancel }
 }
 
 export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
@@ -153,6 +162,10 @@ export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
   const [restored, setRestored] = React.useState<SavedDraft | null | undefined>(undefined)
   const [savedAt, setSavedAt] = React.useState<string | null>(null)
   const draftRef = React.useRef<MatcherDraft | null>(null)
+  // The save on its way to the server, if any, and whether the book has been
+  // made — after which nothing may save the draft again. See `create`.
+  const inFlight = React.useRef<Promise<unknown> | null>(null)
+  const finished = React.useRef(false)
 
   React.useEffect(() => {
     let cancelled = false
@@ -197,14 +210,14 @@ export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
   const saveDraft = React.useCallback(
     (matcher: MatcherDraft | null) => {
       draftRef.current = matcher
-      if (matcher === null) return
+      if (matcher === null || finished.current) return
       const state: SavedDraft = {
         kind,
         cardBlockId,
         source,
         matcher,
       }
-      void fetch('/api/v1/offer-books/draft', {
+      const request = fetch('/api/v1/offer-books/draft', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ state }),
@@ -214,11 +227,13 @@ export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
           if (body?.data?.updatedAt) setSavedAt(body.data.updatedAt)
         })
         .catch(() => undefined)
+      inFlight.current = request
+      void request
     },
     [kind, cardBlockId, source]
   )
 
-  const onDraftChange = useDebouncedDraft(saveDraft)
+  const { schedule: onDraftChange, cancel: cancelDraftSave } = useDebouncedDraft(saveDraft)
 
   // Referentially stable, or the effect inside `PriceListMatcher` that reports
   // its resolved rows fires on every render of this component.
@@ -283,7 +298,22 @@ export function NewBookWizard({ blocks, kit, lang, currency }: Props) {
        * trading the thing that worked for nothing. A stale draft is recoverable
        * — the owner presses "start again" — where a lost book is not.
        */
-      void fetch('/api/v1/offer-books/draft', { method: 'DELETE' }).catch(() => undefined)
+      /*
+       * **And nothing may save it again after that.** The delete used to race
+       * the autosave: a save due in the two seconds before the owner pressed
+       * Create — or already on the wire — landed after the delete and wrote the
+       * draft back, so the next "new book" opened on step three with the last
+       * book's sheet and design. On 27 September the dev database held a draft
+       * created half a second after its own book. So: no more saves, the
+       * pending one cancelled, and the delete sent only once any save already
+       * sent has come back. The server also clears it when it makes the book.
+       */
+      finished.current = true
+      cancelDraftSave()
+      void (inFlight.current ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(() => fetch('/api/v1/offer-books/draft', { method: 'DELETE' }))
+        .catch(() => undefined)
 
       // Straight to the preview, which is a real book by then. `loadBook` runs
       // the engine over database rows and there is no second path that composes
