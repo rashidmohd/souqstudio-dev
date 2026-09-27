@@ -961,11 +961,14 @@ function textGround(
   )
   if (box === null) return ''
 
-  const paint = resolvePaint(background.fill, color)
+  // No fill is an outline-only label, and nothing is drawn at all without a
+  // border either. Line for line with `TextGround` in `draw.tsx`.
+  if (background.fill === undefined && background.stroke === undefined) return ''
+  const paint = background.fill === undefined ? null : resolvePaint(background.fill, color)
   const id = `tg-${element.id}`
-  const fill = paint.kind === 'flat' ? paint.css : `url(#${id})`
+  const fill = paint === null ? 'none' : paint.kind === 'flat' ? paint.css : `url(#${id})`
   const defs =
-    paint.kind === 'flat'
+    paint === null || paint.kind === 'flat'
       ? ''
       : `<defs><linearGradient id="${id}"` +
         ` x1="${paint.x1}" y1="${paint.y1}" x2="${paint.x2}" y2="${paint.y2}">` +
@@ -973,13 +976,19 @@ function textGround(
         `</linearGradient></defs>`
   const corners = radiusAt(rectCorners(background.radius, background.corners), blockEdge)
   const opacity = background.opacity ?? 1
-  const alpha = opacity < 1 ? ` fill-opacity="${opacity}"` : ''
+  // The ground's opacity is the fill's; the border stays solid.
+  const alpha = paint !== null && opacity < 1 ? ` fill-opacity="${opacity}"` : ''
+  const border =
+    background.stroke === undefined
+      ? ''
+      : ` stroke="${resolveColor(background.stroke.color, color)}"` +
+        ` stroke-width="${background.stroke.width * blockEdge}"`
   return (
     defs +
     (typeof corners === 'number'
       ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}"` +
-        ` rx="${corners}" fill="${fill}"${alpha}/>`
-      : `<path d="${roundedRectPath(box, corners, ctx.direction)}" fill="${fill}"${alpha}/>`)
+        ` rx="${corners}" fill="${fill}"${alpha}${border}/>`
+      : `<path d="${roundedRectPath(box, corners, ctx.direction)}" fill="${fill}"${alpha}${border}/>`)
   )
 }
 
@@ -1090,9 +1099,12 @@ function inkFor(
       : element.level === 'caption'
         ? KIT.inkMuted
         : KIT.ink
-  if (element.background === undefined || !groundDecidesInk(element.background)) return usual
+  const fill = element.background?.fill
+  if (element.background === undefined || fill === undefined || !groundDecidesInk(element.background)) {
+    return usual
+  }
   // On its own ground, the ground decides — the rule `draw.tsx` states.
-  const paint = resolvePaint(element.background.fill, color)
+  const paint = resolvePaint(fill, color)
   const ground = paint.kind === 'flat' ? [paint.css] : paint.stops.map((stop) => stop.css)
   return inkOnGround(ground, [usual, KIT.ink, KIT.surface]) ?? usual
 }

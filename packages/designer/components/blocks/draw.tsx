@@ -1482,23 +1482,45 @@ function TextGround({
   const rect = groundRect(element, box, measured, ctx)
   if (rect === null) return null
 
+  // A fill, a border, or both. Neither draws nothing, rather than an
+  // invisible rectangle.
+  if (background.fill === undefined && background.stroke === undefined) return null
+
   // Per element: every card on a page is drawn from the same template ids, and
   // `ctx.uid` is what keeps nine cards' gradients apart.
-  const { fill, defs } = paintFill(background.fill, {
-    token: ctx.token,
-    palette: ctx.palette ?? [],
-    id: `${ctx.uid}-tg-${element.id}`,
-  })
+  const { fill, defs } =
+    background.fill === undefined
+      ? { fill: 'none', defs: null }
+      : paintFill(background.fill, {
+          token: ctx.token,
+          palette: ctx.palette ?? [],
+          id: `${ctx.uid}-tg-${element.id}`,
+        })
   const corners = radiusAt(rectCorners(background.radius, background.corners), ctx.blockSize)
   const opacity = background.opacity ?? 1
-  const alpha = opacity < 1 ? { fillOpacity: opacity } : {}
+  // The ground's opacity is the fill's: a see-through label keeps a solid edge.
+  const alpha = background.fill !== undefined && opacity < 1 ? { fillOpacity: opacity } : {}
+  // **The same outline as the fill**, so the border follows the corners, the
+  // fit and the mirroring; centred on the edge, as a shape's border is.
+  const border =
+    background.stroke === undefined
+      ? {}
+      : {
+          stroke: paint(ctx, background.stroke.color),
+          strokeWidth: background.stroke.width * ctx.blockSize,
+        }
   return (
     <>
       {defs}
       {typeof corners === 'number' ? (
-        <rect {...xywh(rect)} rx={corners} fill={fill} {...alpha} />
+        <rect {...xywh(rect)} rx={corners} fill={fill} {...alpha} {...border} />
       ) : (
-        <path d={roundedRectPath(rect, corners, ctx.direction)} fill={fill} {...alpha} />
+        <path
+          d={roundedRectPath(rect, corners, ctx.direction)}
+          fill={fill}
+          {...alpha}
+          {...border}
+        />
       )}
     </>
   )
@@ -1677,7 +1699,7 @@ function Text({
   const fill =
     face !== null
       ? face.fill
-      : element.background === undefined || !groundDecidesInk(element.background)
+      : element.background?.fill === undefined || !groundDecidesInk(element.background)
         ? usual
         : (inkOnGround(groundColours(element.background.fill, ctx), [
             usual,

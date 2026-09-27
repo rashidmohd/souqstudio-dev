@@ -288,6 +288,11 @@ describe('corners and a ground behind text', () => {
     expect(toArrangements(arrange([text({ background: { ...ground, opacity: 1.2 } })]))).toBeNull()
   })
 
+  it('accepts a ground that is a border alone', () => {
+    const outline = { padding: 0.02, radius: 3, stroke: { color: ROLE, width: 0.004 } }
+    expect(toArrangements(arrange([text({ background: outline })]))).not.toBeNull()
+  })
+
   it('refuses a padding that would bury the words', () => {
     expect(toArrangements(arrange([text({ background: { ...ground, padding: 0.3 } })]))).toBeNull()
   })
@@ -328,6 +333,15 @@ describe('a colour a shared block may not hold', () => {
     expect(usesOnlyRoles(block([badge]))).toBe(false)
     expect(colourProblems(block([badge]))).toEqual([
       { elementId: 't1', layer: '“SAVE 20%”', position: 1, slot: 'background' },
+    ])
+  })
+
+  it('names a ground border drawn in a palette colour', () => {
+    const badge = text({
+      background: { padding: 0.02, radius: 3, stroke: { color: PALETTE, width: 0.004 } },
+    })
+    expect(colourProblems(block([badge])).map((problem) => problem.slot)).toEqual([
+      'background border',
     ])
   })
 

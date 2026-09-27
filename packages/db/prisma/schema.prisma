@@ -1396,8 +1396,22 @@ model Offer {
   /// Deposit lines, service fees — rendered under the card, not as footnotes.
   legalLines String[]
 
+  /// The design this product's card is drawn with, when an owner chose one for
+  /// it. Null draws the card every cell of the book draws.
+  ///
+  /// **On the offer, not on the cell**, because an owner choosing a design for
+  /// twelve products means those twelve: the book re-flows every time a product
+  /// is added or moved, and a choice stored against `r1c2` would land on
+  /// whatever flowed into that cell next. It also beats a cell's own choice
+  /// (`offer_book_pages.regionBlocks`) — the more specific answer wins.
+  ///
+  /// Only a repeating block, checked at the route. `SetNull` so deleting a
+  /// design puts its products back on the book's card rather than failing.
+  cardBlockId String?
+
   book      OfferBook           @relation(fields: [bookId], references: [id], onDelete: Cascade)
   promoTier PromoTier           @relation(fields: [promoTierId], references: [id])
+  cardBlock Block?              @relation(fields: [cardBlockId], references: [id], onDelete: SetNull)
   items     OfferItem[]
   chips     OfferChip[]
   footnotes OfferFootnote[]
@@ -1408,6 +1422,7 @@ model Offer {
 
   @@unique([bookId, position])
   @@index([bookId])
+  @@index([cardBlockId])
   @@map("offers")
 }
 
@@ -1706,6 +1721,8 @@ model Block {
   organization Organization?  @relation(fields: [organizationId], references: [id])
   versions     BlockVersion[]
   pins         BookPin[]
+  /// Offers drawn with this design instead of their book's card.
+  offers       Offer[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 

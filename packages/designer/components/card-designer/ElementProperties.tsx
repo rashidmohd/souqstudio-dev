@@ -27,6 +27,7 @@ import type {
   PriceMarkRecipe,
   PriceMarkStyle,
   ShadowPreset,
+  Stroke,
   TextOverflow,
   TokenRef,
   TypeLevel,
@@ -1593,10 +1594,12 @@ function CornerRadiusFields({
 }
 
 /**
- * A ground behind the words: its colour, how big it is, its padding, its corners.
+ * A ground behind the words: its colour, its border, how big it is, its
+ * padding, its corners.
  *
- * **"None" removes the whole ground**, the way a border's does, rather than
- * leaving a padding and a radius attached to nothing.
+ * **"None" on the colour removes the fill and "None" on the border removes the
+ * border**; the ground itself goes when neither is left, rather than leaving a
+ * padding and a radius attached to nothing.
  *
  * It starts at the box and a small padding: the box is what the owner is
  * looking at when they pick the colour, so the colour lands where they expect
@@ -1614,6 +1617,26 @@ function TextBackgroundFields({
   onChange: (element: BlockElement) => void
 }) {
   const background = element.background
+
+  /**
+   * The ground with one of its two paints changed. **It exists while either
+   * does**: a border alone is a ground, and so is a fill alone, and taking away
+   * the last of them removes the ground with its padding and corners rather
+   * than leaving an invisible one behind.
+   */
+  const withGround = (next: { fill?: ColorValue | undefined; stroke?: Stroke | undefined }) => {
+    const merged = {
+      padding: BACKGROUND_PADDING.default,
+      radius: 3,
+      ...background,
+      ...next,
+    }
+    onChange({
+      ...element,
+      background: merged.fill === undefined && merged.stroke === undefined ? undefined : merged,
+    })
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <ColorControl
@@ -1622,16 +1645,18 @@ function TextBackgroundFields({
         value={background?.fill}
         {...color}
         hint="A colour behind the words. The text colour follows it so it stays readable."
-        onClear={() => onChange({ ...element, background: undefined })}
-        onChange={(fill: ColorValue) =>
-          onChange({
-            ...element,
-            background:
-              background === undefined
-                ? { fill, padding: BACKGROUND_PADDING.default, radius: 3 }
-                : { ...background, fill },
-          })
-        }
+        onClear={() => withGround({ fill: undefined })}
+        onChange={(fill: ColorValue) => withGround({ fill })}
+      />
+
+      {/* The same control a shape's border uses, on the ground's own outline —
+          so a price boxed in a hairline, or a tag drawn as an outline, is the
+          ground with no fill and a border. */}
+      <StrokeControl
+        label="Background border"
+        value={background?.stroke}
+        {...color}
+        onChange={(stroke) => withGround({ stroke })}
       />
 
       {background === undefined ? null : (
@@ -1656,25 +1681,28 @@ function TextBackgroundFields({
             />
           </Field>
           {/* A slider, like the element's own opacity: an owner setting it is
-              looking at the card, not at a number. */}
-          <Slider
-            label="Background opacity"
-            unit="%"
-            min={0}
-            max={100}
-            step={1}
-            disabled={disabled}
-            value={Math.round((background.opacity ?? 1) * 100)}
-            onValueChange={(next) => {
-              const opacity = clamp(next, 0, 100) / 100
-              onChange({
-                ...element,
-                // Solid is the absent value, so a ground set back to 100% is
-                // stored exactly as one that was never changed.
-                background: { ...background, opacity: opacity === 1 ? undefined : opacity },
-              })
-            }}
-          />
+              looking at the card, not at a number. The fill's alone, so an
+              outline-only ground does not offer it. */}
+          {background.fill === undefined ? null : (
+            <Slider
+              label="Background opacity"
+              unit="%"
+              min={0}
+              max={100}
+              step={1}
+              disabled={disabled}
+              value={Math.round((background.opacity ?? 1) * 100)}
+              onValueChange={(next) => {
+                const opacity = clamp(next, 0, 100) / 100
+                onChange({
+                  ...element,
+                  // Solid is the absent value, so a ground set back to 100% is
+                  // stored exactly as one that was never changed.
+                  background: { ...background, opacity: opacity === 1 ? undefined : opacity },
+                })
+              }}
+            />
+          )}
           <PaddingFields
             padding={background.padding}
             sides={background.paddingSides}

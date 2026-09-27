@@ -88,6 +88,7 @@ export function colourProblems(arrangements: readonly Arrangement[]): ColourProb
       if (element.kind === 'text') {
         check('text colour', element.color)
         check('background', element.background?.fill)
+        check('background border', element.background?.stroke?.color)
         check('outline', element.stroke?.color)
         check('shadow', element.shadow?.color)
         check('3D depth', element.extrude?.color)

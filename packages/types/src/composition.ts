@@ -978,7 +978,19 @@ export type BlockElement =
  * that cannot know how long the bound product name turned out to be.
  */
 export interface TextBackground {
-  fill: ColorValue
+  /**
+   * The ground's colour. **Optional, so a label can be an outline alone**: a
+   * price boxed in a hairline, a tag drawn as a border round its words. A
+   * ground with neither a fill nor a border is not stored — the panel removes
+   * the ground when the last of the two goes.
+   */
+  fill?: ColorValue | undefined
+  /**
+   * A border round the ground, drawn on the same outline as the fill — its
+   * corners, its fit, its mirroring in Arabic. Solid, like a shape's border,
+   * and the same unit: a fraction of the block's geometric mean.
+   */
+  stroke?: Stroke | undefined
   /**
    * How much of the ground shows, 0 to 1. Absent is solid.
    *

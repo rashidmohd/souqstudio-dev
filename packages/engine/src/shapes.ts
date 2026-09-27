@@ -786,7 +786,9 @@ export function insetRect(rect: Rect, by: Insets): Rect {
  * ground is most of what the eye reads the words against.
  */
 export const groundDecidesInk = (background: TextBackground): boolean =>
-  (background.opacity ?? 1) >= 0.5
+  // An outline is not a ground the words sit on: with no fill, what shows
+  // behind them is whatever is behind the label, so the usual ink stands.
+  background.fill !== undefined && (background.opacity ?? 1) >= 0.5
 
 /**
  * Where a text element's ground draws.

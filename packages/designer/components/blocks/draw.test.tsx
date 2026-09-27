@@ -426,6 +426,31 @@ describe('paint', () => {
       expect(strong).toContain('fill="#111111"')
     })
 
+    it('draws an outline alone when the ground has a border and no fill', () => {
+      const outline = {
+        padding: 0.02,
+        radius: 3,
+        stroke: { color: DARK, width: 0.005 },
+      }
+      const out = draw(text({ background: outline }))
+      // 0.5% of a 400 block: a 2-unit line round an empty ground.
+      expect(out).toMatch(/<rect[^>]*fill="none"[^>]*stroke="#101010"[^>]*stroke-width="2"/)
+    })
+
+    it('draws both on one outline, with the opacity on the fill alone', () => {
+      const both = ground({ opacity: 0.4, stroke: { color: LIGHT, width: 0.005 } })
+      const out = draw(text({ background: both }))
+      expect(out).toMatch(/<rect[^>]*fill="#101010"[^>]*fill-opacity="0.4"[^>]*stroke="#F4F1EA"/)
+      expect(out).not.toContain('stroke-opacity')
+    })
+
+    it('leaves the words their usual ink on an outline', () => {
+      // No fill behind them, so nothing to pick an ink against: static text
+      // keeps the surface colour it has with no ground at all.
+      const outline = { padding: 0.02, radius: 3, stroke: { color: LIGHT, width: 0.005 } }
+      expect(draw(text({ background: outline }), INKS)).toContain('fill="#FFFFFF"')
+    })
+
     it('keeps a colour the owner picked for the words', () => {
       const out = draw(text({ color: LIGHT, background: ground({ fill: LIGHT }) }), INKS)
       expect(out).not.toContain('fill="#111111"')

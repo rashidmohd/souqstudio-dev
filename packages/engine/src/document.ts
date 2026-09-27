@@ -670,7 +670,8 @@ const elementSchema = z.discriminatedUnion('kind', [
      */
     background: z
       .strictObject({
-        fill: colorSchema,
+        fill: colorSchema.optional(),
+        stroke: strokeSchema.optional(),
         // One constant alpha, which prints: the soft mask `export-check.ts`
         // bans is a gradient stop's alpha, not a flat fill's.
         opacity: z.number().min(0).max(1).optional(),
