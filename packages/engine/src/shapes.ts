@@ -590,6 +590,38 @@ export function shapePath(
 // ─── Rectangle corners ────────────────────────────────────────────────────────
 
 /**
+ * The card size a corner radius is measured against: a card whose geometric
+ * mean edge is this many units, which is the designer's tall card (400 by 720).
+ *
+ * **Every other size on an element is a share of its block, and a radius was
+ * not.** A border, a shadow and a text ground's padding are all fractions of
+ * the block's geometric mean, so a card reads the same in a one-column A4 cell
+ * and a three-by-three one. The radius was drawn as a raw number of units: 5
+ * looked right on the designer's 720-unit card and 2.5 times as round on a
+ * 210-unit booklet cell, so an offer tag an owner was happy with came out a
+ * different shape every time the book's grid changed.
+ *
+ * The stored number keeps its meaning — the radius an owner typed, on the card
+ * they typed it on — and every painter scales it to the block it is drawing.
+ * No document changes, and the designer's tall card draws exactly as before.
+ */
+export const RADIUS_REFERENCE_EDGE = 540
+
+/** A radius, or four, at the size of the block being drawn. See `RADIUS_REFERENCE_EDGE`. */
+export function radiusAt<T extends number | CornerRadii>(value: T, blockEdge: number): T {
+  const scale = blockEdge / RADIUS_REFERENCE_EDGE
+  // A number in is a number out; `T` is only ever `number` on this branch.
+  if (typeof value === 'number') return (value * scale) as T
+  // Same shape in, same shape out; only the numbers change.
+  return {
+    topStart: value.topStart * scale,
+    topEnd: value.topEnd * scale,
+    bottomEnd: value.bottomEnd * scale,
+    bottomStart: value.bottomStart * scale,
+  } as T
+}
+
+/**
  * A rectangle's corners, as the renderers draw them: one number when all four
  * agree, the four when they do not.
  *

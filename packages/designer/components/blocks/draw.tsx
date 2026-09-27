@@ -32,6 +32,7 @@ import {
   type ShapeOptions,
   placeText,
   PREFIX_TEXT,
+  radiusAt,
   rectCorners,
   resolveColor,
   resolveImageBinding,
@@ -358,8 +359,8 @@ function ShadowLayer({
   const css = paint(ctx, shadow.color)
   // A rectangle whose corners differ casts from zero and adds its own corners
   // back per ring, so each corner grows by exactly what the ring grew.
-  const uneven = unevenCorners(element)
-  const rings = shadowRings(shadowPx(shadow, ctx), box, uneven === null ? radiusOf(element) : 0, {
+  const uneven = unevenCorners(element, ctx)
+  const rings = shadowRings(shadowPx(shadow, ctx), box, uneven === null ? radiusOf(element, ctx) : 0, {
     ...outputFor(ctx),
     // The shop's own darkness when they set one. `shadowRings` already took a
     // `peak`; nothing was passing it, so every shadow accumulated to the
@@ -372,7 +373,7 @@ function ShadowLayer({
   // The shadow of a pentagon has five sides, and the shadow of a three-wave
   // header has three waves. Every parameter travels, or the shadow is a
   // different shape from the thing casting it.
-  const shapeOptions: ShapeOptions = element.kind === 'shape' ? shapeParams(element) : {}
+  const shapeOptions: ShapeOptions = element.kind === 'shape' ? shapeParams(element, ctx) : {}
 
   /**
    * **An outline-only shape casts from its outline, not from its silhouette.**
@@ -469,7 +470,13 @@ function ShadowLayer({
  * through `shapePath`, so it needs the same number for the same reason. The
  * rest compute their own corners and take none.
  */
-function radiusOf(element: BlockElement): number {
+function radiusOf(element: BlockElement, ctx: DrawContext): number {
+  // Scaled to this block, as every other size on an element is. See
+  // `RADIUS_REFERENCE_EDGE`.
+  return radiusAt(designedRadius(element), ctx.blockSize)
+}
+
+function designedRadius(element: BlockElement): number {
   if (element.kind === 'shape') {
     if (element.variant === undefined || element.variant === 'rect') {
       // Four equal corners are one radius, and it is theirs rather than the
@@ -488,11 +495,11 @@ function radiusOf(element: BlockElement): number {
  * single `rx` still says it — which is every rectangle drawn before a corner
  * could differ, and every one whose four corners were set equal.
  */
-function unevenCorners(element: BlockElement): CornerRadii | null {
+function unevenCorners(element: BlockElement, ctx: DrawContext): CornerRadii | null {
   if (element.kind !== 'shape') return null
   if (element.variant !== undefined && element.variant !== 'rect') return null
   const corners = rectCorners(element.radius, element.corners)
-  return typeof corners === 'number' ? null : corners
+  return typeof corners === 'number' ? null : radiusAt(corners, ctx.blockSize)
 }
 
 /**
@@ -590,7 +597,7 @@ function drawBody(element: BlockElement, box: Rect, ctx: DrawContext): React.Rea
     case 'image':
       return <Packshot element={element} box={box} ctx={ctx} />
     case 'logo':
-      return <rect {...xywh(box)} rx={3} fill={ARTBOARD_PLACEHOLDER.onTint} />
+      return <rect {...xywh(box)} rx={radiusAt(3, ctx.blockSize)} fill={ARTBOARD_PLACEHOLDER.onTint} />
     case 'chip':
       return <Chip element={element} box={box} ctx={ctx} />
     case 'priceMark':
@@ -710,7 +717,7 @@ function Shape({
       <>
         {defs}
         <path
-          d={shapePath(path, box, ctx.direction, shapeParams(element))}
+          d={shapePath(path, box, ctx.direction, shapeParams(element, ctx))}
           fill={fill}
           {...(needsEvenOdd(path) ? { fillRule: 'evenodd' as const } : {})}
           {...strokeProps}
@@ -719,7 +726,7 @@ function Shape({
     )
   }
 
-  const uneven = unevenCorners(element)
+  const uneven = unevenCorners(element, ctx)
   if (uneven !== null) {
     return (
       <>
@@ -732,7 +739,7 @@ function Shape({
   return (
     <>
       {defs}
-      <rect {...xywh(box)} rx={radiusOf(element)} fill={fill} {...strokeProps} />
+      <rect {...xywh(box)} rx={radiusOf(element, ctx)} fill={fill} {...strokeProps} />
     </>
   )
 }
@@ -746,13 +753,18 @@ function Shape({
  * one. A shape and its shadow disagreeing is the kind of thing nobody reports
  * and everybody notices.
  */
-function shapeParams(element: Extract<BlockElement, { kind: 'shape' }>): ShapeOptions {
+function shapeParams(
+  element: Extract<BlockElement, { kind: 'shape' }>,
+  ctx: DrawContext
+): ShapeOptions {
   return {
     sides: element.sides,
     curve: element.curve,
     waves: element.waves,
     tail: element.tail,
-    radius: element.radius,
+    // At this block's size — a polygon's and a bubble's corners are the same
+    // kind of number a rectangle's are.
+    radius: radiusAt(element.radius, ctx.blockSize),
   }
 }
 
@@ -862,7 +874,7 @@ function Packshot({
         {cover ? (
           <defs>
             <clipPath id={clip}>
-              <rect {...xywh(box)} rx={element.radius ?? 0} />
+              <rect {...xywh(box)} rx={radiusAt(element.radius ?? 0, ctx.blockSize)} />
             </clipPath>
           </defs>
         ) : null}
@@ -891,7 +903,13 @@ function Packshot({
    * box there reads as a broken image. `harness/svg.ts` draws the same thing.
    */
   if (source.from === 'brand') {
-    return <rect {...xywh(box)} rx={element.radius ?? 3} fill={ARTBOARD_PLACEHOLDER.onTint} />
+    return (
+      <rect
+        {...xywh(box)}
+        rx={radiusAt(element.radius ?? 3, ctx.blockSize)}
+        fill={ARTBOARD_PLACEHOLDER.onTint}
+      />
+    )
   }
 
   // Artwork the owner uploaded that has not loaded draws nothing rather than a
@@ -902,13 +920,13 @@ function Packshot({
 
   return (
     <>
-      <rect {...xywh(box)} rx={3} fill={ARTBOARD_PLACEHOLDER.imageOuter} />
+      <rect {...xywh(box)} rx={radiusAt(3, ctx.blockSize)} fill={ARTBOARD_PLACEHOLDER.imageOuter} />
       <rect
         x={box.x + inset}
         y={box.y + inset}
         width={box.width - inset * 2}
         height={box.height - inset * 2}
-        rx={3}
+        rx={radiusAt(3, ctx.blockSize)}
         fill={ARTBOARD_PLACEHOLDER.imageInner}
       />
     </>
@@ -1165,10 +1183,10 @@ function PriceMark({
         */}
       {l.groundShape === 'none' ? null : l.groundShape === 'box' ? (
         <>
-          <rect {...xywh(l.mark)} rx={3} fill={groundFill} />
+          <rect {...xywh(l.mark)} rx={radiusAt(3, ctx.blockSize)} fill={groundFill} />
           <rect
             {...xywh(l.mark)}
-            rx={3}
+            rx={radiusAt(3, ctx.blockSize)}
             fill="none"
             stroke={groundStroke}
             strokeWidth={Math.max(1, l.mark.height * 0.035)}
@@ -1448,7 +1466,7 @@ function TextGround({
     palette: ctx.palette ?? [],
     id: `${ctx.uid}-tg-${element.id}`,
   })
-  const corners = rectCorners(background.radius, background.corners)
+  const corners = radiusAt(rectCorners(background.radius, background.corners), ctx.blockSize)
   const opacity = background.opacity ?? 1
   const alpha = opacity < 1 ? { fillOpacity: opacity } : {}
   return (

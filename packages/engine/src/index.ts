@@ -98,6 +98,8 @@ export {
   insetRect,
   layoutChipStack,
   needsEvenOdd,
+  radiusAt,
+  RADIUS_REFERENCE_EDGE,
   rectCorners,
   roundedRectPath,
   shapeExtent,

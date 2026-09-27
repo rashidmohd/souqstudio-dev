@@ -29,6 +29,7 @@ import {
   markRecipe,
   needsEvenOdd,
   PATH_SHAPES,
+  radiusAt,
   type ShapeOptions,
   placeText,
   readableInkOn,
@@ -177,13 +178,16 @@ function neededHeight(
  * is here to catch the two renderers disagreeing, so it reads the element
  * itself rather than importing the browser's answer.
  */
-function shapeParams(element: Extract<BlockElement, { kind: 'shape' }>): ShapeOptions {
+function shapeParams(
+  element: Extract<BlockElement, { kind: 'shape' }>,
+  blockEdge: number
+): ShapeOptions {
   return {
     sides: element.sides,
     curve: element.curve,
     waves: element.waves,
     tail: element.tail,
-    radius: element.radius,
+    radius: radiusAt(element.radius, blockEdge),
   }
 }
 
@@ -260,9 +264,10 @@ function castShadow(
   // `draw.tsx`, and the harness exists to catch the two disagreeing.
   // A rectangle with uneven corners grows each of them by the ring's own
   // growth, so it casts from zero and adds its corners back per ring.
+  // Every radius at this block's size, as `draw.tsx` scales it.
   const uneven =
     element.kind === 'shape' && (element.variant === undefined || element.variant === 'rect')
-      ? rectCorners(element.radius, element.corners)
+      ? radiusAt(rectCorners(element.radius, element.corners), blockEdge)
       : null
   const radius =
     uneven !== null
@@ -270,13 +275,11 @@ function castShadow(
         ? uneven
         : 0
       : element.kind === 'shape'
-        ? element.variant === undefined ||
-          element.variant === 'rect' ||
-          element.variant === 'polygon'
-          ? element.radius
+        ? element.variant === 'polygon'
+          ? radiusAt(element.radius, blockEdge)
           : 0
         : element.kind === 'image'
-          ? (element.radius ?? 0)
+          ? radiusAt(element.radius ?? 0, blockEdge)
           : 0
   const rings = shadowRings(
     {
@@ -295,7 +298,7 @@ function castShadow(
       : null
   // Every parameter travels, or the shadow is a different shape from the thing
   // casting it. Same reader as `draw.tsx`'s `shapeParams`.
-  const params: ShapeOptions = element.kind === 'shape' ? shapeParams(element) : {}
+  const params: ShapeOptions = element.kind === 'shape' ? shapeParams(element, blockEdge) : {}
 
   return rings
     .map((ring) => {
@@ -351,16 +354,16 @@ function paintBody(
       // rather than as a reserved space. Same box, same geometry, different
       // palette, because the ground underneath is different.
       return element.source.from === 'brand'
-        ? logoPlaceholder(rect, placeholderLabel(element.source, product, ctx))
-        : imagePlaceholder(rect, element.source, product, ctx, element.fit ?? 'contain')
+        ? logoPlaceholder(rect, placeholderLabel(element.source, product, ctx), blockEdge)
+        : imagePlaceholder(rect, element.source, product, ctx, element.fit ?? 'contain', blockEdge)
     // Still renderable, and deleted in the release after the one that converts
     // — a block published to R2 is read by every shop. E14 §6 and Phase 8.
     case 'logo':
-      return logoPlaceholder(rect, 'logo')
+      return logoPlaceholder(rect, 'logo', blockEdge)
     case 'chip':
       return product === undefined ? '' : chip(element, rect, product, ctx)
     case 'priceMark':
-      return product === undefined ? '' : priceMark(element, rect, product)
+      return product === undefined ? '' : priceMark(element, rect, product, blockEdge)
     case 'text':
       return text(element, rect, product, ctx, blockEdge)
   }
@@ -433,13 +436,13 @@ function shape(
     // The side count travels with the shape, or the harness draws a hexagon
     // where the browser drew a triangle — which is exactly the drift this
     // harness exists to catch.
-    const d = shapePath(shape, rect, 'ltr', shapeParams(element))
+    const d = shapePath(shape, rect, 'ltr', shapeParams(element, blockEdge))
     return defs + `<path d="${d}" fill="${fill}"${rule}${strokeAttrs}/>`
   }
 
   // Uneven corners are a path; four equal ones stay the `<rect>` they always
-  // were. Same split as `draw.tsx`.
-  const corners = rectCorners(element.radius, element.corners)
+  // were. Same split, and the same scale, as `draw.tsx`.
+  const corners = radiusAt(rectCorners(element.radius, element.corners), blockEdge)
   if (typeof corners !== 'number') {
     return (
       defs +
@@ -460,7 +463,8 @@ function imagePlaceholder(
   source: Extract<BlockElement, { kind: 'image' }>['source'],
   product: HarnessProduct | undefined,
   ctx: RenderContext,
-  fit: 'contain' | 'cover'
+  fit: 'contain' | 'cover',
+  blockEdge: number
 ): string {
   // A `cover` box is filled edge to edge, because that is what `cover` means and
   // because the blocks that use it put the name and the price on top of the
@@ -481,8 +485,8 @@ function imagePlaceholder(
   const size = Math.min(inner.width * 0.22, inner.height * 0.16, 22)
 
   return [
-    rounded(rect, '#ECEAE4', 3),
-    rounded(inner, '#DEDBD2', 3),
+    rounded(rect, '#ECEAE4', radiusAt(3, blockEdge)),
+    rounded(inner, '#DEDBD2', radiusAt(3, blockEdge)),
     `<text x="${mid(rect.x, rect.width)}" y="${mid(rect.y, rect.height)}" font-size="${size}"`,
     ` fill="${KIT.inkMuted}" text-anchor="middle" dominant-baseline="middle">${esc(label)}</text>`,
   ].join('')
@@ -521,12 +525,12 @@ function placeholderLabel(
  * footer's ink band or a hero's tint almost every time, and an opaque light box
  * there reads as a broken image instead of as a space held for something.
  */
-function logoPlaceholder(rect: Rect, label: string): string {
+function logoPlaceholder(rect: Rect, label: string, blockEdge: number): string {
   // Bounded against the box's width as well as its height, because a wide
   // lockup in a short band would otherwise set its label wider than its box.
   const size = Math.min(rect.height * 0.4, rect.width / Math.max(label.length, 1) * 1.6, 20)
   return [
-    rounded(rect, '#FFFFFF22', 3),
+    rounded(rect, '#FFFFFF22', radiusAt(3, blockEdge)),
     `<text x="${mid(rect.x, rect.width)}" y="${mid(rect.y, rect.height)}" font-size="${size}"`,
     ` fill="#FFFFFFAA" text-anchor="middle" dominant-baseline="middle">${esc(label)}</text>`,
   ].join('')
@@ -639,7 +643,8 @@ function fitLabel(content: string, maxWidth: number, maxSize: number, perChar: n
 function priceMark(
   element: Extract<BlockElement, { kind: 'priceMark' }>,
   rect: Rect,
-  product: HarnessProduct
+  product: HarnessProduct,
+  blockEdge: number
 ): string {
   // The composition stays ours; the skin is the shop's. `ground: 'none'` drops
   // the shape and the outline so the digits sit straight on a tinted card, and
@@ -711,9 +716,9 @@ function priceMark(
     l.groundShape === 'none'
       ? ''
       : l.groundShape === 'box'
-        ? rounded(l.mark, groundFill, 3) +
+        ? rounded(l.mark, groundFill, radiusAt(3, blockEdge)) +
           `<rect x="${l.mark.x}" y="${l.mark.y}" width="${l.mark.width}" height="${l.mark.height}"` +
-          ` rx="3" fill="none" stroke="${groundStroke}" stroke-width="${stroke}"/>`
+          ` rx="${radiusAt(3, blockEdge)}" fill="none" stroke="${groundStroke}" stroke-width="${stroke}"/>`
         : `<path d="${shapePath(l.groundShape, l.mark, 'ltr')}" fill="${groundFill}"/>` +
           `<path d="${shapePath(l.groundShape, l.mark, 'ltr')}" fill="none"` +
           ` stroke="${groundStroke}" stroke-width="${stroke}"/>`
@@ -966,7 +971,7 @@ function textGround(
         ` x1="${paint.x1}" y1="${paint.y1}" x2="${paint.x2}" y2="${paint.y2}">` +
         paint.stops.map((stop) => `<stop offset="${stop.at}" stop-color="${stop.css}"/>`).join('') +
         `</linearGradient></defs>`
-  const corners = rectCorners(background.radius, background.corners)
+  const corners = radiusAt(rectCorners(background.radius, background.corners), blockEdge)
   const opacity = background.opacity ?? 1
   const alpha = opacity < 1 ? ` fill-opacity="${opacity}"` : ''
   return (

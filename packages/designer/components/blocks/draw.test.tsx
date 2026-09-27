@@ -20,7 +20,7 @@ import * as React from 'react'
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { BlockElement, BrandKit, TextSource } from '@souqstudio/types'
-import { TEXT_BINDINGS, IMAGE_BINDINGS, labelFor } from '@souqstudio/engine'
+import { TEXT_BINDINGS, IMAGE_BINDINGS, RADIUS_REFERENCE_EDGE, labelFor } from '@souqstudio/engine'
 import { toPriceMark } from '@souqstudio/engine'
 import { resolveScale } from '../../lib/font-catalog'
 import { TEST_CATALOG } from '../../lib/font-catalog.fixture'
@@ -231,17 +231,43 @@ describe('paint', () => {
     })
   })
 
+  // At the reference card size a radius is drawn as the number the owner typed.
+  const AT_REFERENCE: DrawContext = { ...CTX, blockSize: RADIUS_REFERENCE_EDGE }
+
+  describe('a corner radius', () => {
+    const rx = (out: string) => Number(/rx="([\d.]+)"/.exec(out)?.[1])
+
+    it('is drawn as typed on a card the size the designer draws', () => {
+      expect(rx(draw(shape({ fill: ROLE, radius: 5 }), AT_REFERENCE))).toBe(5)
+    })
+
+    it('keeps its share of the card when the grid makes the card smaller or larger', () => {
+      // A booklet cell a third the size, and a full-width band twice it: the
+      // corner is the same share of the card in both, which is what the owner
+      // saw in the designer.
+      const small = rx(draw(shape({ fill: ROLE, radius: 5 }), { ...CTX, blockSize: 180 }))
+      const large = rx(draw(shape({ fill: ROLE, radius: 5 }), { ...CTX, blockSize: 1080 }))
+      expect(small).toBeCloseTo(5 / 3, 5)
+      expect(large).toBeCloseTo(10, 5)
+    })
+
+    it('scales a text ground the same way', () => {
+      const tag = text({ background: { fill: ROLE, padding: 0.02, radius: 5 } })
+      expect(rx(draw(tag, { ...CTX, blockSize: 1080 }))).toBeCloseTo(10, 5)
+    })
+  })
+
   describe('a rectangle with its own corners', () => {
     const one = { topStart: 12, topEnd: 0, bottomEnd: 0, bottomStart: 0 }
 
     it('stays a rect when the corners are absent or all the same', () => {
       expect(draw(shape({ fill: ROLE }))).toContain('<rect')
       const same = { topStart: 6, topEnd: 6, bottomEnd: 6, bottomStart: 6 }
-      expect(draw(shape({ fill: ROLE, corners: same }))).toContain('rx="6"')
+      expect(draw(shape({ fill: ROLE, corners: same }), AT_REFERENCE)).toContain('rx="6"')
     })
 
     it('draws a path when one corner differs', () => {
-      const out = draw(shape({ fill: ROLE, corners: one }))
+      const out = draw(shape({ fill: ROLE, corners: one }), AT_REFERENCE)
       expect(out).not.toContain('<rect')
       expect(out).toContain('<path d="M12,0')
     })
@@ -320,7 +346,7 @@ describe('paint', () => {
     const startX = (out: string) => Number(/<text[^>]* x="([\d.]+)"/.exec(out)?.[1])
 
     it('draws the whole box behind the words by default', () => {
-      const out = draw(text({ background: ground() }))
+      const out = draw(text({ background: ground() }), AT_REFERENCE)
       expect(out).toContain('<rect x="0" y="0" width="300" height="80" rx="3" fill="#101010"')
       // Painted first, so the words sit on it.
       expect(out.indexOf('<rect')).toBeLessThan(out.indexOf('<text'))
@@ -368,7 +394,7 @@ describe('paint', () => {
 
     it('rounds one corner as a path, like a rectangle does', () => {
       const corners = { topStart: 10, topEnd: 0, bottomEnd: 0, bottomStart: 0 }
-      const out = draw(text({ background: ground({ corners }) }))
+      const out = draw(text({ background: ground({ corners }) }), AT_REFERENCE)
       expect(out).toContain('<path d="M10,0')
     })
 
