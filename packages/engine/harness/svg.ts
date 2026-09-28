@@ -125,9 +125,24 @@ function renderPlacement(placement: Placement, ctx: RenderContext): string {
     ctx.compaction ?? 'none'
   )
 
-  return compacted.elements
-    .map(({ element, rect }) => renderElement(element, rect, product, ctx, blockEdge))
-    .join('\n')
+  // Trimmed to the placement, except the offer badge, which overhangs a card
+  // on purpose. Line for line with `BookPage`, which carries the reasoning.
+  const trim = `trim-${placement.sourceId}-${placement.rect.x}-${placement.rect.y}`.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_'
+  )
+  const { x, y, width, height } = placement.rect
+  return (
+    `<defs><clipPath id="${trim}"><rect x="${x}" y="${y}" width="${width}" height="${height}"/></clipPath></defs>\n` +
+    compacted.elements
+      .map(({ element, rect }) => {
+        const drawn = renderElement(element, rect, product, ctx, blockEdge)
+        return element.kind === 'chip' || drawn === ''
+          ? drawn
+          : `<g clip-path="url(#${trim})">${drawn}</g>`
+      })
+      .join('\n')
+  )
 }
 
 /**

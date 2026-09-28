@@ -106,3 +106,52 @@ describe('BookPage artwork', () => {
     expect(draw()).not.toContain('cdn.example')
   })
 })
+
+describe('BookPage trim', () => {
+  // The owner's header: a photograph pushed off the right edge so only its
+  // middle shows, and an offer badge that overhangs the corner on purpose.
+  const CROPPED: Block = {
+    ...BLOCK,
+    arrangements: [
+      {
+        aspectMin: 0.01,
+        aspectMax: 100,
+        elements: [
+          {
+            id: 'photo',
+            kind: 'image',
+            box: { start: 0.5, top: -0.2, width: 0.8, height: 1.4 },
+            source: { from: 'asset', assetId: KEY },
+            fit: 'cover',
+          },
+          { id: 'badge', kind: 'chip', box: { start: 0.9, top: -0.1, width: 0.2, height: 0.2 }, anchor: 'TOP_END' },
+        ],
+      },
+    ],
+  }
+  const drawn = renderToStaticMarkup(
+    <BookPage
+      page={PAGE}
+      size={{ width: 600, height: 800 }}
+      offers={{}}
+      blocks={{ [CROPPED.id]: CROPPED }}
+      kit={KIT}
+      identity={artboardIdentity({ shop: { name: 'Fixture Mart', location: null, phone: null } })}
+      direction="ltr"
+      asset={(assetId) => `https://cdn.example/${assetId}`}
+    />
+  )
+
+  it('cuts what was pushed past the block at the edge of its cell, as the designer does', () => {
+    // The clip is the placement's own rectangle, and the picture is inside it.
+    expect(drawn).toMatch(/<clipPath id="[^"]+"><rect x="0" y="0" width="600" height="400"/)
+    const clipped = /<g clip-path="url\(#([^)]+)\)">(.*?)<\/g>/.exec(drawn)
+    expect(clipped?.[2]).toContain(URL)
+  })
+
+  it('leaves the offer badge free to overhang the card', () => {
+    const groups = [...drawn.matchAll(/<g clip-path="url\(#[^)]+\)">/g)]
+    // One element is trimmed; the badge is drawn outside every trim group.
+    expect(groups).toHaveLength(1)
+  })
+})

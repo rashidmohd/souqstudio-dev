@@ -319,13 +319,38 @@ export function BookPage({
         const selected =
           !editingCells && placement.offerId !== null && placement.offerId === selectedOfferId
 
+        /**
+         * **Trimmed to its own cell, as the designer trims it to its artboard.**
+         * Dragging past the block's edge is how an owner crops — a photograph
+         * pushed off the side so only its middle shows, a band run off the
+         * trim (`BLEED` in the engine says so). The designer's artboard is its
+         * own SVG and clips there; the page drew every element straight onto
+         * itself, so the part the owner had pushed out appeared across the
+         * margin and the next cell.
+         *
+         * **Except the offer badge.** A chip overhangs a repeating card on
+         * purpose, and the page leaves room between cards for exactly that
+         * (`CHIP_BLEED`). Element by element rather than one group, so the
+         * paint order the owner set is kept.
+         */
+        const trim = `${uid}-${index}-trim`.replace(/[^a-zA-Z0-9_-]/g, '')
+
         return (
           <React.Fragment key={`${placement.blockId}-${index}`}>
-            {nudged.elements.map(({ element, rect }, elementIndex) => (
-              <React.Fragment key={elementIndex}>
-                {drawElement(element, rect, ctx)}
-              </React.Fragment>
-            ))}
+            <defs>
+              <clipPath id={trim}>
+                <rect {...rectAttrs(placement.rect)} />
+              </clipPath>
+            </defs>
+            {nudged.elements.map(({ element, rect }, elementIndex) =>
+              element.kind === 'chip' ? (
+                <React.Fragment key={elementIndex}>{drawElement(element, rect, ctx)}</React.Fragment>
+              ) : (
+                <g key={elementIndex} clipPath={`url(#${trim})`}>
+                  {drawElement(element, rect, ctx)}
+                </g>
+              )
+            )}
 
             {selected ? (
               // Drawn after the card so the ring is never covered by an element
