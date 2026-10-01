@@ -19,6 +19,7 @@ import {
 import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { CutoutWatch } from '@/components/editor/CutoutWatch'
+import { FillWatch } from '@/components/editor/FillWatch'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PagePanel } from '@/components/editor/PagePanel'
 import { BlockPickerDialog, type PickerScope } from '@/components/editor/BlockPickerDialog'
@@ -654,6 +655,7 @@ export function EditorShell({
           in a toast — here rather than in the properties panel, because the
           wait has to survive the owner selecting another card. */}
       <CutoutWatch />
+      <FillWatch editingBlock={editingBlock} onReview={setEditingBlock} />
 
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
         <Link

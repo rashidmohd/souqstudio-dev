@@ -13,12 +13,15 @@ import { Figure } from '../ui/figure'
 import { MachineOutput } from '../ui/machine-output'
 import { Textarea } from '../ui/textarea'
 import { useDesignerHost } from '../../lib/designer-host'
+import { clearFill, read, startFill, useFillJobs } from '../../lib/fill-jobs'
 
 /**
  * Generative fill: words for the text an owner would otherwise type, from a
  * short brief and the shop's profile.
  *
- * **Three screens in one dialog: ask, wait, review.** Nothing reaches the
+ * **Three screens in one dialog: ask, wait, review.** The wait can be left:
+ * the job belongs to `lib/fill-jobs.ts`, so closing this mid-write keeps it
+ * running, and the designer says when it is ready. Nothing reaches the
  * block until the owner presses "Use this text", and then it lands as one
  * undo step. What comes back is shown under `MachineOutput`, and each line
  * keeps a machine mark on the block until the owner edits it.
@@ -31,6 +34,8 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   blockId: string
+  /** For the notice that reports the job if the owner has moved on. */
+  blockName: string
   /** The free text the fill will write, in paint order. */
   targets: readonly FreeTextElement[]
   /** Whether `targets` came from a selection, for the sentence that says so. */
@@ -42,12 +47,11 @@ type Props = {
 
 type Quote = { creditsCost: number; balance: number }
 
-type Step = { kind: 'ask' } | { kind: 'working' } | { kind: 'review'; lines: FillLine[] }
-
 export function GenerativeFillDialog({
   open,
   onOpenChange,
   blockId,
+  blockName,
   targets,
   fromSelection,
   aspect,
@@ -55,17 +59,19 @@ export function GenerativeFillDialog({
 }: Props) {
   const { fillUrl } = useDesignerHost()
   const [brief, setBrief] = React.useState('')
-  const [step, setStep] = React.useState<Step>({ kind: 'ask' })
   const [quote, setQuote] = React.useState<Quote | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
+  /**
+   * The step is the job's, not the dialog's. It lives in `fill-jobs` so that
+   * closing this, or the designer window, does not drop a job the worker is
+   * still running and will charge for.
+   */
+  const job = useFillJobs((state) => state.jobs[blockId])
 
   // A fresh quote each time it opens: the balance moves as other jobs finish.
   // The brief survives, because an owner reopening to try again has usually
   // only closed the dialog to look at the block.
   React.useEffect(() => {
     if (!open || fillUrl === null) return
-    setStep({ kind: 'ask' })
-    setError(null)
     let live = true
     void read<Quote>(fetch(fillUrl))
       .then((next) => {
@@ -84,31 +90,21 @@ export function GenerativeFillDialog({
   const writable = targets.slice(0, MAX_FILL_LINES)
   const cost = quote?.creditsCost ?? null
   const short = quote !== null && quote.creditsCost > quote.balance
+  const error = job?.state === 'failed' ? job.error : null
 
-  async function write() {
+  function write() {
     if (fillUrl === null) return
-    setStep({ kind: 'working' })
-    setError(null)
-
-    try {
-      const started = await read<{ jobId: string }>(
-        fetch(fillUrl, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ blockId, brief, slots: fillSlots(writable, aspect) }),
-        })
-      )
-      const lines = await poll(started.jobId)
-      setStep({ kind: 'review', lines })
-    } catch (problem) {
-      setError(problem instanceof Error ? problem.message : 'That did not finish. Try again.')
-      setStep({ kind: 'ask' })
-    }
+    void startFill({
+      fillUrl,
+      blockId,
+      blockName,
+      payload: { blockId, brief, slots: fillSlots(writable, aspect) },
+    })
   }
 
   const byId = new Map(writable.map((element) => [element.id, element]))
 
-  if (step.kind === 'review') {
+  if (job?.state === 'ready') {
     return (
       <Dialog
         open={open}
@@ -119,15 +115,16 @@ export function GenerativeFillDialog({
         primaryAction={{
           label: 'Use this text',
           onClick: () => {
-            onApply(step.lines)
+            onApply(job.lines)
+            clearFill(blockId)
             onOpenChange(false)
           },
         }}
-        secondaryAction={{ label: 'Write again', onClick: () => void write() }}
+        secondaryAction={{ label: 'Write again', onClick: write }}
       >
         <MachineOutput label="Written by AI">
           <ul className="flex flex-col gap-4">
-            {step.lines.map((line) => {
+            {job.lines.map((line) => {
               const was = byId.get(line.id)?.source.textEn ?? ''
               return (
                 <li key={line.id} className="flex flex-col gap-1">
@@ -143,9 +140,9 @@ export function GenerativeFillDialog({
             })}
           </ul>
         </MachineOutput>
-        {step.lines.length < writable.length ? (
+        {job.lines.length < writable.length ? (
           <p className="pt-3 font-ui text-body-sm text-secondary">
-            <Figure value={writable.length - step.lines.length} size="data-sm" /> of the lines came
+            <Figure value={writable.length - job.lines.length} size="data-sm" /> of the lines came
             back empty and keep their current text.
           </p>
         ) : null}
@@ -153,7 +150,7 @@ export function GenerativeFillDialog({
     )
   }
 
-  const working = step.kind === 'working'
+  const working = job?.state === 'working'
 
   return (
     <Dialog
@@ -169,7 +166,7 @@ export function GenerativeFillDialog({
               label: 'Write text',
               loading: working,
               onClick: () => {
-                if (!working && !short) void write()
+                if (!working && !short) write()
               },
             }
       }
@@ -224,7 +221,8 @@ export function GenerativeFillDialog({
 
             {working ? (
               <p className="font-ui text-body-sm text-secondary" role="status">
-                Writing. This usually takes under a minute.
+                Writing. This usually takes under a minute. You can close this and keep
+                designing, and we will tell you when the text is ready.
               </p>
             ) : null}
 
@@ -238,58 +236,4 @@ export function GenerativeFillDialog({
       </div>
     </Dialog>
   )
-}
-
-/**
- * Wait for the worker, polling the one AI job route every feature shares.
- * Two seconds, three minutes: the same shape as magic block.
- */
-async function poll(jobId: string): Promise<FillLine[]> {
-  const deadline = Date.now() + 3 * 60 * 1000
-
-  for (;;) {
-    if (Date.now() > deadline) {
-      throw new Error('That is taking longer than it should. Try again in a minute.')
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    const job = await read<{
-      status: string
-      errorMessage: string | null
-      result: { lines?: FillLine[] } | null
-    }>(fetch(`/api/v1/ai/jobs/${jobId}`))
-
-    if (job.status === 'failed') {
-      throw new Error(
-        job.errorMessage === 'declined'
-          ? 'The model would not write this. Try a different brief. You were not charged.'
-          : 'That did not finish. You were not charged. Try again.'
-      )
-    }
-
-    if (job.status !== 'complete') continue
-
-    const lines = job.result?.lines ?? []
-    if (lines.length === 0) throw new Error('That came back empty. Try again.')
-    return lines
-  }
-}
-
-/**
- * `{ data, error }`, every route. The `message` is written for a shop owner,
- * so it is shown rather than replaced.
- */
-async function read<T>(request: Promise<Response>): Promise<T> {
-  const response = await request
-  const body = (await response.json().catch(() => null)) as {
-    data: T | null
-    error: { code: string; message: string } | null
-  } | null
-
-  if (body?.error) throw new Error(body.error.message)
-  if (body?.data === null || body?.data === undefined) {
-    throw new Error('Something went wrong. Try again in a moment.')
-  }
-  return body.data
 }

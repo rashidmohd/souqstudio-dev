@@ -11,6 +11,7 @@ import {
   Sparkles,
   TriangleAlert,
   Undo2,
+  X,
 } from 'lucide-react'
 import type { Alignment, BlockProblem } from '@souqstudio/engine'
 import type { Arrangement, BlockElement, BrandKit } from '@souqstudio/types'
@@ -30,6 +31,9 @@ import { assetResolver } from '../../lib/block-assets'
 import { uploadArtwork } from '../../lib/upload-artwork'
 import { useDesignerHost, type DesignerHost } from '../../lib/designer-host'
 import { MAX_ARRANGEMENTS } from '../../lib/block-document'
+import { clearFill, useFillJobs } from '../../lib/fill-jobs'
+import { Dialog } from '../ui/dialog'
+import { toast } from '../ui/toast'
 import { ArtworkDialog } from './ArtworkDialog'
 import { GenerativeFillDialog } from './GenerativeFillDialog'
 import { CanvasToolbar } from './CanvasToolbar'
@@ -234,6 +238,31 @@ export function DesignerShell({
   const [panelOpen, setPanelOpen] = React.useState(true)
   const [picking, setPicking] = React.useState(false)
   const [filling, setFilling] = React.useState(false)
+
+  /**
+   * The block as it was when this designer opened, which is what "Discard
+   * changes" puts back. Held once: autosave writes every edit within two
+   * seconds, so by the time an owner decides against their changes the server
+   * already has them, and only this copy remembers the way it was.
+   */
+  const [opened] = React.useState<Snapshot>(() => ({
+    name: initialName,
+    status: initialStatus,
+    arrangements: initialArrangements,
+  }))
+
+  /**
+   * A finished fill the owner chose to review from a toast, outside this
+   * window. Opening on it is the whole of what that toast's button promised.
+   */
+  const reviewing = useFillJobs((state) => state.reviewing)
+  React.useEffect(() => {
+    if (reviewing !== blockId) return
+    setFilling(true)
+    useFillJobs.setState({ reviewing: null })
+  }, [reviewing, blockId])
+
+  useUnloadGuard(blockId)
 
   React.useEffect(() => {
     hydrate({
@@ -508,7 +537,7 @@ export function DesignerShell({
           )}
 
           {onClose === undefined ? null : (
-            <CloseButton blockId={blockId} editable={editable} onClose={onClose} />
+            <WindowExit blockId={blockId} editable={editable} opened={opened} onClose={onClose} />
           )}
         </div>
       </header>
@@ -536,11 +565,16 @@ export function DesignerShell({
         </p>
       ) : null}
 
+      {editable && !filling ? (
+        <FillNotice blockId={blockId} onReview={() => setFilling(true)} />
+      ) : null}
+
       {editable ? (
         <GenerativeFillDialog
           open={filling}
           onOpenChange={setFilling}
           blockId={blockId}
+          blockName={store.name}
           targets={fillFrom}
           fromSelection={selectedElements.length > 0}
           aspect={arrangement === undefined ? 1 : designAspect(arrangement)}
@@ -1212,54 +1246,261 @@ function Problems({ problems }: { problems: BlockProblem[] }) {
   )
 }
 
+/** The document fields a save writes, as they stood at some moment. */
+type Snapshot = { name: string; status: string; arrangements: Arrangement[] }
+
 /**
- * Save and close, for the designer in a window.
+ * Whether the canvas differs from `opened`.
  *
- * **It is a flush, not a second save model.** Both canvases autosave on a
- * two-second debounce with no save button, which `apps/web/CLAUDE.md` asks for
- * and which this does not change: the button exists because the *window* has to
- * close, and what it adds is writing whatever the debounce has not got to yet.
- * The label says "Save and close" rather than "Close" because that is the order
- * the two things happen in, and an owner who has just moved something wants to
- * be told it was kept.
- *
- * **A refused write leaves the window open.** `validateBlock` problems are
- * already on screen above the canvas; closing over one would take away the
- * design and the explanation in the same gesture.
+ * Compared by value rather than by counting edits, so an owner who changes
+ * something and undoes it is not asked about a change that is no longer there.
+ * A block is a few kilobytes and this runs on a click, not per frame.
  */
-function CloseButton({
+function changedSince(opened: Snapshot): boolean {
+  const state = useDesignerStore.getState()
+  return (
+    state.name !== opened.name ||
+    state.status !== opened.status ||
+    JSON.stringify(state.arrangements) !== JSON.stringify(opened.arrangements)
+  )
+}
+
+/** The key on the history entry a designer window pushes. */
+const WINDOW_ENTRY = 'souqBlockWindow'
+
+/** Whether the current history entry is the one this window pushed. */
+function onWindowEntry(blockId: string): boolean {
+  const state: unknown = window.history.state
+  return (
+    typeof state === 'object' && state !== null && WINDOW_ENTRY in state && state[WINDOW_ENTRY] === blockId
+  )
+}
+
+/**
+ * The way out of the designer in a window, and a check before anyone leaves
+ * one with changes by mistake.
+ *
+ * **"Save and close" is still a flush, not a second save model.** Both canvases
+ * autosave on a two-second debounce with no save button, which
+ * `apps/web/CLAUDE.md` asks for and which this does not change: the button
+ * writes whatever the debounce has not got to yet, and a refused write leaves
+ * the window open, because `validateBlock` problems are on screen above the
+ * canvas and closing over one would take away the design and the explanation
+ * in the same gesture.
+ *
+ * **Every other exit asks first when the block changed since it opened.** The
+ * close control and the browser's Back, which on a Mac is a two-finger swipe
+ * that owners make without meaning to. The question offers Save, Discard or
+ * staying, and Discard is real: it writes the opening snapshot back, which
+ * `PATCH` versions like any other save, so even a discard can be restored.
+ *
+ * **Back works through a history entry this window pushes.** Without one, Back
+ * leaves the book editor altogether, and the window with it, with no chance to
+ * ask. Next.js 14.2 patches `pushState` to carry its own router state onto the
+ * entry, so popping it back restores the same page rather than reloading it.
+ * The entry is taken back off on every close, so Back afterwards goes where it
+ * did before the window opened.
+ */
+function WindowExit({
   blockId,
   editable,
+  opened,
   onClose,
 }: {
   blockId: string
   editable: boolean
+  opened: Snapshot
   onClose: () => void
 }) {
-  const [closing, setClosing] = React.useState(false)
   const blockUrl = useDesignerHost().blockUrl(blockId)
+  const [asking, setAsking] = React.useState(false)
+  const [busy, setBusy] = React.useState<'save' | 'discard' | null>(null)
+  /** Set once the window is on its way out, so the pop that removes our own
+   *  history entry is not mistaken for the owner pressing Back. */
+  const done = React.useRef(false)
+
+  function finish() {
+    done.current = true
+    if (onWindowEntry(blockId)) window.history.back()
+
+    // A fill still on the worker survives the window (`lib/fill-jobs.ts`), and
+    // this is the owner's one chance to learn that before the book covers it.
+    const job = useFillJobs.getState().jobs[blockId]
+    if (job?.state === 'working') {
+      toast({ message: 'Saved. We will tell you when your text is ready.' })
+    }
+    onClose()
+  }
+
+  async function save() {
+    setBusy('save')
+    const ok = await flushBlock(blockUrl, editable)
+    setBusy(null)
+    setAsking(false)
+    if (ok) finish()
+  }
+
+  async function discard() {
+    setBusy('discard')
+    useDesignerStore.setState({
+      name: opened.name,
+      status: opened.status,
+      arrangements: opened.arrangements,
+      arrangementIndex: 0,
+      selectedIds: [],
+      save: 'dirty',
+    })
+    const ok = await writeBlock(blockUrl)
+    setBusy(null)
+    setAsking(false)
+    if (ok) finish()
+  }
+
+  function leave() {
+    if (editable && changedSince(opened)) setAsking(true)
+    else void save()
+  }
+
+  // The popstate listener is registered once per block, so it reads the
+  // current handlers through a ref rather than a stale closure.
+  const latest = React.useRef({ leave, save })
+  latest.current = { leave, save }
+
+  React.useEffect(() => {
+    // Idempotent, so React's development double-run does not push two.
+    if (!onWindowEntry(blockId)) window.history.pushState({ [WINDOW_ENTRY]: blockId }, '')
+
+    function onPopState() {
+      if (done.current) return
+      if (editable && changedSince(opened)) {
+        // Back has already popped our entry. Put it back so the page stays
+        // where it is while the owner answers, and so a second Back asks again
+        // rather than leaving the editor.
+        window.history.pushState({ [WINDOW_ENTRY]: blockId }, '')
+        setAsking(true)
+      } else {
+        void latest.current.save()
+      }
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [blockId, editable, opened])
 
   return (
-    <Button
-      type="button"
-      variant="primary"
-      loading={closing}
-      onClick={async () => {
-        setClosing(true)
-        const ok = await flushBlock(blockUrl, editable)
-        setClosing(false)
-        if (ok) onClose()
-      }}
-    >
-      {editable ? 'Save and close' : 'Close'}
-    </Button>
+    <>
+      <Button type="button" variant="primary" loading={busy === 'save' && !asking} onClick={() => void save()}>
+        {editable ? 'Save and close' : 'Close'}
+      </Button>
+      {editable ? (
+        <Button type="button" variant="ghost" iconOnly aria-label="Close" onClick={leave}>
+          <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+      ) : null}
+
+      <Dialog
+        open={asking}
+        onOpenChange={(next) => {
+          // Dismissing the question is staying. Not while a write is in
+          // flight, which would leave it landing behind a closed prompt.
+          if (!next && busy === null) setAsking(false)
+        }}
+        title="Save your changes?"
+        description="You changed this block since you opened it. Discard puts it back the way it was when you opened it."
+        primaryAction={{
+          label: 'Save and close',
+          loading: busy === 'save',
+          onClick: () => {
+            if (busy === null) void save()
+          },
+        }}
+        secondaryAction={{
+          label: busy === 'discard' ? 'Discarding…' : 'Discard changes',
+          onClick: () => {
+            if (busy === null) void discard()
+          },
+        }}
+      />
+    </>
   )
+}
+
+/**
+ * A browser warning before a reload or a closed tab takes work with it.
+ *
+ * Only when something is actually at risk: an edit still inside the autosave
+ * debounce, a write in flight or refused, or a fill still on the worker, which
+ * nothing could route back to this block once the tab is gone. A block whose
+ * changes have all saved leaves without a word, because they are kept. The
+ * browser writes the sentence; it no longer shows one a page supplies.
+ */
+function useUnloadGuard(blockId: string) {
+  const save = useDesignerStore((state) => state.save)
+  const editable = useDesignerStore((state) => state.editable)
+  const writing = useFillJobs((state) => state.jobs[blockId]?.state === 'working')
+  const atRisk = (editable && (save === 'dirty' || save === 'saving' || save === 'error')) || writing
+
+  React.useEffect(() => {
+    if (!atRisk) return
+
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault()
+      // Still required by Chromium-based browsers for the prompt to show.
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [atRisk])
+}
+
+/**
+ * A fill that finished, or failed, while its dialog was closed.
+ *
+ * The owner closed the dialog to keep designing, which it invites them to do,
+ * so the result has to find them here. A finished fill has been paid for, so it
+ * stays until it is reviewed; a failure was not charged and can be dismissed.
+ */
+function FillNotice({ blockId, onReview }: { blockId: string; onReview: () => void }) {
+  const job = useFillJobs((state) => state.jobs[blockId])
+
+  if (job?.state === 'ready') {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-2 border-b-hairline border-border-subtle bg-positive-bg px-4 py-1 font-ui text-body-sm text-positive-fg"
+      >
+        <Sparkles className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+        <span className="flex-1">The text you asked for is ready.</span>
+        <Button type="button" variant="ghost" onClick={onReview}>
+          Review text
+        </Button>
+      </div>
+    )
+  }
+
+  if (job?.state === 'failed') {
+    return (
+      <div
+        role="alert"
+        className="flex items-center gap-2 border-b-hairline border-border-subtle bg-critical-bg px-4 py-1 font-ui text-body-sm text-critical-fg"
+      >
+        <TriangleAlert className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+        <span className="flex-1">{job.error}</span>
+        <Button type="button" variant="ghost" onClick={() => clearFill(blockId)}>
+          Dismiss
+        </Button>
+      </div>
+    )
+  }
+
+  return null
 }
 
 /**
  * What the save is doing, and a way to make it happen now.
  *
- * **Still not a second save model** — the same thing `CloseButton` says about
+ * **Still not a second save model** — the same thing `WindowExit` says about
  * itself. Both canvases autosave on a two-second debounce, which
  * `apps/web/CLAUDE.md` asks for and this does not change; what it adds is a way
  * to stop waiting, which an owner asked for after moving something and watching
@@ -1402,8 +1643,22 @@ function useAutosave(blockUrl: string, editable: boolean) {
  * on the canvas now, not what was on it when the effect last ran.
  *
  * Returns whether the document landed, which only the flush has any use for.
+ * State is read when the write starts rather than when it is queued, so a
+ * queued write sends what is on the canvas by then.
  */
 async function writeBlock(blockUrl: string): Promise<boolean> {
+  const run = writes.then(() => sendBlock(blockUrl))
+  writes = run.catch(() => false)
+  return run
+}
+
+/**
+ * Writes go one at a time. A discard sends the opening snapshot, and an
+ * autosave already in flight must not land after it and put the edits back.
+ */
+let writes: Promise<boolean> = Promise.resolve(true)
+
+async function sendBlock(blockUrl: string): Promise<boolean> {
   const state = useDesignerStore.getState()
   state.setSave('saving')
 
