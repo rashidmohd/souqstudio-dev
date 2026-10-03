@@ -21,6 +21,16 @@ export const queues = {
    * exportable until it succeeds. `docs/fonts-from-google.md` §7 B2.
    */
   fonts:  new Queue('fonts',  { connection }),
+  /**
+   * Drawing a block to a PNG in headless Chromium, for the lists that show
+   * many blocks at once.
+   *
+   * Its own queue rather than a job on `pdf`, though both use the same browser
+   * pool: a thumbnail is small, frequent and disposable, and a PDF is a paid
+   * export somebody is waiting on. Sharing a queue would put a book's export
+   * behind sixty-six library thumbnails the first time a shop opens a picker.
+   */
+  render: new Queue('render', { connection }),
 }
 
 // ─── Job payload types ────────────────────────────────────────────────────────
@@ -409,6 +419,19 @@ export interface BgRemovePayload {
  * queues one job, not five — which matters because the page that queues these
  * is a server component and runs on every refresh.
  */
+export interface BlockThumbnailPayload {
+  blockId: string
+  /**
+   * The key the producer expects the PNG to land under. The job draws what the
+   * block is *now*, and skips when that no longer has this key: a newer save has
+   * queued its own job, and drawing a superseded document would waste a render.
+   */
+  renderKey: string
+  /** Whose brand kit to draw in: a shop's effective kit, or the admin library's. */
+  kit: { shopId: string } | { library: true }
+  direction: 'ltr' | 'rtl'
+}
+
 export interface ShadowRenderPayload {
   /** The `image_assets` row whose `r2Key` is the source. */
   imageAssetId: string
@@ -555,6 +578,27 @@ export async function enqueueShadowRender(payload: ShadowRenderPayload) {
     attempts: 2,
     backoff: { type: 'fixed', delay: 2000 },
     removeOnComplete: 200,
+    removeOnFail: 500,
+  })
+}
+
+export async function enqueueBlockThumbnail(
+  payload: BlockThumbnailPayload,
+  options: { delayMs?: number } = {}
+) {
+  return queues.render.add('render.blockThumbnail', payload, {
+    /*
+     * The id is the drawing, as with `bg.shadow`: two lists asking for the same
+     * block in the same kit are one job. Completed jobs are removed at once so
+     * an id never blocks a later request for a picture whose row went missing.
+     */
+    jobId: `render.blockThumbnail:${payload.blockId}:${payload.renderKey}`,
+    // A save waits a little, so a burst of autosaves draws once: each job
+    // checks on start whether its key is still current. See the payload.
+    ...(options.delayMs === undefined ? {} : { delay: options.delayMs }),
+    attempts: 2,
+    backoff: { type: 'fixed', delay: 5000 },
+    removeOnComplete: true,
     removeOnFail: 500,
   })
 }

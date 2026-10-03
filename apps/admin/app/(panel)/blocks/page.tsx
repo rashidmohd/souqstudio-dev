@@ -9,6 +9,7 @@ import { requireAdmin, roleAtLeast } from '@/lib/admin-auth'
 import { env } from '@/lib/env'
 import { libraryConfig } from '@/lib/library-client'
 import { BlockCard } from '@/components/blocks/BlockCard'
+import { thumbnailsFor } from '@souqstudio/designer/lib/block-thumbnail'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Figure } from '@/components/ui/figure'
@@ -123,6 +124,17 @@ export default async function BlocksPage({
   const more = rows.length > PAGE
   const blocks = more ? rows.slice(0, PAGE) : rows
   const { catalog, css } = fontsForKit(fonts, LIBRARY_PREVIEW_KIT)
+
+  // PNGs in the library kit. A block without one yet draws live, and asking
+  // here is what queues its render. `lib/block-thumbnail.ts` in the designer.
+  const parsed = blocks.flatMap((block) => {
+    const arrangements = toArrangements(block.arrangements)
+    return arrangements === null ? [] : [{ id: block.id, arrangements }]
+  })
+  const thumbnails = await thumbnailsFor(parsed, {
+    kit: LIBRARY_PREVIEW_KIT,
+    source: { library: true },
+  })
   const filtered = q !== '' || group !== '' || owner !== 'souqstudio'
 
   return (
@@ -239,6 +251,7 @@ export default async function BlocksPage({
                   arrangements={toArrangements(block.arrangements)}
                   kit={LIBRARY_PREVIEW_KIT}
                   assetBaseUrl={env.R2_PUBLIC_URL}
+                  thumbnailUrl={thumbnails.get(block.id) ?? null}
                 />
               </li>
             ))}

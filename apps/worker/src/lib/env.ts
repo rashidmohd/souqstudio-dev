@@ -90,6 +90,22 @@ const schema = z.object({
    * deployment that never widens the font library never enqueues the job.
    */
   GOOGLE_FONTS_API_KEY: z.string().min(1).optional(),
+
+  /**
+   * Block thumbnails. The worker's headless browser opens the web app's
+   * `/render/block/[id]` with a link signed by this secret, which the web app
+   * holds too, and captures the block as a PNG.
+   *
+   * **Both optional, and their absence is a job that does nothing rather than a
+   * worker that will not boot.** Without them no thumbnail is drawn and every
+   * list keeps drawing its blocks live, which is how the product ran before.
+   *
+   * `WEB_RENDER_URL` is the web app as this process can reach it. On Railway
+   * that is the private network address, `http://<web service>.railway.internal:<port>`,
+   * so a capture never leaves the project.
+   */
+  WEB_RENDER_URL:       z.string().url().optional(),
+  RENDER_TOKEN_SECRET:  z.string().min(32).optional(),
 })
 
 /**

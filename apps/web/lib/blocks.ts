@@ -412,3 +412,17 @@ export async function blockIsInUse(blockId: string, organizationId: string): Pro
 
   return grids.some((grid) => namesBlock(grid.regions, blockId))
 }
+
+/**
+ * One block for the thumbnail render page, whoever owns it.
+ *
+ * **Not scoped to an organization**, unlike every other reader here, because
+ * the reader is the worker's headless browser and it has no session. What
+ * authorises it is the signed query the page verifies before calling this.
+ * Read through `toSummary` like the lists, so the arrangements the page hashes
+ * are parsed exactly as the list that asked for the PNG parsed them.
+ */
+export async function loadBlockForRender(id: string) {
+  const row = await prisma.block.findUnique({ where: { id }, select: SELECT })
+  return row === null ? null : toSummary(row, null)
+}

@@ -11,6 +11,7 @@ import { toArtboardOffer } from '../../lib/preview-offer'
 import { PREVIEW_IDENTITY } from '../../lib/artboard-identity'
 import { PREVIEW_PRODUCT } from '../../lib/preview-product'
 import { assetResolver } from '../../lib/block-assets'
+import { cn } from '../../lib/utils'
 import {
   contentHeight,
   drawElement,
@@ -55,9 +56,43 @@ type Props = {
    * reason `lib/block-assets.ts` gives.
    */
   assetBaseUrl?: string | undefined
+  /**
+   * The worker's PNG of this block in this kit, when one exists. Shown instead
+   * of composing the block live; absent or null draws live, which is every
+   * block until its PNG lands. `lib/block-thumbnail.ts`.
+   */
+  thumbnailUrl?: string | null | undefined
 }
 
-export function BlockPreview({
+/**
+ * The stored picture when there is one, the live drawing when there is not.
+ *
+ * Two components rather than an early return, because the live one runs hooks
+ * and a preview whose PNG arrives on a refresh would otherwise change its hook
+ * count between renders.
+ */
+export function BlockPreview({ thumbnailUrl, ...props }: Props) {
+  if (thumbnailUrl === undefined || thumbnailUrl === null) return <LiveBlockPreview {...props} />
+
+  return (
+    // A plain <img>: the PNG is already the size it will be shown at, on the
+    // public R2 host, and `next/image` would need that host configured in
+    // every app that lists blocks for no gain.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={thumbnailUrl}
+      width={props.width}
+      height={props.height}
+      alt="Block preview"
+      loading="lazy"
+      decoding="async"
+      className={cn('object-contain', props.className ?? 'h-auto w-full')}
+    />
+  )
+}
+
+/** The block composed and painted in the browser. What the PNG is a capture of. */
+export function LiveBlockPreview({
   arrangements,
   kit,
   width,
@@ -65,7 +100,7 @@ export function BlockPreview({
   direction = 'ltr',
   className,
   assetBaseUrl,
-}: Props) {
+}: Omit<Props, 'thumbnailUrl'>) {
   const palette = resolvePalette(kit)
   const scale = resolveScale(kit, useFontCatalog())
   const blockSize = Math.sqrt(width * height)

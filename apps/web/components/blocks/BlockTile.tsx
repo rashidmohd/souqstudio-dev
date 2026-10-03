@@ -57,6 +57,7 @@ export function BlockTile({
   selected,
   disabled = false,
   badges,
+  thumbnailUrl,
   onSelect,
 }: {
   name: string
@@ -67,6 +68,8 @@ export function BlockTile({
   disabled?: boolean
   /** Caller's own chips — in season, plan-locked, takes no product. */
   badges?: React.ReactNode
+  /** The worker's PNG of this block in this kit, or null to draw it live. */
+  thumbnailUrl?: string | null | undefined
   onSelect: () => void
 }) {
   const size = tileSize({ repeats, arrangements })
@@ -93,7 +96,12 @@ export function BlockTile({
           {/* Drawn at the shape the block was designed for, centred in a box
               every tile shares — a cover, a page panel and a footer strip are
               not the same object and must not arrive looking like one. */}
-          <BlockPreview arrangements={arrangements} kit={kit} {...size} />
+          <BlockPreview
+            arrangements={arrangements}
+            kit={kit}
+            thumbnailUrl={thumbnailUrl}
+            {...size}
+          />
 
           {selected ? (
             <span className="absolute end-1 top-1 flex size-4 items-center justify-center rounded-pill bg-action-primary text-inverse">

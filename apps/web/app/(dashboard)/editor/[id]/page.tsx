@@ -6,6 +6,7 @@ import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { blockWindow } from '@souqstudio/engine'
 import { listBlocks } from '@/lib/blocks'
+import { thumbnailsFor } from '@souqstudio/designer/lib/block-thumbnail'
 import { loadBook } from '@/lib/offer-book'
 import { env } from '@/lib/env'
 import { EditorShell } from '@/components/editor/EditorShell'
@@ -91,8 +92,15 @@ export default async function EditorPage({ params }: { params: { id: string } })
    * used to be written out below. One payload, one rule, and the editor cannot
    * offer a block in one place that it refuses in the other.
    */
-  const cellBlocks = blocks
-    .filter((block) => !block.locked && block.status !== 'archived')
+  const usable = blocks.filter((block) => !block.locked && block.status !== 'archived')
+  // PNGs in this shop's kit for the picker and the band previews; any block
+  // without one yet draws live and has its render queued by asking.
+  const thumbnails = await thumbnailsFor(usable, {
+    kit: brand.brandKit,
+    source: { shopId: shop.id },
+  })
+
+  const cellBlocks = usable
     .map((block) => ({
       id: block.id,
       name: block.name,
@@ -103,6 +111,7 @@ export default async function EditorPage({ params }: { params: { id: string } })
       // without asking the owner to remember.
       arrangements: block.arrangements,
       category: block.category,
+      thumbnailUrl: thumbnails.get(block.id) ?? null,
     }))
 
   return (

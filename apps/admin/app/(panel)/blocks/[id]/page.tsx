@@ -8,6 +8,7 @@ import { FontCatalogProvider } from '@souqstudio/designer/components/brand/FontC
 import { fontsForKit } from '@souqstudio/designer/lib/font-registry'
 import { LIBRARY_PREVIEW_KIT } from '@souqstudio/designer/lib/library-preview'
 import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
+import { thumbnailsFor } from '@souqstudio/designer/lib/block-thumbnail'
 import { requireAdmin, roleAtLeast } from '@/lib/admin-auth'
 import { summarize } from '@/lib/block-summary'
 import { libraryConfig } from '@/lib/library-client'
@@ -70,6 +71,17 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
   const current = copies.filter((copy) => copy.state !== 'unpublished')
   const arrangements = toArrangements(block.arrangements)
   const { catalog, css } = fontsForKit(await listFonts(), LIBRARY_PREVIEW_KIT)
+  // The worker's PNG in the library kit, for the main preview. The per-layout
+  // grid below stays live: it draws each layout alone, which no PNG is of.
+  const thumbnail =
+    arrangements === null
+      ? null
+      : ((
+          await thumbnailsFor([{ id: block.id, arrangements }], {
+            kit: LIBRARY_PREVIEW_KIT,
+            source: { library: true },
+          })
+        ).get(block.id) ?? null)
 
   /** A logical canvas at `aspect`, which the preview scales to its box. */
   const canvas = (aspect: number) =>
@@ -127,8 +139,9 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
         <Card className="flex flex-col gap-3">
           <h2 className="text-label font-medium text-secondary">Preview</h2>
           {/*
-            The stored thumbnail is only the fallback now, for a document that
-            does not parse: everything else is drawn live.
+            The worker's PNG when one has been drawn in the library kit, the
+            live drawing until then. `blocks.thumbnailUrl` is only the fallback
+            for a document that does not parse.
           */}
           {arrangements !== null ? (
             <div className="flex aspect-square items-center justify-center rounded-chip bg-stone-100 p-3">
@@ -137,6 +150,7 @@ export default async function BlockPage({ params }: { params: { id: string } }) 
                 kit={LIBRARY_PREVIEW_KIT}
                 {...canvas(previewAspect({ repeats: block.repeats, arrangements }))}
                 assetBaseUrl={env.R2_PUBLIC_URL}
+                thumbnailUrl={thumbnail}
                 className="h-full w-full"
               />
             </div>

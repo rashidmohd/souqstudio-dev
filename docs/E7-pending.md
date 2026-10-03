@@ -263,10 +263,15 @@ Recorded here rather than edited into the epic.
    Day motifs are rows with `organizationId: null` and nobody has drawn them.
    The objection here — "a picker over an empty set teaches nothing" — stopped
    applying the moment the set included the owner's own uploads.
-4. **Thumbnails.** `blocks.thumbnailUrl` is still null on every row. The library
-   draws a live preview through the engine instead, which is better and is what
-   makes a thumbnail unnecessary until there are enough blocks for the page to
-   feel slow.
+4. ~~**Thumbnails.**~~ **Built 3 October 2026, as PNGs the worker captures.** The
+   owner asked for a picture of each saved block in the lists. `render.blockThumbnail`
+   opens `/render/block/[id]` in headless Chromium and screenshots the live painter,
+   so the PNG is what the owner sees; it is filed in `block_thumbnails` under a key
+   of document, kit, direction and painter version, and a list draws live until its
+   key has a row. `blocks.thumbnailUrl` is still null and is not what is read: one
+   column cannot hold a seeded block's picture in every shop's kit. Needs the
+   migration, `RENDER_TOKEN_SECRET` on web and worker, `WEB_RENDER_URL` on the
+   worker, and Chromium in the worker's image. Old PNGs are never pruned yet.
 5. **A block snapshot per book.** Editing a block changes every unpublished book
    that uses it. That is right for a fix and wrong for a redesign, and the honest
    answer is probably a version pin on the page grid rather than a copy. Not

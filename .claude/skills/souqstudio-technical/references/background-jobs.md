@@ -22,6 +22,17 @@ execution limits make multi-minute AI jobs impossible.
 | `bg` | `bg.remove` | `{ imageUrl, targetPath, shopId? \| organizationId? \| catalogProductId?, sourceAssetId?, jobId? }` | 5 |
 | `email` | `email.send` | `{ template, to, props }` | 5 |
 | `enrich` | `catalog.enrich` | `{ catalogProductId }` | 2 |
+| `render` | `render.blockThumbnail` | `{ blockId, renderKey, kit: { shopId } \| { library: true }, direction }` | 2 |
+
+`render.blockThumbnail` draws a block to a PNG for the lists that show many blocks: the
+library, the editor's picker and band previews, and the admin block pages. Headless
+Chromium from the shared pool opens the web app's `/render/block/[id]`, signed with
+`RENDER_TOKEN_SECRET`, which draws the block with the same painter as every list in the
+shop's real faces, and the job screenshots it into R2 and a `block_thumbnails` row. The
+key hashes the document, kit, direction and painter version, so a list only shows a PNG
+that matches what it would draw and draws live otherwise. A save queues one with an 8s
+delay; a list queues any it is missing. Its own queue so a book's PDF never waits behind
+sixty-six library thumbnails. `packages/designer/lib/block-thumbnail.ts`.
 
 `bg.remove` serves two callers and the payload says which. A **logo** carries `shopId`
 or `organizationId`, and the worker writes the outcome onto that brand kit. A **catalog
@@ -96,6 +107,7 @@ BullMQ defaults per queue:
 | `bg` | 3 | fixed, 2s |
 | `email` | 3 | exponential, 5s base |
 | `enrich` | 3 | exponential, 5s base, priority 10 (low) |
+| `render` | 2 | fixed, 5s; job id is the drawing, so duplicates drop |
 
 AI gets fewer attempts because each one costs real money at the provider.
 

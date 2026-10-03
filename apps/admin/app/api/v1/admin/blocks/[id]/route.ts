@@ -2,13 +2,15 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { OCCASIONS } from '@souqstudio/engine'
 import type { Occasion } from '@souqstudio/engine'
-import { blocksInUse, prisma } from '@souqstudio/db'
+import { blocksInUse, enqueueBlockThumbnail, prisma } from '@souqstudio/db'
 import type { Prisma } from '@souqstudio/db'
 import {
   blockErrorMessage,
   blockErrors,
   blockUpdateSchema,
 } from '@souqstudio/designer/lib/block-write'
+import { renderKey } from '@souqstudio/designer/lib/block-thumbnail'
+import { LIBRARY_PREVIEW_KIT } from '@souqstudio/designer/lib/library-preview'
 import { fail, ok } from '@/lib/api'
 import { requireAdminApi, roleAtLeast } from '@/lib/admin-auth'
 import { recordAudit } from '@/lib/audit'
@@ -129,6 +131,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         ]
       : []),
   ])
+
+  // The library's pages show a PNG in the library kit; a changed document needs
+  // a new one. Delayed so a burst of autosaves draws once, and never allowed to
+  // fail the save. `lib/block-thumbnail.ts` in the designer package.
+  if (versioned && parsed.data.arrangements !== undefined) {
+    const key = renderKey({
+      arrangements: parsed.data.arrangements,
+      kit: LIBRARY_PREVIEW_KIT,
+      direction: 'ltr',
+    })
+    void enqueueBlockThumbnail(
+      { blockId: existing.id, renderKey: key, kit: { library: true }, direction: 'ltr' },
+      { delayMs: 8000 }
+    ).catch((error: unknown) => console.error('[blocks] could not queue a thumbnail:', error))
+  }
 
   const recent = await prisma.adminAuditLog.findFirst({
     where: {

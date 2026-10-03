@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LibraryBig, Lock, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
@@ -51,6 +52,8 @@ export type LibraryBlock = {
   status: string
   locked: boolean
   planTier: string
+  /** The worker's PNG in this shop's kit, or null while it draws live. */
+  thumbnailUrl: string | null
 }
 
 type Props = {
@@ -212,13 +215,11 @@ export function BlockLibrary({ blocks, kit, canEdit, country, credits }: Props) 
 const PREVIEW_WIDTH = 260
 
 function previewSize(block: LibraryBlock): { width: number; height: number } {
-  const arrangement = block.arrangements[0]
-  // A repeating card is shown in the shape a booklet cell actually is, always —
-  // it carries four arrangements and the tall one is the one it was designed in.
-  if (block.repeats || arrangement === undefined) return { width: PREVIEW_WIDTH, height: 334 }
-
-  const middle = Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)
-  const aspect = Math.min(6, Math.max(0.5, middle))
+  // `previewAspect`, the shape every list draws a block at, so the worker's one
+  // PNG of it fits here as well as in the pickers. A repeating card is still the
+  // tall booklet cell it was designed in; it was 260 by 334 here and 0.72
+  // everywhere else, which is the same cell to within a few pixels.
+  const aspect = previewAspect(block)
   return { width: PREVIEW_WIDTH, height: Math.round(PREVIEW_WIDTH / aspect) }
 }
 
@@ -273,7 +274,12 @@ function BlockCard({
             shape its own aspect range says it was designed for — one flat height
             for all of them made a cover, a page panel and a footer strip look
             like the same object. */}
-        <BlockPreview arrangements={block.arrangements} kit={kit} {...previewSize(block)} />
+        <BlockPreview
+          arrangements={block.arrangements}
+          kit={kit}
+          thumbnailUrl={block.thumbnailUrl}
+          {...previewSize(block)}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

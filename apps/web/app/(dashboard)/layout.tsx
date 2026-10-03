@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { cookies } from 'next/headers'
 import { DashboardRail } from '@/components/shared/dashboard-rail'
 import { FillWatch } from '@/components/shared/FillWatch'
+import { ThumbnailWatch } from '@/components/shared/ThumbnailWatch'
 import { Toaster } from '@souqstudio/designer/components/ui/toast'
 import { getActiveShop } from '@/lib/active-shop'
 import { organizationName } from '@/lib/organization'
@@ -88,6 +89,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             Here rather than in the editor, because the designer's own route
             leaves to the block library, not to a book. */}
         <FillWatch />
+        {/* Says when a saved block's preview PNG has been drawn. */}
+        <ThumbnailWatch />
       </div>
     </FontCatalogProvider>
   )

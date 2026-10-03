@@ -7,6 +7,7 @@ import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { getCreditSnapshot } from '@souqstudio/db'
 import { listBlocks } from '@/lib/blocks'
+import { thumbnailsFor } from '@souqstudio/designer/lib/block-thumbnail'
 import { NoShopBrandKit } from '@/components/brand/NoShopBrandKit'
 import { BlockLibrary } from '@/components/blocks/BlockLibrary'
 import { PageContainer } from '@/components/shared/page-container'
@@ -63,6 +64,13 @@ export default async function BlocksPage() {
   // the same one the API enforces for itself.
   const canEdit = shop.role === 'owner' || shop.role === 'manager'
 
+  // PNGs in this shop's kit, for the library and the import picker. A block
+  // without one yet draws live, and asking here is what queues its render.
+  const thumbnails = await thumbnailsFor(blocks, {
+    kit: brand.brandKit,
+    source: { shopId: shop.id },
+  })
+
   return (
     <PageContainer size="wide">
       <Header />
@@ -80,6 +88,7 @@ export default async function BlocksPage() {
           status: block.status,
           locked: block.locked,
           planTier: block.planTier,
+          thumbnailUrl: thumbnails.get(block.id) ?? null,
         }))}
         kit={brand.brandKit}
         canEdit={canEdit}

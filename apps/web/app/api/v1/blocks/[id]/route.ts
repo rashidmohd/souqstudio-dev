@@ -6,6 +6,9 @@ import { requireApiSession } from '@/lib/api-session'
 import { requireOrgRole } from '@/lib/authz'
 import { blockErrorMessage, blockErrors, blockUpdateSchema } from '@souqstudio/designer/lib/block-write'
 import { blockIsInUse, loadBlock } from '@/lib/blocks'
+import { getActiveShop } from '@/lib/active-shop'
+import { queueThumbnailAfterSave } from '@/lib/block-render'
+import type { Arrangement } from '@souqstudio/types'
 
 /**
  * One block: read it, save it, retire it. E7.
@@ -116,6 +119,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         ]
       : []),
   ])
+
+  // The library and the pickers show a PNG of each block; a changed document
+  // needs a new one. Drawn in the saving shop's kit, which is the one the
+  // owner is about to go back to the library and look at.
+  if (versioned) {
+    const shop = await getActiveShop(session)
+    if (shop !== null) {
+      // Validated by `blockErrors` above, which parses it as `Arrangement[]`.
+      void queueThumbnailAfterSave(
+        { id: existing.id, arrangements: arrangements as Arrangement[] },
+        shop
+      )
+    }
+  }
 
   return ok(block)
 }

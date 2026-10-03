@@ -46,6 +46,10 @@ function isPublic(pathname: string): boolean {
   // invited teammate at a screen they have no credentials for. The token in the
   // URL is the credential, and the route checks it in Node.
   if (pathname.startsWith('/invite/')) return true
+  // The worker's headless browser, drawing a block thumbnail. It has no session
+  // because it is not a user; the signed query is the credential, and the page
+  // verifies it in Node before reading anything. `@souqstudio/db` render-token.
+  if (pathname.startsWith('/render/')) return true
   return false
 }
 

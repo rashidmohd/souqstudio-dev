@@ -62,6 +62,8 @@ type CellBlock = {
   repeats: boolean
   arrangements: Arrangement[]
   category: BlockCategory | null
+  /** The worker's PNG in this shop's kit, or null while it draws live. */
+  thumbnailUrl?: string | null
 }
 
 /**
@@ -349,6 +351,7 @@ export function BlockPickerDialog({
               }
               repeats
               kit={kit}
+              thumbnailUrl={blocks.find((block) => block.id === offerCardBlockId)?.thumbnailUrl}
               selected={chosen === null || chosen === offerCardBlockId}
               onSelect={() => setPicked(null)}
               badges={
@@ -368,6 +371,7 @@ export function BlockPickerDialog({
                 arrangements={block.arrangements}
                 repeats={block.repeats}
                 kit={kit}
+                thumbnailUrl={block.thumbnailUrl}
                 selected={chosen === block.id}
                 onSelect={() => setPicked(block.id)}
                 badges={

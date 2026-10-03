@@ -51,6 +51,7 @@ export {
   enqueueAiJob,
   enqueueBgRemove,
   enqueueShadowRender,
+  enqueueBlockThumbnail,
   enqueueEnrich,
   enqueueMagicBlock,
   enqueueBrandDirection,
@@ -67,6 +68,7 @@ export type {
   AiJobPayload,
   BgRemovePayload,
   ShadowRenderPayload,
+  BlockThumbnailPayload,
   MagicBlockPayload,
   BrandDirectionPayload,
   LogoGenPayload,
@@ -126,3 +128,14 @@ export {
   REQUIRED_SUBSETS,
 } from './font-ensure'
 export type { EnsureDeps, EnsureResult } from './font-ensure'
+/**
+ * The signed URL the worker's headless browser opens to draw a block. Signed
+ * by the worker, verified by the web app's render page. See the module.
+ */
+export {
+  RENDER_TOKEN_TTL_SECONDS,
+  renderQuery,
+  signRender,
+  verifyRender,
+} from './render-token'
+export type { RenderClaim, RenderKitSource } from './render-token'

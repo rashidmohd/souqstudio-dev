@@ -254,6 +254,7 @@ export function BlockImportDialog({ open, onOpenChange, blocks, kit, country, on
               arrangements={block.arrangements}
               repeats={block.repeats}
               kit={kit}
+              thumbnailUrl={block.thumbnailUrl}
               selected={selected.has(block.id)}
               disabled={block.locked}
               onSelect={() => toggle(block.id)}

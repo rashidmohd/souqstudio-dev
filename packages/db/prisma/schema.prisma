@@ -1723,11 +1723,40 @@ model Block {
   pins         BookPin[]
   /// Offers drawn with this design instead of their book's card.
   offers       Offer[]
+  /// PNGs of this block, one per brand kit and direction it has been drawn in.
+  thumbnails   BlockThumbnail[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
   @@index([organizationId, status])
   @@map("blocks")
+}
+
+/// A block drawn to a PNG by the worker, for the lists that show many blocks.
+///
+/// **Keyed by what was drawn, not by the block alone.** A block's colours are
+/// positions in a shop's palette and its type is the shop's faces, so one block
+/// looks different in every brand kit, and an Arabic edition draws different
+/// words. `renderKey` hashes the document, the kit, the direction and the
+/// painter's version together (`lib/block-thumbnail.ts` in the designer
+/// package): an edit, a brand change or a painter fix gives a new key, the old
+/// PNG simply stops matching, and the list draws live until the new one lands.
+/// That is why `blocks.thumbnailUrl` is not used: one column cannot hold the
+/// picture a seeded block has in every shop that browses it.
+model BlockThumbnail {
+  id        String   @id @default(cuid())
+  blockId   String
+  renderKey String
+  /// The public R2 URL of the PNG.
+  url       String
+  /// Of the PNG in pixels, at the device scale it was captured at.
+  width     Int
+  height    Int
+  block     Block    @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockId, renderKey])
+  @@map("block_thumbnails")
 }
 
 /// Artwork a shop uploaded, and the motifs SouqStudio ships. E7-C.

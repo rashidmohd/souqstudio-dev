@@ -252,6 +252,7 @@ RESEND_API_KEY=re_
 EMAIL_FROM=SouqStudio <send@updates.souqstudio.com>
 OPENAI_API_KEY=sk-
 ANTHROPIC_API_KEY=sk-ant-
+RENDER_TOKEN_SECRET=                  # optional; block thumbnails. Same value as on worker
 ```
 
 **`R2_ENDPOINT` must not contain the bucket, in either form it can hide.** Not
@@ -274,7 +275,16 @@ Plus the one variable only the worker has:
 
 ```bash
 REMBG_SERVICE_URL=http://rembg.railway.internal:8000   # §2a — matches PORT pinned on that service
+
+# Block thumbnails. Optional: unset, no PNG is drawn and every list draws live.
+WEB_RENDER_URL=http://web.railway.internal:<web PORT> # the web app over the private network
+RENDER_TOKEN_SECRET=                  # openssl rand -hex 32 — the SAME value as on web
 ```
+
+**Thumbnails also need Chromium in the worker's image**, which the Railpack build does not
+have. Until the worker moves to the Playwright image (see "What is not ready" below), every
+`render.blockThumbnail` job fails at browser launch and the lists keep drawing live; the
+rest of the worker is unaffected, because the browser pool is only created on first use.
 
 ### admin
 
@@ -498,7 +508,8 @@ root `CLAUDE.md` under Known gaps:
   address. `127.0.0.1` is right only for a local `next start`; on Railway the address that
   arrives is the public one your browser came from, so a list of localhost entries refuses
   everybody including you.
-- **When the PDF handler lands, the worker needs a different builder.** Playwright browsers
+- **The worker needs a different builder, now for thumbnails and later for the PDF.**
+  Block thumbnails (3 October 2026) are the first job that launches Chromium. Playwright browsers
   do not install under the builder's default Node image. That service moves to a Dockerfile
   based on `mcr.microsoft.com/playwright`, and the `builder` field in
   `railway/worker.json` changes to `DOCKERFILE`.

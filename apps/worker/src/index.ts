@@ -9,6 +9,8 @@ import { bgWorker }     from './workers/bg.worker'
 import { emailWorker }  from './workers/email.worker'
 import { enrichWorker } from './workers/enrich.worker'
 import { fontsWorker }  from './workers/fonts.worker'
+import { renderWorker } from './workers/render.worker'
+import { closeBrowsers } from './lib/playwright'
 import { env } from './lib/env'
 import http from 'node:http'
 
@@ -17,7 +19,7 @@ console.log('[worker] Starting SouqStudio workers...')
 // Minimal health check — Railway uses this to confirm process is alive
 const server = http.createServer((_req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify({ status: 'ok', workers: ['pdf', 'ai', 'bg', 'email', 'enrich'] }))
+  res.end(JSON.stringify({ status: 'ok', workers: ['pdf', 'ai', 'bg', 'email', 'enrich', 'fonts', 'render'] }))
 })
 server.listen(env.PORT, () => console.log(`[worker] Health: http://localhost:${env.PORT}/health`))
 
@@ -31,7 +33,10 @@ async function shutdown() {
     emailWorker.close(),
     enrichWorker.close(),
     fontsWorker.close(),
+    renderWorker.close(),
   ])
+  // After the workers, so no capture is cut off holding a browser.
+  await closeBrowsers()
   server.close()
   process.exit(0)
 }

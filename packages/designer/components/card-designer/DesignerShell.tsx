@@ -32,6 +32,7 @@ import { uploadArtwork } from '../../lib/upload-artwork'
 import { useDesignerHost, type DesignerHost } from '../../lib/designer-host'
 import { MAX_ARRANGEMENTS } from '../../lib/block-document'
 import { clearFill, useFillJobs } from '../../lib/fill-jobs'
+import { watchThumbnail } from '../../lib/thumbnail-watch'
 import { Dialog } from '../ui/dialog'
 import { toast } from '../ui/toast'
 import { ArtworkDialog } from './ArtworkDialog'
@@ -1319,7 +1320,8 @@ function useLeaveGuard({
   /** Actually leave, once the block is saved or put back. */
   depart: (via: Via) => void
 }) {
-  const blockUrl = useDesignerHost().blockUrl(blockId)
+  const host = useDesignerHost()
+  const blockUrl = host.blockUrl(blockId)
   /** Which exit raised the question, or null while it is not asked. */
   const [asking, setAsking] = React.useState<Via | null>(null)
   const [busy, setBusy] = React.useState<'save' | 'discard' | null>(null)
@@ -1330,11 +1332,26 @@ function useLeaveGuard({
   function finish(via: Via) {
     done.current = true
 
+    // A changed design gets a new PNG from the worker a few seconds after its
+    // save (`lib/block-thumbnail.ts`), and the lists draw it live until then.
+    // Say so, and say when it lands.
+    const state = useDesignerStore.getState()
+    const statusUrl = host.thumbnailStatusUrl
+    const redrawn =
+      editable &&
+      statusUrl !== null &&
+      JSON.stringify(state.arrangements) !== JSON.stringify(opened.arrangements)
+    if (redrawn && statusUrl !== null) {
+      watchThumbnail({ statusUrl: statusUrl(blockId), blockId, blockName: state.name })
+    }
+
     // A fill still on the worker survives the designer (`lib/fill-jobs.ts`),
     // and this is the owner's one chance to learn that before it goes.
     const job = useFillJobs.getState().jobs[blockId]
     if (job?.state === 'working') {
       toast({ message: 'Saved. We will tell you when your text is ready.' })
+    } else if (redrawn) {
+      toast({ message: 'Saved. We will let you know when the preview is ready.' })
     }
     depart(via)
   }

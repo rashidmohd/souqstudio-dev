@@ -62,6 +62,9 @@ export function LibraryDesigner({
     // Nor anyone to write copy for or charge for it. Library copy is the
     // team's to write.
     fillUrl: null,
+    // The admin library's PNGs are drawn when its pages ask for them; nobody
+    // waits on one after a save, so leaving promises nothing.
+    thumbnailStatusUrl: null,
     availability: false,
     readOnlyNote:
       'Published library blocks are read-only. Duplicate this one to make a draft, then publish the draft under the same library id to replace it.',

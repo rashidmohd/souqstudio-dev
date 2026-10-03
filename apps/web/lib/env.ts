@@ -70,6 +70,13 @@ const schema = z.object({
    * that is not meant to publish.
    */
   LIBRARY_PUBLISH_TOKEN:              z.string().min(32).optional(),
+  /**
+   * Verifies the worker's signed links to `/render/block/[id]`, the page its
+   * headless browser captures block thumbnails from. The worker holds the same
+   * value. Unset turns the page off: every link to it 404s, no thumbnail is
+   * drawn, and every list keeps drawing its blocks live.
+   */
+  RENDER_TOKEN_SECRET:                z.string().min(32).optional(),
   REDIS_URL:                          z.string().min(1),
   RESEND_API_KEY:                     z.string().startsWith('re_'),
   // Resend requires a verified sender. Accepts a bare address or the

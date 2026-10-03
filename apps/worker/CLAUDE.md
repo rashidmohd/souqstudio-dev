@@ -32,7 +32,7 @@ apps/worker/
 │   ├── lib/
 │   │   ├── env.ts            # Zod-validated env vars
 │   │   ├── redis.ts          # Upstash Redis connection
-│   │   ├── playwright.ts     # Warm browser pool (generic-pool)
+│   │   ├── playwright.ts     # Warm browser pool (generic-pool). Built; created on first use
 │   │   ├── matte.ts          # E5 §3 — cutout bbox + quality from the alpha channel. Pure, tested.
 │   │   └── r2.ts             # Cloudflare R2 client
 │   ├── workers/
@@ -64,6 +64,7 @@ apps/worker/
 | `bg` | `bg.remove` | `{ imageUrl, targetPath, catalogProductId, sourceAssetId }` — catalog cutout |
 | `email` | `email.send` | `{ template, to, props }` |
 | `enrich` | `catalog.enrich` | `{ catalogProductId }` |
+| `render` | `render.blockThumbnail` | `{ blockId, renderKey, kit, direction }` — block PNG via headless Chromium |
 
 ---
 

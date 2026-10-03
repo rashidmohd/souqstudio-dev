@@ -53,6 +53,12 @@ export type DesignerHost = {
    */
   fillUrl: string | null
   /**
+   * Where to ask whether a block's PNG thumbnail has been drawn since its last
+   * save. Null where nothing waits for one, and then leaving the designer
+   * promises nothing about it. `lib/thumbnail-watch.ts`.
+   */
+  thumbnailStatusUrl: ((blockId: string) => string) | null
+  /**
    * Whether the author sets the block's availability from inside the designer.
    *
    * A shop does: it decides which of its own blocks new books may use. The
@@ -77,6 +83,7 @@ export const SHOP_HOST: DesignerHost = {
   artworkVectorUrl: '/api/v1/blocks/artwork/vector',
   generatedUrl: '/api/v1/brand/generated',
   fillUrl: '/api/v1/blocks/fill',
+  thumbnailStatusUrl: (blockId) => `/api/v1/blocks/${blockId}/thumbnail`,
   availability: true,
   readOnlyNote:
     'This block comes with every account, so it is read-only. Duplicate it to make a version of your own.',

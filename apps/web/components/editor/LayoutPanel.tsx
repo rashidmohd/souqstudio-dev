@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
 import { Ban, LayoutGrid, Pencil } from 'lucide-react'
 import type { Arrangement, BrandKit } from '@souqstudio/types'
 import type { BlockCategory } from '@souqstudio/engine'
@@ -119,6 +120,8 @@ type Props = {
     repeats: boolean
     arrangements: Arrangement[]
     category: BlockCategory | null
+    /** The worker's PNG in this shop's kit, or null while it draws live. */
+    thumbnailUrl?: string | null
   }[]
   /** The shop's colours, so a band preview is drawn in them. */
   kit: BrandKit
@@ -484,6 +487,7 @@ function Band({
             <BlockPreview
               arrangements={current.arrangements}
               kit={kit}
+              thumbnailUrl={current.thumbnailUrl}
               {...previewSize(current)}
             />
           )}
@@ -588,11 +592,10 @@ function previewSize(block: { repeats: boolean; arrangements: Arrangement[] }): 
   width: number
   height: number
 } {
-  const arrangement = block.arrangements[0]
-  const natural =
-    arrangement === undefined
-      ? PREVIEW_WIDTH / PREVIEW_HEIGHT
-      : Math.min(12, Math.max(0.4, Math.sqrt(arrangement.aspectMin * arrangement.aspectMax)))
+  // `previewAspect`, the shape every list draws a block at, so the worker's one
+  // PNG of it fits this frame too. It used to clamp at 12 rather than 6, which
+  // only a band thinner than any shipped one ever reached.
+  const natural = block.arrangements.length === 0 ? PREVIEW_WIDTH / PREVIEW_HEIGHT : previewAspect(block)
 
   return natural > PREVIEW_WIDTH / PREVIEW_HEIGHT
     ? { width: PREVIEW_WIDTH, height: Math.round(PREVIEW_WIDTH / natural) }

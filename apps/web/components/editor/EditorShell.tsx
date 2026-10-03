@@ -104,6 +104,8 @@ type Props = {
     repeats: boolean
     arrangements: Block['arrangements']
     category: BlockCategory | null
+    /** The worker's PNG in this shop's kit, or null while it draws live. */
+    thumbnailUrl: string | null
   }[]
   /** The book's repeating card — what a cell draws with no choice of its own. */
   offerCardBlockId: string | null

@@ -33,6 +33,7 @@ export function BlockCard({
   arrangements,
   kit,
   assetBaseUrl,
+  thumbnailUrl,
 }: {
   id: string
   name: string
@@ -48,6 +49,8 @@ export function BlockCard({
   arrangements: Arrangement[] | null
   kit: BrandKit
   assetBaseUrl: string
+  /** The worker's PNG in the library kit, or null while it draws live. */
+  thumbnailUrl?: string | null
 }) {
   const aspect = arrangements === null ? 1 : previewAspect({ repeats, arrangements })
   const width = aspect >= 1 ? PREVIEW_EDGE : Math.round(PREVIEW_EDGE * aspect)
@@ -68,6 +71,7 @@ export function BlockCard({
             width={width}
             height={height}
             assetBaseUrl={assetBaseUrl}
+            thumbnailUrl={thumbnailUrl}
             className="h-full w-full"
           />
         )}
