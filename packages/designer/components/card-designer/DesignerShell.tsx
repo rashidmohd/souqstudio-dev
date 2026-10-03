@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   Copy,
@@ -262,6 +262,15 @@ export function DesignerShell({
     useFillJobs.setState({ reviewing: null })
   }, [reviewing, blockId])
 
+  // Tells `FillWatch` which block is on screen, so it holds its toasts while
+  // a full-screen designer would hide them.
+  React.useEffect(() => {
+    useFillJobs.setState({ showing: blockId })
+    return () => {
+      if (useFillJobs.getState().showing === blockId) useFillJobs.setState({ showing: null })
+    }
+  }, [blockId])
+
   useUnloadGuard(blockId)
 
   React.useEffect(() => {
@@ -461,18 +470,12 @@ export function DesignerShell({
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
         {/*
           **The way out, and it is the only thing a window changes.** On its own
-          route this is a link to the library. Over the book editor there is no
-          history entry behind it and the book is still mounted below, so it is
-          a button that writes what is pending and hands control back.
+          route this goes back to the library; over the book editor the book is
+          still mounted below, so it closes the window instead. Both ask before
+          leaving changes behind — `useLeaveGuard`.
         */}
         {onClose === undefined ? (
-          <Link
-            href={host.exit.href}
-            className="flex items-center gap-2 rounded-pill px-2 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100"
-          >
-            <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" strokeWidth={1.75} />
-            {host.exit.label}
-          </Link>
+          <RouteExit blockId={blockId} editable={editable} opened={opened} exit={host.exit} />
         ) : null}
 
         <h1 className="font-ui text-subhead text-primary">{store.name}</h1>
@@ -1265,10 +1268,10 @@ function changedSince(opened: Snapshot): boolean {
   )
 }
 
-/** The key on the history entry a designer window pushes. */
+/** The key on the history entry a designer pushes. */
 const WINDOW_ENTRY = 'souqBlockWindow'
 
-/** Whether the current history entry is the one this window pushed. */
+/** Whether the current history entry is the one this designer pushed. */
 function onWindowEntry(blockId: string): boolean {
   const state: unknown = window.history.state
   return (
@@ -1276,30 +1279,155 @@ function onWindowEntry(blockId: string): boolean {
   )
 }
 
+/** How the owner is leaving: the designer's own control, or the browser's Back. */
+type Via = 'control' | 'back'
+
 /**
- * The way out of the designer in a window, and a check before anyone leaves
- * one with changes by mistake.
+ * A check before anyone leaves the designer with changes by mistake, for both
+ * places it is mounted: the window over the book editor and its own route.
  *
- * **"Save and close" is still a flush, not a second save model.** Both canvases
- * autosave on a two-second debounce with no save button, which
- * `apps/web/CLAUDE.md` asks for and which this does not change: the button
- * writes whatever the debounce has not got to yet, and a refused write leaves
- * the window open, because `validateBlock` problems are on screen above the
- * canvas and closing over one would take away the design and the explanation
- * in the same gesture.
+ * **Saving is still autosave plus a flush, not a second save model.** Both
+ * canvases autosave on a two-second debounce with no save button, which
+ * `apps/web/CLAUDE.md` asks for and which this does not change: leaving writes
+ * whatever the debounce has not got to yet, and a refused write keeps the owner
+ * here, because `validateBlock` problems are on screen above the canvas and
+ * leaving over one would take away the design and the explanation together.
  *
- * **Every other exit asks first when the block changed since it opened.** The
- * close control and the browser's Back, which on a Mac is a two-finger swipe
- * that owners make without meaning to. The question offers Save, Discard or
- * staying, and Discard is real: it writes the opening snapshot back, which
- * `PATCH` versions like any other save, so even a discard can be restored.
+ * **Leaving asks first when the block changed since it opened.** Through the
+ * designer's exit control or the browser's Back, which on a Mac is a
+ * two-finger swipe that owners make without meaning to. The question offers
+ * Save, Discard or staying, and Discard is real: it writes the opening snapshot
+ * back, which `PATCH` versions like any other save, so even a discard can be
+ * restored.
  *
- * **Back works through a history entry this window pushes.** Without one, Back
- * leaves the book editor altogether, and the window with it, with no chance to
- * ask. Next.js 14.2 patches `pushState` to carry its own router state onto the
- * entry, so popping it back restores the same page rather than reloading it.
- * The entry is taken back off on every close, so Back afterwards goes where it
- * did before the window opened.
+ * **Back is caught through a history entry the designer pushes.** Without one,
+ * Back has already navigated by the time anything could ask. Next.js 14.2
+ * patches `pushState` to carry its own router state onto the entry, so popping
+ * it restores the same page rather than reloading it. `depart` is told how the
+ * owner left so it can take that entry back off, and Back afterwards goes where
+ * it did before the designer opened.
+ */
+function useLeaveGuard({
+  blockId,
+  editable,
+  opened,
+  depart,
+}: {
+  blockId: string
+  editable: boolean
+  opened: Snapshot
+  /** Actually leave, once the block is saved or put back. */
+  depart: (via: Via) => void
+}) {
+  const blockUrl = useDesignerHost().blockUrl(blockId)
+  /** Which exit raised the question, or null while it is not asked. */
+  const [asking, setAsking] = React.useState<Via | null>(null)
+  const [busy, setBusy] = React.useState<'save' | 'discard' | null>(null)
+  /** Set once the owner is on the way out, so the pop that removes our own
+   *  history entry is not mistaken for the owner pressing Back. */
+  const done = React.useRef(false)
+
+  function finish(via: Via) {
+    done.current = true
+
+    // A fill still on the worker survives the designer (`lib/fill-jobs.ts`),
+    // and this is the owner's one chance to learn that before it goes.
+    const job = useFillJobs.getState().jobs[blockId]
+    if (job?.state === 'working') {
+      toast({ message: 'Saved. We will tell you when your text is ready.' })
+    }
+    depart(via)
+  }
+
+  async function save(via: Via) {
+    setBusy('save')
+    const ok = await flushBlock(blockUrl, editable)
+    setBusy(null)
+    setAsking(null)
+    if (ok) finish(via)
+  }
+
+  async function discard(via: Via) {
+    setBusy('discard')
+    useDesignerStore.setState({
+      name: opened.name,
+      status: opened.status,
+      arrangements: opened.arrangements,
+      arrangementIndex: 0,
+      selectedIds: [],
+      save: 'dirty',
+    })
+    const ok = await writeBlock(blockUrl)
+    setBusy(null)
+    setAsking(null)
+    if (ok) finish(via)
+  }
+
+  function leave(via: Via) {
+    if (editable && changedSince(opened)) setAsking(via)
+    else void save(via)
+  }
+
+  // The popstate listener is registered once per block, so it reads the
+  // current handlers through a ref rather than a stale closure.
+  const latest = React.useRef({ save })
+  latest.current = { save }
+
+  React.useEffect(() => {
+    // Idempotent, so React's development double-run does not push two.
+    if (!onWindowEntry(blockId)) window.history.pushState({ [WINDOW_ENTRY]: blockId }, '')
+
+    function onPopState() {
+      if (done.current) return
+      if (editable && changedSince(opened)) {
+        // Back has already popped our entry. Put it back so the page stays
+        // where it is while the owner answers, and so a second Back asks again
+        // rather than leaving.
+        window.history.pushState({ [WINDOW_ENTRY]: blockId }, '')
+        setAsking('back')
+      } else {
+        void latest.current.save('back')
+      }
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [blockId, editable, opened])
+
+  const prompt = (
+    <Dialog
+      open={asking !== null}
+      onOpenChange={(next) => {
+        // Dismissing the question is staying. Not while a write is in
+        // flight, which would leave it landing behind a closed prompt.
+        if (!next && busy === null) setAsking(null)
+      }}
+      title="Save your changes?"
+      description="You changed this block since you opened it. Discard puts it back the way it was when you opened it."
+      primaryAction={{
+        label: 'Save and leave',
+        loading: busy === 'save',
+        onClick: () => {
+          if (busy === null && asking !== null) void save(asking)
+        },
+      }}
+      secondaryAction={{
+        label: busy === 'discard' ? 'Discarding…' : 'Discard changes',
+        onClick: () => {
+          if (busy === null && asking !== null) void discard(asking)
+        },
+      }}
+    />
+  )
+
+  return { leave, save, saving: busy === 'save' && asking === null, prompt }
+}
+
+/**
+ * The way out of the designer in a window over the book editor.
+ *
+ * "Save and close" saves and closes without asking, because it says what it
+ * does. The close control and Back ask first when there are changes.
  */
 function WindowExit({
   blockId,
@@ -1312,115 +1440,93 @@ function WindowExit({
   opened: Snapshot
   onClose: () => void
 }) {
-  const blockUrl = useDesignerHost().blockUrl(blockId)
-  const [asking, setAsking] = React.useState(false)
-  const [busy, setBusy] = React.useState<'save' | 'discard' | null>(null)
-  /** Set once the window is on its way out, so the pop that removes our own
-   *  history entry is not mistaken for the owner pressing Back. */
-  const done = React.useRef(false)
-
-  function finish() {
-    done.current = true
-    if (onWindowEntry(blockId)) window.history.back()
-
-    // A fill still on the worker survives the window (`lib/fill-jobs.ts`), and
-    // this is the owner's one chance to learn that before the book covers it.
-    const job = useFillJobs.getState().jobs[blockId]
-    if (job?.state === 'working') {
-      toast({ message: 'Saved. We will tell you when your text is ready.' })
-    }
-    onClose()
-  }
-
-  async function save() {
-    setBusy('save')
-    const ok = await flushBlock(blockUrl, editable)
-    setBusy(null)
-    setAsking(false)
-    if (ok) finish()
-  }
-
-  async function discard() {
-    setBusy('discard')
-    useDesignerStore.setState({
-      name: opened.name,
-      status: opened.status,
-      arrangements: opened.arrangements,
-      arrangementIndex: 0,
-      selectedIds: [],
-      save: 'dirty',
-    })
-    const ok = await writeBlock(blockUrl)
-    setBusy(null)
-    setAsking(false)
-    if (ok) finish()
-  }
-
-  function leave() {
-    if (editable && changedSince(opened)) setAsking(true)
-    else void save()
-  }
-
-  // The popstate listener is registered once per block, so it reads the
-  // current handlers through a ref rather than a stale closure.
-  const latest = React.useRef({ leave, save })
-  latest.current = { leave, save }
-
-  React.useEffect(() => {
-    // Idempotent, so React's development double-run does not push two.
-    if (!onWindowEntry(blockId)) window.history.pushState({ [WINDOW_ENTRY]: blockId }, '')
-
-    function onPopState() {
-      if (done.current) return
-      if (editable && changedSince(opened)) {
-        // Back has already popped our entry. Put it back so the page stays
-        // where it is while the owner answers, and so a second Back asks again
-        // rather than leaving the editor.
-        window.history.pushState({ [WINDOW_ENTRY]: blockId }, '')
-        setAsking(true)
-      } else {
-        void latest.current.save()
-      }
-    }
-
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [blockId, editable, opened])
+  const guard = useLeaveGuard({
+    blockId,
+    editable,
+    opened,
+    depart: () => {
+      // Either way our entry has to come off: after a control it is still on
+      // top, and after an answered Back it was pushed again to hold the page.
+      if (onWindowEntry(blockId)) window.history.back()
+      onClose()
+    },
+  })
 
   return (
     <>
-      <Button type="button" variant="primary" loading={busy === 'save' && !asking} onClick={() => void save()}>
+      <Button
+        type="button"
+        variant="primary"
+        loading={guard.saving}
+        onClick={() => void guard.save('control')}
+      >
         {editable ? 'Save and close' : 'Close'}
       </Button>
       {editable ? (
-        <Button type="button" variant="ghost" iconOnly aria-label="Close" onClick={leave}>
+        <Button
+          type="button"
+          variant="ghost"
+          iconOnly
+          aria-label="Close"
+          onClick={() => guard.leave('control')}
+        >
           <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </Button>
       ) : null}
+      {guard.prompt}
+    </>
+  )
+}
 
-      <Dialog
-        open={asking}
-        onOpenChange={(next) => {
-          // Dismissing the question is staying. Not while a write is in
-          // flight, which would leave it landing behind a closed prompt.
-          if (!next && busy === null) setAsking(false)
-        }}
-        title="Save your changes?"
-        description="You changed this block since you opened it. Discard puts it back the way it was when you opened it."
-        primaryAction={{
-          label: 'Save and close',
-          loading: busy === 'save',
-          onClick: () => {
-            if (busy === null) void save()
-          },
-        }}
-        secondaryAction={{
-          label: busy === 'discard' ? 'Discarding…' : 'Discard changes',
-          onClick: () => {
-            if (busy === null) void discard()
-          },
-        }}
-      />
+/**
+ * The way out of the designer on its own route, back to where it was opened
+ * from.
+ *
+ * **A button, not a `Link`.** A link navigates on click, and the question has
+ * to come before that. It is styled as the link was, so nothing about the
+ * header changes for an owner who has nothing unsaved.
+ */
+function RouteExit({
+  blockId,
+  editable,
+  opened,
+  exit,
+}: {
+  blockId: string
+  editable: boolean
+  opened: Snapshot
+  exit: { href: string; label: string }
+}) {
+  const router = useRouter()
+  const guard = useLeaveGuard({
+    blockId,
+    editable,
+    opened,
+    depart: (via) => {
+      if (via === 'control') {
+        // Replacing our own entry rather than stacking above it, so Back from
+        // the library does not land on a duplicate of this page first.
+        if (onWindowEntry(blockId)) router.replace(exit.href)
+        else router.push(exit.href)
+        return
+      }
+      // Back already moved one entry. If the question pushed ours again to
+      // hold the page, step over it as well.
+      window.history.go(onWindowEntry(blockId) ? -2 : -1)
+    },
+  })
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => guard.leave('control')}
+        className="flex items-center gap-2 rounded-pill px-2 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100"
+      >
+        <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" strokeWidth={1.75} />
+        {exit.label}
+      </button>
+      {guard.prompt}
     </>
   )
 }

@@ -23,7 +23,7 @@ const input = { fillUrl: '/fill', blockId: 'b1', blockName: 'Weekend card', payl
 
 beforeEach(() => {
   vi.useFakeTimers()
-  useFillJobs.setState({ jobs: {}, reviewing: null })
+  useFillJobs.setState({ jobs: {}, reviewing: null, showing: null, opener: null })
 })
 
 afterEach(() => {

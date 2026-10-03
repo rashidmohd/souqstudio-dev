@@ -16,7 +16,7 @@ errors. It just looks wrong, and the artboard gets compressed.
 | --- | --- | --- | --- | --- |
 | 1 | App shell | `(dashboard)/*` | `app/(dashboard)/layout.tsx` | — it *is* the shell |
 | 2 | Offer book editor | `(dashboard)/editor/[id]` | none — see the note in §3 | Yes, as built |
-| 3 | Card designer | `(dashboard)/card-designer/[blockId]` | none — see the note in §3 | Yes, as built |
+| 3 | Card designer | `(designer)/card-designer/[blockId]` | `app/(designer)/layout.tsx` | No — separate route group, since 3 October 2026 |
 | 4 | Onboarding | `(auth)/*` | `app/(auth)/layout.tsx` | No — separate route group |
 | 5 | Public viewer | `o/[code]` | `app/o/layout.tsx` | No — separate surface entirely |
 
@@ -212,17 +212,21 @@ auth and org context, then renders full-bleed without the rail.
 
 ## 3 · Card designer
 
-`app/(dashboard)/card-designer/[blockId]/page.tsx`
+`app/(designer)/card-designer/[blockId]/page.tsx`
 
 Same three-pane geometry as family 2, **different content**. This is not the offer book
 editor: one block on a canvas, no page grid, no product selection, no pagination.
 
-**Neither canvas escapes the shell, as built, and that is deliberate rather than
-outstanding.** A nested `layout.tsx` cannot remove the rail — Next nests layouts rather
-than replacing them — so escaping means a route group outside `(dashboard)`, which is also
-where the auth gate lives. Canvas parity is the rule that matters here: a designer that
-escaped while the editor did not would be exactly the divergence the parity rule exists to
-prevent. If one moves, both move, in one change. `docs/E7-pending.md` §7.
+**The card designer escapes the shell; the offer book editor does not.** Owners reported
+the rail beside the designer's canvas as a way to leave a design by mistake, and on
+3 October 2026 the owner chose to move the designer alone. That overrides the earlier
+rule that both canvases escape together or neither does (`docs/E7-pending.md` §7). The
+artboards themselves still keep parity: padding, zoom, selection outline and handles.
+A nested `layout.tsx` cannot remove the rail, because Next nests layouts, so the designer
+lives in the `(designer)` route group, whose layout repeats the session gate, the
+brand-kit fonts and the toast region without the rail. Its header is the only way out,
+and leaving with changes asks Save, Discard or stay (`useLeaveGuard` in
+`DesignerShell.tsx`), including on the browser's Back.
 
 **The parameter is `[blockId]`.** It was `[templateId]`, named after a table the
 composition model dropped; what an owner designs here is a block.

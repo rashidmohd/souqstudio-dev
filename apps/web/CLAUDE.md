@@ -14,15 +14,17 @@ apps/web/
 │   │   ├── login/
 │   │   ├── signup/
 │   │   └── onboarding/            # Brand setup wizard (steps 1–4)
+│   ├── (designer)/                # Block designer — full window, no rail
+│   │   ├── layout.tsx             # Session gate, brand fonts, toasts; no rail
+│   │   └── card-designer/
+│   │       └── [blockId]/
+│   │           └── page.tsx       # Block designer — three panes, canvas surround
 │   ├── (dashboard)/               # Protected — requires auth + verified org
 │   │   ├── layout.tsx             # Shell with left rail nav
 │   │   ├── page.tsx               # Home = offer books list
 │   │   ├── editor/
 │   │   │   └── [id]/
 │   │   │       └── page.tsx       # Full-bleed offer book editor — escapes shell
-│   │   ├── card-designer/
-│   │   │   └── [blockId]/
-│   │   │       └── page.tsx       # Block designer — three panes, canvas surround
 │   │   ├── catalog/               # Product catalog browser
 │   │   ├── brand/                 # Brand kit management
 │   │   │   └── blocks/            # The block library — E7
@@ -105,11 +107,10 @@ apps/web/
   driving the artboard rather than the interface. Numerals are never affected by it.
   A block is *not* bound to one language: every static string carries both `textEn`
   and `textAr`, and the document schema refuses one without the other.
-  **Neither canvas actually escapes the shell**, and both must stay the same: a
-  nested layout cannot remove the rail — Next nests layouts rather than replacing
-  them — so escaping means a route group outside `(dashboard)`, which is where the
-  auth gate lives. Canvas parity is the rule that matters; if one moves, both move.
-  See `docs/E7-pending.md` §7.
+  **The designer escapes the shell; the book editor does not, yet.** It lives in the
+  `(designer)` route group so it gets the full window with no rail, chosen by the owner
+  on 3 October 2026 over the older both-or-neither rule (`docs/E7-pending.md` §7).
+  Leaving it with changes asks Save, Discard or stay, the browser's Back included.
 - `o/[code]`: public viewer. SSR. Zero chrome. Separate layout. Architecturally
   distinct from the dashboard — it is seen thousands of times per book by people
   who have never heard of SouqStudio. Mobile-first, fast paint, lazy images.

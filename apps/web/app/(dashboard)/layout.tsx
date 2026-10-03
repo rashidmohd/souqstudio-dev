@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cookies } from 'next/headers'
 import { DashboardRail } from '@/components/shared/dashboard-rail'
+import { FillWatch } from '@/components/shared/FillWatch'
 import { Toaster } from '@souqstudio/designer/components/ui/toast'
 import { getActiveShop } from '@/lib/active-shop'
 import { organizationName } from '@/lib/organization'
@@ -83,6 +84,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             it nests inside this layout rather than escaping it, so a toast raised
             from the artboard lands here. A second mount would announce twice. */}
         <Toaster />
+        {/* Reports a generative fill that finished after its designer closed.
+            Here rather than in the editor, because the designer's own route
+            leaves to the block library, not to a book. */}
+        <FillWatch />
       </div>
     </FontCatalogProvider>
   )

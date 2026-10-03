@@ -12,8 +12,8 @@ import type { FillLine } from '@souqstudio/engine'
  * job running on the worker with nothing listening. The worker charges on
  * completion, so the credits went and the text never arrived. Held here, at
  * module level, the job outlives both the dialog and the window: the designer
- * reads it back when it opens on that block, and the book editor's `FillWatch`
- * says so when it lands while the window is closed.
+ * reads it back when it opens on that block, and the dashboard's `FillWatch`
+ * says so when it lands while no designer is open on it.
  *
  * **In-session only.** The `ai_jobs` row does not record which block a fill was
  * for, so a job started in a tab that has since closed cannot be routed back to
@@ -32,6 +32,8 @@ type Base = {
    * replaces the entry, and the first run's poll must not land over it.
    */
   run: number
+  /** Whether the owner has been told how it ended, by a toast or the designer. */
+  told?: boolean
 }
 
 export type FillJob =
@@ -47,9 +49,26 @@ type FillJobsState = {
    * mounts on that block, then clears this.
    */
   reviewing: string | null
+  /**
+   * The block a designer is open on right now, in a window or on its route.
+   * A finished fill for it is reported by the designer's own notice bar; any
+   * other waits, because a toast behind a full-screen designer is never seen.
+   */
+  showing: string | null
+  /**
+   * How to open a block in place, registered by the book editor, which can
+   * open the designer as a window over the book. Null elsewhere, where
+   * reviewing a fill means going to the designer's route.
+   */
+  opener: ((blockId: string) => void) | null
 }
 
-export const useFillJobs = create<FillJobsState>(() => ({ jobs: {}, reviewing: null }))
+export const useFillJobs = create<FillJobsState>(() => ({
+  jobs: {},
+  reviewing: null,
+  showing: null,
+  opener: null,
+}))
 
 let runs = 0
 
@@ -95,6 +114,13 @@ export function clearFill(blockId: string) {
     const { [blockId]: _gone, ...rest } = state.jobs
     return { jobs: rest }
   })
+}
+
+/** Record that the owner has heard how this run ended. */
+export function markTold(blockId: string, run: number) {
+  const job = useFillJobs.getState().jobs[blockId]
+  if (job?.run !== run || job.told === true) return
+  put({ ...job, told: true })
 }
 
 function put(job: FillJob) {

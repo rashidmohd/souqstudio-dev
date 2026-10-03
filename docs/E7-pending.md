@@ -288,6 +288,15 @@ a hard rule**, and a designer that escaped while the editor did not would be
 precisely the divergence the rule exists to prevent. If one moves, both move, in
 one change.
 
+**Superseded on 3 October 2026: the designer moved alone.** Owners reported the
+rail and its links beside the designer's canvas as a way to leave a design by
+mistake, and the owner chose to give the designer the full window without
+moving the book editor. The route is now `app/(designer)/card-designer/[blockId]`,
+under a layout that repeats the session gate, the brand-kit fonts and the toast
+region without the rail. Leaving with changes asks Save, Discard or stay,
+including on the browser's Back (`useLeaveGuard` in `DesignerShell.tsx`). Parity
+of the artboards themselves still holds; only the chrome around them differs.
+
 **`components/card-designer/` is the directory name the lint config already
 expected.** `packages/config/eslint.design.cjs` exempts `components/editor/**`
 and `components/card-designer/**` from the template-token rule, because both draw

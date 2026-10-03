@@ -19,7 +19,7 @@ import {
 import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { BookPage } from '@/components/editor/BookPage'
 import { CutoutWatch } from '@/components/editor/CutoutWatch'
-import { FillWatch } from '@/components/editor/FillWatch'
+import { useFillJobs } from '@souqstudio/designer/lib/fill-jobs'
 import { LayoutPanel } from '@/components/editor/LayoutPanel'
 import { PagePanel } from '@/components/editor/PagePanel'
 import { BlockPickerDialog, type PickerScope } from '@/components/editor/BlockPickerDialog'
@@ -499,6 +499,16 @@ export function EditorShell({
   const blockEdit = useBlockEdit({ bookId, open: setEditingBlock })
 
   /**
+   * Reviewing a finished fill from a toast opens the block here, as a window
+   * over the book, rather than sending the owner off to the designer's route.
+   * `FillWatch` reads this; elsewhere it navigates instead.
+   */
+  React.useEffect(() => {
+    useFillJobs.setState({ opener: setEditingBlock })
+    return () => useFillJobs.setState({ opener: null })
+  }, [])
+
+  /**
    * Write one cell's design, as the whole map for that page.
    *
    * A delta into a collection is how two tabs assigning designs against
@@ -655,7 +665,6 @@ export function EditorShell({
           in a toast — here rather than in the properties panel, because the
           wait has to survive the owner selecting another card. */}
       <CutoutWatch />
-      <FillWatch editingBlock={editingBlock} onReview={setEditingBlock} />
 
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
         <Link
