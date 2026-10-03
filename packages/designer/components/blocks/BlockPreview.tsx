@@ -149,6 +149,11 @@ export function LiveBlockPreview({
     // owns, and two imported from the same seed carry identical element ids.
     uid,
     token: (ref) => resolveToken(palette, ref),
+    // The palette itself, for a colour the owner picked by id. Without it every
+    // such fill resolved against an empty list and fell back to ink: a pink
+    // card ground drew near-black in every list, and in its thumbnail, while
+    // the designer's canvas, which passes it, drew it pink.
+    palette,
     ...(assetBaseUrl === undefined ? {} : { asset: assetResolver(assetBaseUrl) }),
     scale,
     blockSize,

@@ -25,7 +25,9 @@ import { previewAspect } from './preview-shape'
  * every PNG is redrawn the next time it is asked for rather than showing what
  * the old painter made.
  */
-export const RENDERER_VERSION = 1
+export const RENDERER_VERSION = 2
+// 2 — `BlockPreview` now hands the painter the shop's palette. Every PNG drawn
+// before it shows a colour picked by id as near-black, so every one is redrawn.
 
 /** The long edge of a thumbnail in CSS pixels. Captured at twice this. */
 const LONG_EDGE = 640
