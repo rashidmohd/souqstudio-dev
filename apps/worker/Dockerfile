@@ -39,6 +39,13 @@ COPY . .
 # Prisma CLI. `apps/worker/CLAUDE.md` says why `start` is not compiled output.
 RUN pnpm install --frozen-lockfile --filter "@souqstudio/worker..." --prod=false
 
+# `@souqstudio/email` is the one workspace package the worker loads compiled:
+# its `main` is `dist/index.js`, so without this the worker builds and then
+# dies at start with "Cannot find module .../email/dist/index.js". Railpack
+# got it from `turbo build --filter=@souqstudio/worker`, which builds a
+# package's dependencies first. db, engine and types publish their source.
+RUN pnpm --filter @souqstudio/email build
+
 # The db package's own script, not the root's: the root one runs through
 # turbo, which is a root dev dependency the filtered install above leaves out.
 RUN pnpm --filter @souqstudio/db db:generate
