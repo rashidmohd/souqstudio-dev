@@ -281,8 +281,9 @@ WEB_RENDER_URL=http://web.railway.internal:<web PORT> # the web app over the pri
 RENDER_TOKEN_SECRET=                  # openssl rand -hex 32 — the SAME value as on web
 ```
 
-**Thumbnails also need Chromium in the worker's image**, which the Railpack build does not
-have. Until the worker moves to the Playwright image (see "What is not ready" below), every
+**Thumbnails need Chromium in the worker's image, so the worker builds from
+`apps/worker/Dockerfile`** (since 3 October 2026), not Railpack: Node 20 plus
+`playwright install --with-deps chromium`. If the worker ever runs without it, every
 `render.blockThumbnail` job fails at browser launch and the lists keep drawing live; the
 rest of the worker is unaffected, because the browser pool is only created on first use.
 
@@ -508,11 +509,12 @@ root `CLAUDE.md` under Known gaps:
   address. `127.0.0.1` is right only for a local `next start`; on Railway the address that
   arrives is the public one your browser came from, so a list of localhost entries refuses
   everybody including you.
-- **The worker needs a different builder, now for thumbnails and later for the PDF.**
-  Block thumbnails (3 October 2026) are the first job that launches Chromium. Playwright browsers
-  do not install under the builder's default Node image. That service moves to a Dockerfile
-  based on `mcr.microsoft.com/playwright`, and the `builder` field in
-  `railway/worker.json` changes to `DOCKERFILE`.
+- ~~**The worker needs a different builder.**~~ **Done 3 October 2026, for block
+  thumbnails.** `railway/worker.json` is `DOCKERFILE` and `apps/worker/Dockerfile` installs
+  Chromium. It is Node 20 with `playwright install --with-deps` rather than the
+  `mcr.microsoft.com/playwright` image this note once named, so the Node version does not
+  move and the browser always matches the `playwright` package in the lockfile. The PDF
+  export will use the same browser pool.
 
 ---
 
