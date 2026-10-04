@@ -3,7 +3,6 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft,
   Copy,
   PanelLeftClose,
   Plus,
@@ -469,15 +468,6 @@ export function DesignerShell({
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas-surround">
       <header className="flex flex-wrap items-center gap-3 border-b-hairline border-border-subtle bg-surface px-4 py-3">
-        {/*
-          **The way out, and it is the only thing a window changes.** On its own
-          route this goes back to the library; over the book editor the book is
-          still mounted below, so it closes the window instead. Both ask before
-          leaving changes behind — `useLeaveGuard`.
-        */}
-        {onClose === undefined ? (
-          <RouteExit blockId={blockId} editable={editable} opened={opened} exit={host.exit} />
-        ) : null}
 
         <h1 className="font-ui text-subhead text-primary">{store.name}</h1>
 
@@ -540,7 +530,17 @@ export function DesignerShell({
             <DuplicateButton blockId={blockId} name={store.name} host={host} />
           )}
 
-          {onClose === undefined ? null : (
+          {/*
+            **The way out, top right, the same in both places.** On its own
+            route this used to be a "Blocks" back link at the start of the
+            header, and owners did not read a back link as the way to close a
+            full-screen editor. It is now what the window over the book editor
+            has: "Save and close", and an × that asks before leaving changes
+            behind (`useLeaveGuard`). Only where it goes afterwards differs.
+          */}
+          {onClose === undefined ? (
+            <RouteExit blockId={blockId} editable={editable} opened={opened} exit={host.exit} />
+          ) : (
             <WindowExit blockId={blockId} editable={editable} opened={opened} onClose={onClose} />
           )}
         </div>
@@ -1443,8 +1443,7 @@ function useLeaveGuard({
 /**
  * The way out of the designer in a window over the book editor.
  *
- * "Save and close" saves and closes without asking, because it says what it
- * does. The close control and Back ask first when there are changes.
+ * The controls are `ExitControls`, shared with the designer's own route.
  */
 function WindowExit({
   blockId,
@@ -1469,39 +1468,15 @@ function WindowExit({
     },
   })
 
-  return (
-    <>
-      <Button
-        type="button"
-        variant="primary"
-        loading={guard.saving}
-        onClick={() => void guard.save('control')}
-      >
-        {editable ? 'Save and close' : 'Close'}
-      </Button>
-      {editable ? (
-        <Button
-          type="button"
-          variant="ghost"
-          iconOnly
-          aria-label="Close"
-          onClick={() => guard.leave('control')}
-        >
-          <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        </Button>
-      ) : null}
-      {guard.prompt}
-    </>
-  )
+  return <ExitControls guard={guard} editable={editable} />
 }
 
 /**
- * The way out of the designer on its own route, back to where it was opened
- * from.
+ * The way out of the designer on its own route, back to the block library.
  *
- * **A button, not a `Link`.** A link navigates on click, and the question has
- * to come before that. It is styled as the link was, so nothing about the
- * header changes for an owner who has nothing unsaved.
+ * The same controls as the window (`ExitControls`); only the destination
+ * differs. Buttons rather than a `Link`, because a link navigates on click and
+ * the question has to come before that.
  */
 function RouteExit({
   blockId,
@@ -1533,16 +1508,54 @@ function RouteExit({
     },
   })
 
+  return <ExitControls guard={guard} editable={editable} />
+}
+
+/**
+ * "Save and close" and an ×, for every designer.
+ *
+ * Save and close saves and leaves without asking, because it says what it does.
+ * The × asks first when the block changed since it opened: Save, Discard or
+ * stay. A block the owner may not edit has nothing to save, so it gets a plain
+ * Close, and as a ghost, because Duplicate is that header's one primary action.
+ */
+function ExitControls({
+  guard,
+  editable,
+}: {
+  guard: ReturnType<typeof useLeaveGuard>
+  editable: boolean
+}) {
+  if (!editable) {
+    return (
+      <>
+        <Button type="button" variant="ghost" onClick={() => void guard.save('control')}>
+          Close
+        </Button>
+        {guard.prompt}
+      </>
+    )
+  }
+
   return (
     <>
-      <button
+      <Button
         type="button"
-        onClick={() => guard.leave('control')}
-        className="flex items-center gap-2 rounded-pill px-2 py-1 font-ui text-body-sm text-secondary hover:bg-stone-100"
+        variant="primary"
+        loading={guard.saving}
+        onClick={() => void guard.save('control')}
       >
-        <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" strokeWidth={1.75} />
-        {exit.label}
-      </button>
+        Save and close
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        iconOnly
+        aria-label="Close"
+        onClick={() => guard.leave('control')}
+      >
+        <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+      </Button>
       {guard.prompt}
     </>
   )
