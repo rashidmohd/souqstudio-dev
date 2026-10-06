@@ -6,6 +6,7 @@ import type { Arrangement, BrandKit } from '@souqstudio/types'
 import { BlockPreview } from '@souqstudio/designer/components/blocks/BlockPreview'
 import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
 import { cn } from '@souqstudio/designer/lib/utils'
+import { PreviewUpdating } from '@/components/blocks/PreviewUpdating'
 
 /**
  * A block, drawn small enough to pick from a grid.
@@ -58,6 +59,7 @@ export function BlockTile({
   disabled = false,
   badges,
   thumbnailUrl,
+  blockId,
   onSelect,
 }: {
   name: string
@@ -70,6 +72,11 @@ export function BlockTile({
   badges?: React.ReactNode
   /** The worker's PNG of this block in this kit, or null to draw it live. */
   thumbnailUrl?: string | null | undefined
+  /**
+   * Set where the tile is one of the shop's own blocks, so a block the owner
+   * just changed can say its picture is being redrawn. `PreviewUpdating`.
+   */
+  blockId?: string | undefined
   onSelect: () => void
 }) {
   const size = tileSize({ repeats, arrangements })
@@ -102,6 +109,7 @@ export function BlockTile({
             thumbnailUrl={thumbnailUrl}
             {...size}
           />
+          {blockId === undefined ? null : <PreviewUpdating blockId={blockId} />}
 
           {selected ? (
             <span className="absolute end-1 top-1 flex size-4 items-center justify-center rounded-pill bg-action-primary text-inverse">

@@ -372,6 +372,7 @@ export function BlockPickerDialog({
                 repeats={block.repeats}
                 kit={kit}
                 thumbnailUrl={block.thumbnailUrl}
+                blockId={block.id}
                 selected={chosen === block.id}
                 onSelect={() => setPicked(block.id)}
                 badges={

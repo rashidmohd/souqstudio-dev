@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
+import { PreviewUpdating } from '@/components/blocks/PreviewUpdating'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LibraryBig, Lock, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
@@ -268,7 +269,7 @@ function BlockCard({
 
   return (
     <li className="flex flex-col gap-2">
-      <div className="overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0">
+      <div className="relative overflow-hidden rounded-control border-hairline border-border-subtle bg-stone-0">
         {/* Natural aspect per block: a hero band letterboxed into a card's shape
             is not what the owner will get. A block placed once is drawn at the
             shape its own aspect range says it was designed for — one flat height
@@ -280,6 +281,7 @@ function BlockCard({
           thumbnailUrl={block.thumbnailUrl}
           {...previewSize(block)}
         />
+        <PreviewUpdating blockId={block.id} className="start-2 top-2" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

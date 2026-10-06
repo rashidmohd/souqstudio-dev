@@ -74,3 +74,15 @@ export function forget(blockId: string) {
 function put(wait: ThumbnailWait) {
   useThumbnailWatch.setState((state) => ({ waits: { ...state.waits, [wait.blockId]: wait } }))
 }
+
+/**
+ * Whether this block's new PNG is still being drawn after the owner saved it.
+ *
+ * True only for a block somebody just changed and left, so a card can say its
+ * picture is on its way. A block that simply has no PNG yet, which is every
+ * seeded block the first time a shop browses it, answers false: its live
+ * drawing is already correct, and a label on sixty cards would read as broken.
+ */
+export function useThumbnailPending(blockId: string): boolean {
+  return useThumbnailWatch((state) => state.waits[blockId]?.state === 'waiting')
+}
