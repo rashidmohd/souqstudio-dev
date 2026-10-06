@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import type { BrandColor, PageBackground, TokenRef } from '@souqstudio/types'
+import { MoveHorizontal, MoveVertical } from 'lucide-react'
 import { Button } from '@souqstudio/designer/components/ui/button'
 import { Figure } from '@souqstudio/designer/components/ui/figure'
 import { Select } from '@souqstudio/designer/components/ui/select'
@@ -55,6 +56,9 @@ type Props = {
   }
   onMerge: () => void
   onUnmerge: () => void
+  /** Whether the selected card can take in the next column, or the next row. */
+  grow: { wider: boolean; taller: boolean }
+  onGrow: (axis: 'wider' | 'taller') => void
   addToSelection: boolean
   onToggleAddToSelection: () => void
   pendingCells: 'merge' | 'unmerge' | null
@@ -93,6 +97,8 @@ export function PagePanel({
   selection,
   onMerge,
   onUnmerge,
+  grow,
+  onGrow,
   addToSelection,
   onToggleAddToSelection,
   pendingCells,
@@ -171,6 +177,9 @@ export function PagePanel({
         disabled={busy}
         onMerge={onMerge}
         onUnmerge={onUnmerge}
+        oneCard={cell !== null}
+        grow={grow}
+        onGrow={onGrow}
         addToSelection={addToSelection}
         onToggleAddToSelection={onToggleAddToSelection}
         pending={pendingCells}
@@ -212,6 +221,9 @@ function Cells({
   disabled,
   onMerge,
   onUnmerge,
+  oneCard,
+  grow,
+  onGrow,
   addToSelection,
   onToggleAddToSelection,
   pending,
@@ -221,6 +233,10 @@ function Cells({
   disabled: boolean
   onMerge: () => void
   onUnmerge: () => void
+  /** Exactly one card is selected, so "make it bigger" has a subject. */
+  oneCard: boolean
+  grow: { wider: boolean; taller: boolean }
+  onGrow: (axis: 'wider' | 'taller') => void
   addToSelection: boolean
   onToggleAddToSelection: () => void
   pending: 'merge' | 'unmerge' | null
@@ -296,6 +312,46 @@ function Cells({
         before they change it, and the selection ring alone only tells them once
         they have found it again.
       */}
+      {/*
+        **Make this card bigger**, for the owner who has one card picked and
+        wants more of the page for it. A shortcut for Merge with the neighbour
+        chosen for them, because "drag across two cards, then press Merge" is
+        not what anybody looking for a size thinks to do. Labelled in words,
+        since a tablet has no hover to explain an icon. Only shown when the grid
+        has room in at least one direction.
+      */}
+      {oneCard && (grow.wider || grow.taller) ? (
+        <div className="flex flex-col gap-2 border-t-hairline border-border-subtle pt-3">
+          <p className="font-ui text-body-sm text-secondary">Make this card bigger</p>
+          <div className="flex flex-wrap gap-2">
+            {grow.wider ? (
+              <Button
+                type="button"
+                disabled={disabled || pending !== null}
+                onClick={() => onGrow('wider')}
+              >
+                <MoveHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                Wider
+              </Button>
+            ) : null}
+            {grow.taller ? (
+              <Button
+                type="button"
+                disabled={disabled || pending !== null}
+                onClick={() => onGrow('taller')}
+              >
+                <MoveVertical className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                Taller
+              </Button>
+            ) : null}
+          </div>
+          <p className="font-ui text-body-sm text-muted">
+            Takes in the card beside it or below it, and that card&apos;s product moves
+            on to the next cell. Unmerge puts it back.
+          </p>
+        </div>
+      ) : null}
+
       {(selection.canMerge || selection.canUnmerge) && page !== null ? (
         <p className="font-ui text-body-sm text-muted">
           This changes page <Figure value={page + 1} size="data-sm" /> only. Other

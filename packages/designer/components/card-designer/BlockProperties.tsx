@@ -150,6 +150,22 @@ export function BlockProperties({
           )}
         </fieldset>
       )}
+
+      {/*
+        **Where size is, because owners looked for it here.** A block is drawn
+        in fractions of itself and has no size of its own; it takes the space
+        the book gives it. Saying so where the question is asked, and naming the
+        controls that answer it, is cheaper than a size field that would have to
+        mean something different in every book.
+      */}
+      <section className="flex flex-col gap-1 rounded-control bg-sand-tint p-3">
+        <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">Size</h3>
+        <p className="font-ui text-body-sm text-secondary">
+          {repeats
+            ? 'A card has no fixed size. It fills the space it gets in an offer book: pick a card there and press Wider or Taller, or change how many cards go across. Here you design how it looks at each shape, with a layout for each.'
+            : 'A panel has no fixed size. It fills the space it is placed in, in an offer book. Here you choose the shape it is designed for, under Designing for above the canvas.'}
+        </p>
+      </section>
     </div>
   )
 }

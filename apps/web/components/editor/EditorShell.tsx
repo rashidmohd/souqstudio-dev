@@ -309,6 +309,34 @@ export function EditorShell({
     }
   }, [selectedPage, selectionSpan])
 
+  /**
+   * "Make this card bigger": the selected card's rectangle grown by one column
+   * or one row, ready to merge.
+   *
+   * **A shortcut for Merge, not a second operation.** Owners looked for a block's
+   * size in the designer, where there is none; size is the space a card is given
+   * on the page, and taking in a neighbour is how a card gets more. These pick
+   * the neighbour for them: the next column or row if there is one, the previous
+   * if the card already touches that edge. Null where the grid has no room.
+   */
+  const grow = React.useMemo(() => {
+    if (selectionSpan === null || selectedCell === null) return { wider: null, taller: null }
+    const span = selectionSpan
+    const wider =
+      span.colEnd + 1 < bounds.perRow
+        ? { ...span, colEnd: span.colEnd + 1 }
+        : span.colStart > 0
+          ? { ...span, colStart: span.colStart - 1 }
+          : null
+    const taller =
+      span.rowEnd + 1 < bounds.bodyRows
+        ? { ...span, rowEnd: span.rowEnd + 1 }
+        : span.rowStart > 0
+          ? { ...span, rowStart: span.rowStart - 1 }
+          : null
+    return { wider, taller }
+  }, [selectionSpan, selectedCell, bounds.perRow, bounds.bodyRows])
+
   /** What the selected cell draws now, named — so the panel can say it without
    *  opening the picker. */
   const currentBlockName =
@@ -922,6 +950,12 @@ export function EditorShell({
                 onUnmerge={() => {
                   if (selectionSpan === null || cellPage === null) return
                   applyMerges(cellPage, unmergeSpan(pageMerges, selectionSpan), 'unmerge')
+                }}
+                grow={{ wider: grow.wider !== null, taller: grow.taller !== null }}
+                onGrow={(axis) => {
+                  const span = axis === 'wider' ? grow.wider : grow.taller
+                  if (span === null || cellPage === null) return
+                  applyMerges(cellPage, mergeSpan(pageMerges, span, bounds), 'merge')
                 }}
               />
             </div>
