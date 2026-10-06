@@ -21,4 +21,6 @@ export type PickableBlock = {
   /** Behind a higher plan. Shown, never selectable. */
   locked: boolean
   planTier: string
+  /** The worker's left-to-right PNG in this shop's kit, or null to draw live. */
+  thumbnailUrl: string | null
 }

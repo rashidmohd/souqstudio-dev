@@ -8,6 +8,7 @@ import {
   Plus,
   Redo2,
   Sparkles,
+  Layers,
   TriangleAlert,
   Undo2,
   X,
@@ -742,9 +743,12 @@ export function DesignerShell({
                     {store.arrangements.length > 1 ? (
                       <InlineSelect
                         label="Layout"
-                        className="w-field-select"
+                        compact
                         value={String(store.arrangementIndex)}
-                        leading={<ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />}
+                        // Layers, not the shape: "Designing for" beside it
+                        // already draws the shape, and two identical glyphs
+                        // side by side would read as one control twice.
+                        leading={<Layers className="size-4" strokeWidth={1.75} aria-hidden="true" />}
                         options={store.arrangements.map((item, i) => ({
                           value: String(i),
                           label: PAGE_SHAPES[shapeFor(item)].label,
@@ -755,7 +759,7 @@ export function DesignerShell({
 
                     <InlineSelect
                       label="Designing for"
-                      className="w-field-select"
+                      compact
                       value={pageShape}
                       disabled={!editable}
                       leading={<ShapeGlyph aspect={PAGE_SHAPES[pageShape].aspect} />}
@@ -783,16 +787,17 @@ export function DesignerShell({
                       <Button
                         type="button"
                         variant="ghost"
+                        iconOnly
+                        aria-label="Add a layout"
                         disabled={store.arrangements.length >= MAX_ARRANGEMENTS}
                         title={
                           store.arrangements.length >= MAX_ARRANGEMENTS
                             ? `A block may carry ${MAX_ARRANGEMENTS} layouts.`
-                            : undefined
+                            : 'Add a layout'
                         }
                         onClick={addStillArrangement}
                       >
                         <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                        Add a layout
                       </Button>
                     ) : null}
                     {editable ? (
@@ -805,9 +810,15 @@ export function DesignerShell({
                 // Hidden where the host has nowhere to send it (the library)
                 // and on a read-only block, which has no text to write into.
                 editable && host.fillUrl !== null ? (
-                  <Button type="button" variant="ghost" onClick={() => setFilling(true)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    iconOnly
+                    aria-label="Generative fill"
+                    title="Generative fill: write text with AI"
+                    onClick={() => setFilling(true)}
+                  >
                     <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                    Generative fill
                   </Button>
                 ) : undefined
               }
@@ -1078,7 +1089,7 @@ function ArrangementTabs() {
   const current = arrangements[index]
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-1">
       {/*
         **The shape and the name on one line, which a `Select` cannot do.** Its
         label sits above its field, so on a toolbar it is three stacked things
@@ -1090,9 +1101,12 @@ function ArrangementTabs() {
         "Banner" and `add()` produces exactly those, so four layouts showed four
         identical tabs. The label carries the proportion and the glyph draws it.
       */}
+      {/* Compact: the glyph and a chevron, with the layout's name and
+          proportion in the tooltip and in every option, so the toolbar stays
+          one line. The owner asked for icons only here. */}
       <InlineSelect
         label="Layout"
-        className="w-field-select"
+        compact
         value={String(index)}
         leading={<ShapeGlyph aspect={current === undefined ? 1 : middleAspect(current)} />}
         options={arrangements.map((item, i) => ({
@@ -1106,12 +1120,13 @@ function ArrangementTabs() {
         <Button
           type="button"
           variant="ghost"
+          iconOnly
+          aria-label="Add a layout"
           disabled={full}
-          title={full ? `A block may carry ${MAX_ARRANGEMENTS} layouts.` : undefined}
+          title={full ? `A block may carry ${MAX_ARRANGEMENTS} layouts.` : 'Add a layout'}
           onClick={add}
         >
           <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          Add a layout
         </Button>
       ) : null}
 
@@ -1140,8 +1155,8 @@ function CopyLayoutFrom({ name }: { name: (arrangement: Arrangement) => string }
 
   return (
     <InlineSelect
-      label="Replace this layout with a copy of another"
-      className="w-field-select"
+      label="Copy from another layout"
+      compact
       value="none"
       leading={<Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />}
       options={[

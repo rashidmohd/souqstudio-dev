@@ -4,6 +4,8 @@ import * as React from 'react'
 import { Check, Lock } from 'lucide-react'
 import type { BrandKit } from '@souqstudio/types'
 import { BlockPreview } from '@souqstudio/designer/components/blocks/BlockPreview'
+import { previewAspect } from '@souqstudio/designer/lib/preview-shape'
+import { PreviewUpdating } from '@/components/blocks/PreviewUpdating'
 import { cn } from '@souqstudio/designer/lib/utils'
 import type { PickableBlock } from '@/components/offer-book/types'
 
@@ -49,7 +51,12 @@ type Props = {
  * carries the measured table — so a tile at 0.7 is showing the owner roughly
  * what they will get rather than a shape no page produces.
  */
-const TILE = { width: 154, height: 220 }
+/**
+ * A repeating card's tile, at `previewAspect`'s 0.72: the shape every other
+ * list draws one at, so the worker's single PNG of it fits here too. It was
+ * 154 by 220, which is 0.70 and within a few pixels of the same cell.
+ */
+const TILE = { width: 154, height: Math.round(154 / previewAspect({ repeats: true, arrangements: [] })) }
 
 export function DesignPicker({ blocks, kit, value, onChange, direction }: Props) {
   const own = blocks.filter((block) => block.organizationId !== null)
@@ -142,7 +149,10 @@ function Tile({
           width={TILE.width}
           height={TILE.height}
           direction={direction}
+          // The PNG is drawn left to right. An Arabic tile draws live.
+          thumbnailUrl={direction === 'ltr' ? block.thumbnailUrl : null}
         />
+        {block.organizationId === null ? null : <PreviewUpdating blockId={block.id} />}
         {checked ? (
           <span
             aria-hidden="true"

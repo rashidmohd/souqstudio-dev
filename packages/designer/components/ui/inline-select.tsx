@@ -36,6 +36,13 @@ type InlineSelectProps<T extends string> = {
   disabled?: boolean
   onChange: (value: T) => void
   className?: string
+  /**
+   * Just the glyph and the chevron, for a toolbar that has to stay one line.
+   * The current value moves into the tooltip, so it is still one hover away,
+   * and pressing it opens the same native list. Needs a `leading` glyph: a
+   * chevron alone names nothing.
+   */
+  compact?: boolean
 }
 
 export function InlineSelect<T extends string>({
@@ -46,14 +53,16 @@ export function InlineSelect<T extends string>({
   disabled = false,
   onChange,
   className,
+  compact = false,
 }: InlineSelectProps<T>) {
   const current = options.find((option) => option.value === value)
 
   return (
     <div
-      title={label}
+      title={compact && current !== undefined ? `${label}: ${current.label}` : label}
       className={cn(
-        'relative flex h-control items-center gap-2 rounded-control border border-border-strong bg-input ps-3 pe-2',
+        'relative flex h-control items-center rounded-control border border-border-strong bg-input',
+        compact ? 'gap-1 ps-2 pe-1' : 'gap-2 ps-3 pe-2',
         // The select is transparent, so the ring has to come from the wrapper or
         // a keyboard user sees nothing at all. `ShopSwitcher`'s note, and the
         // same failure.
@@ -68,9 +77,11 @@ export function InlineSelect<T extends string>({
         </span>
       )}
 
-      <span aria-hidden="true" className="truncate font-ui text-body-sm text-primary">
-        {current?.label ?? ''}
-      </span>
+      {compact ? null : (
+        <span aria-hidden="true" className="truncate font-ui text-body-sm text-primary">
+          {current?.label ?? ''}
+        </span>
+      )}
 
       <ChevronDown
         aria-hidden="true"

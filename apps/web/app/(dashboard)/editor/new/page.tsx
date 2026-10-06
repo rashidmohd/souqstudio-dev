@@ -4,6 +4,7 @@ import { requireCompliantSession } from '@/lib/session'
 import { getActiveShop } from '@/lib/active-shop'
 import { readEffectiveBrand } from '@/lib/brand-kit'
 import { listBlocks } from '@/lib/blocks'
+import { thumbnailsFor } from '@souqstudio/designer/lib/block-thumbnail'
 import { NewBookWizard } from '@/components/offer-book/NewBookWizard'
 import type { PickableBlock } from '@/components/offer-book/types'
 import { isCurrency } from '@souqstudio/types'
@@ -86,8 +87,15 @@ export default async function NewBookPage() {
    * shipped, not about their row — and `repeats` is the property that actually
    * decides whether it can hold a product.
    */
-  const pickable: PickableBlock[] = blocks
-    .filter((block) => block.repeats)
+  const repeating = blocks.filter((block) => block.repeats)
+  // PNGs in this shop's kit, as the library and the editor's picker show them.
+  // Left to right only: the wizard always starts a book in English.
+  const thumbnails = await thumbnailsFor(repeating, {
+    kit: brand.brandKit,
+    source: { shopId: shop.id },
+  })
+
+  const pickable: PickableBlock[] = repeating
     .map((block) => ({
       id: block.id,
       name: block.name,
@@ -95,6 +103,7 @@ export default async function NewBookPage() {
       organizationId: block.organizationId,
       locked: block.locked,
       planTier: block.planTier,
+      thumbnailUrl: thumbnails.get(block.id) ?? null,
     }))
 
   return (

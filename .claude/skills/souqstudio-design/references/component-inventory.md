@@ -874,8 +874,16 @@ type InlineSelectProps<T extends string> = {
   disabled?: boolean
   onChange: (value: T) => void
   className?: string
+  compact?: boolean              // glyph + chevron only; value moves to the tooltip
 }
 ```
+
+**`compact` is for a toolbar that must stay one line** — the block designer's
+canvas bar, since 6 October 2026, where the owner asked for icons only. It drops
+the visible value and puts `label: value` in the tooltip; the native list and every
+option's text are unchanged, so nothing is reachable only by recognising a glyph.
+It needs a `leading` glyph, and two compact selects side by side need two different
+glyphs, or they read as one control twice.
 
 **`Select` inside a form, `InlineSelect` on a toolbar.** `Select`'s label sits
 above its field, which is right where everything around it is a labelled field
