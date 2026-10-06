@@ -1515,6 +1515,19 @@ export interface Arrangement {
   aspectMin: number
   aspectMax: number
   elements: BlockElement[]
+  /**
+   * The shape this layout keeps, as width ÷ height, when the owner has locked
+   * it. Absent, the layout fills whatever region picks it, which is how every
+   * block drew before 6 October 2026.
+   *
+   * **Locked, it is drawn at this shape and centred in the region**, so a
+   * region bigger than the card shows space around it instead of stretching
+   * it. That is what makes trimming a card in the designer mean something in a
+   * book: the owner cut the empty strip off a 0.6 card, it is now 0.72, and the
+   * book draws it at 0.72. `aspectMin` and `aspectMax` still decide *which*
+   * layout a region uses; this decides only how it sits once chosen.
+   */
+  shape?: number | undefined
 }
 
 /**

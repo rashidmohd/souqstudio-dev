@@ -90,3 +90,33 @@ describe('resolveBlock', () => {
     expect(rect?.y).toBe(160)
   })
 })
+
+describe('a layout that keeps its shape', () => {
+  const locked = (shape: number) =>
+    block({ arrangements: [{ aspectMin: 0.4, aspectMax: 1.2, elements: [image], shape }] })
+
+  it('is drawn at its own shape, centred, rather than stretched to the region', () => {
+    // A 1:1 card in a 400 × 800 cell: full width, centred down the cell.
+    const { frame, elements } = resolveBlock(locked(1), CONTAINER, 'ltr')
+    expect(frame).toEqual({ x: 100, y: 400, width: 400, height: 400 })
+    expect(elements[0]?.rect).toEqual({ x: 100, y: 400, width: 400, height: 200 })
+  })
+
+  it('centres across instead when the region is the wider one', () => {
+    const wide = { x: 0, y: 0, width: 800, height: 400 }
+    const { frame } = resolveBlock(
+      block({ arrangements: [{ aspectMin: 0.1, aspectMax: 8, elements: [image], shape: 1 }] }),
+      wide,
+      'ltr'
+    )
+    expect(frame).toEqual({ x: 200, y: 0, width: 400, height: 400 })
+  })
+
+  it('fills the region exactly when the shapes already agree', () => {
+    expect(resolveBlock(locked(0.5), CONTAINER, 'ltr').frame).toEqual(CONTAINER)
+  })
+
+  it('leaves a layout without a shape filling the region, as before', () => {
+    expect(resolveBlock(block(), CONTAINER, 'ltr').frame).toEqual(CONTAINER)
+  })
+})

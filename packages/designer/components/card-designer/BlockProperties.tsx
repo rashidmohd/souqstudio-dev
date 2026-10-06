@@ -5,6 +5,7 @@ import { Trash2 } from 'lucide-react'
 import type { Arrangement } from '@souqstudio/types'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Segmented } from '../ui/segmented'
 import { Select } from '../ui/select'
 
 /**
@@ -32,6 +33,12 @@ type Props = {
   onName: (name: string) => void
   onStatus: (status: string) => void
   onAspect: (min: number, max: number) => void
+  /**
+   * Whether the layouts keep the shape they were drawn at in a book, rather
+   * than stretching to fill the cell. `Arrangement.shape`.
+   */
+  keepsShape: boolean
+  onKeepShape: (on: boolean) => void
   onRemoveArrangement: () => void
 }
 
@@ -47,6 +54,8 @@ export function BlockProperties({
   onName,
   onStatus,
   onAspect,
+  keepsShape,
+  onKeepShape,
   onRemoveArrangement,
 }: Props) {
   return (
@@ -160,10 +169,22 @@ export function BlockProperties({
       */}
       <section className="flex flex-col gap-1 rounded-control bg-sand-tint p-3">
         <h3 className="font-ui text-eyebrow uppercase tracking-wide text-secondary">Size</h3>
+        <Segmented
+          label="In a book"
+          value={keepsShape ? 'keep' : 'fill'}
+          disabled={disabled}
+          options={[
+            { value: 'fill', label: 'Fill the space' },
+            { value: 'keep', label: 'Keep its shape' },
+          ]}
+          onChange={(next) => onKeepShape(next === 'keep')}
+        />
         <p className="font-ui text-body-sm text-secondary">
-          {repeats
-            ? 'A card has no fixed size. It fills the space it gets in an offer book: pick a card there and press Wider or Taller, or change how many cards go across. Here you design how it looks at each shape, with a layout for each.'
-            : 'A panel has no fixed size. It fills the space it is placed in, in an offer book. Here you choose the shape it is designed for, under Designing for above the canvas.'}
+          {keepsShape
+            ? 'Drawn at the shape you see here and centred in its space in a book, so a bigger space leaves room around it. Drag the bars on the edges of the card to make it shorter, taller, narrower or wider.'
+            : repeats
+              ? 'Stretched to fill the space it gets in an offer book. Make a card bigger there: pick it and press Wider or Taller, or change how many cards go across. Choose Keep its shape to resize the card here.'
+              : 'Stretched to fill the space it is placed in, in an offer book. Choose the shape under Designing for above the canvas, or Keep its shape to resize it here.'}
         </p>
       </section>
     </div>

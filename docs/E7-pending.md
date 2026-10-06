@@ -272,6 +272,16 @@ Recorded here rather than edited into the epic.
    column cannot hold a seeded block's picture in every shop's kit. Needs the
    migration, `RENDER_TOKEN_SECRET` on web and worker, `WEB_RENDER_URL` on the
    worker, and Chromium in the worker's image. Old PNGs are never pruned yet.
+4a. **A layout can keep its shape — 6 October 2026.** Owners trimming empty space off a
+   card found there was nothing to trim: a card stretched to fill its cell, so making it
+   shorter in the designer would have changed nothing in a book. `Arrangement.shape` is
+   the fix. Set by Block properties → Size → *Keep its shape*, it makes `resolveBlock`
+   draw the layout at that shape, centred in its cell (the owner chose centred over
+   top-aligned, so rows of cards stay lined up), and it gives the designer's canvas edge
+   handles that cut or add space without moving the content
+   (`lib/arrangement-shape.ts`). `aspectMin`/`aspectMax` still choose the layout; the
+   shape only decides how it sits. Absent, nothing changes, so every existing block and
+   the seeded library draw exactly as before, and no `validateBlock` warning was added.
 5. **A block snapshot per book.** Editing a block changes every unpublished book
    that uses it. That is right for a fix and wrong for a redesign, and the honest
    answer is probably a version pin on the page grid rather than a copy. Not

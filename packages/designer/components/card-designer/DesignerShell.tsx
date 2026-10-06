@@ -36,6 +36,8 @@ import { watchThumbnail } from '../../lib/thumbnail-watch'
 import { Dialog } from '../ui/dialog'
 import { toast } from '../ui/toast'
 import { ArtworkDialog } from './ArtworkDialog'
+import { ShapeHandles } from './ShapeHandles'
+import { reshapeArrangement } from '../../lib/arrangement-shape'
 import { GenerativeFillDialog } from './GenerativeFillDialog'
 import { CanvasToolbar } from './CanvasToolbar'
 import { InlineSelect } from '../ui/inline-select'
@@ -319,7 +321,7 @@ export function DesignerShell({
    */
   const pageShape = shapeFor(arrangement)
 
-  const aspect = repeats
+  const designed = repeats
     ? clamp(
         Math.sqrt(
           Math.max(arrangement?.aspectMin ?? 1, 0.05) * Math.max(arrangement?.aspectMax ?? 1, 0.05)
@@ -328,6 +330,14 @@ export function DesignerShell({
         4
       )
     : PAGE_SHAPES[pageShape].aspect
+
+  /**
+   * **A layout that keeps its shape is drawn at that shape**, because that is
+   * the shape the book will draw it at: centred in its cell rather than
+   * stretched to it. `Arrangement.shape`, and `resolveBlock` in the engine.
+   */
+  const aspect = arrangement?.shape ?? designed
+  const keepsShape = store.arrangements.length > 0 && store.arrangements.every((item) => item.shape !== undefined)
 
   const width = aspect >= 1 ? CANVAS_EDGE : CANVAS_EDGE * aspect
   const height = aspect >= 1 ? CANVAS_EDGE / aspect : CANVAS_EDGE
@@ -840,6 +850,8 @@ export function DesignerShell({
             // you cannot grab at the moment you most need to.
             style={{ maxWidth: `${Math.round(store.zoom * 100)}%` }}
           >
+            {/* Relative, so a locked layout's edge handles can sit on the card. */}
+            <div className="relative w-full">
             <BlockArtboard
               elements={elements}
               kit={kit}
@@ -864,8 +876,20 @@ export function DesignerShell({
               ariaLabel="The card you are designing"
               className="rounded-artboard"
             />
+            {editable && arrangement?.shape !== undefined ? (
+              <ShapeHandles
+                direction={direction}
+                onResize={(across, down) => resizeCard(across, down, aspect)}
+              />
+            ) : null}
+            </div>
             <figcaption className="rounded-pill bg-surface px-3 py-1 font-ui text-body-sm text-secondary">
               {repeats ? 'A typical product' : 'This panel, at that shape'}
+              {/* The visible half of the handles' instruction: a tablet has no
+                  hover, so a tooltip cannot be the only place this is said. */}
+              {editable && arrangement?.shape !== undefined
+                ? '. Drag the bars on its edges to resize it.'
+                : ''}
             </figcaption>
           </figure>
 
@@ -938,6 +962,8 @@ export function DesignerShell({
               onName={store.setName}
               onStatus={(status) => useDesignerStore.setState({ status, save: 'dirty' })}
               onAspect={(min, max) => setAspect(min, max)}
+              keepsShape={keepsShape}
+              onKeepShape={(on) => setKeepsShape(on, repeats)}
               onRemoveArrangement={removeArrangement}
             />
           ) : (
@@ -976,11 +1002,15 @@ export function DesignerShell({
   )
 
   function setAspect(min: number, max: number) {
-    const next = store.arrangements.map((item, index) =>
-      index === store.arrangementIndex
-        ? { ...item, aspectMin: safe(min, 0.05), aspectMax: safe(max, 0.05) }
-        : item
-    )
+    const next = store.arrangements.map((item, index) => {
+      if (index !== store.arrangementIndex) return item
+      const ranged = { ...item, aspectMin: safe(min, 0.05), aspectMax: safe(max, 0.05) }
+      // A locked panel picking a new shape takes that shape, or the canvas
+      // would stay at the old one while the picker named another.
+      return item.shape !== undefined && !repeats
+        ? { ...ranged, shape: naturalAspect(ranged, false) }
+        : ranged
+    })
     useDesignerStore.setState({
       arrangements: next,
       past: [...store.past, store.arrangements].slice(-50),
@@ -1025,6 +1055,54 @@ export function nextStillShape(arrangements: readonly Arrangement[]): PageShape 
  * layouts partition a continuum of merges, while a panel's name the handful of
  * page shapes a book actually produces.
  */
+/**
+ * Lock or unlock every layout's shape. Locking records the shape each layout
+ * is drawn at now, so nothing on the canvas moves; unlocking forgets it, and
+ * the block fills its cell again. One undo step.
+ */
+function setKeepsShape(on: boolean, repeats: boolean): void {
+  const state = useDesignerStore.getState()
+  if (!state.editable) return
+  const arrangements = state.arrangements.map((item) => {
+    if (on) return item.shape === undefined ? { ...item, shape: naturalAspect(item, repeats) } : item
+    const { shape: _unlocked, ...rest } = item
+    return rest
+  })
+  useDesignerStore.setState({
+    arrangements,
+    past: [...state.past, state.arrangements].slice(-50),
+    future: [],
+    save: 'dirty',
+  })
+}
+
+/**
+ * Resize the open layout from its edges: `across` and `down` are the new size
+ * as shares of the old. The content keeps its place and size, the edge moves.
+ * `lib/arrangement-shape.ts`. One undo step.
+ */
+function resizeCard(across: number, down: number, aspect: number): void {
+  const state = useDesignerStore.getState()
+  const current = state.arrangements[state.arrangementIndex]
+  if (!state.editable || current === undefined) return
+  const next = reshapeArrangement(current, current.shape ?? aspect, across, down)
+  useDesignerStore.setState({
+    arrangements: state.arrangements.map((item, index) =>
+      index === state.arrangementIndex ? next : item
+    ),
+    past: [...state.past, state.arrangements].slice(-50),
+    future: [],
+    save: 'dirty',
+  })
+}
+
+/** The shape a layout is drawn at before it is locked: what locking keeps. */
+function naturalAspect(arrangement: Arrangement, repeats: boolean): number {
+  return repeats
+    ? clamp(middleAspect(arrangement), 0.3, 4)
+    : PAGE_SHAPES[shapeFor(arrangement)].aspect
+}
+
 function addStillArrangement(): void {
   const state = useDesignerStore.getState()
   const current = state.arrangements[state.arrangementIndex]
@@ -1035,6 +1113,8 @@ function addStillArrangement(): void {
     aspectMin: shape.aspectMin,
     aspectMax: shape.aspectMax,
     elements: structuredClone(current.elements) as BlockElement[],
+    // A locked block's new layout is locked too, at the shape it is named for.
+    ...(current.shape === undefined ? {} : { shape: shape.aspect }),
   }
 
   useDesignerStore.setState({
@@ -1075,6 +1155,10 @@ function ArrangementTabs() {
       aspectMin: last,
       aspectMax: Math.min(40, last * 2),
       elements: structuredClone(current.elements) as BlockElement[],
+      // A locked block's new layout is locked too, at the middle of its range.
+      ...(current.shape === undefined
+        ? {}
+        : { shape: clamp(Math.sqrt(last * Math.min(40, last * 2)), 0.3, 4) }),
     }
     useDesignerStore.setState((state) => ({
       arrangements: [...state.arrangements, copy],

@@ -24,6 +24,13 @@ export interface ResolvedBlock {
   /** Which arrangement the container's aspect selected. */
   arrangementIndex: number
   elements: ResolvedElement[]
+  /**
+   * The rectangle the block was actually laid out in. The container itself,
+   * unless the arrangement keeps a shape, and then that shape centred in it.
+   * Optional so a resolved block built by hand, in a test or a transform that
+   * predates it, still type-checks; `resolveBlock` always sets it.
+   */
+  frame?: Rect | undefined
 }
 
 /**
@@ -42,12 +49,33 @@ export function resolveBlock(block: Block, container: Rect, direction: Direction
     throw new Error(`resolveBlock: block "${block.id}" has no arrangement at ${arrangementIndex}`)
   }
 
+  // A locked layout keeps its own shape, centred, rather than stretching to
+  // the container. `Arrangement.shape`.
+  const frame = arrangement.shape === undefined ? container : centredAt(container, arrangement.shape)
+
   const elements = arrangement.elements.map((element) => ({
     element,
-    rect: boxRect(element.box, container, direction),
+    rect: boxRect(element.box, frame, direction),
   }))
 
-  return { arrangementIndex, elements }
+  return { arrangementIndex, elements, frame }
+}
+
+/**
+ * The largest rectangle of this width ÷ height that fits inside the
+ * container, centred in it. Centred on both axes, so a row of locked cards in
+ * cells of one height stays lined up, which the owner chose over top-aligned.
+ */
+export function centredAt(container: Rect, aspect: number): Rect {
+  const fitsWidth = container.width / aspect <= container.height
+  const width = fitsWidth ? container.width : container.height * aspect
+  const height = fitsWidth ? container.width / aspect : container.height
+  return {
+    x: container.x + (container.width - width) / 2,
+    y: container.y + (container.height - height) / 2,
+    width,
+    height,
+  }
 }
 
 function boxRect(

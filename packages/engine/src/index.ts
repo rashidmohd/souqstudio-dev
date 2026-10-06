@@ -71,7 +71,7 @@ export {
   roleColor,
   type Paint,
 } from './color'
-export { resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
+export { centredAt, resolveBlock, type ResolvedBlock, type ResolvedElement } from './render'
 // The one place an owner may disagree with the engine, and it is bounded by
 // construction — E6 §1. See the file.
 export {

@@ -235,6 +235,7 @@ export function compactBlock(
 
   return {
     arrangementIndex: block.arrangementIndex,
+    ...(block.frame === undefined ? {} : { frame: block.frame }),
     elements: block.elements
       .map((element, index) => {
         if (!PARTICIPATES.has(element.element.kind)) return element

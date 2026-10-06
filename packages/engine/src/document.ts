@@ -783,6 +783,8 @@ const arrangementSchema = z
     aspectMin: z.number().min(0.05).max(40),
     aspectMax: z.number().min(0.05).max(40),
     elements: z.array(elementSchema).max(MAX_ELEMENTS),
+    /** Width ÷ height the layout keeps when locked. `Arrangement.shape`. */
+    shape: z.number().min(0.05).max(40).optional(),
   })
   .refine((value) => value.aspectMin <= value.aspectMax, {
     message: 'An arrangement cannot end at a narrower shape than it starts',
